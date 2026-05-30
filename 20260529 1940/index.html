@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Calendario Semanal</title>
+  <!-- Google Fonts: Inter for general modern typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    (function() {
+      if (window.innerWidth <= 768) {
+        document.documentElement.classList.add('mobile-mode');
+      }
+    })();
+  </script>
+</head>
+<body class="not-logged-in">
+  <!-- Pantalla de Carga (Splash Screen) -->
+  <div id="splash-screen">
+    <div class="splash-content">
+      <div class="splash-logo-container">
+        <img src="icons/logo svg.png" alt="Planner7" height="48" style="width: auto;" class="splash-logo">
+      </div>
+    </div>
+  </div>
+  <script>
+    setTimeout(() => {
+      const splash = document.getElementById('splash-screen');
+      if (splash) {
+        splash.classList.add('hidden-splash');
+        setTimeout(() => splash.remove(), 400); // Remueve del DOM al terminar la transición
+      }
+    }, 1500);
+  </script>
+
+  <div class="app-container">
+    <!-- 1. Barra Superior Horizontal -->
+    <header class="top-bar">
+      <div class="header-left">
+        <!-- Calendario Icono Negro -->
+        <span class="calendar-icon">
+          <img src="icons/logo svg.png" alt="Calendario">
+        </span>
+      </div>
+
+      <!-- Navegación de Semanas -->
+      <div class="week-navigator">
+        <button id="prev-week-btn" aria-label="Semana anterior">
+          <img src="icons/chevron-left.svg" alt="Anterior" width="16" height="16">
+        </button>
+        <div class="week-display-container">
+          <span id="week-range-label">18 – 24 de Mayo, 2026</span>
+          <input type="date" id="hidden-date-picker" style="position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;">
+          <button id="datepicker-trigger" aria-label="Elegir fecha">
+            <img src="icons/datepicker.svg" alt="Elegir fecha" width="14" height="14">
+          </button>
+
+          <!-- Ventana de Calendario Personalizada -->
+          <div id="custom-calendar-dropdown" class="custom-calendar-dropdown hidden">
+            <div class="custom-calendar-header">
+              <button type="button" id="custom-calendar-prev-month" class="custom-calendar-nav-btn" aria-label="Mes anterior">
+                <img src="icons/chevron-left.svg" alt="Mes anterior" width="12" height="12">
+              </button>
+              <span id="custom-calendar-month-year">Mayo 2026</span>
+              <button type="button" id="custom-calendar-next-month" class="custom-calendar-nav-btn" aria-label="Mes siguiente">
+                <img src="icons/chevron-right.svg" alt="Mes siguiente" width="12" height="12">
+              </button>
+            </div>
+            <div class="custom-calendar-weekdays">
+              <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
+            </div>
+            <div id="custom-calendar-days" class="custom-calendar-days-grid">
+              <!-- Se generará dinámicamente -->
+            </div>
+          </div>
+        </div>
+        <button id="next-week-btn" aria-label="Semana siguiente">
+          <img src="icons/chevron-right.svg" alt="Siguiente" width="16" height="16">
+        </button>
+        <button id="today-btn">Hoy</button>
+      </div>
+
+      <div class="header-right">
+        <div class="header-icon-group">
+          <!-- Botón Papelera (Drop target para eliminar tareas) -->
+          <button id="trash-btn" title="Arrastra una tarea aquí para eliminarla" class="icon-button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
+          <!-- Botón Etiquetas -->
+          <button id="tags-modal-btn" title="Gestionar Etiquetas" class="icon-button">
+            <img src="icons/tag.svg" alt="Etiquetas" width="20" height="20">
+          </button>
+          <!-- Botón Archivados -->
+          <button id="briefcase-btn" title="Tareas Archivadas" class="icon-button">
+            <img src="icons/folder-closed.svg" alt="Archivados" width="20" height="20" class="folder-closed-icon">
+            <img src="icons/folder-open.svg" alt="Archivados abierto" width="20" height="20" class="folder-open-icon" style="display:none;">
+          </button>
+        </div>
+        <!-- Avatar de Usuario (Inactivo) -->
+        <div class="user-avatar" title="Perfil de usuario (Inactivo)">
+          <span>U</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 2. Vista Semanal del Calendario con Maletín -->
+    <div class="main-layout">
+      <main class="planner-grid">
+      <div class="planner-week-wrapper">
+        <!-- Columna Lunes -->
+        <div class="day-column" data-day="1">
+          <div class="day-header">
+            <span class="day-name">LUNES</span>
+            <span class="day-number">18</span>
+            <button class="dialogue-day-btn" title="Diálogo">
+              <img src="icons/message-square.svg" alt="Diálogo">
+            </button>
+            <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
+              <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
+            </button>
+          </div>
+          <div class="tasks-container" data-day-index="1">
+            <!-- Las tareas se inyectarán dinámicamente aquí -->
+          </div>
+          <button class="add-task-btn" data-day-index="1">
+            <span class="plus-icon">+</span> Agregar tarea
+          </button>
+        </div>
+
+        <!-- Columna Martes -->
+        <div class="day-column" data-day="2">
+          <div class="day-header">
+            <span class="day-name">MARTES</span>
+            <span class="day-number">19</span>
+            <button class="dialogue-day-btn" title="Diálogo">
+              <img src="icons/message-square.svg" alt="Diálogo">
+            </button>
+            <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
+              <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
+            </button>
+          </div>
+          <div class="tasks-container" data-day-index="2"></div>
+          <button class="add-task-btn" data-day-index="2">
+            <span class="plus-icon">+</span> Agregar tarea
+          </button>
+        </div>
+
+        <!-- Columna Miércoles -->
+        <div class="day-column" data-day="3">
+          <div class="day-header">
+            <span class="day-name">MIÉRCOLES</span>
+            <span class="day-number">20</span>
+            <button class="dialogue-day-btn" title="Diálogo">
+              <img src="icons/message-square.svg" alt="Diálogo">
+            </button>
+            <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
+              <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
+            </button>
+          </div>
+          <div class="tasks-container" data-day-index="3"></div>
+          <button class="add-task-btn" data-day-index="3">
+            <span class="plus-icon">+</span> Agregar tarea
+          </button>
+        </div>
+
+        <!-- Columna Jueves -->
+        <div class="day-column" data-day="4">
+          <div class="day-header">
+            <span class="day-name">JUEVES</span>
+            <span class="day-number">21</span>
+            <button class="dialogue-day-btn" title="Diálogo">
+              <img src="icons/message-square.svg" alt="Diálogo">
+            </button>
+            <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
+              <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
+            </button>
+          </div>
+          <div class="tasks-container" data-day-index="4"></div>
+          <button class="add-task-btn" data-day-index="4">
+            <span class="plus-icon">+</span> Agregar tarea
+          </button>
+        </div>
+
+        <!-- Columna Viernes -->
+        <div class="day-column" data-day="5">
+          <div class="day-header">
+            <span class="day-name">VIERNES</span>
+            <span class="day-number">22</span>
+            <button class="dialogue-day-btn" title="Diálogo">
+              <img src="icons/message-square.svg" alt="Diálogo">
+            </button>
+            <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
+              <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
+            </button>
+          </div>
+          <div class="tasks-container" data-day-index="5"></div>
+          <button class="add-task-btn" data-day-index="5">
+            <span class="plus-icon">+</span> Agregar tarea
+          </button>
+        </div>
+
+        <!-- Columna Sábado -->
+        <div class="day-column" data-day="6">
+          <div class="day-header">
+            <span class="day-name">SÁBADO</span>
+            <span class="day-number">23</span>
+            <button class="dialogue-day-btn" title="Diálogo">
+              <img src="icons/message-square.svg" alt="Diálogo">
+            </button>
+            <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
+              <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
+            </button>
+          </div>
+          <div class="tasks-container" data-day-index="6"></div>
+          <button class="add-task-btn" data-day-index="6">
+            <span class="plus-icon">+</span> Agregar tarea
+          </button>
+        </div>
+
+        <!-- Columna Domingo -->
+        <div class="day-column" data-day="7">
+          <div class="day-header">
+            <span class="day-name">DOMINGO</span>
+            <span class="day-number">7</span>
+            <button class="dialogue-day-btn" title="Diálogo">
+              <img src="icons/message-square.svg" alt="Diálogo">
+            </button>
+            <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
+              <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
+            </button>
+          </div>
+          <div class="tasks-container" data-day-index="7"></div>
+          <button class="add-task-btn" data-day-index="7">
+            <span class="plus-icon">+</span> Agregar tarea
+          </button>
+        </div>
+      </div>
+    </main>
+
+      <!-- Panel Lateral: Tareas Archivadas -->
+      <aside id="briefcase-drawer" class="briefcase-drawer closed">
+        <div class="drawer-header">
+          <div class="drawer-title-wrapper">
+            <img src="icons/folder-closed.svg" alt="Archivados" width="18" height="18">
+            <h3>Archivados</h3>
+          </div>
+          <button id="briefcase-calendar-btn" class="close-drawer-btn hidden" aria-label="Soltar en calendario" style="margin-right: 8px;">
+            <img src="icons/datepicker.svg" alt="Soltar en calendario" width="20" height="20">
+          </button>
+          <button id="close-briefcase-drawer" class="close-drawer-btn" aria-label="Cerrar archivados">
+            <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+          </button>
+        </div>
+        <div class="drawer-body">
+          <div id="briefcase-tasks-container" class="briefcase-tasks-container tasks-container">
+            <!-- Las tareas sin fecha se inyectarán aquí -->
+          </div>
+        </div>
+        <div class="drawer-footer">
+          <button id="briefcase-add-task-btn" class="add-task-btn" style="margin: 0; width: 100%;">
+            <span class="plus-icon">+</span> Agregar tarea
+          </button>
+        </div>
+      </aside>
+    </div>
+
+  <div id="briefcase-mobile-backdrop" class="briefcase-mobile-backdrop hidden"></div>
+
+  <!-- MODAL: NUEVA TAREA / DETALLE TAREA -->
+  <div id="task-modal" class="modal-backdrop hidden">
+    <div class="modal-content task-modal-w">
+      <div class="modal-header">
+        <h2 id="modal-task-title">Nueva tarea</h2>
+        <div class="modal-header-actions">
+          <!-- Icono Basurero para eliminar tarea -->
+          <button id="delete-task-btn" title="Eliminar tarea" class="icon-button delete-btn hidden">
+            <img src="icons/trash.svg" alt="Eliminar tarea" width="18" height="18">
+          </button>
+          <!-- Icono X para cerrar -->
+          <button class="close-modal-btn" data-modal="task-modal">
+            <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+          </button>
+        </div>
+      </div>
+
+      <form id="task-form" class="modal-body">
+        <div class="form-group">
+          <label for="task-input-title" class="sr-only">Título</label>
+          <input type="text" id="task-input-title" placeholder="Título de la tarea" required autocomplete="off">
+        </div>
+
+        <div class="form-group">
+          <label for="task-input-description" class="sr-only">Descripción</label>
+          <textarea id="task-input-description" placeholder="Añade una descripción (opcional)" rows="3"></textarea>
+        </div>
+
+        <div class="form-row">
+          <!-- Etiquetas dropdown -->
+          <div class="form-group flex-1">
+            <label for="task-select-tag">Etiqueta</label>
+            <div class="custom-select-wrapper">
+              <input type="hidden" id="task-select-tag" value="default">
+              <div class="custom-select-trigger" id="tag-select-trigger">
+                <span class="custom-select-color-circle" style="background-color: #50a9ed;"></span>
+                <span class="custom-select-trigger-text">Por defecto</span>
+                <span class="custom-select-arrow">
+                  <img src="icons/chevron-down.svg" alt="Abrir" width="10" height="10">
+                </span>
+              </div>
+              <div class="custom-options-container hidden" id="tag-options-container">
+                <!-- Las opciones se generarán por JS -->
+              </div>
+            </div>
+          </div>
+          <!-- Fecha Base con Checkbox de Archivados -->
+          <div class="form-group flex-1">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label for="task-input-date" style="margin-bottom: 0;">Fecha</label>
+              <label class="checkbox-container" style="text-transform: none; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text-muted);">
+                <input type="checkbox" id="task-in-briefcase-checkbox">
+                <span>Archivar tarea</span>
+              </label>
+            </div>
+            <input type="date" id="task-input-date" required>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <!-- Hora Inicio -->
+          <div class="form-group flex-1">
+            <label for="task-input-start">Inicio (opcional)</label>
+            <input type="time" id="task-input-start">
+          </div>
+          <!-- Hora Fin -->
+          <div class="form-group flex-1">
+            <label for="task-input-end">Fin (opcional)</label>
+            <input type="time" id="task-input-end">
+          </div>
+        </div>
+
+        <!-- Duración (Calculada automáticamente) -->
+        <div id="duration-display" class="duration-badge hidden">
+          <span>Duración: <strong id="duration-val">-</strong></span>
+        </div>
+
+        <!-- Panel de Repetición -->
+        <div class="recurrence-section">
+          <div class="recurrence-toggle-wrapper">
+            <span class="recurrence-label-text">¿Se repite?</span>
+            <label class="switch">
+              <input type="checkbox" id="task-repeat-toggle">
+              <span class="slider round"></span>
+            </label>
+            <span id="recurrence-status-text" class="recurrence-status">No</span>
+          </div>
+
+          <!-- Panel de Configuración de Repetición (Oculto por defecto) -->
+          <div id="recurrence-panel" class="recurrence-panel hidden">
+            <div class="form-group recurrence-input-group">
+              <label for="repeat-interval">Repetir cada</label>
+              <div style="display: flex; gap: 8px; width: 220px; align-items: center;">
+                <input type="number" id="repeat-interval" min="1" max="99" value="1" style="width: 70px; padding: 6px 10px;">
+                <select id="repeat-unit" style="flex: 1; padding: 6px 10px;">
+                  <option value="weekly">semana(s)</option>
+                  <option value="monthly">mes(es)</option>
+                  <option value="yearly">año(s)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group" id="days-selector-group">
+              <label>Repetir los días</label>
+              <div class="days-selector">
+                <button type="button" class="day-toggle-btn" data-day-value="1">L</button>
+                <button type="button" class="day-toggle-btn" data-day-value="2">M</button>
+                <button type="button" class="day-toggle-btn" data-day-value="3">M</button>
+                <button type="button" class="day-toggle-btn" data-day-value="4">J</button>
+                <button type="button" class="day-toggle-btn" data-day-value="5">V</button>
+                <button type="button" class="day-toggle-btn" data-day-value="6">S</button>
+                <button type="button" class="day-toggle-btn" data-day-value="7">D</button>
+              </div>
+            </div>
+
+            <div id="recurrence-hint" style="font-size: 12px; color: var(--text-muted); margin-top: -6px; margin-bottom: 12px; font-weight: 500; min-height: 16px;"></div>
+
+            <div class="form-group">
+              <label>Termina</label>
+              <div class="end-options">
+                <label class="radio-option">
+                  <input type="radio" name="recurrence-end" value="never" checked>
+                  <span>Nunca</span>
+                </label>
+                
+                <label class="radio-option">
+                  <input type="radio" name="recurrence-end" value="date">
+                  <span>En fecha específica</span>
+                </label>
+                <input type="date" id="repeat-end-date" class="hidden-input-field hidden">
+
+                <label class="radio-option">
+                  <input type="radio" name="recurrence-end" value="count">
+                  <span>Después de</span>
+                </label>
+                <div class="count-input-wrapper hidden-input-field hidden">
+                  <input type="number" id="repeat-end-count" min="1" value="10">
+                  <span>repeticiones</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary cancel-task-btn">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="save-task-submit">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: GESTIÓN DE ETIQUETAS -->
+  <div id="tags-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Mis etiquetas</h2>
+        <button class="close-modal-btn" data-modal="tags-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Formulario Crear/Editar Etiqueta -->
+        <form id="tag-form" class="tag-form-box hidden">
+          <input type="hidden" id="tag-edit-id">
+          <h3 id="tag-form-title">Nueva etiqueta</h3>
+          <div class="form-group">
+            <input type="text" id="tag-input-name" placeholder="Nombre de etiqueta" required autocomplete="off">
+          </div>
+          
+          <div class="form-group">
+            <label>Color de fondo</label>
+            <div class="color-palette-grid">
+              <!-- Círculos de color se generarán por JS -->
+            </div>
+          </div>
+          
+          <div class="tag-form-actions">
+            <button type="button" id="tag-cancel-btn" class="btn btn-secondary btn-sm">Cancelar</button>
+            <button type="submit" class="btn btn-primary btn-sm" id="tag-submit-btn">Crear</button>
+          </div>
+        </form>
+
+        <hr class="separator-line hidden">
+
+        <!-- Lista de etiquetas existentes -->
+        <div id="tags-list" class="tags-list-container">
+          <!-- Las etiquetas existentes se listarán aquí -->
+        </div>
+
+        <button id="add-tag-trigger-btn" class="btn btn-secondary" style="width: 100%; margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <span style="font-size: 16px; font-weight: 500; line-height: 1;">+</span> Nueva etiqueta
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NOTAS -->
+  <div id="notes-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2 id="notes-modal-title">Notas</h2>
+        <button class="close-modal-btn" data-modal="notes-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="notes-textarea" class="sr-only">Contenido de la nota</label>
+          <textarea id="notes-textarea" placeholder="Escribe tus notas aquí..." rows="10" style="width: 100%; resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="notes-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="notes-save-btn">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CAMBIAR CONTRASEÑA -->
+  <div id="change-password-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Cambiar contraseña</h2>
+        <button class="close-modal-btn" data-modal="change-password-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <form id="change-password-form" class="modal-body" style="padding: 24px;">
+        <div id="change-password-status" class="hidden" style="margin-bottom: 16px; font-size: 13px; padding: 10px 12px; border-radius: var(--radius-sm); font-weight: 500;"></div>
+        
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label for="password-current">Contraseña actual</label>
+          <input type="password" id="password-current" placeholder="Introduce tu contraseña actual" required autocomplete="current-password">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="password-new">Contraseña nueva</label>
+          <input type="password" id="password-new" placeholder="Introduce tu nueva contraseña" required autocomplete="new-password">
+        </div>
+        
+        <div class="modal-footer" style="margin-top: 24px; padding: 16px 0 0 0; border-top: 1px solid var(--border-light); background: none; display: flex; justify-content: flex-end; gap: 12px;">
+          <button type="button" class="btn btn-secondary" id="change-password-cancel-btn">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="change-password-submit-btn">Aceptar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ELIMINAR CUENTA -->
+  <div id="delete-account-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Eliminar cuenta</h2>
+        <button class="close-modal-btn" data-modal="delete-account-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <div id="delete-account-status" class="hidden" style="margin-bottom: 16px; font-size: 13px; padding: 10px 12px; border-radius: var(--radius-sm); font-weight: 500;"></div>
+        
+        <p style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 24px;">
+          ¿Estás seguro de eliminar tu cuenta? Esto no se podrá revertir.
+        </p>
+        
+        <div class="modal-footer" style="padding: 16px 0 0 0; border-top: 1px solid var(--border-light); background: none; display: flex; justify-content: flex-end; gap: 12px;">
+          <button type="button" class="btn btn-secondary" id="delete-account-cancel-btn">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="delete-account-confirm-btn">Eliminar cuenta</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIRMACIÓN PERSONALIZADA (ELIMINACIÓN DE REPETICIONES) -->
+  <div id="confirm-modal" class="modal-backdrop hidden">
+    <div class="modal-content task-modal-w">
+      <div class="modal-header">
+        <h2>Eliminar tarea repetida</h2>
+        <button class="close-modal-btn" data-modal="confirm-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px;">
+        <p style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 20px;">
+          Esta es una tarea recurrente. ¿Cómo deseas eliminar esta ocurrencia en el calendario?
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <button id="delete-only-this-btn" type="button" class="btn btn-secondary" style="text-align: left; padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; width: 100%;">
+            <strong style="font-size: 14px; font-weight: 600; color: var(--text-main);">Eliminar solo esta ocurrencia</strong>
+            <span style="font-size: 11.5px; color: var(--text-muted); font-weight: normal; line-height: 1.3;">Se quitará únicamente la tarea de este día específico.</span>
+          </button>
+          <button id="delete-all-occurrences-btn" type="button" class="btn btn-secondary" style="text-align: left; padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; border-color: #ff3b30; background-color: #ffe5e5; width: 100%;">
+            <strong style="font-size: 14px; font-weight: 600; color: #ff3b30;">Eliminar todas las repeticiones</strong>
+            <span style="font-size: 11.5px; color: #cc2d24; font-weight: normal; line-height: 1.3;">Se eliminará la serie completa de tareas del calendario.</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 24px;">
+        <button type="button" class="btn btn-secondary close-confirm-modal-btn">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Supabase desde CDN (no requiere bundler) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
