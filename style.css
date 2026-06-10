@@ -1894,9 +1894,10 @@ body.not-logged-in .app-container {
 .mobile-mode .tasks-container {
   padding: 10px 16px;
   gap: 8px;
-  overflow-y: visible;
-  flex: 1;
-  min-height: 0;
+  overflow-y: auto;          /* solo la lista de tareas scrollea */
+  -webkit-overflow-scrolling: touch;
+  flex: 1 1 auto;
+  min-height: 0;             /* permite que flex encoja y el scroll funcione */
 }
 
 /* Días del feed horizontal: cada día ocupa el ancho del contenedor menos los márgenes */
@@ -1907,12 +1908,22 @@ body.not-logged-in .app-container {
   height: 100%;
   flex-shrink: 0;
   scroll-snap-align: start;
-  overflow-y: auto;
+  /* La columna NO scrollea: es un contenedor flex vertical.
+     El header y el botón quedan fijos; solo .tasks-container scrollea. */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   box-sizing: border-box;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   background-color: var(--bg-card);
+}
+
+/* Header y botón fijos (no se encogen ni scrollean) */
+.mobile-mode .mobile-feed-day .day-header,
+.mobile-mode .mobile-feed-day .add-task-btn {
+  flex-shrink: 0;
 }
 
 .mobile-mode .task-card {
