@@ -3124,6 +3124,24 @@ function renderTagsList() {
   tags.forEach(tag => {
     const item = document.createElement('div');
     item.className = 'tag-item';
+    item.dataset.tagId = tag.id;
+
+    // Handle de arrastre para reordenar (raton + tactil).
+    // La etiqueta 'default' (Por defecto) queda fija arriba: sin handle, no se arrastra.
+    if (tag.id !== 'default') {
+      const grip = document.createElement('button');
+      grip.className = 'tag-drag-handle';
+      grip.title = 'Arrastrar para reordenar';
+      grip.setAttribute('aria-label', 'Reordenar etiqueta');
+      grip.innerHTML = `<img src="icons/grip.svg" alt="" width="14" height="14">`;
+      grip.addEventListener('click', (e) => e.stopPropagation());
+      item.appendChild(grip);
+    } else {
+      // Espaciador invisible para mantener alineado el contenido con las demas filas
+      const spacer = document.createElement('span');
+      spacer.className = 'tag-drag-handle tag-drag-handle-fixed';
+      item.appendChild(spacer);
+    }
 
     const left = document.createElement('div');
     left.className = 'tag-preview-group';
@@ -3207,6 +3225,113 @@ function renderTagsList() {
 
     container.appendChild(item);
   });
+
+  setupTagDragAndDrop(container);
+}
+
+// ─── Reordenar etiquetas: arrastrar y soltar (raton + tactil) ────────────────
+function setupTagDragAndDrop(container) {
+  let dragItem = null;      // .tag-item que se arrastra
+  let dragTagId = null;
+  let ghost = null;         // clon flotante (solo tactil)
+  let offsetY = 0;
+  let touchTimer = null;
+  let touchDragging = false;
+
+  const items = () => [...container.querySelectorAll('.tag-item')];
+
+  // Devuelve el item sobre el que deberia insertarse, segun la Y del cursor
+  function itemAfter(y) {
+    const others = items().filter(el => el !== dragItem);
+    for (const el of others) {
+      // Nunca insertar por ENCIMA de 'default': siempre va primera.
+      if (el.dataset.tagId === 'default') continue;
+      const r = el.getBoundingClientRect();
+      if (y < r.top + r.height / 2) return el;
+    }
+    return null;
+  }
+
+  function commitOrder() {
+    const orderedIds = items().map(el => el.dataset.tagId);
+    tags.sort((a, b) => orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id));
+    // Garantia: 'default' (Por defecto) siempre primera.
+    tags.sort((a, b) => (a.id === 'default' ? -1 : 0) - (b.id === 'default' ? -1 : 0));
+    saveTagsToStorage();
+    buildTagSelectorOptions();
+  }
+
+  container.querySelectorAll('.tag-drag-handle').forEach(handle => {
+    const item = handle.closest('.tag-item');
+
+    // ----- Raton (escritorio): HTML5 drag -----
+    handle.setAttribute('draggable', 'true');
+    handle.addEventListener('dragstart', (e) => {
+      dragItem = item; dragTagId = item.dataset.tagId;
+      item.classList.add('tag-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', dragTagId); } catch (err) {}
+    });
+    handle.addEventListener('dragend', () => {
+      if (dragItem) dragItem.classList.remove('tag-dragging');
+      commitOrder();
+      dragItem = null; dragTagId = null;
+    });
+
+    // ----- Tactil (movil): long-press para arrastrar -----
+    handle.addEventListener('touchstart', (e) => {
+      const touch = e.touches[0];
+      touchTimer = setTimeout(() => {
+        touchDragging = true;
+        dragItem = item; dragTagId = item.dataset.tagId;
+        item.classList.add('tag-dragging');
+        if (navigator.vibrate) navigator.vibrate(40);
+        const r = item.getBoundingClientRect();
+        offsetY = touch.clientY - r.top;
+        ghost = item.cloneNode(true);
+        ghost.classList.add('tag-drag-ghost');
+        ghost.style.position = 'fixed';
+        ghost.style.left = r.left + 'px';
+        ghost.style.top = r.top + 'px';
+        ghost.style.width = r.width + 'px';
+        ghost.style.pointerEvents = 'none';
+        ghost.style.zIndex = '10000';
+        document.body.appendChild(ghost);
+        item.style.opacity = '0.3';
+      }, 250);
+    }, { passive: true });
+
+    handle.addEventListener('touchmove', (e) => {
+      if (!touchDragging) { if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; } return; }
+      e.preventDefault();
+      const touch = e.touches[0];
+      if (ghost) ghost.style.top = (touch.clientY - offsetY) + 'px';
+      const ref = itemAfter(touch.clientY);
+      if (ref) container.insertBefore(dragItem, ref);
+      else container.appendChild(dragItem);
+    }, { passive: false });
+
+    const endTouch = () => {
+      if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+      if (touchDragging) {
+        if (ghost) { ghost.remove(); ghost = null; }
+        if (dragItem) { dragItem.style.opacity = ''; dragItem.classList.remove('tag-dragging'); }
+        commitOrder();
+        touchDragging = false; dragItem = null; dragTagId = null;
+      }
+    };
+    handle.addEventListener('touchend', endTouch);
+    handle.addEventListener('touchcancel', endTouch);
+  });
+
+  // Reordenamiento en vivo mientras se arrastra con raton
+  container.addEventListener('dragover', (e) => {
+    if (!dragItem) return;
+    e.preventDefault();
+    const ref = itemAfter(e.clientY);
+    if (ref) container.insertBefore(dragItem, ref);
+    else container.appendChild(dragItem);
+  });
 }
 
 function buildColorPalette() {
@@ -3270,23 +3395,102 @@ function resetTagForm() {
   buildColorPalette();
 }
 
+// Estado temporal del flujo de borrado de etiqueta (con reasignacion)
+let pendingDeleteTagId = null;
+
 async function deleteTag(tagId) {
   if (tagId === 'default') return;
 
+  // Contar cuantas tareas tienen esta etiqueta asignada
+  const affected = tasks.filter(t => t.tagId === tagId).length;
+
+  if (affected === 0) {
+    // No hay tareas: borrar directamente, sin preguntar
+    performTagDeletion(tagId, null);
+    return;
+  }
+
+  // Hay tareas: abrir modal para que el usuario decida que hacer con ellas
+  openDeleteTagModal(tagId, affected);
+}
+
+function openDeleteTagModal(tagId, affected) {
+  pendingDeleteTagId = tagId;
+  const tag = tags.find(t => t.id === tagId);
+  const tagName = tag ? tag.name : 'esta etiqueta';
+
+  const msg = document.getElementById('delete-tag-message');
+  if (msg) {
+    const plural = affected === 1 ? 'tarea tiene' : 'tareas tienen';
+    msg.innerHTML = `<strong>${affected}</strong> ${plural} la etiqueta &laquo;${tagName}&raquo;. ` +
+      `Antes de eliminarla, elige qu&eacute; hacer con esas tareas:`;
+  }
+
+  // Llenar el selector: opcion de eliminar tareas + cada otra etiqueta como destino
+  const select = document.getElementById('delete-tag-reassign-select');
+  if (select) {
+    select.innerHTML = '';
+    // Opcion por defecto: reasignar a 'default'
+    tags.filter(t => t.id !== tagId).forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = 'reassign:' + t.id;
+      opt.textContent = 'Reasignar a: ' + t.name;
+      select.appendChild(opt);
+    });
+    // Opcion: eliminar las tareas
+    const del = document.createElement('option');
+    del.value = 'delete-tasks';
+    del.textContent = 'Eliminar tambien esas tareas';
+    select.appendChild(del);
+  }
+
+  const modal = document.getElementById('delete-tag-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeDeleteTagModal() {
+  const modal = document.getElementById('delete-tag-modal');
+  if (modal) modal.classList.add('hidden');
+  pendingDeleteTagId = null;
+}
+
+function confirmDeleteTagModal() {
+  if (!pendingDeleteTagId) { closeDeleteTagModal(); return; }
+  const select = document.getElementById('delete-tag-reassign-select');
+  const choice = select ? select.value : 'reassign:default';
+  const tagId = pendingDeleteTagId;
+
+  if (choice === 'delete-tasks') {
+    performTagDeletion(tagId, { deleteTasks: true });
+  } else if (choice.startsWith('reassign:')) {
+    const targetId = choice.slice('reassign:'.length);
+    performTagDeletion(tagId, { reassignTo: targetId });
+  } else {
+    performTagDeletion(tagId, { reassignTo: 'default' });
+  }
+  closeDeleteTagModal();
+}
+
+// Ejecuta el borrado de la etiqueta aplicando la accion elegida sobre las tareas.
+//  action === null                  -> no habia tareas (nada que hacer con ellas)
+//  action.reassignTo = id           -> mover las tareas a esa etiqueta
+//  action.deleteTasks = true        -> eliminar las tareas
+function performTagDeletion(tagId, action) {
   pushToUndoStack();
 
-  // Re-map tasks with this deleted tag to 'default' tag
-  tasks = tasks.map(task => {
-    if (task.tagId === tagId) {
-      return { ...task, tagId: 'default' };
-    }
-    return task;
-  });
+  if (action && action.deleteTasks) {
+    tasks = tasks.filter(t => t.tagId !== tagId);
+  } else {
+    const target = (action && action.reassignTo) ? action.reassignTo : 'default';
+    tasks = tasks.map(task =>
+      task.tagId === tagId ? { ...task, tagId: target } : task
+    );
+  }
 
   tags = tags.filter(t => t.id !== tagId);
   saveTagsToStorage();
   saveTasksToStorage();
-  
+
   renderTagsList();
   buildTagSelectorOptions();
   renderWeeklyCalendar();
@@ -4099,6 +4303,12 @@ function setupEventListeners() {
       submitBtn.textContent = originalBtnText;
     }
   });
+
+  // Delete Tag (reassign) modal buttons
+  const delTagCancel = document.getElementById('delete-tag-cancel-btn');
+  if (delTagCancel) delTagCancel.addEventListener('click', closeDeleteTagModal);
+  const delTagConfirm = document.getElementById('delete-tag-confirm-btn');
+  if (delTagConfirm) delTagConfirm.addEventListener('click', confirmDeleteTagModal);
 
   // Delete Account Form Cancel
   document.getElementById('delete-account-cancel-btn').addEventListener('click', closeDeleteAccountModal);

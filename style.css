@@ -2796,3 +2796,48 @@ body.not-logged-in .app-container {
 #save-status.saving { background: #6b7280; }
 #save-status.saved  { background: #16a34a; }
 #save-status.offline { background: #d97706; }
+
+/* ─── Reordenar etiquetas: handle de arrastre ─────────────────────────────── */
+.tag-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #9e9e9e);
+  cursor: grab;
+  border-radius: var(--radius-sm, 6px);
+  flex-shrink: 0;
+  touch-action: none; /* permite el arrastre tactil sin scroll del panel */
+}
+.tag-drag-handle:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary, #333);
+}
+.tag-drag-handle:active { cursor: grabbing; }
+.tag-drag-handle img { display: block; opacity: 0.55; pointer-events: none; }
+
+.tag-item.tag-dragging {
+  opacity: 0.6;
+  background: var(--border-light);
+}
+.tag-drag-ghost {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius-md, 8px);
+  opacity: 0.95;
+}
+
+/* El grupo nombre+color crece para empujar las acciones a la derecha,
+   dejando el handle pegado al borde izquierdo. */
+.tag-item .tag-preview-group { flex: 1 1 auto; }
+
+/* La fila 'Por defecto' no tiene handle arrastrable: espaciador invisible
+   para mantener el mismo sangrado que las demas filas. */
+.tag-drag-handle-fixed {
+  visibility: hidden;
+  cursor: default;
+}

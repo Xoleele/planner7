@@ -534,6 +534,29 @@
     </div>
   </div>
 
+  <!-- MODAL: REASIGNAR TAREAS AL ELIMINAR ETIQUETA -->
+  <div id="delete-tag-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Eliminar etiqueta</h2>
+        <button class="close-modal-btn" data-modal="delete-tag-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <p id="delete-tag-message" style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 16px;"></p>
+
+        <label style="font-size: 13px; font-weight: 600; color: var(--text-main); display: block; margin-bottom: 8px;">¿Qué hacer con esas tareas?</label>
+        <select id="delete-tag-reassign-select" style="width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid var(--border-light); border-radius: var(--radius-sm); background: var(--bg-card); color: var(--text-main); margin-bottom: 20px;"></select>
+
+        <div class="modal-footer" style="padding: 16px 0 0 0; border-top: 1px solid var(--border-light); background: none; display: flex; justify-content: flex-end; gap: 12px;">
+          <button type="button" class="btn btn-secondary" id="delete-tag-cancel-btn">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="delete-tag-confirm-btn">Eliminar etiqueta</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: ELIMINAR CUENTA -->
   <div id="delete-account-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">
