@@ -1096,6 +1096,8 @@ input:checked + .slider:before {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .tag-color-pill {
@@ -1103,18 +1105,25 @@ input:checked + .slider:before {
   height: 14px;
   border-radius: 50%;
   border: 1px solid rgba(0,0,0,0.06);
+  flex-shrink: 0; /* nunca comprimir el circulo aunque el nombre sea largo */
 }
 
 .tag-name-label {
   font-size: 13px;
   font-weight: 500;
   color: var(--text-main);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tag-actions {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .tag-action-btn {
@@ -1894,10 +1903,10 @@ body.not-logged-in .app-container {
 .mobile-mode .tasks-container {
   padding: 10px 16px;
   gap: 8px;
-  overflow-y: auto;          /* solo la lista de tareas scrollea */
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   flex: 1 1 auto;
-  min-height: 0;             /* permite que flex encoja y el scroll funcione */
+  min-height: 0;
 }
 
 /* Días del feed horizontal: cada día ocupa el ancho del contenedor menos los márgenes */
@@ -1908,8 +1917,6 @@ body.not-logged-in .app-container {
   height: 100%;
   flex-shrink: 0;
   scroll-snap-align: start;
-  /* La columna NO scrollea: es un contenedor flex vertical.
-     El header y el botón quedan fijos; solo .tasks-container scrollea. */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1920,7 +1927,6 @@ body.not-logged-in .app-container {
   background-color: var(--bg-card);
 }
 
-/* Header y botón fijos (no se encogen ni scrollean) */
 .mobile-mode .mobile-feed-day .day-header,
 .mobile-mode .mobile-feed-day .add-task-btn {
   flex-shrink: 0;
@@ -2808,7 +2814,8 @@ body.not-logged-in .app-container {
 #save-status.saved  { background: #16a34a; }
 #save-status.offline { background: #d97706; }
 
-/* ─── Reordenar etiquetas: handle de arrastre ─────────────────────────────── */
+
+/* --- Reordenar etiquetas: handle de arrastre --- */
 .tag-drag-handle {
   display: flex;
   align-items: center;
@@ -2823,7 +2830,7 @@ body.not-logged-in .app-container {
   cursor: grab;
   border-radius: var(--radius-sm, 6px);
   flex-shrink: 0;
-  touch-action: none; /* permite el arrastre tactil sin scroll del panel */
+  touch-action: none;
 }
 .tag-drag-handle:hover {
   background: rgba(0, 0, 0, 0.06);
@@ -2841,13 +2848,9 @@ body.not-logged-in .app-container {
   border-radius: var(--radius-md, 8px);
   opacity: 0.95;
 }
-
-/* El grupo nombre+color crece para empujar las acciones a la derecha,
-   dejando el handle pegado al borde izquierdo. */
 .tag-item .tag-preview-group { flex: 1 1 auto; }
 
-/* La fila 'Por defecto' no tiene handle arrastrable: espaciador invisible
-   para mantener el mismo sangrado que las demas filas. */
+/* La fila 'Por defecto' no tiene handle arrastrable: espaciador invisible. */
 .tag-drag-handle-fixed {
   visibility: hidden;
   cursor: default;
