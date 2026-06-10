@@ -680,7 +680,7 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
       const checkDate = new Date(targetDateStr + 'T00:00:00');
       const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate));
       
-      dayTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
+      dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
 
       let insertIndex = dayTasks.length;
       if (afterElement) {
@@ -692,7 +692,7 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
       dayTasks.splice(insertIndex, 0, clonedTask);
 
       dayTasks.forEach((t, idx) => {
-        t.position = idx * 10;
+        setEffectivePosition(t, targetDateStr, idx * 10);
       });
     }
 
@@ -750,7 +750,7 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
       const checkDate = new Date(targetDateStr + 'T00:00:00');
       const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate) && t.id !== task.id);
       
-      dayTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
+      dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
 
       let insertIndex = dayTasks.length;
       if (afterElement) {
@@ -761,8 +761,10 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
 
       dayTasks.splice(insertIndex, 0, task);
 
+      // Asignar posicion SOLO para este dia. En recurrentes va a positionOverrides,
+      // asi los demas dias conservan su orden.
       dayTasks.forEach((t, idx) => {
-        t.position = idx * 10;
+        setEffectivePosition(t, targetDateStr, idx * 10);
       });
     }
   }
@@ -1320,6 +1322,29 @@ function formatDate(date) {
   return `${year}-${month}-${day}`;
 }
 
+// ─── Posicion por dia para tareas recurrentes ────────────────────────────────
+// Una tarea recurrente es un solo objeto pero aparece en varios dias. Para que
+// reordenarla en un dia no afecte a los demas, guardamos posiciones por fecha en
+// task.positionOverrides = { "YYYY-MM-DD": number }. Las tareas simples siguen
+// usando task.position.
+function getEffectivePosition(task, dateStr) {
+  if (task.positionOverrides && task.positionOverrides[dateStr] !== undefined) {
+    return task.positionOverrides[dateStr];
+  }
+  return task.position || 0;
+}
+
+// Asigna la posicion para un dia concreto, en el lugar correcto segun el tipo.
+function setEffectivePosition(task, dateStr, value) {
+  const isRecurring = task.recurrence && task.recurrence.enabled;
+  if (isRecurring) {
+    if (!task.positionOverrides) task.positionOverrides = {};
+    task.positionOverrides[dateStr] = value;
+  } else {
+    task.position = value;
+  }
+}
+
 // Ensure all tasks have a defined position for sorting, grouping by date
 async function ensurePositions() {
   const tasksByDate = {};
@@ -1836,7 +1861,7 @@ function renderWeeklyCalendar(targetWrapper = document) {
     });
 
     // Sort tasks by position (which handles both chronological and manual ordering)
-    dayTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
+    dayTasks.sort((a, b) => getEffectivePosition(a, colDateStr) - getEffectivePosition(b, colDateStr));
 
     // Render tasks
     renderTasksToContainer(dayTasks, tasksContainer, colDateStr);
@@ -4655,7 +4680,7 @@ function makeMobileDayCard(date) {
     const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
     return tag ? tag.visible !== false : true;
   });
-  dayTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
+  dayTasks.sort((a, b) => getEffectivePosition(a, dateStr) - getEffectivePosition(b, dateStr));
   renderTasksToContainer(dayTasks, tasksContainer, dateStr);
   col.appendChild(tasksContainer);
 
@@ -4850,7 +4875,7 @@ function updateMobileFeedTasks() {
         const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
         return tag ? tag.visible !== false : true;
       });
-      dayTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
+      dayTasks.sort((a, b) => getEffectivePosition(a, dateStr) - getEffectivePosition(b, dateStr));
       renderTasksToContainer(dayTasks, tasksContainer, dateStr);
     }
   });
