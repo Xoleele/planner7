@@ -2358,7 +2358,7 @@ function handleTouchMove(e) {
           touchEdgeSlideDir = newDir;
           touchEdgeSlideTimeout = setTimeout(() => {
             triggerEdgeDaySlide(newDir);
-          }, 600); // 600 ms para activar
+          }, 300); // 300 ms para activar
         }
       } else {
         // Fuera de zona de borde — cancelar
@@ -2477,12 +2477,24 @@ function handleTouchEnd(e) {
       }
     } else if (isOverTrashTarget && touchDraggedTaskId) {
       deleteTask(touchDraggedTaskId, touchDraggedSourceDate);
-    } else if (lastTargetColumn && touchDraggedTaskId) {
-      const targetDateStr = lastTargetColumn.dataset.date;
-      const container = lastTargetColumn.querySelector('.tasks-container');
+    } else if (touchDraggedTaskId) {
+      // Recalcular la columna REAL bajo el dedo en el momento de soltar.
+      // Tras un cambio de dia (edge-slide) lastTargetColumn puede estar
+      // desactualizado, asi que preferimos detectar la columna actual aqui.
+      let dropColumn = null;
+      if (touchGhost) touchGhost.style.display = 'none';
+      const elAtPoint = document.elementFromPoint(lastTouchX, lastTouchY);
+      if (touchGhost) touchGhost.style.display = '';
+      if (elAtPoint) dropColumn = elAtPoint.closest('.day-column');
+      if (!dropColumn) dropColumn = lastTargetColumn;
 
-      // We pass the lastTouchY to determine position
-      moveTaskToDate(touchDraggedTaskId, touchDraggedSourceDate, targetDateStr, container, lastTouchY);
+      if (dropColumn) {
+        const targetDateStr = dropColumn.dataset.date;
+        const container = dropColumn.querySelector('.tasks-container');
+        moveTaskToDate(touchDraggedTaskId, touchDraggedSourceDate, targetDateStr, container, lastTouchY);
+      } else if (touchDraggedSourceDate === "") {
+        toggleBriefcaseDrawer();
+      }
     } else {
       // Dropped outside, reopen briefcase if it was dragged from briefcase
       if (touchDraggedSourceDate === "") {
@@ -2581,6 +2593,11 @@ function triggerEdgeDaySlide(dir) {
 
     // Actualizar label después del scroll
     setTimeout(() => updateWeekLabelFromScroll(), 350);
+
+    // IMPORTANTE: tras el scroll, recalcular la columna destino bajo el dedo.
+    // Si no, lastTargetColumn seguiria apuntando al dia anterior y al soltar
+    // la tarea se moveria al dia equivocado (o no se aplicaria el cambio).
+    setTimeout(() => updateDragTarget(lastTouchX, lastTouchY), 380);
 
   } else {
     // El día no está aún en el feed — expandir y scrollear
