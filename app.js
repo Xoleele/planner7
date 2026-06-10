@@ -36,6 +36,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 let currentUser = null;
 let eventListenersInitialized = false;
 let intentionalLogout = false; // true solo cuando el usuario hace logout explícito
+let welcomeShownThisSession = false; // evita repetir el panel de bienvenida al volver de otra pestaña
 
 // ─── DB helpers ─────────────────────────────────────────────────────────────
 async function loadTasks() {
@@ -350,7 +351,8 @@ async function initAuth() {
     hideAuthScreen();
     await startApp();
     setupUserMenu();
-    if (localStorage.getItem('welcome_dismissed_v2') !== 'true') {
+    if (!welcomeShownThisSession && localStorage.getItem('welcome_dismissed_v2') !== 'true') {
+      welcomeShownThisSession = true;
       setTimeout(() => showWelcomeModal(), 600);
     }
   } else {
@@ -369,7 +371,8 @@ async function initAuth() {
       hideAuthScreen();
       await startApp();
       setupUserMenu();
-      if (localStorage.getItem('welcome_dismissed_v2') !== 'true') {
+      if (!welcomeShownThisSession && localStorage.getItem('welcome_dismissed_v2') !== 'true') {
+        welcomeShownThisSession = true;
         setTimeout(() => showWelcomeModal(), 600);
       }
     } else if (event === 'SIGNED_OUT') {
