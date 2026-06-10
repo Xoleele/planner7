@@ -1,0 +1,21 @@
+{
+  "name": "minimalist-calendar",
+  "version": "1.0.0",
+  "description": "Sleek and minimalist weekly planner calendar application",
+  "main": "index.html",
+  "scripts": {
+    "dev": "npx http-server -c-1 -p 3000"
+  },
+  "keywords": [
+    "calendar",
+    "minimalist",
+    "weekly-planner",
+    "notion-style",
+    "html5"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.1"
+  }
+}

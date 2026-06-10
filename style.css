@@ -545,9 +545,9 @@ body {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  background-color: rgba(102, 102, 102, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1424,9 +1424,9 @@ body.not-logged-in .app-container {
 #auth-screen {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: rgba(102, 102, 102, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1648,6 +1648,16 @@ body.not-logged-in .app-container {
   position: relative;
 }
 
+/* Acercar ícono de etiquetas al de carpeta (solo escritorio) */
+:not(.mobile-mode) #tags-modal-btn {
+  margin-right: -8px;
+}
+
+/* Mover ícono de etiquetas a la izquierda (solo móvil) */
+.mobile-mode #tags-modal-btn {
+  margin-right: 4px;
+}
+
 /* ═══════════════════════════════════════════════════════════
    MOBILE RESPONSIVE (Activado por la clase .mobile-mode)
    ═══════════════════════════════════════════════════════════ */
@@ -1704,12 +1714,12 @@ body.not-logged-in .app-container {
 }
 
 .mobile-mode #app-title {
-  font-size: 18px;
+  font-size: 20px;
   padding: 2px 4px;
 }
 
 .mobile-mode .calendar-icon img {
-  height: 20px;
+  height: 22px;
 }
 
 .mobile-mode .header-right {
@@ -1737,7 +1747,7 @@ body.not-logged-in .app-container {
   text-align: center;
 }
 
-/* ── Planner: 7 columnas apiladas verticalmente ── */
+/* ── Planner: scroll horizontal snap (7 columnas deslizables) ── */
 .mobile-mode .planner-week-wrapper {
   display: none !important;
 }
@@ -1745,33 +1755,41 @@ body.not-logged-in .app-container {
 .mobile-mode .planner-grid {
   position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  flex-direction: row;
+  gap: 12px;
   flex: 1;
-  overflow-y: auto;
-  padding-top: 2px;   /* Evita que el borde superior del día actual se tape */
-  padding-right: 4px; /* Previene solapamiento con scrollbar */
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   border: none;
   border-radius: 0;
   box-shadow: none;
   background: transparent;
+  padding: 0 4px 8px 4px;
+  scroll-padding-left: 4px;
+}
+
+.mobile-mode .planner-grid::-webkit-scrollbar {
+  display: none;
 }
 
 /* Todas las columnas visibles en móvil */
 .mobile-mode .day-column {
   display: flex !important;
-  border-right: none;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  background-color: var(--bg-card);
-  min-height: auto;
-  transition: border var(--transition-fast), box-shadow var(--transition-fast);
+  flex-direction: column;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background-color: var(--bg-main);
+  min-height: 0;
+  transition: none;
 }
 
 .mobile-mode .day-column.today {
-  border: 1.5px solid var(--text-main);
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Today Badge */
@@ -1796,7 +1814,7 @@ body.not-logged-in .app-container {
   flex-direction: row;
   align-items: center;
   gap: 10px;
-  padding: 7px 16px;
+  padding: 8px 16px;
   justify-content: flex-start;
   background-color: #111111;
   color: #ffffff;
@@ -1828,19 +1846,73 @@ body.not-logged-in .app-container {
   color: #111111;
 }
 
-/* Tareas con más padding táctil y crecimiento natural sin scroll interno de columna */
+/* ── Indicador de edge-slide durante drag ── */
+#edge-slide-indicator {
+  display: none;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  z-index: 10000;
+  pointer-events: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0;
+  opacity: 0.85;
+  animation: edge-indicator-pulse 0.5s ease infinite alternate;
+}
+#edge-slide-indicator.edge-left {
+  left: 0;
+  background: linear-gradient(to right, rgba(128,128,128, 0.3), transparent);
+}
+#edge-slide-indicator.edge-right {
+  right: 0;
+  background: linear-gradient(to left, rgba(128,128,128, 0.3), transparent);
+}
+#edge-slide-indicator::after {
+  content: '';
+  width: 28px;
+  height: 28px;
+  border-top: 3px solid rgba(128,128,128, 0.9);
+  border-right: 3px solid rgba(128,128,128, 0.9);
+  border-radius: 2px;
+}
+#edge-slide-indicator.edge-left::after {
+  transform: rotate(-135deg);
+  margin-left: 14px;
+}
+#edge-slide-indicator.edge-right::after {
+  transform: rotate(45deg);
+  margin-right: 14px;
+}
+@keyframes edge-indicator-pulse {
+  from { opacity: 0.5; }
+  to   { opacity: 1;   }
+}
+
+/* Tareas con más padding táctil */
 .mobile-mode .tasks-container {
   padding: 10px 16px;
   gap: 8px;
   overflow-y: visible;
-  flex: none;
+  flex: 1;
   min-height: 0;
 }
 
-/* Días del feed continuo: crecen con su contenido, sin altura fija */
+/* Días del feed horizontal: cada día ocupa el ancho del contenedor menos los márgenes */
 .mobile-mode .mobile-feed-day {
-  height: auto !important;
+  width: calc(100vw - 40px);
+  min-width: calc(100vw - 40px);
+  max-width: calc(100vw - 40px);
+  height: 100%;
   flex-shrink: 0;
+  scroll-snap-align: start;
+  overflow-y: auto;
+  box-sizing: border-box;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  background-color: var(--bg-card);
 }
 
 .mobile-mode .task-card {
@@ -1916,9 +1988,9 @@ body.not-logged-in .app-container {
 
 /* Mobile Auth Screen (Centered modal with rounded corners and blurred background) */
 .mobile-mode #auth-screen {
-  background: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: rgba(102, 102, 102, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .mobile-mode .auth-card {
@@ -2190,16 +2262,11 @@ body.not-logged-in .app-container {
   overflow: hidden;
 }
 
-.planner-grid {
-  flex: 1;
-  min-width: 0;
-}
-
 /* Panel lateral archivados — escritorio */
 .briefcase-drawer {
-  width: 289px; /* ~340px estándar - 15% = ~289px */
-  min-width: 289px;
-  max-width: 289px;
+  flex: 1 1 0;       /* mismo peso que una columna de día (el grid tiene 7, este es el 8vo) */
+  min-width: 0;
+  max-width: none;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-card);
@@ -2207,15 +2274,19 @@ body.not-logged-in .app-container {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   overflow: hidden;
-  transition: width var(--transition-normal), min-width var(--transition-normal),
-              max-width var(--transition-normal), opacity var(--transition-normal),
+  transition: flex var(--transition-normal), opacity var(--transition-normal),
               transform var(--transition-normal);
   transform-origin: right center;
 }
 
+.planner-grid {
+  flex: 7;  /* 7 partes vs 1 del drawer = mismo ancho por columna */
+  min-width: 0;
+}
+
 /* Estado cerrado */
 .briefcase-drawer.closed {
-  width: 0;
+  flex: 0 0 0;
   min-width: 0;
   max-width: 0;
   opacity: 0;
@@ -2282,7 +2353,7 @@ body.not-logged-in .app-container {
 .drawer-body {
   flex: 1;
   overflow-y: auto;
-  padding: 12px;
+  padding: 16px 12px;
   min-height: 0;
 }
 
@@ -2372,35 +2443,15 @@ body.not-logged-in .app-container {
   stroke: #0071e3 !important;
 }
 
-/* Drawer del Maletín */
-.briefcase-drawer {
-  width: 320px;
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  display: flex;
-  flex-direction: column;
-  transition: transform var(--transition-normal), width var(--transition-normal), margin var(--transition-normal), opacity var(--transition-normal);
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.briefcase-drawer.closed {
-  width: 0;
-  margin-left: -20px; /* elimina el gap */
-  border: none;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(20px);
-}
 
 /* Cabecera del Drawer */
 .drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px;
+  padding: 20px 24px 16px 24px;
+  min-height: 89px;
+  box-sizing: border-box;
   border-bottom: 1px solid var(--border-light);
   user-select: none;
 }
@@ -2439,7 +2490,7 @@ body.not-logged-in .app-container {
 
 /* Cuerpo del Drawer */
 .drawer-body {
-  padding: 16px 20px;
+  padding: 16px 12px;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -2473,7 +2524,7 @@ body.not-logged-in .app-container {
 
 /* Pie del Drawer */
 .drawer-footer {
-  padding: 16px 20px;
+  padding: 12px;
   border-top: 1px solid var(--border-light);
   background-color: var(--bg-card);
 }
@@ -2532,13 +2583,14 @@ body.not-logged-in .app-container {
   margin-top: 6px;
 }
 
-/* Sobrescribir en Modo Móvil */
+/* Sobrescribir en Modo Móvil — el planner ocupa toda la altura */
 .mobile-mode .main-layout {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   width: 100%;
+  overflow: hidden;
 }
 
 .briefcase-mobile-backdrop {
@@ -2552,9 +2604,9 @@ body.not-logged-in .app-container {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(255, 255, 255, 0.65);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  background-color: rgba(102, 102, 102, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   z-index: 140; /* Just below mobile briefcase-drawer (150) */
 }
 
@@ -2583,8 +2635,8 @@ body.not-logged-in .app-container {
 }
 
 .mobile-mode .briefcase-drawer .drawer-header {
-  padding-left: 16px;
-  padding-right: 16px;
+  padding: 12px 16px;
+  min-height: unset;
 }
 
 .mobile-mode .briefcase-drawer .drawer-body {
@@ -2722,7 +2774,25 @@ body.not-logged-in .app-container {
   stroke: #ff3b30 !important;
 }
 
-
-
-
-
+/* ─
+/* --- Indicador de estado de guardado --- */
+#save-status {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 9999;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+}
+#save-status.visible { opacity: 1; transform: translateY(0); }
+#save-status.saving { background: #6b7280; }
+#save-status.saved  { background: #16a34a; }
+#save-status.offline { background: #d97706; }

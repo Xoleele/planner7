@@ -11,9 +11,18 @@
   <link rel="stylesheet" href="style.css">
   <script>
     (function() {
-      if (window.innerWidth <= 768) {
-        document.documentElement.classList.add('mobile-mode');
+      function updateMobileMode() {
+        const mobile = window.innerWidth <= 768;
+        if (mobile) {
+          document.documentElement.classList.add('mobile-mode');
+        } else {
+          document.documentElement.classList.remove('mobile-mode');
+        }
+        const bt = document.getElementById('briefcase-trash-btn');
+        if (bt) bt.style.display = mobile ? '' : 'none';
       }
+      updateMobileMode();
+      window.addEventListener('resize', updateMobileMode);
     })();
   </script>
 </head>
@@ -101,7 +110,7 @@
           <!-- Botón Archivados -->
           <button id="briefcase-btn" title="Tareas Archivadas" class="icon-button">
             <img src="icons/folder-closed.svg" alt="Archivados" width="20" height="20" class="folder-closed-icon">
-            <img src="icons/folder-open.svg" alt="Archivados abierto" width="20" height="20" class="folder-open-icon" style="display:none;">
+            <img src="icons/folder-open.svg" alt="Archivados abierto" width="20" height="20" class="folder-open-icon">
           </button>
         </div>
         <!-- Avatar de Usuario (Inactivo) -->
@@ -252,12 +261,14 @@
             <img src="icons/folder-closed.svg" alt="Archivados" width="18" height="18">
             <h3>Archivados</h3>
           </div>
-          <button id="briefcase-calendar-btn" class="close-drawer-btn hidden" aria-label="Soltar en calendario" style="margin-right: 8px;">
-            <img src="icons/datepicker.svg" alt="Soltar en calendario" width="20" height="20">
-          </button>
-          <button id="close-briefcase-drawer" class="close-drawer-btn" aria-label="Cerrar archivados">
-            <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
-          </button>
+          <div style="display:flex; align-items:center; gap:4px;">
+<button id="briefcase-trash-btn" class="close-drawer-btn" aria-label="Eliminar todas las tareas archivadas" style="display:none;">
+              <img src="icons/trash.svg" alt="Eliminar archivados" width="20" height="20">
+            </button>
+            <button id="close-briefcase-drawer" class="close-drawer-btn" aria-label="Cerrar archivados">
+              <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+            </button>
+          </div>
         </div>
         <div class="drawer-body">
           <div id="briefcase-tasks-container" class="briefcase-tasks-container tasks-container">
@@ -547,6 +558,32 @@
     </div>
   </div>
 
+  <!-- MODAL: BIENVENIDA -->
+  <div id="welcome-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header" style="justify-content: center;">
+        <img src="icons/logo svg.png" alt="Planner7" height="32" style="width: auto;">
+      </div>
+      <div class="modal-body" style="padding: 10px 24px 20px;">
+        <p style="font-size: 14px; color: var(--text-muted); line-height: 1.6; margin: 0 0 14px;">
+          Organiza tu día de forma simple y eficiente:
+        </p>
+        <ul style="font-size: 14px; color: var(--text-muted); line-height: 1.8; margin: 0; padding-left: 18px;">
+          <li>Crea <strong>Tareas</strong> y márcalas como completadas cuando las termines.</li>
+          <li>Crea <strong>Etiquetas</strong> personalizadas y organiza tus tareas por colores.</li>
+          <li><strong>Desliza</strong> la pantalla para cambiar de día o utiliza el calendario para navegar entre fechas.</li>
+        </ul>
+      </div>
+      <div class="modal-footer" style="padding: 14px 24px; display: flex; flex-direction: column; gap: 20px;">
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); cursor: pointer;">
+          <input type="checkbox" id="welcome-no-show" style="width: 16px; height: 16px; cursor: pointer;">
+          No volver a mostrar
+        </label>
+        <button id="welcome-accept-btn" class="btn btn-primary" style="width: 100%;">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: CONFIRMACIÓN PERSONALIZADA (ELIMINACIÓN DE REPETICIONES) -->
   <div id="confirm-modal" class="modal-backdrop hidden">
     <div class="modal-content task-modal-w">
@@ -577,8 +614,4 @@
     </div>
   </div>
 
-  <!-- Supabase desde CDN (no requiere bundler) -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="app.js"></script>
-</body>
-</html>
+  <!-- Supabase desde CDN (no requie

@@ -48,15 +48,20 @@ async function saveTasks(taskList) {
   if (!currentUser) return;
   const rows = taskList.map(t => ({ id: t.id, user_id: currentUser.id, data: t }));
 
-  // 1. Upsert current tasks
+  // 1. Upsert current tasks. Si falla, LANZAMOS el error para que el llamador
+  //    reintente y NO continuamos a la fase de borrado (evita perder filas).
   if (rows.length > 0) {
     const { error } = await sb.from('tasks').upsert(rows, { onConflict: 'id' });
-    if (error) { console.error('saveTasks (upsert):', error); return; }
+    if (error) { console.error('saveTasks (upsert):', error); throw error; }
   }
+
+  // SALVAGUARDA: nunca ejecutar el borrado masivo si la lista local esta vacia.
+  // Un array vacio casi siempre significa "aun no cargo", no "borra todo".
+  if (taskList.length === 0) return;
 
   // 2. Fetch all task IDs currently in the DB for this user
   const { data: dbRows, error: fetchError } = await sb.from('tasks').select('id').eq('user_id', currentUser.id);
-  if (fetchError) { console.error('saveTasks (fetch ids):', fetchError); return; }
+  if (fetchError) { console.error('saveTasks (fetch ids):', fetchError); throw fetchError; }
 
   // 3. Delete only the rows that are no longer in the local list
   const localIds = new Set(taskList.map(t => t.id));
@@ -345,6 +350,9 @@ async function initAuth() {
     hideAuthScreen();
     await startApp();
     setupUserMenu();
+    if (localStorage.getItem('welcome_dismissed_v2') !== 'true') {
+      setTimeout(() => showWelcomeModal(), 600);
+    }
   } else {
     // Inicializar el calendario vacío con fechas correctas de fondo
     initializeEmptyCalendar();
@@ -361,6 +369,9 @@ async function initAuth() {
       hideAuthScreen();
       await startApp();
       setupUserMenu();
+      if (localStorage.getItem('welcome_dismissed_v2') !== 'true') {
+        setTimeout(() => showWelcomeModal(), 600);
+      }
     } else if (event === 'SIGNED_OUT') {
       const wasIntentional = intentionalLogout;
       intentionalLogout = false;
@@ -603,6 +614,9 @@ let preventClick = false;
 let isOverBriefcaseTarget = false; // Tracks if task is hovered over briefcase icon during touch drag
 let isOverTrashTarget = false; // Tracks if task is hovered over trash icon during touch drag
 let isOverBriefcaseContainer = false; // Tracks if briefcase task is being reordered within the panel
+let touchEdgeSlideTimeout = null;  // Timer para activar el slide horizontal al borde (móvil touch)
+let touchEdgeSlideCooldown = false; // Evita disparar múltiples slides seguidos
+let touchEdgeSlideDir = 0;         // -1 = izquierda (día anterior), 1 = derecha (día siguiente)
 
 
 
@@ -612,24 +626,23 @@ function isMobile() {
   return document.documentElement.classList.contains('mobile-mode');
 }
 
-// Re-evaluar vista automáticamente al cambiar tamaño de ventana
+// Responsive: actualizar modo móvil/escritorio al redimensionar
 window.addEventListener('resize', () => {
   const shouldBeMobile = window.innerWidth <= 768;
-  const isCurrentlyMobile = document.documentElement.classList.contains('mobile-mode');
-  if (shouldBeMobile !== isCurrentlyMobile) {
-    document.documentElement.classList.toggle('mobile-mode', shouldBeMobile);
-    if (shouldBeMobile) {
-      mobileScrollInit = false;
-      renderWeeklyCalendar();
+  const isMobileNow = document.documentElement.classList.contains('mobile-mode');
+  if (shouldBeMobile && !isMobileNow) {
+    document.documentElement.classList.add('mobile-mode');
+    // Inicializar feed móvil si aún no está listo
+    if (!mobileScrollInit) {
       initMobileFeed();
     } else {
-      mobileScrollInit = false;
-      if (desktopGridHTML) {
-        document.querySelector('.planner-grid').innerHTML = desktopGridHTML;
-        setupDesktopColumns();
-      }
-      renderWeeklyCalendar();
+      buildMobileFeed(currentWeekStart);
+      requestAnimationFrame(() => requestAnimationFrame(() => scrollMobileFeedToToday()));
     }
+  } else if (!shouldBeMobile && isMobileNow) {
+    document.documentElement.classList.remove('mobile-mode');
+    mobileScrollInit = false;
+    renderWeeklyCalendar();
   }
 });
 
@@ -1016,11 +1029,16 @@ async function startApp(user) {
     console.warn('No se pudo leer el caché local:', e);
   }
 
-  // Luego cargar desde Supabase y actualizar si hay datos más recientes
-  if (hasPendingSync) {
+  // Solo subimos el cache local si REALMENTE hay tareas locales sin sincronizar.
+  // Un cache vacio con pending_sync=true significa que el localStorage se perdio,
+  // NO que el usuario borro todo: en ese caso cargamos desde la nube.
+  if (hasPendingSync && tasks.length > 0) {
     console.log('Sincronizando tareas locales pendientes con Supabase...');
     try {
+      const cloudTasks = await loadTasks();
+      tasks = mergeTaskLists(cloudTasks, tasks);
       await saveTasks(tasks);
+      localStorage.setItem(cacheKey, JSON.stringify(tasks));
       localStorage.setItem(pendingSyncKey, 'false');
     } catch (e) {
       console.warn('No se pudo sincronizar las tareas locales al iniciar:', e);
@@ -1031,6 +1049,7 @@ async function startApp(user) {
       tasks = storedTasks;
       try {
         localStorage.setItem(cacheKey, JSON.stringify(tasks));
+        localStorage.setItem(pendingSyncKey, 'false');
       } catch (e) {}
     }
   }
@@ -1105,26 +1124,90 @@ function toggleBriefcaseDrawer() {
   }
 }
 
+function setSaveStatus(state) {
+  let el = document.getElementById('save-status');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'save-status';
+    document.body.appendChild(el);
+  }
+  el.classList.remove('saving', 'saved', 'offline', 'visible');
+  if (state === 'saving') {
+    el.textContent = 'Guardando\u2026';
+    el.classList.add('saving', 'visible');
+  } else if (state === 'saved') {
+    el.textContent = 'Guardado \u2713';
+    el.classList.add('saved', 'visible');
+    clearTimeout(el._hideTimer);
+    el._hideTimer = setTimeout(() => el.classList.remove('visible'), 1500);
+  } else if (state === 'offline') {
+    el.textContent = 'Sin conexion \u00b7 cambios guardados localmente';
+    el.classList.add('offline', 'visible');
+  }
+}
+
 async function saveTasksToStorage() {
-  const pendingSyncKey = 'tasks_pending_sync_' + (currentUser ? currentUser.id : 'anon');
-  // 1. Guardar localmente de inmediato (nunca falla, aunque no haya conexión)
-  if (currentUser) {
-    try {
-      localStorage.setItem('tasks_cache_' + currentUser.id, JSON.stringify(tasks));
-      localStorage.setItem(pendingSyncKey, 'true');
-    } catch (e) {
-      console.warn('No se pudo guardar en caché local:', e);
-    }
-  }
-  // 2. Sincronizar con Supabase y esperar confirmación antes de continuar
+  if (!currentUser) return;
+  const pendingSyncKey = 'tasks_pending_sync_' + currentUser.id;
+  const cacheKey = 'tasks_cache_' + currentUser.id;
+
   try {
-    await saveTasks(tasks);
-    if (currentUser) {
-      localStorage.setItem(pendingSyncKey, 'false');
-    }
-  } catch (err) {
-    console.warn('Sync con Supabase falló, cambios guardados localmente:', err);
+    localStorage.setItem(cacheKey, JSON.stringify(tasks));
+    localStorage.setItem(pendingSyncKey, 'true');
+  } catch (e) {
+    console.warn('No se pudo guardar en cache local:', e);
   }
+
+  setSaveStatus('saving');
+  const snapshotIds = tasks.map(t => t.id).join(',');
+  const ok = await syncTasksWithRetry(tasks, 3);
+
+  if (ok) {
+    if (currentUser && tasks.map(t => t.id).join(',') === snapshotIds) {
+      try { localStorage.setItem(pendingSyncKey, 'false'); } catch (e) {}
+    }
+    setSaveStatus('saved');
+  } else {
+    console.warn('Sync con Supabase fallo; cambios guardados localmente. Se reintentara.');
+    setSaveStatus('offline');
+  }
+}
+
+async function syncTasksWithRetry(taskList, maxAttempts = 3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await saveTasks(taskList);
+      return true;
+    } catch (err) {
+      console.warn(`saveTasks intento ${attempt}/${maxAttempts} fallo:`, err);
+      if (attempt < maxAttempts) {
+        await new Promise(r => setTimeout(r, 400 * attempt));
+      }
+    }
+  }
+  return false;
+}
+
+async function flushPendingSync() {
+  if (!currentUser) return;
+  const pendingSyncKey = 'tasks_pending_sync_' + currentUser.id;
+  if (localStorage.getItem(pendingSyncKey) !== 'true') return;
+  if (!tasks || tasks.length === 0) return;
+  setSaveStatus('saving');
+  const ok = await syncTasksWithRetry(tasks, 3);
+  if (ok) {
+    try { localStorage.setItem(pendingSyncKey, 'false'); } catch (e) {}
+    setSaveStatus('saved');
+  } else {
+    setSaveStatus('offline');
+  }
+}
+
+function mergeTaskLists(cloudTasks, localTasks) {
+  const byId = new Map();
+  (cloudTasks || []).forEach(t => { if (t && t.id) byId.set(t.id, t); });
+  (localTasks || []).forEach(t => { if (t && t.id) byId.set(t.id, t); });
+  return Array.from(byId.values());
 }
 
 function saveTagsToStorage() {
@@ -2236,45 +2319,52 @@ function handleTouchMove(e) {
     touchGhost.style.top = `${touch.clientY - touchOffsetTop}px`;
   }
 
+  // En móvil: si arrastra desde el maletín y sale del panel, cerrarlo automáticamente
+  if (isMobile() && touchDraggedSourceDate === '') {
+    const drawer = document.getElementById('briefcase-drawer');
+    if (drawer && !drawer.classList.contains('closed')) {
+      const drawerRect = drawer.getBoundingClientRect();
+      const outsideDrawer = touch.clientX < drawerRect.left || touch.clientX > drawerRect.right ||
+                            touch.clientY < drawerRect.top  || touch.clientY > drawerRect.bottom;
+      if (outsideDrawer) {
+        drawer.classList.add('closed');
+        const btn = document.getElementById('briefcase-btn');
+        if (btn) btn.classList.remove('active-briefcase');
+        const mobileBackdrop = document.getElementById('briefcase-mobile-backdrop');
+        if (mobileBackdrop) mobileBackdrop.classList.add('hidden');
+      }
+    }
+  }
+
   // Update target column and reordering indicators
   updateDragTarget(touch.clientX, touch.clientY);
 
-  // Handle auto-scroll of .planner-grid
-  const grid = document.querySelector('.planner-grid');
-  if (grid) {
-    const gridRect = grid.getBoundingClientRect();
-    const topThreshold = gridRect.top + 60;
-    const bottomThreshold = gridRect.bottom - 60;
+  // Edge-slide horizontal en móvil: detectar zona de borde izquierdo/derecho
+  if (isMobile()) {
+    const grid = document.querySelector('.planner-grid');
+    if (grid) {
+      const gridRect = grid.getBoundingClientRect();
+      const EDGE_ZONE = 56; // px desde el borde que activa el slide
+      const inLeftEdge  = touch.clientX >= gridRect.left  && touch.clientX < gridRect.left  + EDGE_ZONE;
+      const inRightEdge = touch.clientX > gridRect.right  - EDGE_ZONE && touch.clientX <= gridRect.right;
+      const newDir = inLeftEdge ? -1 : inRightEdge ? 1 : 0;
 
-    const inTopScrollZone = touch.clientY >= gridRect.top && touch.clientY < topThreshold;
-    const inBottomScrollZone = touch.clientY > bottomThreshold && touch.clientY <= gridRect.bottom;
-
-    if (inTopScrollZone || inBottomScrollZone) {
-      if (!autoScrollInterval) {
-        autoScrollInterval = setInterval(() => {
-          if (lastTouchY !== null && lastTouchX !== null) {
-            const gridEl = document.querySelector('.planner-grid');
-            if (!gridEl) return;
-            const r = gridEl.getBoundingClientRect();
-            const topT = r.top + 60;
-            const bottomT = r.bottom - 60;
-            
-            if (lastTouchY >= r.top && lastTouchY < topT) {
-              const speed = Math.max(2, Math.min(15, (topT - lastTouchY) / 3));
-              gridEl.scrollTop -= speed;
-            } else if (lastTouchY > bottomT && lastTouchY <= r.bottom) {
-              const speed = Math.max(2, Math.min(15, (lastTouchY - bottomT) / 3));
-              gridEl.scrollTop += speed;
-            } else {
-              stopAutoScroll();
-            }
-            // Update target column after scroll shift
-            updateDragTarget(lastTouchX, lastTouchY);
-          }
-        }, 30);
+      if (newDir !== 0 && !touchEdgeSlideCooldown) {
+        // Mostrar indicador visual
+        showEdgeIndicator(newDir);
+        if (touchEdgeSlideDir !== newDir) {
+          // Cambió de dirección o entró a zona — reiniciar timer
+          clearEdgeScrollTimer();
+          touchEdgeSlideDir = newDir;
+          touchEdgeSlideTimeout = setTimeout(() => {
+            triggerEdgeDaySlide(newDir);
+          }, 600); // 600 ms para activar
+        }
+      } else {
+        // Fuera de zona de borde — cancelar
+        clearEdgeScrollTimer();
+        hideEdgeIndicator();
       }
-    } else {
-      stopAutoScroll();
     }
   }
 }
@@ -2296,7 +2386,6 @@ function updateDragTarget(clientX, clientY) {
   const column = element ? element.closest('.day-column') : null;
   const overBriefcase = element ? element.closest('#briefcase-btn') : null;
   const overTrash = element ? element.closest('#trash-btn') : null;
-  const overCalendarIcon = element ? element.closest('#briefcase-calendar-btn') : null;
   const overBriefcaseContainer = element ? element.closest('#briefcase-tasks-container') : null;
 
   // Clear hover effects
@@ -2312,11 +2401,6 @@ function updateDragTarget(clientX, clientY) {
   if (trashBtn) {
     trashBtn.classList.remove('drag-over');
   }
-  const calendarBtn = document.getElementById('briefcase-calendar-btn');
-  if (calendarBtn) {
-    calendarBtn.classList.remove('drag-over');
-  }
-
   if (overBriefcase) {
     overBriefcase.classList.add('drag-over');
     isOverBriefcaseTarget = true;
@@ -2327,24 +2411,6 @@ function updateDragTarget(clientX, clientY) {
     isOverTrashTarget = true;
     isOverBriefcaseTarget = false;
     lastTargetColumn = null;
-  } else if (overCalendarIcon) {
-    overCalendarIcon.classList.add('drag-over');
-    isOverBriefcaseTarget = false;
-    isOverTrashTarget = false;
-    lastTargetColumn = null;
-    
-    // Close briefcase drawer immediately to allow dropping onto calendar
-    if (navigator.vibrate) {
-      navigator.vibrate(30);
-    }
-    const drawer = document.getElementById('briefcase-drawer');
-    const mobileBackdrop = document.getElementById('briefcase-mobile-backdrop');
-    const btn = document.getElementById('briefcase-btn');
-    if (drawer && !drawer.classList.contains('closed')) {
-      drawer.classList.add('closed');
-      if (btn) btn.classList.remove('active-briefcase');
-      if (mobileBackdrop) mobileBackdrop.classList.add('hidden');
-    }
   } else if (overBriefcaseContainer && touchDraggedSourceDate === '') {
     // Reordering within the briefcase panel
     isOverBriefcaseTarget = false;
@@ -2453,6 +2519,86 @@ function stopAutoScroll() {
     clearInterval(autoScrollInterval);
     autoScrollInterval = null;
   }
+  clearEdgeScrollTimer();
+  hideEdgeIndicator();
+  touchEdgeSlideCooldown = false;
+}
+
+// ── Edge-slide helpers (drag en borde horizontal móvil) ──────────────────────
+
+function clearEdgeScrollTimer() {
+  if (touchEdgeSlideTimeout) {
+    clearTimeout(touchEdgeSlideTimeout);
+    touchEdgeSlideTimeout = null;
+  }
+  touchEdgeSlideDir = 0;
+}
+
+function showEdgeIndicator(dir) {
+  let indicator = document.getElementById('edge-slide-indicator');
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.id = 'edge-slide-indicator';
+    document.body.appendChild(indicator);
+  }
+  indicator.className = dir === -1 ? 'edge-left' : 'edge-right';
+  indicator.style.display = 'flex';
+}
+
+function hideEdgeIndicator() {
+  const indicator = document.getElementById('edge-slide-indicator');
+  if (indicator) indicator.style.display = 'none';
+}
+
+function triggerEdgeDaySlide(dir) {
+  clearEdgeScrollTimer();
+  hideEdgeIndicator();
+
+  // Cooldown para evitar slides múltiples en rápida sucesión
+  touchEdgeSlideCooldown = true;
+  setTimeout(() => { touchEdgeSlideCooldown = false; }, 500);
+
+  const grid = document.querySelector('.planner-grid');
+  if (!grid) return;
+
+  // Calcular el día actualmente visible (el primer day card visible)
+  const visibleDate = getMobileVisibleDate();
+  if (!visibleDate) return;
+
+  // Calcular la fecha destino
+  const targetDate = addDays(visibleDate, dir);
+  const targetDateStr = formatDate(targetDate);
+
+  // ¿Ese día ya está en el DOM? Si estamos en una semana distinta, cambiar semana
+  const targetEl = grid.querySelector(`.mobile-feed-day[data-date="${targetDateStr}"]`);
+
+  if (targetEl) {
+    // El día está en la misma semana — solo deslizar con smooth scroll
+    grid.scrollTo({ left: targetEl.offsetLeft - 4, behavior: 'smooth' });
+
+    // Dar feedback háptico
+    if (navigator.vibrate) navigator.vibrate(30);
+
+    // Actualizar label después del scroll
+    setTimeout(() => updateWeekLabelFromScroll(), 350);
+
+  } else {
+    // El día no está aún en el feed — expandir y scrollear
+    if (navigator.vibrate) navigator.vibrate(30);
+
+    expandMobileFeed(dir === 1 ? 'end' : 'start');
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const newEl = grid.querySelector(`.mobile-feed-day[data-date="${targetDateStr}"]`);
+        if (newEl) {
+          grid.scrollLeft = newEl.offsetLeft - 4;
+        }
+        updateWeekLabelFromScroll();
+        updateDragTarget(lastTouchX, lastTouchY);
+      });
+    });
+  }
 }
 
 function cleanupDraggingUI() {
@@ -2479,10 +2625,6 @@ function cleanupDraggingUI() {
   }
   isOverTrashTarget = false;
 
-  const calendarBtn = document.getElementById('briefcase-calendar-btn');
-  if (calendarBtn) {
-    calendarBtn.classList.remove('drag-over');
-  }
   isOverBriefcaseContainer = false;
   lastTargetColumn = null;
 }
@@ -2494,6 +2636,18 @@ function cleanupGlobalTouchListeners() {
 }
 
 // --- Modals Setup & Actions ---
+
+function showWelcomeModal() {
+  const modal = document.getElementById('welcome-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  document.getElementById('welcome-accept-btn').onclick = () => {
+    if (document.getElementById('welcome-no-show').checked) {
+      localStorage.setItem('welcome_dismissed_v2', 'true');
+    }
+    modal.classList.add('hidden');
+  };
+}
 
 function openTaskModal(taskId = null, occurrenceDate = null) {
   const modal = document.getElementById('task-modal');
@@ -3296,7 +3450,7 @@ function setupEventListeners() {
   document.getElementById('prev-week-btn').addEventListener('click', () => {
     if (isMobile()) {
       const visibleDate = getMobileVisibleDate() || new Date();
-      jumpMobileFeedToDate(addDays(visibleDate, -7));
+      jumpMobileFeedToDate(addDays(visibleDate, -1));
     } else {
       navigateToWeek(-1);
     }
@@ -3305,7 +3459,7 @@ function setupEventListeners() {
   document.getElementById('next-week-btn').addEventListener('click', () => {
     if (isMobile()) {
       const visibleDate = getMobileVisibleDate() || new Date();
-      jumpMobileFeedToDate(addDays(visibleDate, 7));
+      jumpMobileFeedToDate(addDays(visibleDate, 1));
     } else {
       navigateToWeek(1);
     }
@@ -4079,6 +4233,24 @@ function setupEventListeners() {
     openTaskModal();
   });
 
+  // Basurero en archivados (solo móvil)
+  const briefcaseTrashBtn = document.getElementById('briefcase-trash-btn');
+  if (briefcaseTrashBtn) {
+    // Mostrar solo en móvil
+    if (isMobile()) briefcaseTrashBtn.style.display = '';
+
+    briefcaseTrashBtn.addEventListener('click', () => {
+      const briefcaseTasks = tasks.filter(t => !t.date);
+      if (briefcaseTasks.length === 0) return;
+      if (!confirm('¿Eliminar todas las tareas archivadas?')) return;
+      pushToUndoStack();
+      tasks = tasks.filter(t => t.date);
+      saveTasksToStorage();
+      renderBriefcaseTasks();
+      renderWeeklyCalendar();
+    });
+  }
+
   // Abrir modal al hacer clic en el espacio vacío del cuerpo del maletín
   const briefcaseDrawerBody = document.querySelector('.briefcase-drawer .drawer-body');
   if (briefcaseDrawerBody) {
@@ -4209,16 +4381,11 @@ async function toggleTaskCompletion(task, occurrenceDate) {
   renderWeeklyCalendar();
 }
 
-// ─── Scroll infinito continuo (solo móvil) ───────────────────────────────────
-// Todos los días son un feed vertical único. Se renderizan ventanas de días
-// alrededor del día actual y se extienden conforme el usuario scrollea.
+// ─── Feed horizontal de semana (solo móvil) ──────────────────────────────────
+// Los 7 días de la semana actual se renderizan como tarjetas deslizables
+// horizontalmente con scroll-snap. Navegar semanas reemplaza el contenido.
 
-const MOBILE_FEED_BUFFER = 30; // días a renderizar antes y después del día visible
-
-let mobileFeedAnchorDate = null;   // fecha del primer día renderizado en el feed
-let mobileFeedDayCount   = 0;      // total de días en el feed
-let mobileScrollInit     = false;
-let mobilePastScrollAllowed = false;
+let mobileScrollInit = false;
 
 function makeMobileDayCard(date) {
   const dateStr = formatDate(date);
@@ -4237,6 +4404,7 @@ function makeMobileDayCard(date) {
   const hasNotes = notes[dateStr];
   const iconSrc = hasNotes ? 'icons/message-square-text.svg' : 'icons/message-square.svg';
   const notesClass = hasNotes ? 'dialogue-day-btn has-notes' : 'dialogue-day-btn';
+
   header.innerHTML = `
     <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
     <span class="day-number">${date.getDate()}</span>
@@ -4244,12 +4412,7 @@ function makeMobileDayCard(date) {
       <img src="${iconSrc}" alt="Notas">
     </button>
     <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="3 6 5 6 21 6"></polyline>
-        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-        <line x1="10" y1="11" x2="10" y2="17"></line>
-        <line x1="14" y1="11" x2="14" y2="17"></line>
-      </svg>
+      <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
     </button>
   `;
   col.appendChild(header);
@@ -4279,49 +4442,46 @@ function makeMobileDayCard(date) {
   return col;
 }
 
-function buildMobileFeed(centerDate) {
+function buildMobileFeed(monday) {
   const grid = document.querySelector('.planner-grid');
   if (!grid) return;
-
-  const start = addDays(centerDate, -MOBILE_FEED_BUFFER);
-  mobileFeedAnchorDate = start;
-  mobileFeedDayCount   = MOBILE_FEED_BUFFER * 2 + 1;
 
   grid.innerHTML = '';
-  for (let i = 0; i < mobileFeedDayCount; i++) {
-    grid.appendChild(makeMobileDayCard(addDays(start, i)));
+  // Renderizar 3 semanas: anterior + actual + siguiente
+  for (let i = -7; i < 14; i++) {
+    grid.appendChild(makeMobileDayCard(addDays(monday, i)));
   }
 }
 
-function extendMobileFeedForward() {
+// Expande el feed añadiendo días al principio o al final sin perder posición de scroll
+function expandMobileFeed(dir) {
   const grid = document.querySelector('.planner-grid');
   if (!grid) return;
-  const daysToAdd = 15;
-  for (let i = 0; i < daysToAdd; i++) {
-    const date = addDays(mobileFeedAnchorDate, mobileFeedDayCount + i);
-    grid.appendChild(makeMobileDayCard(date));
+
+  if (dir === 'start') {
+    // Añadir 7 días antes del primer día existente
+    const firstDay = grid.querySelector('.mobile-feed-day');
+    if (!firstDay) return;
+    const firstDate = new Date(firstDay.dataset.date + 'T00:00:00');
+    const prevScrollLeft = grid.scrollLeft;
+    const fragment = document.createDocumentFragment();
+    for (let i = 7; i >= 1; i--) {
+      fragment.appendChild(makeMobileDayCard(addDays(firstDate, -i)));
+    }
+    const widthBefore = grid.scrollWidth;
+    grid.prepend(fragment);
+    // Mantener posición visual
+    grid.scrollLeft = prevScrollLeft + (grid.scrollWidth - widthBefore);
+  } else {
+    // Añadir 7 días después del último día existente
+    const days = grid.querySelectorAll('.mobile-feed-day');
+    const lastDay = days[days.length - 1];
+    if (!lastDay) return;
+    const lastDate = new Date(lastDay.dataset.date + 'T00:00:00');
+    for (let i = 1; i <= 7; i++) {
+      grid.appendChild(makeMobileDayCard(addDays(lastDate, i)));
+    }
   }
-  mobileFeedDayCount += daysToAdd;
-}
-
-function extendMobileFeedBackward() {
-  const grid = document.querySelector('.planner-grid');
-  if (!grid) return;
-  const daysToAdd = 15;
-  const scrollBefore = grid.scrollTop;
-  const heightBefore = grid.scrollHeight;
-
-  const fragment = document.createDocumentFragment();
-  for (let i = daysToAdd - 1; i >= 0; i--) {
-    const date = addDays(mobileFeedAnchorDate, -(i + 1));
-    fragment.appendChild(makeMobileDayCard(date));
-  }
-  grid.insertBefore(fragment, grid.firstChild);
-  mobileFeedAnchorDate = addDays(mobileFeedAnchorDate, -daysToAdd);
-  mobileFeedDayCount  += daysToAdd;
-
-  // Compensar el salto de scroll para que el usuario no note el prepend
-  grid.scrollTop = scrollBefore + (grid.scrollHeight - heightBefore);
 }
 
 function getMobileVisibleDate() {
@@ -4331,7 +4491,7 @@ function getMobileVisibleDate() {
   for (const day of days) {
     const rect = day.getBoundingClientRect();
     const gridRect = grid.getBoundingClientRect();
-    if (rect.top >= gridRect.top - 10) {
+    if (rect.left >= gridRect.left - 10) {
       return new Date(day.dataset.date + 'T00:00:00');
     }
   }
@@ -4344,8 +4504,7 @@ function scrollMobileFeedToDate(date) {
   const dateStr = formatDate(date);
   const targetEl = grid.querySelector(`.mobile-feed-day[data-date="${dateStr}"]`);
   if (targetEl) {
-    const targetOffset = targetEl.offsetTop - (targetEl.offsetParent === grid ? 0 : grid.offsetTop) - 2;
-    grid.scrollTop = targetOffset;
+    grid.scrollLeft = targetEl.offsetLeft - 4;
   }
 }
 
@@ -4354,44 +4513,44 @@ function scrollMobileFeedToToday() {
 }
 
 function jumpMobileFeedToDate(targetDate) {
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  const target = new Date(targetDate);
-  target.setHours(0,0,0,0);
-  
-  if (target < today) {
-    mobilePastScrollAllowed = true;
-  } else {
-    mobilePastScrollAllowed = false;
-  }
+  const grid = document.querySelector('.planner-grid');
+  const dateStr = formatDate(new Date(targetDate));
+  const existing = grid && grid.querySelector(`.mobile-feed-day[data-date="${dateStr}"]`);
 
-  buildMobileFeed(targetDate);
-  requestAnimationFrame(() => {
+  if (existing) {
+    // El día ya está en el feed infinito — solo scrollear
+    grid.scrollTo({ left: existing.offsetLeft - 4, behavior: 'smooth' });
+    updateWeekLabelFromScroll();
+  } else {
+    // Reconstruir centrado en esa fecha
+    const monday = getMondayOf(new Date(targetDate));
+    currentWeekStart = monday;
+    buildMobileFeed(monday);
     requestAnimationFrame(() => {
-      scrollMobileFeedToDate(targetDate);
-      updateWeekLabelFromScroll();
+      requestAnimationFrame(() => {
+        scrollMobileFeedToDate(new Date(targetDate));
+        updateWeekLabelFromScroll();
+      });
     });
-  });
+  }
 }
 
 function updateWeekLabelFromScroll() {
-  // Actualiza el label de semana según el día más visible en pantalla
   const grid = document.querySelector('.planner-grid');
   if (!grid) return;
   const days = grid.querySelectorAll('.mobile-feed-day');
-  let topDay = null;
+  let visibleDay = null;
   for (const day of days) {
     const rect = day.getBoundingClientRect();
     const gridRect = grid.getBoundingClientRect();
-    if (rect.top >= gridRect.top - 10) {
-      topDay = day;
+    if (rect.left >= gridRect.left - 10) {
+      visibleDay = day;
       break;
     }
   }
-  if (topDay) {
-    const date = new Date(topDay.dataset.date + 'T00:00:00');
-    const monday = getMondayOf(date);
-    currentWeekStart = monday;
+  if (visibleDay) {
+    const date = new Date(visibleDay.dataset.date + 'T00:00:00');
+    currentWeekStart = getMondayOf(date);
     document.getElementById('week-range-label').textContent = formatSingleDate(date);
   }
 }
@@ -4401,9 +4560,9 @@ function initMobileFeed() {
   const grid = document.querySelector('.planner-grid');
   if (!grid) return;
 
-  buildMobileFeed(new Date());
+  buildMobileFeed(currentWeekStart);
 
-  // Scroll al día de hoy con un doble frame para asegurar que el DOM esté completamente pintado y con dimensiones correctas
+  // Scroll al día de hoy con un doble frame
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       scrollMobileFeedToToday();
@@ -4411,64 +4570,18 @@ function initMobileFeed() {
     });
   });
 
-  // Detectar nuevo gesto táctil en la barrera para permitir scroll al pasado
-  grid.addEventListener('touchstart', () => {
-    if (!isMobile()) return;
-    const todayStr = formatDate(new Date());
-    const todayEl = grid.querySelector(`.mobile-feed-day[data-date="${todayStr}"]`);
-    if (todayEl) {
-      const todayOffset = todayEl.offsetTop - (todayEl.offsetParent === grid ? 0 : grid.offsetTop) - 2;
-      if (Math.abs(grid.scrollTop - todayOffset) <= 3) {
-        mobilePastScrollAllowed = true;
-      }
-    }
-  }, { passive: true });
-
-  // Detectar rueda del mouse (para simuladores/pruebas en escritorio) en la barrera para permitir scroll al pasado
-  grid.addEventListener('wheel', (e) => {
-    if (!isMobile()) return;
-    if (e.deltaY < 0) {
-      const todayStr = formatDate(new Date());
-      const todayEl = grid.querySelector(`.mobile-feed-day[data-date="${todayStr}"]`);
-      if (todayEl) {
-        const todayOffset = todayEl.offsetTop - (todayEl.offsetParent === grid ? 0 : grid.offsetTop) - 2;
-        if (Math.abs(grid.scrollTop - todayOffset) <= 3) {
-          mobilePastScrollAllowed = true;
-        }
-      }
-    }
-  }, { passive: true });
-
-  // Extensión infinita al scrollear y barrera de scroll del día actual
+  // Actualizar label al deslizar + expandir feed infinito
   grid.addEventListener('scroll', () => {
     if (!isMobile() || !mobileScrollInit) return;
-
     updateWeekLabelFromScroll();
 
-    // Límite del día actual: bloquear scroll hacia el pasado si no está permitido explícitamente
-    const todayStr = formatDate(new Date());
-    const todayEl = grid.querySelector(`.mobile-feed-day[data-date="${todayStr}"]`);
-    if (todayEl) {
-      const todayOffset = todayEl.offsetTop - (todayEl.offsetParent === grid ? 0 : grid.offsetTop) - 2;
-      if (!mobilePastScrollAllowed) {
-        if (grid.scrollTop < todayOffset) {
-          grid.scrollTop = todayOffset;
-        }
-      } else {
-        // Volver a activar la barrera de bloqueo si el usuario vuelve hacia el presente o futuro
-        if (grid.scrollTop >= todayOffset + 10) {
-          mobilePastScrollAllowed = false;
-        }
-      }
+    // Expandir al acercarse al borde izquierdo
+    if (grid.scrollLeft < grid.clientWidth * 2) {
+      expandMobileFeed('start');
     }
-
-    // Extender hacia adelante
-    if (grid.scrollTop + grid.clientHeight >= grid.scrollHeight - 200) {
-      extendMobileFeedForward();
-    }
-    // Extender hacia atrás
-    if (grid.scrollTop <= 200) {
-      extendMobileFeedBackward();
+    // Expandir al acercarse al borde derecho
+    if (grid.scrollLeft + grid.clientWidth > grid.scrollWidth - grid.clientWidth * 2) {
+      expandMobileFeed('end');
     }
   }, { passive: true });
 }
@@ -4514,7 +4627,7 @@ function updateMobileFeedTasks() {
   renderBriefcaseTasks();
 }
 
-// No se usa en móvil continuo pero se mantiene la firma para compatibilidad
+// Compatibilidad — no necesaria en móvil horizontal
 function initMobileScrollWeekChange() {}
 
 // ─── Funciones Auxiliares del Maletín ───────────────────────────────────────
@@ -4788,13 +4901,58 @@ document.addEventListener('touchmove', (e) => {
   }
 }, { passive: false });
 
-// Prevent tab closing if there is a pending Supabase synchronization
+function getAccessTokenSync() {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+        const v = JSON.parse(localStorage.getItem(k));
+        if (v && v.access_token) return v.access_token;
+        if (v && v.currentSession && v.currentSession.access_token) return v.currentSession.access_token;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+function beaconFlushTasks() {
+  if (!currentUser) return;
+  const pendingSyncKey = 'tasks_pending_sync_' + currentUser.id;
+  if (localStorage.getItem(pendingSyncKey) !== 'true') return;
+  if (!tasks || tasks.length === 0) return;
+  try {
+    const rows = tasks.map(t => ({ id: t.id, user_id: currentUser.id, data: t }));
+    const url = SUPABASE_URL + '/rest/v1/tasks?on_conflict=id';
+    const token = getAccessTokenSync() || SUPABASE_ANON_KEY;
+    fetch(url, {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token,
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify(rows)
+    }).catch(() => {});
+  } catch (e) {}
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') beaconFlushTasks();
+});
+
 window.addEventListener('beforeunload', (e) => {
+  beaconFlushTasks();
   if (currentUser) {
     const pendingSyncKey = 'tasks_pending_sync_' + currentUser.id;
     if (localStorage.getItem(pendingSyncKey) === 'true') {
       e.preventDefault();
-      e.returnValue = ''; // Standard browser confirmation prompt
+      e.returnValue = '';
     }
   }
+});
+
+window.addEventListener('online', () => {
+  flushPendingSync();
 });

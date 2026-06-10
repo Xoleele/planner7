@@ -1,0 +1,24 @@
+# ── Secretos: NUNCA subir a GitHub ──
+.env
+.env.txt
+contraseña.txt
+contraseñas.txt
+*.secret
+
+# ── Dependencias (se regeneran con npm install) ──
+node_modules/
+
+# ── Archivos temporales / respaldos ──
+*.bak
+*.bak_*
+app.js.bak_*
+style_backup_check.css
+test.html
+
+# ── Versiones anteriores (respaldos locales, no van al repo) ──
+Versiones anteriores/
+
+# ── Sistema operativo ──
+.DS_Store
+Thumbs.db
+desktop.ini
