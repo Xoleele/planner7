@@ -3956,7 +3956,9 @@ function setupEventListeners() {
       const idx = tasks.findIndex(t => t.id === selectedTaskId);
       if (idx !== -1) {
         const oldTask = tasks[idx];
-        const timeOrDateChanged = oldTask.startTime !== startTime || oldTask.date !== date;
+        // La funcion de hora fue eliminada: una tarea solo se reposiciona si
+        // cambia de FECHA (entra a otro dia). Editar otros campos NO la mueve.
+        const dateChanged = oldTask.date !== date;
 
         if (oldTask.recurrence && oldTask.recurrence.enabled && isBriefcase && selectedOccurrenceDate) {
           // Archivar solo esta ocurrencia de una tarea recurrente
@@ -3999,7 +4001,7 @@ function setupEventListeners() {
             recurrence
           };
 
-          if (timeOrDateChanged || tasks[idx].position === undefined) {
+          if (dateChanged || tasks[idx].position === undefined) {
             adjustPositionForModifiedTime(tasks[idx]);
           }
         }
