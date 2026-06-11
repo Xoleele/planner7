@@ -4006,8 +4006,9 @@ function setupEventListeners() {
           };
 
           const briefcaseTasks = tasks.filter(t => !t.date);
-          const maxPos = briefcaseTasks.reduce((max, t) => Math.max(max, t.position || 0), 0);
-          briefcaseTask.position = maxPos + 10;
+          // Ir ARRIBA del panel: posicion menor que la minima existente.
+          const minPos = briefcaseTasks.reduce((min, t) => Math.min(min, t.position || 0), 0);
+          briefcaseTask.position = minPos - 10;
 
           tasks.push(briefcaseTask);
         } else {
@@ -4973,8 +4974,9 @@ async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null)
       });
     } else {
       const briefcaseTasks = tasks.filter(t => !t.date);
-      const maxPos = briefcaseTasks.reduce((max, t) => Math.max(max, t.position || 0), 0);
-      briefcaseTask.position = maxPos + 10;
+      // Ir ARRIBA del panel: posicion menor que la minima existente.
+      const minPos = briefcaseTasks.reduce((min, t) => Math.min(min, t.position || 0), 0);
+      briefcaseTask.position = minPos - 10;
     }
 
     tasks.push(briefcaseTask);
@@ -5003,8 +5005,9 @@ async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null)
       });
     } else {
       const briefcaseTasks = tasks.filter(t => !t.date && t.id !== task.id);
-      const maxPos = briefcaseTasks.reduce((max, t) => Math.max(max, t.position || 0), 0);
-      task.position = maxPos + 10;
+      // Ir ARRIBA del panel: posicion menor que la minima existente.
+      const minPos = briefcaseTasks.reduce((min, t) => Math.min(min, t.position || 0), 0);
+      task.position = minPos - 10;
     }
   }
 
