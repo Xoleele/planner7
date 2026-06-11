@@ -406,8 +406,7 @@ const DEFAULT_COLORS = [
   { bg: '#f26ee9', text: '#ffffff', border: '#f26ee9' },
   { bg: '#f45781', text: '#ffffff', border: '#f45781' },
   { bg: '#ca3f3f', text: '#ffffff', border: '#ca3f3f' },
-  { bg: '#9e9e9e', text: '#ffffff', border: '#9e9e9e' },
-  { bg: '#cccccc', text: '#ffffff', border: '#cccccc' }
+  { bg: '#9e9e9e', text: '#ffffff', border: '#9e9e9e' }
 ];
 
 const INITIAL_TAGS = [
@@ -559,6 +558,11 @@ function findClosestColorIndex(colorStr) {
 function migrateTagColors() {
   let updated = false;
   tags.forEach(tag => {
+    // Respetar colores personalizados (HSL): colorIndex === -1 indica que el
+    // color NO viene de la paleta. No tocarlo, o se perderia al recargar.
+    if (tag.colorIndex === -1) {
+      return;
+    }
     // If the tag has a valid colorIndex, align it automatically with the current palette
     if (tag.colorIndex !== undefined && tag.colorIndex >= 0 && tag.colorIndex < DEFAULT_COLORS.length) {
       const correctColor = DEFAULT_COLORS[tag.colorIndex];
@@ -588,6 +592,7 @@ let selectedTaskId = null;
 let selectedDayDate = null; // Used for pre-filling date on new task
 let activeRecurrenceDays = new Set(); // Stores 1-7 representing days for recurrence
 let selectedColorIndex = 0; // Index of selected color in the palette
+let customColor = null; // color HSL personalizado: { bg, text, border } o null
 let undoStack = []; // Pila para CTRL+Z
 let redoStack = []; // Pila para CTRL+Y
 let selectedOccurrenceDate = null; // Fecha específica de la ocurrencia seleccionada
@@ -3485,7 +3490,7 @@ function buildColorPalette() {
     circle.style.borderColor = color.border;
     circle.dataset.index = idx;
 
-    if (idx === selectedColorIndex) {
+    if (idx === selectedColorIndex && !customColor) {
       circle.classList.add('selected');
     }
 
@@ -3493,10 +3498,59 @@ function buildColorPalette() {
       document.querySelectorAll('.color-circle').forEach(c => c.classList.remove('selected'));
       circle.classList.add('selected');
       selectedColorIndex = idx;
+      customColor = null;
+      hideHslPicker();
     });
 
     container.appendChild(circle);
   });
+
+  // Boton '+' (circulo negro) para definir un color personalizado HSL
+  const addBtn = document.createElement('div');
+  addBtn.className = 'color-circle color-circle-add';
+  addBtn.title = 'Color personalizado';
+  addBtn.innerHTML = '<span class="color-add-plus">+</span>';
+  if (customColor) addBtn.classList.add('selected');
+  addBtn.addEventListener('click', () => {
+    document.querySelectorAll('.color-circle').forEach(c => c.classList.remove('selected'));
+    addBtn.classList.add('selected');
+    selectedColorIndex = -1;
+    showHslPicker();
+  });
+  container.appendChild(addBtn);
+}
+
+// ─── Selector de color personalizado (HSL) ───────────────────────────────────
+function hslToHex(h, s, l) {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const toHex = x => Math.round(255 * x).toString(16).padStart(2, '0');
+  return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+}
+
+function updateHslPreview() {
+  const h = +document.getElementById('hsl-h').value;
+  const s = +document.getElementById('hsl-s').value;
+  const l = +document.getElementById('hsl-l').value;
+  const hex = hslToHex(h, s, l);
+  customColor = { bg: hex, text: '#ffffff', border: hex };
+  const prev = document.getElementById('hsl-preview');
+  const val = document.getElementById('hsl-value');
+  if (prev) prev.style.backgroundColor = hex;
+  if (val) val.textContent = `${hex.toUpperCase()}  (H ${h}, S ${s}, L ${l})`;
+}
+
+function showHslPicker() {
+  const picker = document.getElementById('hsl-picker');
+  if (picker) picker.classList.remove('hidden');
+  updateHslPreview();
+}
+
+function hideHslPicker() {
+  const picker = document.getElementById('hsl-picker');
+  if (picker) picker.classList.add('hidden');
 }
 
 function startEditTag(tag) {
@@ -3511,12 +3565,46 @@ function startEditTag(tag) {
   if (separator) separator.classList.remove('hidden');
   document.getElementById('add-tag-trigger-btn').classList.add('hidden');
 
-  // Select corresponding color index
+  // Seleccionar el color: de la paleta, o personalizado (HSL)
   const colorIdx = DEFAULT_COLORS.findIndex(c => c.bg === tag.color.bg);
   if (colorIdx !== -1) {
     selectedColorIndex = colorIdx;
+    customColor = null;
     buildColorPalette();
+    hideHslPicker();
+  } else {
+    // Color personalizado: activarlo y precargar los sliders con su HSL
+    selectedColorIndex = -1;
+    customColor = { bg: tag.color.bg, text: tag.color.text || '#ffffff', border: tag.color.border || tag.color.bg };
+    buildColorPalette();
+    const [h, s, l] = hexToHsl(tag.color.bg);
+    const hEl = document.getElementById('hsl-h'), sEl = document.getElementById('hsl-s'), lEl = document.getElementById('hsl-l');
+    if (hEl) hEl.value = h;
+    if (sEl) sEl.value = s;
+    if (lEl) lEl.value = l;
+    showHslPicker();
   }
+}
+
+// Convierte un hex (#rrggbb) a [H, S, L] enteros
+function hexToHsl(hex) {
+  let r = parseInt(hex.slice(1,3),16)/255;
+  let g = parseInt(hex.slice(3,5),16)/255;
+  let b = parseInt(hex.slice(5,7),16)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  let h, s, l = (max+min)/2;
+  if (max === min) { h = s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+    switch(max) {
+      case r: h = (g-b)/d + (g<b?6:0); break;
+      case g: h = (b-r)/d + 2; break;
+      default: h = (r-g)/d + 4;
+    }
+    h /= 6;
+  }
+  return [Math.round(h*360), Math.round(s*100), Math.round(l*100)];
 }
 
 function resetTagForm() {
@@ -3532,6 +3620,8 @@ function resetTagForm() {
   document.getElementById('add-tag-trigger-btn').classList.remove('hidden');
 
   selectedColorIndex = 0;
+  customColor = null;
+  hideHslPicker();
   buildColorPalette();
 }
 
@@ -4295,13 +4385,20 @@ function setupEventListeners() {
   // Tag Form Cancel Edit
   document.getElementById('tag-cancel-btn').addEventListener('click', resetTagForm);
 
+  // Sliders del selector de color personalizado (HSL): actualizar en vivo
+  ['hsl-h', 'hsl-s', 'hsl-l'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateHslPreview);
+  });
+
   // Submit Tag Form
   document.getElementById('tag-form').addEventListener('submit', (e) => {
     e.preventDefault();
 
     const name = document.getElementById('tag-input-name').value.trim();
     const editId = document.getElementById('tag-edit-id').value;
-    const color = DEFAULT_COLORS[selectedColorIndex];
+    // Si hay un color personalizado activo (boton '+'), usarlo; si no, el de la paleta.
+    const color = customColor ? customColor : DEFAULT_COLORS[selectedColorIndex];
 
     if (editId) {
       // Update Tag
@@ -5285,6 +5382,7 @@ window.addEventListener('beforeunload', (e) => {
   }
 });
 
+// Reintentar la sincronizacion en cuanto vuelva la conexion.
 window.addEventListener('online', () => {
   flushPendingSync();
 });

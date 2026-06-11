@@ -2859,3 +2859,61 @@ body.not-logged-in .app-container {
   visibility: hidden;
   cursor: default;
 }
+
+/* ─── Color personalizado: boton '+' y selector HSL ──────────────────────── */
+.color-circle-add {
+  background-color: #000000 !important;
+  border-color: #000000 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.color-add-plus {
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.hsl-picker {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light); /* solo una linea separadora, sin caja */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hsl-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hsl-preview {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.1);
+  flex-shrink: 0;
+}
+.hsl-value {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.hsl-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hsl-slider-row label {
+  font-size: 12px;
+  color: var(--text-main);
+  width: 88px;
+  flex-shrink: 0;
+}
+.hsl-slider-row input[type="range"] {
+  flex: 1;
+  cursor: pointer;
+}

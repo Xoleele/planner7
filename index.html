@@ -465,6 +465,25 @@
             <div class="color-palette-grid">
               <!-- Círculos de color se generarán por JS -->
             </div>
+            <!-- Selector de color personalizado (HSL) -->
+            <div id="hsl-picker" class="hsl-picker hidden">
+              <div class="hsl-preview-row">
+                <span id="hsl-preview" class="hsl-preview"></span>
+                <span id="hsl-value" class="hsl-value"></span>
+              </div>
+              <div class="hsl-slider-row">
+                <label for="hsl-h">Tono</label>
+                <input type="range" id="hsl-h" min="0" max="360" value="210">
+              </div>
+              <div class="hsl-slider-row">
+                <label for="hsl-s">Saturación</label>
+                <input type="range" id="hsl-s" min="0" max="100" value="70">
+              </div>
+              <div class="hsl-slider-row">
+                <label for="hsl-l">Luminosidad</label>
+                <input type="range" id="hsl-l" min="0" max="100" value="55">
+              </div>
+            </div>
           </div>
           
           <div class="tag-form-actions">
