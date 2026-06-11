@@ -1968,6 +1968,11 @@ function createTaskCard(task, occurrenceDate) {
   // Touch Drag Events (Mobile)
   card.addEventListener('touchstart', handleTouchStart, { passive: true });
 
+  // Evitar que mantener presionada la tarjeta abra el menu contextual del
+  // navegador (Atras, Recargar, Inspeccionar...), que interfiere con el
+  // gesto de arrastrar en movil.
+  card.addEventListener('contextmenu', (e) => e.preventDefault());
+
   // Checkbox Button
   const checkBtn = document.createElement('button');
   checkBtn.className = 'task-check-btn';
