@@ -3818,14 +3818,22 @@ function setupEventListeners() {
 
   // Close modals clicking backdrop & blur active element when clicking non-input card areas
   document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+    // Solo cerramos si el gesto EMPEZO y TERMINO en el fondo. Asi, si el usuario
+    // empieza a seleccionar texto dentro de un campo y arrastra el mouse fuera
+    // de la ventana (soltando sobre el fondo), el modal NO se cierra por error.
+    let pressStartedOnBackdrop = false;
+    backdrop.addEventListener('mousedown', (e) => {
+      pressStartedOnBackdrop = (e.target === backdrop);
+    });
     backdrop.addEventListener('click', (e) => {
-      if (e.target === backdrop) {
+      if (e.target === backdrop && pressStartedOnBackdrop) {
         backdrop.classList.add('hidden');
       } else if (!e.target.closest('input, textarea, select, button, .custom-select-trigger, .color-circle')) {
         if (document.activeElement && typeof document.activeElement.blur === 'function') {
           document.activeElement.blur();
         }
       }
+      pressStartedOnBackdrop = false;
     });
   });
 
