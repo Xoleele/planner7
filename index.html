@@ -636,6 +636,36 @@
     </div>
   </div>
 
+  <!-- MODAL: EDITAR TAREA REPETIDA (alcance del cambio) -->
+  <div id="edit-recurring-modal" class="modal-backdrop hidden">
+    <div class="modal-content task-modal-w">
+      <div class="modal-header">
+        <h2>Editar tarea repetida</h2>
+        <button class="close-modal-btn" data-modal="edit-recurring-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px;">
+        <p style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 20px;">
+          Esta es una tarea recurrente. &iquest;A qu&eacute; quieres aplicar los cambios?
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <button id="edit-only-this-btn" type="button" class="btn btn-secondary" style="text-align: left; padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; width: 100%;">
+            <strong style="font-size: 14px; font-weight: 600; color: var(--text-main);">Solo esta ocurrencia</strong>
+            <span style="font-size: 11.5px; color: var(--text-muted); font-weight: normal; line-height: 1.3;">El cambio se aplica solo a este d&iacute;a. Se convierte en una tarea independiente.</span>
+          </button>
+          <button id="edit-all-occurrences-btn" type="button" class="btn btn-secondary" style="text-align: left; padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; width: 100%;">
+            <strong style="font-size: 14px; font-weight: 600; color: var(--text-main);">Todas las repeticiones</strong>
+            <span style="font-size: 11.5px; color: var(--text-muted); font-weight: normal; line-height: 1.3;">El cambio se aplica a toda la serie de tareas.</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 24px;">
+        <button type="button" class="btn btn-secondary close-edit-recurring-btn">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Supabase desde CDN (no requiere bundler) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="app.js"></script>

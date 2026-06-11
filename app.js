@@ -2863,6 +2863,99 @@ function closeTaskModal() {
   selectedDayDate = null;
 }
 
+// ─── Edicion de tareas recurrentes: alcance del cambio ───────────────────────
+let pendingEditFormData = null;
+let pendingEditTaskId = null;
+let pendingEditOccurrenceDate = null;
+
+function openEditRecurringModal() {
+  const modal = document.getElementById('edit-recurring-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeEditRecurringModal() {
+  const modal = document.getElementById('edit-recurring-modal');
+  if (modal) modal.classList.add('hidden');
+  pendingEditFormData = null;
+  pendingEditTaskId = null;
+  pendingEditOccurrenceDate = null;
+}
+
+/**
+ * Aplica los cambios del formulario de tarea.
+ *  scope: 'all'       -> modifica la tarea/serie completa (comportamiento normal)
+ *         'only-this' -> separa la ocurrencia indicada como tarea independiente,
+ *                        dejando la serie original intacta en los demas dias.
+ */
+function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
+  const { title, description, tagId, isBriefcase, date,
+          startTime, endTime, duration, recurrence } = formData;
+
+  pushToUndoStack();
+
+  if (taskId) {
+    const idx = tasks.findIndex(t => t.id === taskId);
+    if (idx !== -1) {
+      const oldTask = tasks[idx];
+      const dateChanged = oldTask.date !== date;
+
+      if (scope === 'only-this' && oldTask.recurrence && oldTask.recurrence.enabled && occurrenceDate) {
+        // Separar esta ocurrencia: excluirla de la serie y crear tarea independiente.
+        if (!oldTask.recurrence.exceptions) oldTask.recurrence.exceptions = [];
+        if (!oldTask.recurrence.exceptions.includes(occurrenceDate)) {
+          oldTask.recurrence.exceptions.push(occurrenceDate);
+        }
+        const standaloneTask = {
+          id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+          title, description, tagId,
+          date: occurrenceDate,   // queda en el dia de la ocurrencia editada
+          startTime, endTime, duration,
+          recurrence: null
+        };
+        tasks.push(standaloneTask);
+        adjustPositionForModifiedTime(standaloneTask);
+      } else if (oldTask.recurrence && oldTask.recurrence.enabled && isBriefcase && occurrenceDate) {
+        // Archivar solo esta ocurrencia (mover al maletin)
+        if (!oldTask.recurrence.exceptions) oldTask.recurrence.exceptions = [];
+        if (!oldTask.recurrence.exceptions.includes(occurrenceDate)) {
+          oldTask.recurrence.exceptions.push(occurrenceDate);
+        }
+        const briefcaseTask = {
+          id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+          title, description, tagId, date: '',
+          startTime, endTime, duration, recurrence: null
+        };
+        const briefcaseTasks = tasks.filter(t => !t.date);
+        const minPos = briefcaseTasks.reduce((min, t) => Math.min(min, t.position || 0), 0);
+        briefcaseTask.position = minPos - 10;
+        tasks.push(briefcaseTask);
+      } else {
+        // Edicion regular (toda la serie o tarea simple)
+        tasks[idx] = {
+          ...tasks[idx],
+          title, description, tagId, date,
+          startTime, endTime, duration, recurrence
+        };
+        if (dateChanged || tasks[idx].position === undefined) {
+          adjustPositionForModifiedTime(tasks[idx]);
+        }
+      }
+    }
+  } else {
+    // CREAR NUEVA TAREA
+    const newTask = {
+      id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      title, description, tagId, date,
+      startTime, endTime, duration, recurrence
+    };
+    tasks.push(newTask);
+    adjustPositionForModifiedTime(newTask);
+  }
+
+  saveTasksToStorage();
+  renderWeeklyCalendar();
+}
+
 function openConfirmModal(task, occurrenceDate) {
   const confirmModal = document.getElementById('confirm-modal');
   confirmModal.classList.remove('hidden');
@@ -3980,84 +4073,30 @@ function setupEventListeners() {
       };
     }
 
-    pushToUndoStack(); // Guardamos el estado previo para poder hacer CTRL+Z
+    // Empaquetar los datos del formulario para aplicarlos (posiblemente tras
+    // preguntar el alcance en tareas recurrentes).
+    const formData = { title, description, tagId, isBriefcase, date,
+                       startTime, endTime, duration, recurrence };
 
-    if (selectedTaskId) {
-      // EDIT EXISTING TASK
-      const idx = tasks.findIndex(t => t.id === selectedTaskId);
-      if (idx !== -1) {
-        const oldTask = tasks[idx];
-        // La funcion de hora fue eliminada: una tarea solo se reposiciona si
-        // cambia de FECHA (entra a otro dia). Editar otros campos NO la mueve.
-        const dateChanged = oldTask.date !== date;
+    // ¿Es la edicion de una tarea recurrente existente sobre una ocurrencia
+    // concreta? Entonces preguntamos: todas / solo esta.
+    const existingForScope = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) : null;
+    const isRecurringEdit = existingForScope && existingForScope.recurrence &&
+                            existingForScope.recurrence.enabled && !isBriefcase &&
+                            selectedOccurrenceDate;
 
-        if (oldTask.recurrence && oldTask.recurrence.enabled && isBriefcase && selectedOccurrenceDate) {
-          // Archivar solo esta ocurrencia de una tarea recurrente
-          if (!oldTask.recurrence.exceptions) {
-            oldTask.recurrence.exceptions = [];
-          }
-          if (!oldTask.recurrence.exceptions.includes(selectedOccurrenceDate)) {
-            oldTask.recurrence.exceptions.push(selectedOccurrenceDate);
-          }
-
-          // Crear un clon simple para el maletín con los datos actuales
-          const briefcaseTask = {
-            id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
-            title,
-            description,
-            tagId,
-            date: '',
-            startTime,
-            endTime,
-            duration,
-            recurrence: null
-          };
-
-          const briefcaseTasks = tasks.filter(t => !t.date);
-          // Ir ARRIBA del panel: posicion menor que la minima existente.
-          const minPos = briefcaseTasks.reduce((min, t) => Math.min(min, t.position || 0), 0);
-          briefcaseTask.position = minPos - 10;
-
-          tasks.push(briefcaseTask);
-        } else {
-          // Edición regular
-          tasks[idx] = {
-            ...tasks[idx],
-            title,
-            description,
-            tagId,
-            date,
-            startTime,
-            endTime,
-            duration,
-            recurrence
-          };
-
-          if (dateChanged || tasks[idx].position === undefined) {
-            adjustPositionForModifiedTime(tasks[idx]);
-          }
-        }
-      }
-    } else {
-      // CREATE NEW TASK
-      const newTask = {
-        id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
-        title,
-        description,
-        tagId,
-        date,
-        startTime,
-        endTime,
-        duration,
-        recurrence
-      };
-      tasks.push(newTask);
-      adjustPositionForModifiedTime(newTask);
+    if (isRecurringEdit) {
+      // Guardar contexto y mostrar el modal de alcance.
+      pendingEditFormData = formData;
+      pendingEditTaskId = selectedTaskId;
+      pendingEditOccurrenceDate = selectedOccurrenceDate;
+      openEditRecurringModal();
+      return;
     }
 
-    saveTasksToStorage();
+    // Caso normal (no recurrente, o nueva tarea): aplicar directo.
+    applyTaskChanges('all', formData, selectedTaskId, selectedOccurrenceDate);
     closeTaskModal();
-    renderWeeklyCalendar();
   });
 
   // Delete Task Button
@@ -4083,6 +4122,27 @@ function setupEventListeners() {
   // Confirm Modal - Cancel button and Close button (X)
   document.querySelectorAll('.close-confirm-modal-btn, [data-modal="confirm-modal"]').forEach(btn => {
     btn.addEventListener('click', closeConfirmModal);
+  });
+
+  // Edit Recurring Modal - botones de alcance
+  document.querySelectorAll('.close-edit-recurring-btn, [data-modal="edit-recurring-modal"]').forEach(btn => {
+    btn.addEventListener('click', closeEditRecurringModal);
+  });
+  const editOnlyThisBtn = document.getElementById('edit-only-this-btn');
+  if (editOnlyThisBtn) editOnlyThisBtn.addEventListener('click', () => {
+    if (pendingEditFormData) {
+      applyTaskChanges('only-this', pendingEditFormData, pendingEditTaskId, pendingEditOccurrenceDate);
+    }
+    closeEditRecurringModal();
+    closeTaskModal();
+  });
+  const editAllBtn = document.getElementById('edit-all-occurrences-btn');
+  if (editAllBtn) editAllBtn.addEventListener('click', () => {
+    if (pendingEditFormData) {
+      applyTaskChanges('all', pendingEditFormData, pendingEditTaskId, pendingEditOccurrenceDate);
+    }
+    closeEditRecurringModal();
+    closeTaskModal();
   });
 
   // Confirm Modal - Delete ONLY this occurrence
