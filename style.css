@@ -2643,7 +2643,7 @@ body.not-logged-in .app-container {
   width: calc(100% - 32px);
   max-width: none;
   height: auto;
-  max-height: 90vh;
+  max-height: 70vh;
   z-index: 150;
   background-color: var(--bg-card);
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -2674,7 +2674,7 @@ body.not-logged-in .app-container {
   width: calc(100% - 32px);
   max-width: none;
   height: auto;
-  max-height: 90vh;
+  max-height: 70vh;
   transform: translate(-50%, -50%);
   margin-left: 0;
   opacity: 0;
@@ -2815,7 +2815,7 @@ body.not-logged-in .app-container {
 }
 #save-status.visible { opacity: 1; transform: translateY(0); }
 #save-status.saving { background: #6b7280; }
-#save-status.saved  { background: #16a34a; }
+#save-status.saved  { background: #000000; }
 #save-status.offline { background: #d97706; }
 
 
