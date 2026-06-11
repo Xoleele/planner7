@@ -344,21 +344,20 @@
           </div>
         </div>
 
-        <div class="form-row">
-          <!-- Hora Inicio -->
+        <!-- Funcion de hora eliminada: campos ocultos (se conservan en el DOM
+             para no romper referencias antiguas, pero no son visibles ni se usan). -->
+        <div class="form-row" style="display:none">
           <div class="form-group flex-1">
             <label for="task-input-start">Inicio (opcional)</label>
             <input type="time" id="task-input-start">
           </div>
-          <!-- Hora Fin -->
           <div class="form-group flex-1">
             <label for="task-input-end">Fin (opcional)</label>
             <input type="time" id="task-input-end">
           </div>
         </div>
 
-        <!-- Duración (Calculada automáticamente) -->
-        <div id="duration-display" class="duration-badge hidden">
+        <div id="duration-display" class="duration-badge hidden" style="display:none">
           <span>Duración: <strong id="duration-val">-</strong></span>
         </div>
 

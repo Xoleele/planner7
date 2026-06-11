@@ -1061,10 +1061,43 @@ async function startApp(user) {
   // Si Supabase devuelve vacío pero el caché local tiene datos, los conservamos
   // (no pisamos tasks[] con un array vacío)
 
+  // Migrar horas existentes a la descripcion (una sola vez por tarea)
+  migrateTimesToDescription();
+
   // Ensure all tasks have position indices for sorting
   ensurePositions();
   renderWeeklyCalendar();
   initMobileFeed();
+}
+
+// ─── Migracion: copiar la hora de cada tarea al inicio de su descripcion ──────
+// Se ejecuta una vez por tarea (marcada con _timeMigrated) y limpia los campos
+// de hora, ya que la funcion de horas fue eliminada de la app.
+function migrateTimesToDescription() {
+  let changed = false;
+  tasks.forEach(task => {
+    const hasTime = task.startTime || task.endTime;
+    if (hasTime && !task._timeMigrated) {
+      let prefix = '';
+      if (task.startTime && task.endTime) {
+        prefix = `${task.startTime} - ${task.endTime}. `;
+      } else if (task.startTime) {
+        prefix = `${task.startTime}. `;
+      } else if (task.endTime) {
+        prefix = `${task.endTime}. `;
+      }
+      task.description = prefix + (task.description || '');
+      changed = true;
+    }
+    // Limpiar los campos de hora y marcar como migrada
+    if (task.startTime !== undefined) delete task.startTime;
+    if (task.endTime !== undefined) delete task.endTime;
+    if (task.duration !== undefined) delete task.duration;
+    task._timeMigrated = true;
+  });
+  if (changed) {
+    saveTasksToStorage();
+  }
 }
 
 /**
@@ -1909,40 +1942,7 @@ function createTaskCard(task, occurrenceDate) {
   const meta = document.createElement('div');
   meta.className = 'task-card-meta';
 
-  if (task.startTime) {
-    const timeBadge = document.createElement('span');
-    timeBadge.className = 'task-time-badge';
-    
-    let timeText = task.startTime;
-    if (task.endTime) {
-      timeText += ` - ${task.endTime}`;
-      
-      // Calcular duración dinámicamente para mostrarla en la tarjeta
-      const [startH, startM] = task.startTime.split(':').map(Number);
-      const [endH, endM] = task.endTime.split(':').map(Number);
-      let diff = (endH * 60 + endM) - (startH * 60 + startM);
-      if (diff < 0) {
-        diff += 24 * 60; // Termina al día siguiente (overnight)
-      }
-      const hours = Math.floor(diff / 60);
-      const mins = diff % 60;
-      let durStr = '';
-      if (hours > 0) durStr += `${hours}h`;
-      if (mins > 0) durStr += `${mins}min`;
-      if (hours === 0 && mins === 0) durStr = '0min';
-      
-      timeText += ` (${durStr.trim()})`;
-    }
-    
-    timeBadge.innerHTML = `
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-time-icon">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
-      </svg>
-      <span>${timeText}</span>
-    `;
-    meta.appendChild(timeBadge);
-  }
+  // (Funcion de hora eliminada: ya no se muestra badge de hora)
 
 
 
@@ -2735,8 +2735,6 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
     document.getElementById('task-input-title').value = task.title;
     document.getElementById('task-input-description').value = task.description || '';
     setSelectTagValue(task.tagId);
-    document.getElementById('task-input-start').value = task.startTime || '';
-    document.getElementById('task-input-end').value = task.endTime || '';
 
     if (!task.date) {
       briefcaseCheckbox.checked = true;
@@ -2753,8 +2751,6 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
       repeatToggle.disabled = false;
     }
 
-    // Calculate duration display
-    updateDurationDisplay();
 
     // Setup Recurrence
     if (task.recurrence && task.recurrence.enabled && task.date) {
@@ -3787,10 +3783,7 @@ function setupEventListeners() {
   setupDesktopColumns(document);
 
   // Task Form Duration calculation listeners (both input and change events for real-time update)
-  document.getElementById('task-input-start').addEventListener('change', updateDurationDisplay);
-  document.getElementById('task-input-start').addEventListener('input', updateDurationDisplay);
-  document.getElementById('task-input-end').addEventListener('change', updateDurationDisplay);
-  document.getElementById('task-input-end').addEventListener('input', updateDurationDisplay);
+  // (Listeners de hora/duracion eliminados)
 
   // Close modals clicking X
   document.querySelectorAll('.close-modal-btn').forEach(btn => {
@@ -3919,22 +3912,10 @@ function setupEventListeners() {
     const tagId = document.getElementById('task-select-tag').value;
     const isBriefcase = document.getElementById('task-in-briefcase-checkbox').checked;
     const date = isBriefcase ? "" : document.getElementById('task-input-date').value;
-    const startTime = document.getElementById('task-input-start').value || null;
-    const endTime = document.getElementById('task-input-end').value || null;
-
-    // Calculate duration
-    let duration = null;
-    if (startTime && endTime) {
-      const [startH, startM] = startTime.split(':').map(Number);
-      const [endH, endM] = endTime.split(':').map(Number);
-      let diff = (endH * 60 + endM) - (startH * 60 + startM);
-      if (diff < 0) {
-        diff += 24 * 60; // Termina al día siguiente (overnight)
-      }
-      const hours = Math.floor(diff / 60);
-      const mins = diff % 60;
-      duration = `${hours > 0 ? hours + 'h' : ''}${mins > 0 ? mins + 'min' : ''}` || '0min';
-    }
+    // Funcion de hora eliminada: las tareas ya no tienen hora ni duracion
+    const startTime = null;
+    const endTime = null;
+    const duration = null;
 
     // Recurrence logic
     let recurrence = null;
