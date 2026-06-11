@@ -1674,7 +1674,7 @@ function renderTasksToContainer(dayTasks, tasksContainer, dateStr) {
     
     toggleBtn.innerHTML = `
       <img src="icons/chevron-down.svg" alt="" width="12" height="12" class="completed-toggle-arrow ${isExpanded ? 'rotated' : ''}">
-      <span class="completed-toggle-text">Completadas</span>
+      <span class="completed-toggle-text">Completadas (${completedTasks.length})</span>
     `;
     
     const completedContainer = document.createElement('div');
