@@ -1202,40 +1202,44 @@ input:checked + .slider:before {
   transition: transform var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-fast), margin var(--transition-fast) !important;
 }
 
+/* La linea indicadora NO ocupa espacio (sin margenes que empujen el layout).
+   Se dibuja con un pseudo-elemento absoluto en el hueco natural entre tarjetas,
+   asi las demas tarjetas no se desplazan y la deteccion del punto de soltado
+   se mantiene estable (sin parpadeo ni "baile" de tarjetas). */
 .task-card.drag-before-indicator {
   position: relative;
-  margin-top: 22px;
 }
 
 .task-card.drag-before-indicator::before {
   content: '';
   position: absolute;
-  top: -15px;
+  top: -5px;            /* dentro del gap natural entre tarjetas */
   left: 2px;
   right: 2px;
-  height: 2px;
+  height: 3px;
   background-color: var(--text-main);
   border-radius: var(--radius-full);
   z-index: 10;
-  box-shadow: 0 0 0 1px var(--bg-card); /* Add visual contrast */
+  box-shadow: 0 0 0 1px var(--bg-card);
+  pointer-events: none; /* nunca interfiere con la deteccion del cursor */
 }
 
 .task-card.drag-after-indicator {
   position: relative;
-  margin-bottom: 22px;
 }
 
 .task-card.drag-after-indicator::after {
   content: '';
   position: absolute;
-  bottom: -15px;
+  bottom: -5px;
   left: 2px;
   right: 2px;
-  height: 2px;
+  height: 3px;
   background-color: var(--text-main);
   border-radius: var(--radius-full);
   z-index: 10;
-  box-shadow: 0 0 0 1px var(--bg-card); /* Add visual contrast */
+  box-shadow: 0 0 0 1px var(--bg-card);
+  pointer-events: none;
 }
 
 /* --- Custom Calendar Dropdown --- */

@@ -2208,31 +2208,47 @@ function setupDragAndDrop(targetWrapper = document) {
       e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move';
       column.classList.add('drag-over');
 
-      // Visual feedback for reordering untimed tasks
       const draggedTask = tasks.find(t => t.id === draggedTaskId);
-      if (draggedTask && !draggedTask.startTime) {
-        // Clear previous indicators
-        container.querySelectorAll('.task-card').forEach(card => {
-          card.classList.remove('drag-after-indicator', 'drag-before-indicator');
-        });
+      if (!draggedTask) return;
 
-        const afterElement = getDragAfterElement(container, e.clientY);
-        if (afterElement) {
-          afterElement.classList.add('drag-before-indicator');
-        } else {
-          const cards = container.querySelectorAll('.task-card:not(.completed):not(.dragging)');
-          if (cards.length > 0) {
-            cards[cards.length - 1].classList.add('drag-after-indicator');
-          }
-        }
+      // Determinar donde caeria la tarjeta segun la posicion del cursor.
+      const afterElement = getDragAfterElement(container, e.clientY);
+      let targetEl, targetClass;
+      if (afterElement) {
+        targetEl = afterElement;
+        targetClass = 'drag-before-indicator';
+      } else {
+        const cards = container.querySelectorAll('.task-card:not(.completed):not(.dragging):not(.touch-dragging)');
+        targetEl = cards.length > 0 ? cards[cards.length - 1] : null;
+        targetClass = 'drag-after-indicator';
       }
+
+      // Solo repintar si el destino CAMBIO (evita el parpadeo y el trabajo
+      // redundante de borrar/poner clases en cada pixel del arrastre).
+      if (column._lastIndicatorEl === targetEl && column._lastIndicatorClass === targetClass) {
+        return;
+      }
+      // Limpiar indicador anterior
+      if (column._lastIndicatorEl) {
+        column._lastIndicatorEl.classList.remove('drag-after-indicator', 'drag-before-indicator');
+      }
+      if (targetEl) {
+        targetEl.classList.add(targetClass);
+      }
+      column._lastIndicatorEl = targetEl;
+      column._lastIndicatorClass = targetClass;
     });
 
-    column.addEventListener('dragleave', () => {
+    column.addEventListener('dragleave', (e) => {
+      // Ignorar dragleave hacia un hijo dentro de la misma columna
+      // (evita limpiar el indicador al pasar entre tarjetas).
+      if (column.contains(e.relatedTarget)) return;
       column.classList.remove('drag-over');
       container.querySelectorAll('.task-card').forEach(card => {
         card.classList.remove('drag-after-indicator', 'drag-before-indicator');
       });
+      column._lastIndicatorEl = null;
+      column._lastIndicatorClass = null;
     });
 
     column.addEventListener('drop', (e) => {
@@ -2243,6 +2259,8 @@ function setupDragAndDrop(targetWrapper = document) {
       container.querySelectorAll('.task-card').forEach(card => {
         card.classList.remove('drag-after-indicator', 'drag-before-indicator');
       });
+      column._lastIndicatorEl = null;
+      column._lastIndicatorClass = null;
 
       const id = e.dataTransfer.getData('text/plain');
       const targetDateStr = column.dataset.date;
