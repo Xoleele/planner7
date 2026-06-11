@@ -1829,7 +1829,7 @@ body.not-logged-in .app-container {
   gap: 10px;
   padding: 8px 16px;
   justify-content: flex-start;
-  background-color: #111111;
+  background-color: #333333;
   color: #ffffff;
   border-top-left-radius: 9px;
   border-top-right-radius: 9px;
@@ -2223,6 +2223,10 @@ body.not-logged-in .app-container {
   padding: 4px;
   border-radius: var(--radius-sm);
 }
+/* Icono de papelera blanco en el header movil (antes heredaba el filtro gris) */
+.mobile-mode .clear-day-btn img {
+  filter: invert(100%) !important;
+}
 
 .mobile-mode .dialogue-day-btn {
   position: absolute;
@@ -2232,7 +2236,7 @@ body.not-logged-in .app-container {
   background: none;
   border: none;
   box-shadow: none;
-  opacity: 0.5; /* Opacidad media en móvil para el estado vacío */
+  opacity: 1; /* Siempre blanco/visible en movil */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2817,7 +2821,6 @@ body.not-logged-in .app-container {
 #save-status.saving { background: #6b7280; }
 #save-status.saved  { background: #000000; }
 #save-status.offline { background: #d97706; }
-
 
 /* --- Reordenar etiquetas: handle de arrastre --- */
 .tag-drag-handle {
