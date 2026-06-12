@@ -3291,11 +3291,22 @@ function closeCopyTextModal() {
 
 // Mantiene coherentes las casillas: la opción "Separar" sólo tiene sentido si
 // se copian ambos grupos; si uno de los dos está desmarcado, se deshabilita.
-function updateCopyOptionsState() {
+// Además, garantiza que siempre haya al menos una casilla marcada entre
+// "Copiar completadas" y "Copiar no completadas".
+function updateCopyOptionsState(e) {
   const completed = document.getElementById('copy-opt-completed');
   const pending = document.getElementById('copy-opt-pending');
   const separate = document.getElementById('copy-opt-separate');
   if (!completed || !pending || !separate) return;
+
+  // Impedir que ambas queden desmarcadas: si el usuario acaba de desmarcar una
+  // y la otra ya estaba desmarcada, revertir el cambio.
+  if (e && e.target && (e.target === completed || e.target === pending)) {
+    if (!completed.checked && !pending.checked) {
+      e.target.checked = true;
+    }
+  }
+
   const bothSelected = completed.checked && pending.checked;
   separate.disabled = !bothSelected;
   const sepLabel = separate.closest('.copy-option');
@@ -3330,9 +3341,9 @@ function buildCopyText(dateStr, opts) {
   const lineFor = (task) => {
     let line = task.title || '';
     if (opts.includeDesc && task.description && task.description.trim() !== '') {
-      line += `\n  ${task.description.trim()}`;
+      line += `. ${task.description.trim()}`;
     }
-    return line;
+    return `- ${line}`;
   };
 
   const blocks = [];

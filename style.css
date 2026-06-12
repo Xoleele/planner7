@@ -2149,12 +2149,15 @@ body.not-logged-in .app-container {
 }
 
 .copy-day-btn {
-  top: 46px;
-  right: 15px;
+  top: 14px;
+  right: auto;
+  left: 15px;
 }
 
 .clear-day-btn {
-  top: 78px;
+  top: 46px;
+  right: auto;
+  left: 15px;
 }
 
 .day-column:hover .clear-day-btn,
