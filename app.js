@@ -622,6 +622,7 @@ let preventClick = false;
 let isOverBriefcaseTarget = false; // Tracks if task is hovered over briefcase icon during touch drag
 let isOverTrashTarget = false; // Tracks if task is hovered over trash icon during touch drag
 let isOverBriefcaseContainer = false; // Tracks if briefcase task is being reordered within the panel
+let isOverCompletedSection = false; // Tracks if a completed task is being reordered within its section
 let touchEdgeSlideTimeout = null;  // Timer para activar el slide horizontal al borde (móvil touch)
 let touchEdgeSlideCooldown = false; // Evita disparar múltiples slides seguidos
 let touchEdgeSlideDir = 0;         // -1 = izquierda (día anterior), 1 = derecha (día siguiente)
@@ -2207,6 +2208,74 @@ function getDragAfterElement(container, y) {
   }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
+// ¿La coordenada vertical y cae dentro del rectangulo visible del elemento?
+function elementContainsPointY(el, y) {
+  if (!el) return false;
+  const rect = el.getBoundingClientRect();
+  if (rect.height === 0) return false;
+  return y >= rect.top && y <= rect.bottom;
+}
+
+// Igual que getDragAfterElement pero operando SOLO sobre las tarjetas
+// completadas (las que viven dentro de .completed-tasks-container). Permite
+// reordenar las completadas entre si sin tocar las pendientes.
+function getDragAfterElementCompleted(container, y) {
+  const draggableElements = [...container.querySelectorAll('.task-card.completed:not(.dragging):not(.touch-dragging)')];
+
+  return draggableElements.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      return { offset: offset, element: child };
+    } else {
+      return closest;
+    }
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+// Reordena una tarea completada dentro de la seccion de completadas de un dia.
+// No mueve la tarea a otro dia ni cambia su estado: solo recalcula el orden
+// relativo ENTRE las completadas, dejandolas siempre despues de las pendientes.
+function reorderCompletedTask(taskId, targetDateStr, afterTaskId) {
+  const taskIndex = tasks.findIndex(t => t.id === taskId);
+  if (taskIndex === -1) return;
+
+  const movedTask = tasks[taskIndex];
+  const checkDate = new Date(targetDateStr + 'T00:00:00');
+
+  // Separar pendientes y completadas del dia, respetando el orden actual.
+  const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate));
+  dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
+
+  const isCompleted = (t) => (t.recurrence && t.recurrence.enabled)
+    ? !!(t.completedOccurrences && t.completedOccurrences.includes(targetDateStr))
+    : !!t.completed;
+
+  const pending = dayTasks.filter(t => !isCompleted(t));
+  const completed = dayTasks.filter(t => isCompleted(t) && t.id !== taskId);
+
+  // Insertar la tarea movida en la posicion indicada dentro de las completadas.
+  let insertIndex = completed.length;
+  if (afterTaskId) {
+    const idx = completed.findIndex(t => t.id === afterTaskId);
+    if (idx !== -1) insertIndex = idx;
+  }
+  completed.splice(insertIndex, 0, movedTask);
+
+  pushToUndoStack();
+
+  // Reasignar posiciones: primero las pendientes (conservando su orden) y
+  // luego las completadas. Asi las completadas siempre quedan al final pero
+  // con el nuevo orden relativo entre ellas.
+  const ordered = [...pending, ...completed];
+  ordered.forEach((t, idx) => {
+    setEffectivePosition(t, targetDateStr, idx * 10);
+  });
+
+  saveTasksToStorage();
+  renderWeeklyCalendar();
+}
+
 function setupDragAndDrop(targetWrapper = document) {
   const columns = targetWrapper.querySelectorAll('.day-column');
 
@@ -2221,9 +2290,45 @@ function setupDragAndDrop(targetWrapper = document) {
       const draggedTask = tasks.find(t => t.id === draggedTaskId);
       if (!draggedTask) return;
 
+      // Detectar si el cursor esta sobre la seccion de completadas (expandida).
+      // En ese caso, mostramos el indicador ENTRE las completadas para permitir
+      // reordenarlas igual que las pendientes.
+      const completedContainer = column.querySelector('.completed-tasks-container');
+      const draggedIsCompletedHere = (draggedTask.recurrence && draggedTask.recurrence.enabled)
+        ? !!(draggedTask.completedOccurrences && draggedTask.completedOccurrences.includes(draggedTaskSourceDate))
+        : !!draggedTask.completed;
+      const overCompleted = completedContainer
+        && completedContainer.offsetParent !== null
+        && draggedIsCompletedHere
+        && draggedTaskSourceDate === column.dataset.date
+        && !e.ctrlKey
+        && elementContainsPointY(completedContainer, e.clientY);
+
+      let afterElement, targetEl, targetClass;
+      if (overCompleted) {
+        afterElement = getDragAfterElementCompleted(completedContainer, e.clientY);
+        if (afterElement) {
+          targetEl = afterElement;
+          targetClass = 'drag-before-indicator';
+        } else {
+          const cards = completedContainer.querySelectorAll('.task-card.completed:not(.dragging):not(.touch-dragging)');
+          targetEl = cards.length > 0 ? cards[cards.length - 1] : null;
+          targetClass = 'drag-after-indicator';
+        }
+        if (column._lastIndicatorEl === targetEl && column._lastIndicatorClass === targetClass) {
+          return;
+        }
+        if (column._lastIndicatorEl) {
+          column._lastIndicatorEl.classList.remove('drag-after-indicator', 'drag-before-indicator');
+        }
+        if (targetEl) targetEl.classList.add(targetClass);
+        column._lastIndicatorEl = targetEl;
+        column._lastIndicatorClass = targetClass;
+        return;
+      }
+
       // Determinar donde caeria la tarjeta segun la posicion del cursor.
-      const afterElement = getDragAfterElement(container, e.clientY);
-      let targetEl, targetClass;
+      afterElement = getDragAfterElement(container, e.clientY);
       if (afterElement) {
         targetEl = afterElement;
         targetClass = 'drag-before-indicator';
@@ -2274,8 +2379,28 @@ function setupDragAndDrop(targetWrapper = document) {
 
       const id = e.dataTransfer.getData('text/plain');
       const targetDateStr = column.dataset.date;
-      
+
       if (!id || !targetDateStr) return;
+
+      // Si se suelta sobre la seccion de completadas y la tarea arrastrada es
+      // una completada del MISMO dia, reordenar entre completadas en vez de
+      // mover (no se permite copiar/mover de dia dentro de esta seccion).
+      const completedContainer = column.querySelector('.completed-tasks-container');
+      const draggedTask = tasks.find(t => t.id === id);
+      const draggedIsCompletedHere = draggedTask && ((draggedTask.recurrence && draggedTask.recurrence.enabled)
+        ? !!(draggedTask.completedOccurrences && draggedTask.completedOccurrences.includes(draggedTaskSourceDate))
+        : !!draggedTask.completed);
+
+      if (!e.ctrlKey
+          && draggedIsCompletedHere
+          && draggedTaskSourceDate === targetDateStr
+          && completedContainer
+          && completedContainer.offsetParent !== null
+          && elementContainsPointY(completedContainer, e.clientY)) {
+        const afterEl = getDragAfterElementCompleted(completedContainer, e.clientY);
+        reorderCompletedTask(id, targetDateStr, afterEl ? afterEl.dataset.id : null);
+        return;
+      }
 
       moveTaskToDate(id, draggedTaskSourceDate, targetDateStr, container, e.clientY, e.ctrlKey);
     });
@@ -2462,17 +2587,20 @@ function updateDragTarget(clientX, clientY) {
     isOverBriefcaseTarget = true;
     isOverTrashTarget = false;
     lastTargetColumn = null;
+    isOverCompletedSection = false;
   } else if (overTrash) {
     overTrash.classList.add('drag-over');
     isOverTrashTarget = true;
     isOverBriefcaseTarget = false;
     lastTargetColumn = null;
+    isOverCompletedSection = false;
   } else if (overBriefcaseContainer && touchDraggedSourceDate === '') {
     // Reordering within the briefcase panel
     isOverBriefcaseTarget = false;
     isOverTrashTarget = false;
     lastTargetColumn = null;
     isOverBriefcaseContainer = true;
+    isOverCompletedSection = false;
 
     const afterElement = getDragAfterElement(overBriefcaseContainer, clientY);
     if (afterElement) {
@@ -2490,11 +2618,35 @@ function updateDragTarget(clientX, clientY) {
     if (column) {
       column.classList.add('drag-over');
       lastTargetColumn = column;
+      isOverCompletedSection = false;
 
       const container = column.querySelector('.tasks-container');
       const draggedTask = tasks.find(t => t.id === touchDraggedTaskId);
-      // Visual indicators only for untimed tasks reordering, similar to desktop
-      if (container && draggedTask && !draggedTask.startTime) {
+
+      // Si la tarea arrastrada es una completada del MISMO dia y el dedo esta
+      // sobre la seccion de completadas (expandida), mostrar el indicador entre
+      // las completadas para reordenarlas, igual que en escritorio.
+      const completedContainer = column.querySelector('.completed-tasks-container');
+      const draggedIsCompletedHere = draggedTask && ((draggedTask.recurrence && draggedTask.recurrence.enabled)
+        ? !!(draggedTask.completedOccurrences && draggedTask.completedOccurrences.includes(touchDraggedSourceDate))
+        : !!draggedTask.completed);
+      if (completedContainer
+          && completedContainer.offsetParent !== null
+          && draggedIsCompletedHere
+          && touchDraggedSourceDate === column.dataset.date
+          && elementContainsPointY(completedContainer, clientY)) {
+        isOverCompletedSection = true;
+        const afterElement = getDragAfterElementCompleted(completedContainer, clientY);
+        if (afterElement) {
+          afterElement.classList.add('drag-before-indicator');
+        } else {
+          const cards = completedContainer.querySelectorAll('.task-card.completed:not(.touch-dragging)');
+          if (cards.length > 0) {
+            cards[cards.length - 1].classList.add('drag-after-indicator');
+          }
+        }
+      } else if (container && draggedTask && !draggedTask.startTime) {
+        // Visual indicators only for untimed tasks reordering, similar to desktop
         const afterElement = getDragAfterElement(container, clientY);
         if (afterElement) {
           afterElement.classList.add('drag-before-indicator');
@@ -2507,6 +2659,7 @@ function updateDragTarget(clientX, clientY) {
       }
     } else {
       lastTargetColumn = null;
+      isOverCompletedSection = false;
     }
   }
 }
@@ -2547,7 +2700,17 @@ function handleTouchEnd(e) {
       if (dropColumn) {
         const targetDateStr = dropColumn.dataset.date;
         const container = dropColumn.querySelector('.tasks-container');
-        moveTaskToDate(touchDraggedTaskId, touchDraggedSourceDate, targetDateStr, container, lastTouchY);
+        // Reordenar dentro de la seccion de completadas si el dedo estaba sobre
+        // ella (misma fecha, tarea completada). Si no, mover normalmente.
+        const completedContainer = dropColumn.querySelector('.completed-tasks-container');
+        if (isOverCompletedSection
+            && completedContainer
+            && touchDraggedSourceDate === targetDateStr) {
+          const afterEl = getDragAfterElementCompleted(completedContainer, lastTouchY);
+          reorderCompletedTask(touchDraggedTaskId, targetDateStr, afterEl ? afterEl.dataset.id : null);
+        } else {
+          moveTaskToDate(touchDraggedTaskId, touchDraggedSourceDate, targetDateStr, container, lastTouchY);
+        }
       } else if (touchDraggedSourceDate === "") {
         toggleBriefcaseDrawer();
       }
@@ -2699,6 +2862,7 @@ function cleanupDraggingUI() {
   isOverTrashTarget = false;
 
   isOverBriefcaseContainer = false;
+  isOverCompletedSection = false;
   lastTargetColumn = null;
 }
 
