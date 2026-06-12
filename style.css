@@ -2124,7 +2124,8 @@ body.not-logged-in .app-container {
 }
 
 .clear-day-btn,
-.dialogue-day-btn {
+.dialogue-day-btn,
+.copy-day-btn {
   position: absolute;
   right: 14px;
   background-color: #ffffff;
@@ -2142,17 +2143,23 @@ body.not-logged-in .app-container {
   z-index: 10;
 }
 
-.clear-day-btn {
-  top: 46px;
-}
-
 .dialogue-day-btn {
   top: 14px;
   right: 15px; /* Perfect center alignment with 24px diameter */
 }
 
+.copy-day-btn {
+  top: 46px;
+  right: 15px;
+}
+
+.clear-day-btn {
+  top: 78px;
+}
+
 .day-column:hover .clear-day-btn,
-.day-column:hover .dialogue-day-btn {
+.day-column:hover .dialogue-day-btn,
+.day-column:hover .copy-day-btn {
   opacity: 1;
 }
 
@@ -2176,8 +2183,15 @@ body.not-logged-in .app-container {
 
 /* Icono en gris por defecto */
 .dialogue-day-btn img,
-.clear-day-btn img {
+.clear-day-btn img,
+.copy-day-btn img {
   filter: invert(62%) sepia(6%) saturate(120%) hue-rotate(200deg) brightness(91%) contrast(85%);
+}
+
+.copy-day-btn img {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 /* Estado de diálogo con notas activas (mismo gris que el basurero por defecto) */
@@ -2194,14 +2208,16 @@ body.not-logged-in .app-container {
 
 /* Al hacer hover, se vuelve oscuro */
 .dialogue-day-btn:hover,
-.clear-day-btn:hover {
+.clear-day-btn:hover,
+.copy-day-btn:hover {
   color: var(--text-main);
   background-color: #f2f2f7;
   border-color: #c7c7cc;
 }
 
 .dialogue-day-btn:hover img,
-.clear-day-btn:hover img {
+.clear-day-btn:hover img,
+.copy-day-btn:hover img {
   filter: invert(7%);
 }
 
@@ -2248,6 +2264,32 @@ body.not-logged-in .app-container {
   width: 14px;
   height: 14px;
   filter: invert(100%) !important; /* Icono blanco */
+}
+
+.mobile-mode .copy-day-btn {
+  position: absolute;
+  right: 76px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  box-shadow: none;
+  opacity: 1; /* Siempre visible en móvil */
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  color: #ffffff;
+}
+
+.mobile-mode .copy-day-btn img {
+  width: 14px;
+  height: 14px;
+  filter: invert(100%) !important; /* Icono blanco */
+}
+
+.mobile-mode .copy-day-btn:hover {
+  opacity: 0.8;
+  background: none;
+  border: none;
 }
 
 .mobile-mode .dialogue-day-btn:hover {
@@ -2919,4 +2961,70 @@ body.not-logged-in .app-container {
 .hsl-slider-row input[type="range"] {
   flex: 1;
   cursor: pointer;
+}
+
+/* --- Modal: Copiar tareas como texto --- */
+.copy-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.copy-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-main);
+  transition: background-color var(--transition-fast);
+  user-select: none;
+}
+
+.copy-option:hover {
+  background-color: #f2f2f7;
+}
+
+.copy-option input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+  border: 1.5px solid #c7c7cc;
+  border-radius: 5px;
+  background-color: var(--bg-card);
+  cursor: pointer;
+  position: relative;
+  transition: all var(--transition-fast);
+}
+
+.copy-option input[type="checkbox"]:checked {
+  background-color: var(--text-main);
+  border-color: var(--text-main);
+}
+
+.copy-option input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.copy-option input[type="checkbox"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.copy-option.copy-option-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

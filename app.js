@@ -3271,6 +3271,152 @@ async function saveNotesToStorage() {
   await savePreferences(prefs);
 }
 
+// --- Copiar tareas del día como texto ---
+
+let copyTextModalDate = null;
+
+function openCopyTextModal(dateStr) {
+  copyTextModalDate = dateStr;
+  const modal = document.getElementById('copy-text-modal');
+  if (!modal) return;
+  updateCopyOptionsState();
+  modal.classList.remove('hidden');
+}
+
+function closeCopyTextModal() {
+  const modal = document.getElementById('copy-text-modal');
+  if (modal) modal.classList.add('hidden');
+  copyTextModalDate = null;
+}
+
+// Mantiene coherentes las casillas: la opción "Separar" sólo tiene sentido si
+// se copian ambos grupos; si uno de los dos está desmarcado, se deshabilita.
+function updateCopyOptionsState() {
+  const completed = document.getElementById('copy-opt-completed');
+  const pending = document.getElementById('copy-opt-pending');
+  const separate = document.getElementById('copy-opt-separate');
+  if (!completed || !pending || !separate) return;
+  const bothSelected = completed.checked && pending.checked;
+  separate.disabled = !bothSelected;
+  const sepLabel = separate.closest('.copy-option');
+  if (sepLabel) sepLabel.classList.toggle('copy-option-disabled', !bothSelected);
+  if (!bothSelected) separate.checked = false;
+}
+
+// Devuelve las tareas del día separadas en pendientes y completadas, en el
+// MISMO orden en que se muestran en la lista (posición efectiva por día).
+function getOrderedDayTasks(dateStr) {
+  const colDate = new Date(dateStr + 'T00:00:00');
+  const dayTasks = tasks.filter(task => {
+    if (!checkTaskOccurrence(task, colDate)) return false;
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    return tag ? tag.visible !== false : true;
+  });
+  dayTasks.sort((a, b) => getEffectivePosition(a, dateStr) - getEffectivePosition(b, dateStr));
+
+  const isCompleted = (t) => (t.recurrence && t.recurrence.enabled)
+    ? !!(t.completedOccurrences && t.completedOccurrences.includes(dateStr))
+    : !!t.completed;
+
+  const pending = dayTasks.filter(t => !isCompleted(t));
+  const completed = dayTasks.filter(t => isCompleted(t));
+  return { pending, completed, all: dayTasks, isCompleted };
+}
+
+// Construye el texto plano según las opciones marcadas en el modal.
+function buildCopyText(dateStr, opts) {
+  const { pending, completed, all, isCompleted } = getOrderedDayTasks(dateStr);
+
+  const lineFor = (task) => {
+    let line = task.title || '';
+    if (opts.includeDesc && task.description && task.description.trim() !== '') {
+      line += `\n  ${task.description.trim()}`;
+    }
+    return line;
+  };
+
+  const blocks = [];
+
+  if (opts.includeDate) {
+    blocks.push(formatSingleDate(new Date(dateStr + 'T00:00:00')));
+  }
+
+  if (opts.separate) {
+    // Grupos separados, cada uno con su encabezado, respetando el orden.
+    if (opts.includePending) {
+      const lines = pending.map(lineFor);
+      const section = ['No completadas:'];
+      if (lines.length > 0) section.push(...lines);
+      else section.push('—');
+      blocks.push(section.join('\n'));
+    }
+    if (opts.includeCompleted) {
+      const lines = completed.map(lineFor);
+      const section = ['Completadas:'];
+      if (lines.length > 0) section.push(...lines);
+      else section.push('—');
+      blocks.push(section.join('\n'));
+    }
+  } else {
+    // Lista única en el orden de aparición, filtrando por estado seleccionado.
+    const lines = all
+      .filter(t => isCompleted(t) ? opts.includeCompleted : opts.includePending)
+      .map(lineFor);
+    if (lines.length > 0) blocks.push(lines.join('\n'));
+  }
+
+  return blocks.join('\n\n').trim();
+}
+
+async function handleCopyTextConfirm() {
+  if (!copyTextModalDate) return;
+  const opts = {
+    includeCompleted: document.getElementById('copy-opt-completed').checked,
+    includePending: document.getElementById('copy-opt-pending').checked,
+    separate: document.getElementById('copy-opt-separate').checked,
+    includeDate: document.getElementById('copy-opt-date').checked,
+    includeDesc: document.getElementById('copy-opt-desc').checked,
+  };
+
+  const text = buildCopyText(copyTextModalDate, opts);
+
+  const ok = await copyTextToClipboard(text);
+  closeCopyTextModal();
+  if (ok) {
+    showHistoryNotification('Tareas copiadas al portapapeles', 'redo');
+  } else {
+    showHistoryNotification('No se pudo copiar al portapapeles', 'undo');
+  }
+}
+
+// Copia texto al portapapeles con respaldo para navegadores sin Clipboard API.
+async function copyTextToClipboard(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) {
+    console.warn('Clipboard API falló, usando respaldo:', e);
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) {
+    console.error('No se pudo copiar al portapapeles:', e);
+    return false;
+  }
+}
+
 // --- Change Password Modal ---
 
 function openChangePasswordModal() {
@@ -4793,6 +4939,33 @@ function setupEventListeners() {
     }
   });
 
+  // Delegación de eventos para copiar las tareas del día como texto
+  document.addEventListener('click', (e) => {
+    const copyBtn = e.target.closest('.copy-day-btn');
+    if (copyBtn) {
+      e.stopPropagation();
+      const col = copyBtn.closest('.day-column');
+      if (col) {
+        const dateStr = col.dataset.date;
+        if (dateStr) {
+          openCopyTextModal(dateStr);
+        }
+      }
+    }
+  });
+
+  // Botón "Copiar" del modal de copiar tareas como texto
+  const copyTextBtn = document.getElementById('copy-text-btn');
+  if (copyTextBtn) {
+    copyTextBtn.addEventListener('click', handleCopyTextConfirm);
+  }
+
+  // Mantener coherentes las casillas dependientes del modal de copiar
+  ['copy-opt-completed', 'copy-opt-pending'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', updateCopyOptionsState);
+  });
+
   // Eventos del modal de Notas
   document.getElementById('notes-save-btn').addEventListener('click', async () => {
     const modal = document.getElementById('notes-modal');
@@ -5001,6 +5174,9 @@ function makeMobileDayCard(date) {
     <span class="day-number">${date.getDate()}</span>
     <button class="${notesClass}" title="Notas">
       <img src="${iconSrc}" alt="Notas">
+    </button>
+    <button class="copy-day-btn" title="Copiar tareas como texto">
+      <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">
     </button>
     <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
       <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">

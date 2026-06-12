@@ -137,6 +137,9 @@
             <button class="dialogue-day-btn" title="Diálogo">
               <img src="icons/message-square.svg" alt="Diálogo">
             </button>
+            <button class="copy-day-btn" title="Copiar tareas como texto">
+              <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">
+            </button>
             <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
               <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
             </button>
@@ -157,6 +160,9 @@
             <button class="dialogue-day-btn" title="Diálogo">
               <img src="icons/message-square.svg" alt="Diálogo">
             </button>
+            <button class="copy-day-btn" title="Copiar tareas como texto">
+              <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">
+            </button>
             <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
               <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
             </button>
@@ -174,6 +180,9 @@
             <span class="day-number">20</span>
             <button class="dialogue-day-btn" title="Diálogo">
               <img src="icons/message-square.svg" alt="Diálogo">
+            </button>
+            <button class="copy-day-btn" title="Copiar tareas como texto">
+              <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">
             </button>
             <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
               <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
@@ -193,6 +202,9 @@
             <button class="dialogue-day-btn" title="Diálogo">
               <img src="icons/message-square.svg" alt="Diálogo">
             </button>
+            <button class="copy-day-btn" title="Copiar tareas como texto">
+              <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">
+            </button>
             <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
               <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
             </button>
@@ -210,6 +222,9 @@
             <span class="day-number">22</span>
             <button class="dialogue-day-btn" title="Diálogo">
               <img src="icons/message-square.svg" alt="Diálogo">
+            </button>
+            <button class="copy-day-btn" title="Copiar tareas como texto">
+              <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">
             </button>
             <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
               <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
@@ -229,6 +244,9 @@
             <button class="dialogue-day-btn" title="Diálogo">
               <img src="icons/message-square.svg" alt="Diálogo">
             </button>
+            <button class="copy-day-btn" title="Copiar tareas como texto">
+              <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">
+            </button>
             <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
               <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
             </button>
@@ -246,6 +264,9 @@
             <span class="day-number">7</span>
             <button class="dialogue-day-btn" title="Diálogo">
               <img src="icons/message-square.svg" alt="Diálogo">
+            </button>
+            <button class="copy-day-btn" title="Copiar tareas como texto">
+              <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">
             </button>
             <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
               <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
@@ -524,6 +545,45 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="notes-cancel-btn">Cancelar</button>
         <button type="button" class="btn btn-primary" id="notes-save-btn">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: COPIAR TAREAS COMO TEXTO -->
+  <div id="copy-text-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Copiar tareas como texto</h2>
+        <button class="close-modal-btn" data-modal="copy-text-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="copy-options">
+          <label class="copy-option">
+            <input type="checkbox" id="copy-opt-completed" checked>
+            <span>Copiar completadas</span>
+          </label>
+          <label class="copy-option">
+            <input type="checkbox" id="copy-opt-pending" checked>
+            <span>Copiar no completadas</span>
+          </label>
+          <label class="copy-option">
+            <input type="checkbox" id="copy-opt-separate">
+            <span>Separar tareas completadas y no completadas</span>
+          </label>
+          <label class="copy-option">
+            <input type="checkbox" id="copy-opt-date">
+            <span>Incluir fecha</span>
+          </label>
+          <label class="copy-option">
+            <input type="checkbox" id="copy-opt-desc">
+            <span>Incluir descripciones</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="copy-text-btn">Copiar</button>
       </div>
     </div>
   </div>
