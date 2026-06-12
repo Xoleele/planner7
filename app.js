@@ -986,6 +986,7 @@ async function startApp(user) {
     if (cachedPrefs) {
       const parsedPrefs = JSON.parse(cachedPrefs);
       notes = parsedPrefs.notes || {};
+      if (parsedPrefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...parsedPrefs.copyOptions };
     }
   } catch (e) {
     console.warn('No se pudo leer el caché local de preferencias:', e);
@@ -994,6 +995,7 @@ async function startApp(user) {
   const prefs = await loadPreferences();
   if (prefs) {
     notes = prefs.notes || {};
+    if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
     try {
       localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
     } catch (e) {}
@@ -3275,10 +3277,35 @@ async function saveNotesToStorage() {
 
 let copyTextModalDate = null;
 
+// Configuración del modal de copiado que el usuario define. Se persiste en las
+// preferencias (Supabase + caché local) para recordarla entre sesiones.
+let copyTextOptions = {
+  includeCompleted: true,
+  includePending: true,
+  separate: false,
+  includeDate: false,
+  includeDesc: false,
+};
+
+function applyCopyOptionsToModal() {
+  const map = {
+    'copy-opt-completed': copyTextOptions.includeCompleted,
+    'copy-opt-pending': copyTextOptions.includePending,
+    'copy-opt-separate': copyTextOptions.separate,
+    'copy-opt-date': copyTextOptions.includeDate,
+    'copy-opt-desc': copyTextOptions.includeDesc,
+  };
+  Object.entries(map).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = !!val;
+  });
+}
+
 function openCopyTextModal(dateStr) {
   copyTextModalDate = dateStr;
   const modal = document.getElementById('copy-text-modal');
   if (!modal) return;
+  applyCopyOptionsToModal();
   updateCopyOptionsState();
   modal.classList.remove('hidden');
 }
@@ -3389,6 +3416,10 @@ async function handleCopyTextConfirm() {
     includeDesc: document.getElementById('copy-opt-desc').checked,
   };
 
+  // Recordar la configuración elegida para la próxima vez.
+  copyTextOptions = { ...opts };
+  saveCopyOptionsToStorage();
+
   const text = buildCopyText(copyTextModalDate, opts);
 
   const ok = await copyTextToClipboard(text);
@@ -3398,6 +3429,27 @@ async function handleCopyTextConfirm() {
   } else {
     showHistoryNotification('No se pudo copiar al portapapeles', 'undo');
   }
+}
+
+// Persiste la configuración de copiado en las preferencias del usuario
+// (caché local + Supabase), igual que las notas.
+async function saveCopyOptionsToStorage() {
+  if (!currentUser) return;
+  const prefsCacheKey = 'prefs_cache_' + currentUser.id;
+
+  let prefs = {};
+  try {
+    const cachedPrefs = localStorage.getItem(prefsCacheKey);
+    if (cachedPrefs) prefs = JSON.parse(cachedPrefs);
+  } catch (e) {}
+
+  prefs.copyOptions = copyTextOptions;
+
+  try {
+    localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
+  } catch (e) {}
+
+  await savePreferences(prefs);
 }
 
 // Copia texto al portapapeles con respaldo para navegadores sin Clipboard API.
