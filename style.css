@@ -2181,9 +2181,10 @@ body.not-logged-in .app-container {
   right: 15px;
 }
 
-/* Si hay duración definida, se muestra siempre visible (igual que has-notes) */
-.duration-day-btn.has-duration {
-  opacity: 1 !important;
+/* Sin has-duration el botón nunca es visible, ni en hover */
+.duration-day-btn:not(.has-duration) {
+  opacity: 0 !important;
+  pointer-events: none;
 }
 
 .duration-day-btn img {
@@ -2217,7 +2218,7 @@ body.not-logged-in .app-container {
 .day-column:hover .clear-day-btn,
 .day-column:hover .dialogue-day-btn,
 .day-column:hover .copy-day-btn,
-.day-column:hover .duration-day-btn {
+.day-column:hover .duration-day-btn.has-duration {
   opacity: 1;
 }
 
