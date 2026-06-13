@@ -467,6 +467,14 @@ function setupUserMenu() {
         <img src="icons/download.svg" alt="" width="14" height="14">
         Exportar datos
       </button>
+      <button id="note-template-btn" class="user-dropdown-item">
+        <img src="icons/message-square.svg" alt="" width="13.3" height="13.3">
+        Plantilla de nota
+      </button>
+      <button id="advanced-options-btn" class="user-dropdown-item" style="display: none;">
+        <img src="icons/settings.svg" alt="" width="14" height="14">
+        Opciones avanzadas
+      </button>
       <button id="delete-account-btn" class="user-dropdown-item" style="color: #ff3b30;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6"></polyline>
@@ -493,6 +501,12 @@ function setupUserMenu() {
       e.stopPropagation();
       dropdown.remove();
       exportUserDataToCSV();
+    });
+
+    document.getElementById('advanced-options-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdown.remove();
+      // TODO: abrir el panel de opciones avanzadas.
     });
 
     document.getElementById('delete-account-btn').addEventListener('click', (e) => {
