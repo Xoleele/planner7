@@ -3584,6 +3584,7 @@ let copyTextOptions = {
   separate: false,
   includeDate: false,
   includeDesc: false,
+  includeNote: false,
 };
 
 function applyCopyOptionsToModal() {
@@ -3593,6 +3594,7 @@ function applyCopyOptionsToModal() {
     'copy-opt-separate': copyTextOptions.separate,
     'copy-opt-date': copyTextOptions.includeDate,
     'copy-opt-desc': copyTextOptions.includeDesc,
+    'copy-opt-note': copyTextOptions.includeNote,
   };
   Object.entries(map).forEach(([id, val]) => {
     const el = document.getElementById(id);
@@ -3702,6 +3704,14 @@ function buildCopyText(dateStr, opts) {
     if (lines.length > 0) blocks.push(lines.join('\n'));
   }
 
+  // Nota del día al final, si está activada y existe.
+  if (opts.includeNote) {
+    const note = (notes[dateStr] || '').trim();
+    if (note) {
+      blocks.push(`Nota:\n${note}`);
+    }
+  }
+
   return blocks.join('\n\n').trim();
 }
 
@@ -3713,6 +3723,7 @@ async function handleCopyTextConfirm() {
     separate: document.getElementById('copy-opt-separate').checked,
     includeDate: document.getElementById('copy-opt-date').checked,
     includeDesc: document.getElementById('copy-opt-desc').checked,
+    includeNote: document.getElementById('copy-opt-note').checked,
   };
 
   // Recordar la configuración elegida para la próxima vez.
