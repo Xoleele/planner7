@@ -3568,7 +3568,12 @@ function openNotesModal(dateStr) {
   
   const notesTextarea = document.getElementById('notes-textarea');
   notesTextarea.value = notes[dateStr] || '';
-  
+
+  // El botón de plantilla vuelve a mostrarse al abrir la nota, pero solo si el
+  // usuario tiene texto definido en su plantilla.
+  const templateBtn = document.getElementById('notes-template-btn');
+  if (templateBtn) templateBtn.style.display = (noteTemplate && noteTemplate.trim()) ? '' : 'none';
+
   modal.classList.remove('hidden');
   notesTextarea.focus();
 }
@@ -5473,6 +5478,26 @@ function setupEventListeners() {
   });
 
   document.getElementById('notes-cancel-btn').addEventListener('click', closeNotesModal);
+
+  // Botón de plantilla dentro de la nota del día: pega la plantilla guardada
+  // en la posición del cursor y se oculta hasta reabrir la nota.
+  const notesTemplateBtn = document.getElementById('notes-template-btn');
+  if (notesTemplateBtn) {
+    notesTemplateBtn.addEventListener('click', () => {
+      const ta = document.getElementById('notes-textarea');
+      if (!ta) return;
+      const tpl = noteTemplate || '';
+      const start = ta.selectionStart ?? ta.value.length;
+      const end = ta.selectionEnd ?? ta.value.length;
+      ta.value = ta.value.slice(0, start) + tpl + ta.value.slice(end);
+      // Reposicionar el cursor justo después del texto pegado.
+      const pos = start + tpl.length;
+      ta.focus();
+      ta.setSelectionRange(pos, pos);
+      // Ocultar el botón hasta que la nota se cierre y se vuelva a abrir.
+      notesTemplateBtn.style.display = 'none';
+    });
+  }
 
   // Eventos del modal de Plantilla de notas
   const noteTemplateSaveBtn = document.getElementById('note-template-save-btn');
