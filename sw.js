@@ -1,10 +1,21 @@
-const CACHE_NAME = 'planner7-v1';
-const ASSETS = [
+// IMPORTANTE: sube este número de versión cada vez que cambies app.js, style.css
+// o index.html. Al cambiar, el navegador activará un service worker nuevo, borrará
+// el caché viejo y servirá los archivos actualizados.
+const CACHE_VERSION = 'v3';
+const CACHE_NAME = 'planner7-' + CACHE_VERSION;
+
+// Archivos de código de la app: siempre se intenta traer la versión más reciente
+// desde la red (network-first). Así los cambios se ven sin tener que limpiar caché.
+const APP_SHELL = [
   '/',
   '/index.html',
   '/app.js',
   '/style.css',
-  '/manifest.json',
+  '/manifest.json'
+];
+
+// Recursos estáticos que rara vez cambian: cache-first (rápidos y offline).
+const STATIC_ASSETS = [
   '/icons/logo svg.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -16,11 +27,13 @@ const ASSETS = [
   '/icons/chevron-right.svg',
   '/icons/clock.svg',
   '/icons/close.svg',
+  '/icons/copy.svg',
   '/icons/datepicker.svg',
   '/icons/download.svg',
   '/icons/edit.svg',
   '/icons/folder-closed.svg',
   '/icons/folder-open.svg',
+  '/icons/bar-chart.svg',
   '/icons/key.svg',
   '/icons/log-out.svg',
   '/icons/message-square-text.svg',
@@ -31,15 +44,17 @@ const ASSETS = [
   '/icons/undo.svg'
 ];
 
-// Instalación: cachear todos los assets
+// Instalación: cachear todos los assets conocidos.
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(cache =>
+      cache.addAll([...APP_SHELL, ...STATIC_ASSETS])
+    )
   );
   self.skipWaiting();
 });
 
-// Activación: limpiar caches viejos
+// Activación: borrar cualquier caché de versiones anteriores.
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
@@ -49,16 +64,42 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch: network-first para peticiones a Supabase, cache-first para assets locales
+// Determina si una petición es de un archivo de código de la app (network-first).
+function isAppShellRequest(url) {
+  const path = url.pathname;
+  return (
+    path === '/' ||
+    path.endsWith('/index.html') ||
+    path.endsWith('/app.js') ||
+    path.endsWith('/style.css') ||
+    path.endsWith('/manifest.json')
+  );
+}
+
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Supabase y recursos externos: siempre red
-  if (!url.origin.includes(self.location.origin)) {
+  // Supabase y recursos externos: siempre red, sin tocar el service worker.
+  if (url.origin !== self.location.origin) {
     return;
   }
 
-  // Assets locales: cache-first con fallback a red
+  // Código de la app (HTML/JS/CSS): network-first.
+  // Trae siempre la versión más reciente; si no hay red, usa la cacheada.
+  if (isAppShellRequest(url)) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Resto de assets locales (iconos, imágenes): cache-first con respaldo a red.
   event.respondWith(
     caches.match(event.request).then(cached => {
       return cached || fetch(event.request).then(response => {

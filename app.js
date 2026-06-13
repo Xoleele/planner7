@@ -2156,6 +2156,9 @@ function renderWeeklyCalendar(targetWrapper = document) {
     // Set dataset date attribute for drag-drop and adding tasks
     colElement.dataset.date = colDateStr;
 
+    // Mostrar/ocultar botones de copiar y limpiar segun haya tareas en el dia
+    updateDayHeaderButtonsVisibility(colElement, colDateStr);
+
     // Clear previous tasks
     tasksContainer.innerHTML = '';
 
@@ -2174,6 +2177,24 @@ function renderWeeklyCalendar(targetWrapper = document) {
     renderTasksToContainer(dayTasks, tasksContainer, colDateStr);
   }
   renderBriefcaseTasks();
+}
+
+// Devuelve true si el día (YYYY-MM-DD) tiene al menos una tarea (completada o
+// no, sin importar la etiqueta). Usado para mostrar/ocultar los botones de
+// copiar y limpiar en la cabecera de cada día.
+function dayHasAnyTask(dateStr) {
+  const dateObj = new Date(dateStr + 'T12:00:00');
+  return tasks.some(task => checkTaskOccurrence(task, dateObj));
+}
+
+// Muestra u oculta los botones de copiar/limpiar de la cabecera de un día según
+// si ese día tiene al menos una tarea.
+function updateDayHeaderButtonsVisibility(colElement, dateStr) {
+  const hasTasks = dayHasAnyTask(dateStr);
+  const copyBtn = colElement.querySelector('.copy-day-btn');
+  const clearBtn = colElement.querySelector('.clear-day-btn');
+  if (copyBtn) copyBtn.classList.toggle('day-btn-hidden', !hasTasks);
+  if (clearBtn) clearBtn.classList.toggle('day-btn-hidden', !hasTasks);
 }
 
 function createTaskCard(task, occurrenceDate) {
@@ -5701,12 +5722,10 @@ function makeMobileDayCard(date) {
     : 'Sin tareas con duración definida';
   const clockActiveClass = totalMins > 0 ? ' has-duration' : '';
 
+  // Móvil: orden de iconos -> reloj, copiar, basurero, notas.
   header.innerHTML = `
     <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
     <span class="day-number">${date.getDate()}</span>
-    <button class="${notesClass}" title="Notas">
-      <img src="${iconSrc}" alt="Notas">
-    </button>
     <button class="duration-day-btn${clockActiveClass}" data-tooltip="${clockTitle}">
       <img src="icons/clock.svg" alt="Duración total" width="14" height="14">
     </button>
@@ -5715,6 +5734,9 @@ function makeMobileDayCard(date) {
     </button>
     <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
       <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
+    </button>
+    <button class="${notesClass}" title="Notas">
+      <img src="${iconSrc}" alt="Notas">
     </button>
   `;
   col.appendChild(header);
@@ -5730,6 +5752,9 @@ function makeMobileDayCard(date) {
   dayTasks.sort((a, b) => getEffectivePosition(a, dateStr) - getEffectivePosition(b, dateStr));
   renderTasksToContainer(dayTasks, tasksContainer, dateStr);
   col.appendChild(tasksContainer);
+
+  // Mostrar/ocultar botones de copiar y limpiar segun haya tareas en el dia
+  updateDayHeaderButtonsVisibility(col, dateStr);
 
   // Add button
   const addBtn = document.createElement('button');
@@ -5925,6 +5950,9 @@ function updateMobileFeedTasks() {
       }
     }
 
+
+    // Mostrar/ocultar botones de copiar y limpiar segun haya tareas en el dia
+    updateDayHeaderButtonsVisibility(col, dateStr);
 
     const tasksContainer = col.querySelector('.tasks-container');
     if (tasksContainer) {

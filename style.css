@@ -1779,6 +1779,12 @@ body.not-logged-in .app-container {
   display: none !important;
 }
 
+/* Botones de cabecera de día (copiar/limpiar) ocultos si el día no tiene tareas.
+   Aplica tanto en escritorio como en móvil. */
+.day-btn-hidden {
+  display: none !important;
+}
+
 /* Acercar el botón de estadísticas al de etiquetas (escritorio) */
 #stats-btn {
   margin-right: -8px;
@@ -2395,7 +2401,7 @@ body.not-logged-in .app-container {
 
 .mobile-mode .clear-day-btn {
   position: absolute;
-  right: 12px;
+  right: 44px;
   left: auto;
   top: 50%;
   transform: translateY(-50%);
@@ -2414,7 +2420,7 @@ body.not-logged-in .app-container {
 
 .mobile-mode .dialogue-day-btn {
   position: absolute;
-  right: 44px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   background: none;
