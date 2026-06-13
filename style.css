@@ -2139,7 +2139,8 @@ body.not-logged-in .app-container {
 
 .clear-day-btn,
 .dialogue-day-btn,
-.copy-day-btn {
+.copy-day-btn,
+.duration-day-btn {
   position: absolute;
   right: 14px;
   background-color: #ffffff;
@@ -2174,9 +2175,49 @@ body.not-logged-in .app-container {
   left: 15px;
 }
 
+/* Botón de duración total del día: debajo del de notas (derecha) */
+.duration-day-btn {
+  top: 46px;
+  right: 15px;
+}
+
+/* Si hay duración definida, se muestra siempre visible (igual que has-notes) */
+.duration-day-btn.has-duration {
+  opacity: 1 !important;
+}
+
+.duration-day-btn img {
+  width: 14px;
+  height: 14px;
+  display: block;
+  filter: invert(62%) sepia(6%) saturate(120%) hue-rotate(200deg) brightness(91%) contrast(85%);
+}
+
+/* Tooltip global para el botón de duración */
+#duration-tooltip {
+  position: fixed;
+  background: rgba(30, 30, 30, 0.88);
+  color: #fff;
+  font-size: 11px;
+  font-family: var(--font-primary);
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 5px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 100000;
+}
+
+#duration-tooltip.visible {
+  opacity: 1;
+  transition: none;
+}
+
 .day-column:hover .clear-day-btn,
 .day-column:hover .dialogue-day-btn,
-.day-column:hover .copy-day-btn {
+.day-column:hover .copy-day-btn,
+.day-column:hover .duration-day-btn {
   opacity: 1;
 }
 
@@ -2196,6 +2237,11 @@ body.not-logged-in .app-container {
   width: 12px;
   height: 12px;
   display: block;
+}
+
+.mobile-mode .duration-day-btn,
+.mobile-mode #duration-tooltip {
+  display: none !important;
 }
 
 /* Icono en gris por defecto */
@@ -2226,7 +2272,8 @@ body.not-logged-in .app-container {
 /* Al hacer hover, se vuelve oscuro */
 .dialogue-day-btn:hover,
 .clear-day-btn:hover,
-.copy-day-btn:hover {
+.copy-day-btn:hover,
+.duration-day-btn:hover {
   color: var(--text-main);
   background-color: #f2f2f7;
   border-color: #c7c7cc;
@@ -2234,7 +2281,8 @@ body.not-logged-in .app-container {
 
 .dialogue-day-btn:hover img,
 .clear-day-btn:hover img,
-.copy-day-btn:hover img {
+.copy-day-btn:hover img,
+.duration-day-btn:hover img {
   filter: invert(7%);
 }
 

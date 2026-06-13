@@ -38,6 +38,51 @@ let eventListenersInitialized = false;
 let intentionalLogout = false; // true solo cuando el usuario hace logout explícito
 let welcomeShownThisSession = false; // evita repetir el panel de bienvenida al volver de otra pestaña
 
+// ─── Duration parser ─────────────────────────────────────────────────────────
+function parseDurationFromDescription(description) {
+  if (!description || typeof description !== 'string') return null;
+  const s = description.trimStart();
+  const rangeRe = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/;
+  const rangeMatch = s.match(rangeRe);
+  if (rangeMatch) {
+    const startMin = parseInt(rangeMatch[1]) * 60 + parseInt(rangeMatch[2]);
+    const endMin   = parseInt(rangeMatch[3]) * 60 + parseInt(rangeMatch[4]);
+    const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
+    return { minutes: diff, rawMatch: rangeMatch[0] };
+  }
+  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?(?=\s|$)/i;
+  const hminMatch = s.match(hminRe);
+  if (hminMatch) {
+    return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
+  }
+  const minRe = /^(\d+)(?:min|m)(?=\s|$)/i;
+  const minMatch = s.match(minRe);
+  if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
+  return null;
+}
+function minutesToHHMM(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+function minutesToReadable(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h}h${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+function getTotalDurationForDay(dateStr) {
+  const dayTasks = tasks.filter(task => {
+    if (task.completed) return false;
+    return checkTaskOccurrence(task, new Date(dateStr + 'T12:00:00'));
+  });
+  return dayTasks.reduce((sum, task) => {
+    const parsed = parseDurationFromDescription(task.description);
+    return sum + (parsed ? parsed.minutes : 0);
+  }, 0);
+}
+
 // ─── DB helpers ─────────────────────────────────────────────────────────────
 async function loadTasks() {
   if (!currentUser) return [];
@@ -1882,6 +1927,19 @@ function renderWeeklyCalendar(targetWrapper = document) {
       } else {
         dialogueBtn.classList.remove('has-notes');
         if (dialogueImg) dialogueImg.src = 'icons/message-square.svg';
+      }
+    }
+
+    // Actualizar botón de duración total del día
+    const durationBtn = colElement.querySelector('.duration-day-btn');
+    if (durationBtn) {
+      const totalMins = getTotalDurationForDay(colDateStr);
+      if (totalMins > 0) {
+        durationBtn.classList.add('has-duration');
+        durationBtn.dataset.tooltip = `Tiempo total tareas por hacer: ${minutesToReadable(totalMins)}`;
+      } else {
+        durationBtn.classList.remove('has-duration');
+        durationBtn.dataset.tooltip = 'Sin tareas con duración definida';
       }
     }
 
@@ -4512,7 +4570,8 @@ function setupEventListeners() {
     // Funcion de hora eliminada: las tareas ya no tienen hora ni duracion
     const startTime = null;
     const endTime = null;
-    const duration = null;
+    const parsedDuration = parseDurationFromDescription(description);
+    const duration = parsedDuration ? parsedDuration.minutes : null;
 
     // Recurrence logic
     let recurrence = null;
@@ -5136,6 +5195,24 @@ function setupEventListeners() {
 
   setupBriefcaseDragAndDrop();
   setupTrashDragAndDrop();
+
+  // ── Tooltip para botón de duración ──────────────────────────────────────
+  const durationTooltip = document.getElementById('duration-tooltip');
+  document.addEventListener('mouseover', e => {
+    const btn = e.target.closest('.duration-day-btn');
+    if (!btn || !durationTooltip) return;
+    durationTooltip.textContent = btn.dataset.tooltip || '';
+    const rect = btn.getBoundingClientRect();
+    durationTooltip.style.top = (rect.top + rect.height / 2) + 'px';
+    durationTooltip.style.left = (rect.left - 8) + 'px';
+    durationTooltip.style.transform = 'translate(-100%, -50%)';
+    durationTooltip.classList.add('visible');
+  });
+  document.addEventListener('mouseout', e => {
+    const btn = e.target.closest('.duration-day-btn');
+    if (!btn || !durationTooltip) return;
+    durationTooltip.classList.remove('visible');
+  });
 }
 
 async function confirmAndClearTasksForDay(dateStr) {
@@ -5242,11 +5319,20 @@ function makeMobileDayCard(date) {
   const iconSrc = hasNotes ? 'icons/message-square-text.svg' : 'icons/message-square.svg';
   const notesClass = hasNotes ? 'dialogue-day-btn has-notes' : 'dialogue-day-btn';
 
+  const totalMins = getTotalDurationForDay(dateStr);
+  const clockTitle = totalMins > 0
+    ? `Tiempo total tareas por hacer: ${minutesToReadable(totalMins)}`
+    : 'Sin tareas con duración definida';
+  const clockActiveClass = totalMins > 0 ? ' has-duration' : '';
+
   header.innerHTML = `
     <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
     <span class="day-number">${date.getDate()}</span>
     <button class="${notesClass}" title="Notas">
       <img src="${iconSrc}" alt="Notas">
+    </button>
+    <button class="duration-day-btn${clockActiveClass}" data-tooltip="${clockTitle}">
+      <img src="icons/clock.svg" alt="Duración total" width="14" height="14">
     </button>
     <button class="copy-day-btn" title="Copiar tareas como texto">
       <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">
@@ -5448,6 +5534,19 @@ function updateMobileFeedTasks() {
       } else {
         dialogueBtn.className = 'dialogue-day-btn';
         if (dialogueImg) dialogueImg.src = 'icons/message-square.svg';
+      }
+    }
+
+    // Update duration button state
+    const durationBtn = col.querySelector('.duration-day-btn');
+    if (durationBtn) {
+      const totalMins = getTotalDurationForDay(dateStr);
+      if (totalMins > 0) {
+        durationBtn.classList.add('has-duration');
+        durationBtn.dataset.tooltip = `Tiempo total tareas por hacer: ${minutesToReadable(totalMins)}`;
+      } else {
+        durationBtn.classList.remove('has-duration');
+        durationBtn.dataset.tooltip = 'Sin tareas con duración definida';
       }
     }
 
