@@ -468,8 +468,8 @@ function setupUserMenu() {
         Exportar datos
       </button>
       <button id="note-template-btn" class="user-dropdown-item">
-        <img src="icons/message-square.svg" alt="" width="13.3" height="13.3">
-        Plantilla de nota
+        <img src="icons/edit.svg" alt="" width="13.3" height="13.3">
+        Plantilla de notas
       </button>
       <button id="advanced-options-btn" class="user-dropdown-item" style="display: none;">
         <img src="icons/settings.svg" alt="" width="14" height="14">
