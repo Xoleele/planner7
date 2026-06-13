@@ -2240,9 +2240,58 @@ body.not-logged-in .app-container {
   display: block;
 }
 
-.mobile-mode .duration-day-btn,
 .mobile-mode #duration-tooltip {
   display: none !important;
+}
+
+/* Ícono de reloj en móvil — a la izquierda del copiar (right: 108px) */
+.mobile-mode .duration-day-btn {
+  display: none; /* oculto por defecto; se muestra solo con has-duration */
+  position: absolute;
+  right: 108px;
+  left: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  box-shadow: none;
+  opacity: 1;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.mobile-mode .duration-day-btn.has-duration {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-mode .duration-day-btn img {
+  width: 14px;
+  height: 14px;
+  filter: invert(100%) !important;
+}
+
+/* Toast de duración en móvil */
+#duration-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30, 30, 30, 0.88);
+  color: #fff;
+  font-size: 13px;
+  font-family: var(--font-primary);
+  white-space: nowrap;
+  padding: 8px 16px;
+  border-radius: 20px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 100000;
+}
+#duration-toast.visible {
+  opacity: 1;
 }
 
 /* Icono en gris por defecto */
@@ -2278,6 +2327,12 @@ body.not-logged-in .app-container {
   color: var(--text-main);
   background-color: #f2f2f7;
   border-color: #c7c7cc;
+}
+
+.mobile-mode .duration-day-btn:hover {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .dialogue-day-btn:hover img,

@@ -181,6 +181,55 @@ function getTotalDurationForDay(dateStr) {
   }, 0);
 }
 
+// ─── Duration parser ─────────────────────────────────────────────────────────
+function parseDurationFromDescription(description) {
+  if (!description || typeof description !== 'string') return null;
+  const s = description.trimStart();
+  const rangeRe = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/;
+  const rangeMatch = s.match(rangeRe);
+  if (rangeMatch) {
+    const startMin = parseInt(rangeMatch[1]) * 60 + parseInt(rangeMatch[2]);
+    const endMin   = parseInt(rangeMatch[3]) * 60 + parseInt(rangeMatch[4]);
+    const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
+    return { minutes: diff, rawMatch: rangeMatch[0] };
+  }
+  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?(?=\s|$)/i;
+  const hminMatch = s.match(hminRe);
+  if (hminMatch) {
+    return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
+  }
+  const minRe = /^(\d+)(?:min|m)(?=\s|$)/i;
+  const minMatch = s.match(minRe);
+  if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
+  return null;
+}
+function minutesToHHMM(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+function minutesToReadable(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h}h${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+function getTotalDurationForDay(dateStr) {
+  const dayTasks = tasks.filter(task => {
+    if (task.recurrence && task.recurrence.enabled) {
+      if (task.completedOccurrences && task.completedOccurrences.includes(dateStr)) return false;
+    } else {
+      if (task.completed) return false;
+    }
+    return checkTaskOccurrence(task, new Date(dateStr + 'T12:00:00'));
+  });
+  return dayTasks.reduce((sum, task) => {
+    const parsed = parseDurationFromDescription(task.description);
+    return sum + (parsed ? parsed.minutes : 0);
+  }, 0);
+}
+
 // ─── DB helpers ─────────────────────────────────────────────────────────────
 async function loadTasks() {
   if (!currentUser) return [];
@@ -4497,6 +4546,20 @@ function createDatePickerDayElement(dayNum, dateObj, isOtherMonth, mobileVisible
   return btn;
 }
 
+let durationToastTimer = null;
+function showDurationToast(msg) {
+  let toast = document.getElementById('duration-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'duration-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('visible');
+  clearTimeout(durationToastTimer);
+  durationToastTimer = setTimeout(() => toast.classList.remove('visible'), 2000);
+}
+
 // --- Wire Up Event Listeners ---
 function setupEventListeners() {
   // Navigation
@@ -5361,9 +5424,10 @@ function setupEventListeners() {
   setupBriefcaseDragAndDrop();
   setupTrashDragAndDrop();
 
-  // ── Tooltip para botón de duración ──────────────────────────────────────
+  // ── Tooltip escritorio ───────────────────────────────────────────────────
   const durationTooltip = document.getElementById('duration-tooltip');
   document.addEventListener('mouseover', e => {
+    if (isMobile()) return;
     const btn = e.target.closest('.duration-day-btn');
     if (!btn || !durationTooltip) return;
     durationTooltip.textContent = btn.dataset.tooltip || '';
@@ -5374,9 +5438,19 @@ function setupEventListeners() {
     durationTooltip.classList.add('visible');
   });
   document.addEventListener('mouseout', e => {
+    if (isMobile()) return;
     const btn = e.target.closest('.duration-day-btn');
     if (!btn || !durationTooltip) return;
     durationTooltip.classList.remove('visible');
+  });
+
+  // ── Toast móvil ──────────────────────────────────────────────────────────
+  document.addEventListener('click', e => {
+    if (!isMobile()) return;
+    const btn = e.target.closest('.duration-day-btn');
+    if (!btn) return;
+    e.stopPropagation();
+    showDurationToast(btn.dataset.tooltip || '');
   });
 }
 
@@ -5711,19 +5785,6 @@ function updateMobileFeedTasks() {
       } else {
         durationBtn2.classList.remove('has-duration');
         durationBtn2.dataset.tooltip = 'Sin tareas con duración definida';
-      }
-    }
-
-    // Update duration button state
-    const durationBtn3 = col.querySelector('.duration-day-btn');
-    if (durationBtn3) {
-      const totalMins = getTotalDurationForDay(dateStr);
-      if (totalMins > 0) {
-        durationBtn3.classList.add('has-duration');
-        durationBtn3.dataset.tooltip = `Tiempo total tareas por hacer: ${minutesToReadable(totalMins)}`;
-      } else {
-        durationBtn3.classList.remove('has-duration');
-        durationBtn3.dataset.tooltip = 'Sin tareas con duración definida';
       }
     }
 
