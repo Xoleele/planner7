@@ -969,6 +969,22 @@ input:checked + .slider:before {
   background-color: #fafafa;
 }
 
+.mobile-only { display: none; }
+.mobile-mode .mobile-only { display: inline-flex; }
+
+/* Copy-text modal footer: side by side on mobile */
+.mobile-mode #copy-text-modal .modal-footer {
+  justify-content: space-between;
+}
+.mobile-mode #copy-text-modal .modal-footer .btn {
+  flex: 1;
+  justify-content: center;
+  display: flex;
+  align-items: center;
+  height: 35px;
+  box-sizing: border-box;
+}
+
 .btn {
   padding: 10px 18px;
   border-radius: var(--radius-md);
@@ -1756,6 +1772,16 @@ body.not-logged-in .app-container {
 
 .mobile-mode .header-icon-group {
   gap: 4px;
+}
+
+/* Elementos visibles solo en escritorio */
+.mobile-mode .desktop-only {
+  display: none !important;
+}
+
+/* Acercar el botón de estadísticas al de etiquetas (escritorio) */
+#stats-btn {
+  margin-right: -8px;
 }
 
 /* El navegador de semana ocupa la segunda fila completa */
