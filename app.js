@@ -5043,18 +5043,39 @@ function setupEventListeners() {
   // Open Tags Modal Button
   document.getElementById('tags-modal-btn').addEventListener('click', openTagsModal);
 
-  // Stats Modal (abrir/cerrar) — solo UI por ahora
+  // ─── Estadísticas ──────────────────────────────────────────────────────────
   const statsBtn = document.getElementById('stats-btn');
   if (statsBtn) {
     statsBtn.addEventListener('click', () => {
+      // Reset de estado al abrir
+      document.getElementById('stats-results').classList.add('hidden');
+      document.getElementById('stats-keyword').value = '';
+      document.getElementById('stats-period').value = 'today';
+      document.getElementById('stats-custom-range').classList.add('hidden');
       document.getElementById('stats-modal').classList.remove('hidden');
+      document.getElementById('stats-keyword').focus();
     });
   }
+
   const statsCancelBtn = document.getElementById('stats-cancel-btn');
   if (statsCancelBtn) {
     statsCancelBtn.addEventListener('click', () => {
       document.getElementById('stats-modal').classList.add('hidden');
     });
+  }
+
+  // Mostrar/ocultar rango personalizado según el periodo
+  const statsPeriodSelect = document.getElementById('stats-period');
+  if (statsPeriodSelect) {
+    statsPeriodSelect.addEventListener('change', () => {
+      const customRange = document.getElementById('stats-custom-range');
+      customRange.classList.toggle('hidden', statsPeriodSelect.value !== 'custom');
+    });
+  }
+
+  const statsAcceptBtn = document.getElementById('stats-accept-btn');
+  if (statsAcceptBtn) {
+    statsAcceptBtn.addEventListener('click', runStatsCalculation);
   }
 
   // Trigger Nueva Etiqueta Button
@@ -5525,6 +5546,108 @@ async function confirmAndClearTasksForDay(dateStr) {
   } else {
     renderWeeklyCalendar();
   }
+}
+
+// ─── Estadísticas ────────────────────────────────────────────────────────────
+// Normaliza texto para búsqueda: minúsculas y sin acentos/diacríticos.
+function normalizeForSearch(str) {
+  return (str || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '');
+}
+
+// Devuelve el rango [from, to] (YYYY-MM-DD inclusive) según el periodo.
+// Para 'custom' lee los inputs de fecha. Si un extremo falta, queda como null.
+function getStatsDateRange(period) {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const toStr = formatDate(today);
+
+  if (period === 'today') {
+    return { from: toStr, to: toStr };
+  }
+  if (period === 'last10' || period === 'last30') {
+    const days = period === 'last10' ? 10 : 30;
+    const from = new Date(today);
+    from.setDate(from.getDate() - (days - 1));
+    return { from: formatDate(from), to: toStr };
+  }
+  if (period === 'week') {
+    const from = new Date(today);
+    const dow = (from.getDay() + 6) % 7;
+    from.setDate(from.getDate() - dow);
+    return { from: formatDate(from), to: toStr };
+  }
+  if (period === 'month') {
+    const from = new Date(today.getFullYear(), today.getMonth(), 1, 12);
+    return { from: formatDate(from), to: toStr };
+  }
+  if (period === 'year') {
+    const from = new Date(today.getFullYear(), 0, 1, 12);
+    return { from: formatDate(from), to: toStr };
+  }
+  if (period === 'custom') {
+    const fromInput = document.getElementById('stats-date-from').value || null;
+    const toInput = document.getElementById('stats-date-to').value || null;
+    return { from: fromInput, to: toInput };
+  }
+  return { from: null, to: null };
+}
+
+function dateInRange(dateStr, from, to) {
+  if (from && dateStr < from) return false;
+  if (to && dateStr > to) return false;
+  return true;
+}
+
+// Calcula estadísticas sobre tareas COMPLETADAS cuyo TÍTULO contiene la palabra
+// clave, dentro del rango de fechas.
+function computeStats(keyword, period) {
+  const kw = normalizeForSearch(keyword);
+  const { from, to } = getStatsDateRange(period);
+
+  let repetitions = 0;
+  const uniqueDays = new Set();
+  let totalMinutes = 0;
+  let hasAnyDuration = false;
+
+  tasks.forEach(task => {
+    if (kw && !normalizeForSearch(task.title).includes(kw)) return;
+
+    const parsed = parseDurationFromDescription(task.description);
+    const minutes = parsed ? parsed.minutes : 0;
+
+    const addOccurrence = (dateStr) => {
+      if (!dateInRange(dateStr, from, to)) return;
+      repetitions += 1;
+      uniqueDays.add(dateStr);
+      if (minutes > 0) {
+        totalMinutes += minutes;
+        hasAnyDuration = true;
+      }
+    };
+
+    if (task.recurrence && task.recurrence.enabled) {
+      (task.completedOccurrences || []).forEach(addOccurrence);
+    } else if (task.completed && task.date) {
+      addOccurrence(task.date);
+    }
+  });
+
+  return { repetitions, days: uniqueDays.size, totalMinutes, hasAnyDuration };
+}
+
+function runStatsCalculation() {
+  const keyword = document.getElementById('stats-keyword').value.trim();
+  const period = document.getElementById('stats-period').value;
+  const stats = computeStats(keyword, period);
+  document.getElementById('stats-repetitions').textContent = stats.repetitions;
+  document.getElementById('stats-days').textContent = stats.days;
+  document.getElementById('stats-total-time').textContent =
+    stats.hasAnyDuration ? minutesToReadable(stats.totalMinutes) : '—';
+  document.getElementById('stats-results').classList.remove('hidden');
 }
 
 async function toggleTaskCompletion(task, occurrenceDate) {

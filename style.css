@@ -1784,6 +1784,26 @@ body.not-logged-in .app-container {
   margin-right: -8px;
 }
 
+/* Filas de resultados del panel de estadísticas */
+.stats-result-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+.stats-result-row + .stats-result-row {
+  border-top: 1px solid var(--border-light);
+}
+.stats-result-label {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.stats-result-value {
+  color: var(--text-main);
+  font-size: 16px;
+  font-weight: 600;
+}
+
 /* El navegador de semana ocupa la segunda fila completa */
 .mobile-mode .week-navigator {
   order: 3;
