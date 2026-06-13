@@ -575,6 +575,28 @@
     </div>
   </div>
 
+  <!-- MODAL: PLANTILLA DE NOTAS -->
+  <div id="note-template-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Plantilla de notas</h2>
+        <button class="close-modal-btn" data-modal="note-template-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="note-template-textarea" class="sr-only">Contenido de la plantilla</label>
+          <textarea id="note-template-textarea" placeholder="Escribe tu plantilla de notas aquí..." rows="10" style="width: 100%; resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="note-template-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="note-template-save-btn">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: ESTADÍSTICAS -->
   <div id="stats-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">

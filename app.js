@@ -503,6 +503,12 @@ function setupUserMenu() {
       exportUserDataToCSV();
     });
 
+    document.getElementById('note-template-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdown.remove();
+      openNoteTemplateModal();
+    });
+
     document.getElementById('advanced-options-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       dropdown.remove();
@@ -793,6 +799,8 @@ function migrateTagColors() {
 let tasks = [];
 let tags = [];
 let notes = {};
+// Plantilla de notas: una nota global del usuario, sin día asignado.
+let noteTemplate = '';
 let currentWeekStart = new Date(); // Monday of the currently viewed week
 let selectedTaskId = null;
 let selectedDayDate = null; // Used for pre-filling date on new task
@@ -1252,6 +1260,7 @@ async function startApp(user) {
     if (cachedPrefs) {
       const parsedPrefs = JSON.parse(cachedPrefs);
       notes = parsedPrefs.notes || {};
+      noteTemplate = parsedPrefs.noteTemplate || '';
       if (parsedPrefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...parsedPrefs.copyOptions };
     }
   } catch (e) {
@@ -1261,6 +1270,7 @@ async function startApp(user) {
   const prefs = await loadPreferences();
   if (prefs) {
     notes = prefs.notes || {};
+    noteTemplate = prefs.noteTemplate || '';
     if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
     try {
       localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
@@ -3586,6 +3596,44 @@ async function saveNotesToStorage() {
   await savePreferences(prefs);
 }
 
+// ─── Plantilla de notas ──────────────────────────────────────────────────────
+function openNoteTemplateModal() {
+  const modal = document.getElementById('note-template-modal');
+  const textarea = document.getElementById('note-template-textarea');
+  if (!modal || !textarea) return;
+  textarea.value = noteTemplate || '';
+  modal.classList.remove('hidden');
+  textarea.focus();
+}
+
+function closeNoteTemplateModal() {
+  const modal = document.getElementById('note-template-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function saveNoteTemplate() {
+  const textarea = document.getElementById('note-template-textarea');
+  if (textarea) noteTemplate = textarea.value;
+  closeNoteTemplateModal();
+
+  if (!currentUser) return;
+  const prefsCacheKey = 'prefs_cache_' + currentUser.id;
+
+  let prefs = {};
+  try {
+    const cachedPrefs = localStorage.getItem(prefsCacheKey);
+    if (cachedPrefs) prefs = JSON.parse(cachedPrefs);
+  } catch (e) {}
+
+  prefs.noteTemplate = noteTemplate;
+
+  try {
+    localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
+  } catch (e) {}
+
+  await savePreferences(prefs);
+}
+
 // --- Copiar tareas del día como texto ---
 
 let copyTextModalDate = null;
@@ -5425,6 +5473,12 @@ function setupEventListeners() {
   });
 
   document.getElementById('notes-cancel-btn').addEventListener('click', closeNotesModal);
+
+  // Eventos del modal de Plantilla de notas
+  const noteTemplateSaveBtn = document.getElementById('note-template-save-btn');
+  if (noteTemplateSaveBtn) noteTemplateSaveBtn.addEventListener('click', saveNoteTemplate);
+  const noteTemplateCancelBtn = document.getElementById('note-template-cancel-btn');
+  if (noteTemplateCancelBtn) noteTemplateCancelBtn.addEventListener('click', closeNoteTemplateModal);
 
   // Briefcase Event Listeners
   document.getElementById('briefcase-btn').addEventListener('click', toggleBriefcaseDrawer);
