@@ -49,6 +49,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Escalado al 90% SOLO en la versión de escritorio (equivalente a Ctrl+scroll).
+   Se usa transform: scale en el contenedor de contenido (no en el body ni en
+   html) para NO interferir con el backdrop-filter de los modales, que en Chrome
+   se rompe al combinarse con zoom. Los modales son hermanos de .app-container y
+   conservan su 100vw/100vh, cubriendo toda la pantalla.
+   El contenedor se agranda a 111.12% (100/0.9) para que, tras el scale 0.9,
+   ocupe exactamente el viewport completo. */
+html:not(.mobile-mode) .app-container {
+  transform: scale(0.9);
+  transform-origin: top left;
+  width: 111.12%;
+  height: 111.12vh;
+}
+
 /* --- Layout Container --- */
 .app-container {
   display: flex;
