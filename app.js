@@ -5043,6 +5043,20 @@ function setupEventListeners() {
   // Open Tags Modal Button
   document.getElementById('tags-modal-btn').addEventListener('click', openTagsModal);
 
+  // Stats Modal (abrir/cerrar) — solo UI por ahora
+  const statsBtn = document.getElementById('stats-btn');
+  if (statsBtn) {
+    statsBtn.addEventListener('click', () => {
+      document.getElementById('stats-modal').classList.remove('hidden');
+    });
+  }
+  const statsCancelBtn = document.getElementById('stats-cancel-btn');
+  if (statsCancelBtn) {
+    statsCancelBtn.addEventListener('click', () => {
+      document.getElementById('stats-modal').classList.add('hidden');
+    });
+  }
+
   // Trigger Nueva Etiqueta Button
   document.getElementById('add-tag-trigger-btn').addEventListener('click', () => {
     document.getElementById('tag-form').classList.remove('hidden');

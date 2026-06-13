@@ -575,6 +575,40 @@
     </div>
   </div>
 
+  <!-- MODAL: ESTADÍSTICAS -->
+  <div id="stats-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2 id="stats-modal-title">Mis estadísticas</h2>
+        <button class="close-modal-btn" data-modal="stats-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="stats-keyword">Palabra clave</label>
+          <input type="text" id="stats-keyword" placeholder="Escribe una palabra clave" autocomplete="off">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="stats-period">Periodo</label>
+          <select id="stats-period" style="width: 100%; padding: 6px 10px;">
+            <option value="today">Hoy</option>
+            <option value="last10">Últimos 10 días</option>
+            <option value="last30">Últimos 30 días</option>
+            <option value="week">Esta semana</option>
+            <option value="month">Este mes</option>
+            <option value="year">Este año</option>
+            <option value="custom">Personalizado</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="stats-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="stats-accept-btn">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: COPIAR TAREAS COMO TEXTO -->
   <div id="copy-text-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">
