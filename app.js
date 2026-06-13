@@ -83,6 +83,55 @@ function getTotalDurationForDay(dateStr) {
   }, 0);
 }
 
+// ─── Duration parser ─────────────────────────────────────────────────────────
+function parseDurationFromDescription(description) {
+  if (!description || typeof description !== 'string') return null;
+  const s = description.trimStart();
+  const rangeRe = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/;
+  const rangeMatch = s.match(rangeRe);
+  if (rangeMatch) {
+    const startMin = parseInt(rangeMatch[1]) * 60 + parseInt(rangeMatch[2]);
+    const endMin   = parseInt(rangeMatch[3]) * 60 + parseInt(rangeMatch[4]);
+    const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
+    return { minutes: diff, rawMatch: rangeMatch[0] };
+  }
+  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?(?=\s|$)/i;
+  const hminMatch = s.match(hminRe);
+  if (hminMatch) {
+    return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
+  }
+  const minRe = /^(\d+)(?:min|m)(?=\s|$)/i;
+  const minMatch = s.match(minRe);
+  if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
+  return null;
+}
+function minutesToHHMM(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+function minutesToReadable(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h}h${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+function getTotalDurationForDay(dateStr) {
+  const dayTasks = tasks.filter(task => {
+    if (task.recurrence && task.recurrence.enabled) {
+      if (task.completedOccurrences && task.completedOccurrences.includes(dateStr)) return false;
+    } else {
+      if (task.completed) return false;
+    }
+    return checkTaskOccurrence(task, new Date(dateStr + 'T12:00:00'));
+  });
+  return dayTasks.reduce((sum, task) => {
+    const parsed = parseDurationFromDescription(task.description);
+    return sum + (parsed ? parsed.minutes : 0);
+  }, 0);
+}
+
 // ─── DB helpers ─────────────────────────────────────────────────────────────
 async function loadTasks() {
   if (!currentUser) return [];
@@ -5549,6 +5598,7 @@ function updateMobileFeedTasks() {
         durationBtn.dataset.tooltip = 'Sin tareas con duración definida';
       }
     }
+
 
     const tasksContainer = col.querySelector('.tasks-container');
     if (tasksContainer) {
