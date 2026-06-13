@@ -450,6 +450,13 @@ function setupUserMenu() {
   avatar.title = currentUser.email;
   avatar.classList.add('active');
 
+  // Evitar registrar el listener de click más de una vez. onAuthStateChange
+  // puede re-emitir SIGNED_IN (p. ej. al volver a la pestaña y refrescarse el
+  // token), lo que llamaría a setupUserMenu de nuevo y apilaría listeners; con
+  // un número par de ellos el dropdown se crea y se elimina al instante.
+  if (avatar.dataset.menuBound === 'true') return;
+  avatar.dataset.menuBound = 'true';
+
   avatar.addEventListener('click', (e) => {
     e.stopPropagation();
     let dropdown = document.getElementById('user-dropdown');
