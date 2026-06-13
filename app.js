@@ -132,6 +132,55 @@ function getTotalDurationForDay(dateStr) {
   }, 0);
 }
 
+// ─── Duration parser ─────────────────────────────────────────────────────────
+function parseDurationFromDescription(description) {
+  if (!description || typeof description !== 'string') return null;
+  const s = description.trimStart();
+  const rangeRe = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/;
+  const rangeMatch = s.match(rangeRe);
+  if (rangeMatch) {
+    const startMin = parseInt(rangeMatch[1]) * 60 + parseInt(rangeMatch[2]);
+    const endMin   = parseInt(rangeMatch[3]) * 60 + parseInt(rangeMatch[4]);
+    const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
+    return { minutes: diff, rawMatch: rangeMatch[0] };
+  }
+  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?(?=\s|$)/i;
+  const hminMatch = s.match(hminRe);
+  if (hminMatch) {
+    return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
+  }
+  const minRe = /^(\d+)(?:min|m)(?=\s|$)/i;
+  const minMatch = s.match(minRe);
+  if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
+  return null;
+}
+function minutesToHHMM(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+function minutesToReadable(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h}h${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+function getTotalDurationForDay(dateStr) {
+  const dayTasks = tasks.filter(task => {
+    if (task.recurrence && task.recurrence.enabled) {
+      if (task.completedOccurrences && task.completedOccurrences.includes(dateStr)) return false;
+    } else {
+      if (task.completed) return false;
+    }
+    return checkTaskOccurrence(task, new Date(dateStr + 'T12:00:00'));
+  });
+  return dayTasks.reduce((sum, task) => {
+    const parsed = parseDurationFromDescription(task.description);
+    return sum + (parsed ? parsed.minutes : 0);
+  }, 0);
+}
+
 // ─── DB helpers ─────────────────────────────────────────────────────────────
 async function loadTasks() {
   if (!currentUser) return [];
@@ -750,13 +799,75 @@ window.addEventListener('resize', () => {
 });
 
 // Shared task movement helper function
+// Pendiente de confirmación cuando se arrastra una tarea recurrente
+let pendingMoveTask = null;
+
+function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetColumnContainer, clientY }) {
+  const taskIndex = tasks.findIndex(t => t.id === taskId);
+  if (taskIndex === -1) return;
+  pushToUndoStack();
+  const task = tasks[taskIndex];
+  if (scope === 'only-this') {
+    if (!task.recurrence.exceptions) task.recurrence.exceptions = [];
+    if (!task.recurrence.exceptions.includes(sourceDateStr)) task.recurrence.exceptions.push(sourceDateStr);
+    const standalone = { ...task, id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000), date: targetDateStr, recurrence: null };
+    delete standalone.completedOccurrences;
+    const afterEl = getDragAfterElement(targetColumnContainer, clientY);
+    const checkDate = new Date(targetDateStr + 'T00:00:00');
+    const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate));
+    dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
+    let insertIndex = dayTasks.length;
+    if (afterEl) { const idx = dayTasks.findIndex(t => t.id === afterEl.dataset.id); if (idx !== -1) insertIndex = idx; }
+    dayTasks.splice(insertIndex, 0, standalone);
+    dayTasks.forEach((t, i) => setEffectivePosition(t, targetDateStr, i * 10));
+    tasks.push(standalone);
+  } else {
+    const newBaseDate = new Date(targetDateStr + 'T00:00:00');
+    if (task.recurrence.unit === 'weekly' && sourceDateStr) {
+      const sourceDate = new Date(sourceDateStr + 'T00:00:00');
+      const prevDOW = getAppDayIndex(sourceDate), newDOW = getAppDayIndex(newBaseDate);
+      if (task.recurrence.days && task.recurrence.days.includes(prevDOW)) {
+        task.recurrence.days = [...new Set(task.recurrence.days.map(d => d === prevDOW ? newDOW : d))].sort((a,b)=>a-b);
+      }
+      if (newBaseDate < new Date(task.date + 'T00:00:00')) task.date = targetDateStr;
+    } else {
+      const prevBase = new Date(task.date + 'T00:00:00');
+      task.date = targetDateStr;
+      if (task.recurrence.unit === 'weekly') {
+        const shift = getAppDayIndex(newBaseDate) - getAppDayIndex(prevBase);
+        if (shift !== 0 && task.recurrence.days) {
+          task.recurrence.days = task.recurrence.days.map(d => { let nd = d+shift; if(nd>7)nd-=7; if(nd<1)nd+=7; return nd; });
+          task.recurrence.days.sort((a,b)=>a-b);
+        }
+      }
+    }
+    const afterEl = getDragAfterElement(targetColumnContainer, clientY);
+    const checkDate = new Date(targetDateStr + 'T00:00:00');
+    const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate) && t.id !== task.id);
+    dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
+    let insertIndex = dayTasks.length;
+    if (afterEl) { const idx = dayTasks.findIndex(t => t.id === afterEl.dataset.id); if (idx !== -1) insertIndex = idx; }
+    dayTasks.splice(insertIndex, 0, task);
+    dayTasks.forEach((t, i) => setEffectivePosition(t, targetDateStr, i * 10));
+  }
+  saveTasksToStorage();
+  renderWeeklyCalendar();
+}
+
 async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumnContainer, clientY, isCopy = false) {
   const taskIndex = tasks.findIndex(t => t.id === taskId);
   if (taskIndex === -1) return;
 
-  pushToUndoStack();
-
   const originalTask = tasks[taskIndex];
+
+  if (!isCopy && originalTask.recurrence && originalTask.recurrence.enabled) {
+    pendingMoveTask = { taskId, sourceDateStr, targetDateStr, targetColumnContainer, clientY };
+    const modal = document.getElementById('edit-recurring-modal');
+    if (modal) modal.classList.remove('hidden');
+    return;
+  }
+
+  pushToUndoStack();
 
   if (isCopy) {
     // FLUJO DE COPIADO (CTRL presionado)
@@ -1979,7 +2090,6 @@ function renderWeeklyCalendar(targetWrapper = document) {
       }
     }
 
-    // Actualizar botón de duración total del día
     const durationBtn = colElement.querySelector('.duration-day-btn');
     if (durationBtn) {
       const totalMins = getTotalDurationForDay(colDateStr);
@@ -1991,6 +2101,8 @@ function renderWeeklyCalendar(targetWrapper = document) {
         durationBtn.dataset.tooltip = 'Sin tareas con duración definida';
       }
     }
+
+    // Actualizar botón de duración total del día
 
     // Set dataset date attribute for drag-drop and adding tasks
     colElement.dataset.date = colDateStr;
@@ -4707,11 +4819,13 @@ function setupEventListeners() {
 
   // Edit Recurring Modal - botones de alcance
   document.querySelectorAll('.close-edit-recurring-btn, [data-modal="edit-recurring-modal"]').forEach(btn => {
-    btn.addEventListener('click', closeEditRecurringModal);
+    btn.addEventListener('click', () => { pendingMoveTask = null; closeEditRecurringModal(); });
   });
   const editOnlyThisBtn = document.getElementById('edit-only-this-btn');
   if (editOnlyThisBtn) editOnlyThisBtn.addEventListener('click', () => {
-    if (pendingEditFormData) {
+    if (pendingMoveTask) {
+      executeMoveTask('only-this', pendingMoveTask); pendingMoveTask = null;
+    } else if (pendingEditFormData) {
       applyTaskChanges('only-this', pendingEditFormData, pendingEditTaskId, pendingEditOccurrenceDate);
     }
     closeEditRecurringModal();
@@ -4719,7 +4833,9 @@ function setupEventListeners() {
   });
   const editAllBtn = document.getElementById('edit-all-occurrences-btn');
   if (editAllBtn) editAllBtn.addEventListener('click', () => {
-    if (pendingEditFormData) {
+    if (pendingMoveTask) {
+      executeMoveTask('all', pendingMoveTask); pendingMoveTask = null;
+    } else if (pendingEditFormData) {
       applyTaskChanges('all', pendingEditFormData, pendingEditTaskId, pendingEditOccurrenceDate);
     }
     closeEditRecurringModal();
@@ -5586,16 +5702,28 @@ function updateMobileFeedTasks() {
       }
     }
 
+    const durationBtn2 = col.querySelector('.duration-day-btn');
+    if (durationBtn2) {
+      const totalMins2 = getTotalDurationForDay(dateStr);
+      if (totalMins2 > 0) {
+        durationBtn2.classList.add('has-duration');
+        durationBtn2.dataset.tooltip = `Tiempo total tareas por hacer: ${minutesToReadable(totalMins2)}`;
+      } else {
+        durationBtn2.classList.remove('has-duration');
+        durationBtn2.dataset.tooltip = 'Sin tareas con duración definida';
+      }
+    }
+
     // Update duration button state
-    const durationBtn = col.querySelector('.duration-day-btn');
-    if (durationBtn) {
+    const durationBtn3 = col.querySelector('.duration-day-btn');
+    if (durationBtn3) {
       const totalMins = getTotalDurationForDay(dateStr);
       if (totalMins > 0) {
-        durationBtn.classList.add('has-duration');
-        durationBtn.dataset.tooltip = `Tiempo total tareas por hacer: ${minutesToReadable(totalMins)}`;
+        durationBtn3.classList.add('has-duration');
+        durationBtn3.dataset.tooltip = `Tiempo total tareas por hacer: ${minutesToReadable(totalMins)}`;
       } else {
-        durationBtn.classList.remove('has-duration');
-        durationBtn.dataset.tooltip = 'Sin tareas con duración definida';
+        durationBtn3.classList.remove('has-duration');
+        durationBtn3.dataset.tooltip = 'Sin tareas con duración definida';
       }
     }
 
