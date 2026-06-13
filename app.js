@@ -5625,9 +5625,19 @@ function dateInRange(dateStr, from, to) {
 
 // Calcula estadísticas sobre tareas COMPLETADAS cuyo TÍTULO contiene la palabra
 // clave, dentro del rango de fechas.
+// Cuenta los días del rango [from, to] inclusive. Devuelve null si falta algún extremo.
+function countDaysInRange(from, to) {
+  if (!from || !to) return null;
+  const start = new Date(from + 'T12:00:00');
+  const end = new Date(to + 'T12:00:00');
+  const diff = Math.round((end - start) / 86400000);
+  return diff >= 0 ? diff + 1 : null;
+}
+
 function computeStats(keyword, period) {
   const kw = normalizeForSearch(keyword);
   const { from, to } = getStatsDateRange(period);
+  const totalDays = countDaysInRange(from, to);
 
   let repetitions = 0;
   const uniqueDays = new Set();
@@ -5657,7 +5667,7 @@ function computeStats(keyword, period) {
     }
   });
 
-  return { repetitions, days: uniqueDays.size, totalMinutes, hasAnyDuration };
+  return { repetitions, days: uniqueDays.size, totalDays, totalMinutes, hasAnyDuration };
 }
 
 function runStatsCalculation() {
@@ -5665,7 +5675,13 @@ function runStatsCalculation() {
   const period = document.getElementById('stats-period').value;
   const stats = computeStats(keyword, period);
   document.getElementById('stats-repetitions').textContent = stats.repetitions;
-  document.getElementById('stats-days').textContent = stats.days;
+  if (stats.totalDays) {
+    const pct = Math.round((stats.days / stats.totalDays) * 100);
+    document.getElementById('stats-days').textContent =
+      `${stats.days}/${stats.totalDays} días (${pct}%)`;
+  } else {
+    document.getElementById('stats-days').textContent = stats.days;
+  }
   document.getElementById('stats-total-time').textContent =
     stats.hasAnyDuration ? minutesToReadable(stats.totalMinutes) : '—';
   document.getElementById('stats-results').classList.remove('hidden');
