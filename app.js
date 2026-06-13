@@ -678,14 +678,12 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
       clonedTask.recurrence = null;
     }
 
-    // Manejar posicionamiento del clon dentro del día
-    if (clonedTask.startTime) {
-      adjustPositionForModifiedTime(clonedTask);
-    } else {
+    // Posicionar el clon donde se soltó (siempre respetando el cursor).
+    {
       const afterElement = getDragAfterElement(targetColumnContainer, clientY);
       const checkDate = new Date(targetDateStr + 'T00:00:00');
       const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate));
-      
+
       dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
 
       let insertIndex = dayTasks.length;
@@ -748,14 +746,14 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
       }
     }
 
-    // Handle positioning within the day
-    if (task.startTime) {
-      adjustPositionForModifiedTime(task);
-    } else {
+    // Posicionar la tarea en el lugar donde se soltó. Todas las tareas se
+    // reordenan manualmente (las horas ya no controlan el orden), así que
+    // siempre respetamos la posición del cursor.
+    {
       const afterElement = getDragAfterElement(targetColumnContainer, clientY);
       const checkDate = new Date(targetDateStr + 'T00:00:00');
       const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate) && t.id !== task.id);
-      
+
       dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
 
       let insertIndex = dayTasks.length;
@@ -2446,33 +2444,43 @@ function handleTouchStart(e) {
 }
 
 function startTouchDrag(card, touch) {
+  // IMPORTANTE: medir el tamaño real de la tarjeta ANTES de aplicar cualquier
+  // clase o transformación. Si se mide después, un transform: scale() activo
+  // (por :active u otras transiciones táctiles) congelaría un tamaño reducido
+  // en el clon y se vería "pequeñito".
+  const rect = card.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+
+  touchOffsetLeft = touch.clientX - rect.left;
+  touchOffsetTop = touch.clientY - rect.top;
+
   card.classList.add('touch-dragging');
   document.body.classList.add('dragging-active');
-  
+
   // Haptic feedback if supported
   if (navigator.vibrate) {
     navigator.vibrate(50);
   }
 
-  // Create ghost
-  const rect = card.getBoundingClientRect();
-  touchOffsetLeft = touch.clientX - rect.left;
-  touchOffsetTop = touch.clientY - rect.top;
-
+  // Create ghost con el tamaño real medido arriba
   touchGhost = card.cloneNode(true);
   touchGhost.id = 'drag-ghost';
   touchGhost.style.position = 'fixed';
-  touchGhost.style.width = `${rect.width}px`;
-  touchGhost.style.height = `${rect.height}px`;
+  touchGhost.style.boxSizing = 'border-box';
+  touchGhost.style.margin = '0';
+  touchGhost.style.width = `${width}px`;
+  touchGhost.style.height = `${height}px`;
   touchGhost.style.left = `${rect.left}px`;
   touchGhost.style.top = `${rect.top}px`;
   touchGhost.style.zIndex = '9999';
   touchGhost.style.pointerEvents = 'none';
   touchGhost.style.opacity = '0.9';
   touchGhost.style.transform = 'scale(1.05)';
+  touchGhost.style.transformOrigin = 'center center';
   touchGhost.style.transition = 'none';
   touchGhost.style.boxShadow = '0 10px 25px rgba(0,0,0,0.15), 0 4px 10px rgba(0,0,0,0.08)';
-  
+
   document.body.appendChild(touchGhost);
 }
 
@@ -2647,8 +2655,10 @@ function updateDragTarget(clientX, clientY) {
             cards[cards.length - 1].classList.add('drag-after-indicator');
           }
         }
-      } else if (container && draggedTask && !draggedTask.startTime) {
-        // Visual indicators only for untimed tasks reordering, similar to desktop
+      } else if (container && draggedTask) {
+        // Mostrar el indicador de inserción para cualquier tarea pendiente.
+        // (Antes se excluían las tareas con startTime, pero las horas ahora
+        // viven en la descripción y todas deben poder reordenarse a mano.)
         const afterElement = getDragAfterElement(container, clientY);
         if (afterElement) {
           afterElement.classList.add('drag-before-indicator');
