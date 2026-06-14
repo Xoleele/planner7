@@ -938,7 +938,14 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
 
   const originalTask = tasks[taskIndex];
 
-  if (!isCopy && originalTask.recurrence && originalTask.recurrence.enabled) {
+  // El modal "¿editar toda la serie o solo esta ocurrencia?" solo tiene sentido
+  // cuando la tarea recurrente cambia de DIA. Si es un reordenamiento dentro del
+  // mismo dia (sourceDateStr === targetDateStr) no se altera ninguna regla de
+  // recurrencia: solo cambia el orden vertical via positionOverrides, asi que
+  // dejamos pasar al flujo de reposicionamiento de abajo.
+  if (!isCopy
+      && originalTask.recurrence && originalTask.recurrence.enabled
+      && sourceDateStr !== targetDateStr) {
     pendingMoveTask = { taskId, sourceDateStr, targetDateStr, targetColumnContainer, clientY };
     const modal = document.getElementById('edit-recurring-modal');
     if (modal) modal.classList.remove('hidden');
@@ -1652,7 +1659,13 @@ function formatDate(date) {
 // task.positionOverrides = { "YYYY-MM-DD": number }. Las tareas simples siguen
 // usando task.position.
 function getEffectivePosition(task, dateStr) {
-  if (task.positionOverrides && task.positionOverrides[dateStr] !== undefined) {
+  // IMPORTANTE: positionOverrides SOLO aplica a tareas recurrentes. Una tarea
+  // simple que en el pasado fue recurrente puede conservar overrides huerfanos;
+  // si los leyeramos, su posicion quedaria "congelada" en un valor viejo y no
+  // se podria reordenar (se movia un solo lugar). Por eso solo consultamos los
+  // overrides cuando la tarea es realmente recurrente.
+  const isRecurring = task.recurrence && task.recurrence.enabled;
+  if (isRecurring && task.positionOverrides && task.positionOverrides[dateStr] !== undefined) {
     return task.positionOverrides[dateStr];
   }
   return task.position || 0;
@@ -1665,12 +1678,23 @@ function setEffectivePosition(task, dateStr, value) {
     if (!task.positionOverrides) task.positionOverrides = {};
     task.positionOverrides[dateStr] = value;
   } else {
+    // Tarea simple: usa position global y, por higiene, descarta cualquier
+    // override huerfano que hubiera quedado de cuando fue recurrente.
     task.position = value;
+    if (task.positionOverrides) delete task.positionOverrides;
   }
 }
 
 // Ensure all tasks have a defined position for sorting, grouping by date
 async function ensurePositions() {
+  // Limpieza: una tarea simple no debe conservar positionOverrides (quedan
+  // huerfanos cuando una tarea recurrente se convierte en simple) porque
+  // congelarian su posicion e impedirian reordenarla dentro de un dia.
+  tasks.forEach(t => {
+    const isRecurring = t.recurrence && t.recurrence.enabled;
+    if (!isRecurring && t.positionOverrides) delete t.positionOverrides;
+  });
+
   const tasksByDate = {};
   tasks.forEach(task => {
     const d = task.date;
