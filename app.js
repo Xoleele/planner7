@@ -855,6 +855,9 @@ let lastTargetColumn = null;
 let touchStartClientX = 0;
 let touchStartClientY = 0;
 let autoScrollInterval = null;
+let verticalAutoScrollInterval = null;
+let verticalAutoScrollTarget = null;
+let verticalAutoScrollSpeed = 0;
 let touchTimeout = null;
 let lastTouchX = null;
 let lastTouchY = null;
@@ -2948,7 +2951,70 @@ function handleTouchMove(e) {
         hideEdgeIndicator();
       }
     }
+
+    // Auto-scroll VERTICAL: si el dedo se acerca al borde superior/inferior del
+    // listado de tareas del dia, scrollear ese listado para poder ver y soltar
+    // tareas que estan fuera de la pantalla.
+    updateVerticalAutoScroll(touch.clientX, touch.clientY);
   }
+}
+
+// Mientras se arrastra en movil, si el dedo entra en la franja superior o
+// inferior del .tasks-container que esta bajo el, lo scrolleamos de forma
+// continua. La velocidad aumenta cuanto mas cerca del borde este el dedo.
+function updateVerticalAutoScroll(clientX, clientY) {
+  let container = null;
+  if (touchGhost) touchGhost.style.display = 'none';
+  const elAtPoint = document.elementFromPoint(clientX, clientY);
+  if (touchGhost) touchGhost.style.display = '';
+  if (elAtPoint) {
+    const dayCol = elAtPoint.closest('.day-column');
+    if (dayCol) container = dayCol.querySelector('.tasks-container');
+  }
+
+  if (!container) {
+    stopVerticalAutoScroll();
+    return;
+  }
+
+  const rect = container.getBoundingClientRect();
+  const EDGE = 64;
+  const MAX_SPEED = 14;
+
+  let speed = 0;
+  if (clientY < rect.top + EDGE) {
+    const intensity = Math.min(1, (rect.top + EDGE - clientY) / EDGE);
+    speed = -MAX_SPEED * intensity;
+  } else if (clientY > rect.bottom - EDGE) {
+    const intensity = Math.min(1, (clientY - (rect.bottom - EDGE)) / EDGE);
+    speed = MAX_SPEED * intensity;
+  }
+
+  if (speed === 0) {
+    stopVerticalAutoScroll();
+    return;
+  }
+
+  verticalAutoScrollTarget = container;
+  verticalAutoScrollSpeed = speed;
+  if (!verticalAutoScrollInterval) {
+    verticalAutoScrollInterval = setInterval(() => {
+      if (!verticalAutoScrollTarget) return;
+      verticalAutoScrollTarget.scrollTop += verticalAutoScrollSpeed;
+      if (lastTouchX != null && lastTouchY != null) {
+        updateDragTarget(lastTouchX, lastTouchY);
+      }
+    }, 16);
+  }
+}
+
+function stopVerticalAutoScroll() {
+  if (verticalAutoScrollInterval) {
+    clearInterval(verticalAutoScrollInterval);
+    verticalAutoScrollInterval = null;
+  }
+  verticalAutoScrollTarget = null;
+  verticalAutoScrollSpeed = 0;
 }
 
 function updateDragTarget(clientX, clientY) {
@@ -3153,6 +3219,7 @@ function stopAutoScroll() {
     clearInterval(autoScrollInterval);
     autoScrollInterval = null;
   }
+  stopVerticalAutoScroll();
   clearEdgeScrollTimer();
   hideEdgeIndicator();
   touchEdgeSlideCooldown = false;
