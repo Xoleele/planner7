@@ -2095,6 +2095,29 @@ function renderTasksToContainer(dayTasks, tasksContainer, dateStr) {
             }, { once: true });
           });
         }
+
+        // Aplicar el mismo estado (abierto/cerrado) al resto de dias YA
+        // renderizados en el feed, de forma instantanea (sin animacion, para
+        // no recalcular layout en todo el feed). Asi el toggle de "Completadas"
+        // es global: afecta a todos los dias, no solo al que se toco.
+        document.querySelectorAll('.completed-tasks-container').forEach(ctr => {
+          if (ctr === completedContainer) return; // este ya se animo arriba
+          const btn = ctr.closest('.completed-tasks-wrapper').querySelector('.completed-tasks-toggle');
+          const arr = btn ? btn.querySelector('.completed-toggle-arrow') : null;
+          if (completedTasksExpanded) {
+            ctr.style.display = 'flex';
+            ctr.style.height = '';
+            ctr.style.overflow = '';
+            ctr.style.opacity = '';
+            if (arr) arr.classList.add('rotated');
+          } else {
+            ctr.style.display = 'none';
+            ctr.style.height = '';
+            ctr.style.overflow = '';
+            ctr.style.opacity = '';
+            if (arr) arr.classList.remove('rotated');
+          }
+        });
       } else {
         // Animar apertura/cierre en todos los días sin re-render
         function animateCompletedContainer(ctr, open) {
