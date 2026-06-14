@@ -3354,7 +3354,13 @@ function cleanupGlobalTouchListeners() {
 
 // --- Modals Setup & Actions ---
 
+// Interruptor para mostrar el panel de bienvenida. Desactivado temporalmente
+// (escritorio y movil) hasta decidir reincorporarlo. Para reactivarlo, poner
+// WELCOME_MODAL_ENABLED = true.
+const WELCOME_MODAL_ENABLED = false;
+
 function showWelcomeModal() {
+  if (!WELCOME_MODAL_ENABLED) return;
   const modal = document.getElementById('welcome-modal');
   if (!modal) return;
   modal.classList.remove('hidden');
