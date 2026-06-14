@@ -3196,11 +3196,21 @@ function handleTouchEnd(e) {
 }
 
 function handleTouchCancel(e) {
+  // iOS (Safari) dispara touchcancel con facilidad durante un arrastre (al
+  // confundirlo con scroll, long-press de seleccion, vista previa nativa,
+  // etc.). Si ya estabamos arrastrando, NO abortamos: tratamos el cancel como
+  // un "soltar" normal para que la tarea pueda colocarse donde esta el dedo.
+  // Asi el usuario de iPhone puede reordenar aunque iOS cancele el gesto.
+  if (isTouchDragging) {
+    handleTouchEnd(e);
+    return;
+  }
+
   clearTouchTimeout();
   stopAutoScroll();
   cleanupDraggingUI();
   cleanupGlobalTouchListeners();
-  
+
   // Reopen briefcase drawer if the drag was canceled and task was from briefcase
   if (touchDraggedSourceDate === "") {
     toggleBriefcaseDrawer();

@@ -2004,6 +2004,15 @@ body.not-logged-in .app-container {
 
 .mobile-mode .task-card {
   padding: 9px 38px 9px 12px;
+  /* iOS: evitar que Safari inicie su propio gesto nativo (vista previa /
+     menu de copiar / arrastre del sistema) al mantener presionada la tarjeta,
+     que provocaba que se viera oscurecida y encogida y no se pudiera soltar.
+     NO se pone touch-action:none aqui para no romper el scroll del listado al
+     deslizar sobre una tarjeta; el touch-action:none solo se activa mientras
+     se arrastra (.touch-dragging). */
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
 }
 
 .mobile-mode .task-card-title {
