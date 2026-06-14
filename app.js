@@ -5860,6 +5860,7 @@ function runStatsCalculation() {
 async function toggleTaskCompletion(task, occurrenceDate) {
   pushToUndoStack();
 
+  let nowCompleted;
   if (task.recurrence && task.recurrence.enabled) {
     if (!task.completedOccurrences) {
       task.completedOccurrences = [];
@@ -5867,11 +5868,34 @@ async function toggleTaskCompletion(task, occurrenceDate) {
     const idx = task.completedOccurrences.indexOf(occurrenceDate);
     if (idx !== -1) {
       task.completedOccurrences.splice(idx, 1);
+      nowCompleted = false;
     } else {
       task.completedOccurrences.push(occurrenceDate);
+      nowCompleted = true;
     }
   } else {
     task.completed = !task.completed;
+    nowCompleted = task.completed;
+  }
+
+  // Reubicar la tarea segun su nuevo estado:
+  //  - completada  -> al final de la lista (debajo de las demas completadas)
+  //  - descompletada -> al principio (encima de las demas no completadas)
+  // Para ello le damos una posicion mayor o menor que la del resto de tareas
+  // de ese mismo dia. El render separa completadas/pendientes pero respeta el
+  // orden por posicion dentro de cada grupo.
+  const dateStr = occurrenceDate || task.date;
+  if (dateStr) {
+    const checkDate = new Date(dateStr + 'T00:00:00');
+    const others = tasks.filter(t => t.id !== task.id && checkTaskOccurrence(t, checkDate));
+    if (others.length > 0) {
+      const positions = others.map(t => getEffectivePosition(t, dateStr));
+      if (nowCompleted) {
+        setEffectivePosition(task, dateStr, Math.max(...positions) + 10);
+      } else {
+        setEffectivePosition(task, dateStr, Math.min(...positions) - 10);
+      }
+    }
   }
 
   saveTasksToStorage();
