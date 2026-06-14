@@ -50,12 +50,15 @@ function parseDurationFromDescription(description) {
     const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
     return { minutes: diff, rawMatch: rangeMatch[0] };
   }
-  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?(?=\s|$)/i;
+  // Detectar duracion al PRINCIPIO de la descripcion. No exigimos que despues
+  // venga un espacio o el fin de texto: cualquier caracter posterior (".", ")",
+  // ",", letras, etc.) se ignora. Asi "2h." detecta igual que "2h".
+  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?/i;
   const hminMatch = s.match(hminRe);
   if (hminMatch) {
     return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
   }
-  const minRe = /^(\d+)(?:min|m)(?=\s|$)/i;
+  const minRe = /^(\d+)(?:min|m)/i;
   const minMatch = s.match(minRe);
   if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
   return null;
@@ -95,12 +98,15 @@ function parseDurationFromDescription(description) {
     const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
     return { minutes: diff, rawMatch: rangeMatch[0] };
   }
-  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?(?=\s|$)/i;
+  // Detectar duracion al PRINCIPIO de la descripcion. No exigimos que despues
+  // venga un espacio o el fin de texto: cualquier caracter posterior (".", ")",
+  // ",", letras, etc.) se ignora. Asi "2h." detecta igual que "2h".
+  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?/i;
   const hminMatch = s.match(hminRe);
   if (hminMatch) {
     return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
   }
-  const minRe = /^(\d+)(?:min|m)(?=\s|$)/i;
+  const minRe = /^(\d+)(?:min|m)/i;
   const minMatch = s.match(minRe);
   if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
   return null;
@@ -144,12 +150,15 @@ function parseDurationFromDescription(description) {
     const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
     return { minutes: diff, rawMatch: rangeMatch[0] };
   }
-  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?(?=\s|$)/i;
+  // Detectar duracion al PRINCIPIO de la descripcion. No exigimos que despues
+  // venga un espacio o el fin de texto: cualquier caracter posterior (".", ")",
+  // ",", letras, etc.) se ignora. Asi "2h." detecta igual que "2h".
+  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?/i;
   const hminMatch = s.match(hminRe);
   if (hminMatch) {
     return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
   }
-  const minRe = /^(\d+)(?:min|m)(?=\s|$)/i;
+  const minRe = /^(\d+)(?:min|m)/i;
   const minMatch = s.match(minRe);
   if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
   return null;
@@ -193,12 +202,15 @@ function parseDurationFromDescription(description) {
     const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
     return { minutes: diff, rawMatch: rangeMatch[0] };
   }
-  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?(?=\s|$)/i;
+  // Detectar duracion al PRINCIPIO de la descripcion. No exigimos que despues
+  // venga un espacio o el fin de texto: cualquier caracter posterior (".", ")",
+  // ",", letras, etc.) se ignora. Asi "2h." detecta igual que "2h".
+  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?/i;
   const hminMatch = s.match(hminRe);
   if (hminMatch) {
     return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
   }
-  const minRe = /^(\d+)(?:min|m)(?=\s|$)/i;
+  const minRe = /^(\d+)(?:min|m)/i;
   const minMatch = s.match(minRe);
   if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
   return null;
