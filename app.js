@@ -585,6 +585,14 @@ async function initAuth() {
   }
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session?.user) {
+      // Supabase re-emite SIGNED_IN (revalidacion de token) cada vez que la
+      // pestaña/app vuelve a primer plano. Si ya estamos dentro con el mismo
+      // usuario, NO reinicializamos la app: hacerlo reconstruia el feed y
+      // saltaba la vista al dia de hoy (perdiendo el dia que estabas viendo
+      // en movil). Solo arrancamos si es un inicio de sesion nuevo.
+      if (currentUser && currentUser.id === session.user.id) {
+        return;
+      }
       currentUser = session.user;
       document.body.classList.remove('not-logged-in');
       hideAuthScreen();
@@ -866,8 +874,12 @@ window.addEventListener('resize', () => {
     if (!mobileScrollInit) {
       initMobileFeed();
     } else {
+      // Ya estábamos en móvil: conservar el día que el usuario está viendo en
+      // vez de saltar a "hoy" (evita que volver desde otra app/pestaña
+      // reinicie la vista al día actual).
+      const keepDate = getMobileVisibleDate() || new Date();
       buildMobileFeed(currentWeekStart);
-      requestAnimationFrame(() => requestAnimationFrame(() => scrollMobileFeedToToday()));
+      requestAnimationFrame(() => requestAnimationFrame(() => scrollMobileFeedToDate(keepDate)));
     }
   } else if (!shouldBeMobile && isMobileNow) {
     document.documentElement.classList.remove('mobile-mode');
