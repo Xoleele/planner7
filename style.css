@@ -3219,13 +3219,6 @@ body.not-logged-in .app-container {
    cabecera del planner. Móvil: una sola columna (hoy).
    ───────────────────────────────────────────────────────────────────────── */
 
-/* Botón de alternar vista. En planner se ve el icono de reloj; en cronograma
-   se ve el de calendario (para "volver" al planner). */
-#view-toggle-btn .view-toggle-icon-cronograma { display: none; }
-#view-toggle-btn .view-toggle-icon-planner { display: inline-block; }
-body.cronograma-active #view-toggle-btn .view-toggle-icon-planner { display: none; }
-body.cronograma-active #view-toggle-btn .view-toggle-icon-cronograma { display: inline-block; }
-
 /* Al activar el cronograma se oculta la rejilla del planner. */
 body.cronograma-active .planner-grid { display: none; }
 

@@ -490,6 +490,10 @@ function setupUserMenu() {
         <img src="icons/edit.svg" alt="" width="13.3" height="13.3">
         Plantilla de notas
       </button>
+      <button id="view-toggle-btn" class="user-dropdown-item">
+        <img src="icons/calendar.svg" alt="" width="14" height="14">
+        <span id="view-toggle-menu-label">Ver cronograma</span>
+      </button>
       <button id="advanced-options-btn" class="user-dropdown-item" style="display: none;">
         <img src="icons/settings.svg" alt="" width="14" height="14">
         Opciones avanzadas
@@ -509,6 +513,7 @@ function setupUserMenu() {
       </button>
     `;
     avatar.appendChild(dropdown);
+    updateViewToggleMenuLabel();
     
     document.getElementById('change-password-btn').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -526,6 +531,12 @@ function setupUserMenu() {
       e.stopPropagation();
       dropdown.remove();
       openNoteTemplateModal();
+    });
+
+    document.getElementById('view-toggle-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdown.remove();
+      toggleCronograma();
     });
 
     document.getElementById('advanced-options-btn').addEventListener('click', (e) => {
@@ -2331,18 +2342,24 @@ function toggleCronograma() {
 
   const cronograma = document.getElementById('cronograma');
   const plannerGrid = document.querySelector('.planner-grid');
-  const toggleBtn = document.getElementById('view-toggle-btn');
 
   if (cronogramaActive) {
     if (cronograma) cronograma.classList.remove('hidden');
     if (plannerGrid) plannerGrid.style.display = 'none';
-    if (toggleBtn) toggleBtn.title = 'Planner';
     renderCronograma();
   } else {
     if (cronograma) cronograma.classList.add('hidden');
     if (plannerGrid) plannerGrid.style.display = '';
-    if (toggleBtn) toggleBtn.title = 'Cronograma';
   }
+
+  updateViewToggleMenuLabel();
+}
+
+// Actualiza la etiqueta del ítem "Planner / Cronograma" del menú de usuario
+// para que refleje la vista a la que cambiará al pulsarlo.
+function updateViewToggleMenuLabel() {
+  const label = document.getElementById('view-toggle-menu-label');
+  if (label) label.textContent = cronogramaActive ? 'Ver planner' : 'Ver cronograma';
 }
 
 // Construye una cabecera de día reutilizando la estructura .day-header del
@@ -5073,11 +5090,6 @@ function setupEventListeners() {
     }
   });
 
-  // Botón de alternar vista (semanal / día)
-  const viewToggleBtn = document.getElementById('view-toggle-btn');
-  if (viewToggleBtn) {
-    viewToggleBtn.addEventListener('click', toggleCronograma);
-  }
 
   // Navegación con flechas del teclado (solo escritorio)
   document.addEventListener('keydown', (e) => {
