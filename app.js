@@ -2282,6 +2282,225 @@ function renderWeeklyCalendar(targetWrapper = document) {
     renderTasksToContainer(dayTasks, tasksContainer, colDateStr);
   }
   renderBriefcaseTasks();
+  // Si el cronograma está activo, mantenerlo sincronizado con la semana
+  // visible (al navegar entre semanas, cambiar de fecha, etc.).
+  if (cronogramaActive) renderCronograma();
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CRONOGRAMA (vista tipo Google Calendar) — Solo lectura
+// Escritorio: muestra los 7 días de la semana visible, con la misma cabecera
+// del planner, una columna de horas a la izquierda y las tareas con horario
+// (rango "HH:MM - HH:MM" al inicio de la descripción) dibujadas como bloques.
+// Móvil: muestra solo el día de hoy en una única columna.
+// No es interactiva: cabeceras y bloques son de solo lectura.
+// ─────────────────────────────────────────────────────────────────────────
+
+let cronogramaActive = false;
+
+const CRONOGRAMA_DAY_NAMES = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
+
+// Extrae un rango de horas "HH:MM - HH:MM" desde el INICIO de la descripción
+// (el mismo patrón que activa las "duraciones"). Devuelve { startMin, endMin }
+// en minutos desde medianoche, o null si la descripción no empieza con un rango
+// válido. Para rangos que cruzan medianoche (fin <= inicio) se recorta el fin a
+// las 24:00 (1440) para que el bloque no desborde la línea de tiempo del día.
+function parseTimeRangeFromDescription(description) {
+  if (!description || typeof description !== 'string') return null;
+  const s = description.trimStart();
+  const m = s.match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const sh = parseInt(m[1], 10), sm = parseInt(m[2], 10);
+  const eh = parseInt(m[3], 10), em = parseInt(m[4], 10);
+  if (sh > 23 || sm > 59 || eh > 23 || em > 59) return null;
+  const startMin = sh * 60 + sm;
+  let endMin = eh * 60 + em;
+  // Cruce de medianoche: recortar a fin de día.
+  if (endMin <= startMin) endMin = 24 * 60;
+  return {
+    startMin,
+    endMin,
+    startStr: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`,
+    endStr: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`
+  };
+}
+
+function toggleCronograma() {
+  cronogramaActive = !cronogramaActive;
+  document.body.classList.toggle('cronograma-active', cronogramaActive);
+
+  const cronograma = document.getElementById('cronograma');
+  const plannerGrid = document.querySelector('.planner-grid');
+  const toggleBtn = document.getElementById('view-toggle-btn');
+
+  if (cronogramaActive) {
+    if (cronograma) cronograma.classList.remove('hidden');
+    if (plannerGrid) plannerGrid.style.display = 'none';
+    if (toggleBtn) toggleBtn.title = 'Planner';
+    renderCronograma();
+  } else {
+    if (cronograma) cronograma.classList.add('hidden');
+    if (plannerGrid) plannerGrid.style.display = '';
+    if (toggleBtn) toggleBtn.title = 'Cronograma';
+  }
+}
+
+// Construye una cabecera de día reutilizando la estructura .day-header del
+// planner (nombre, número, y los mismos botones, aquí solo decorativos).
+function buildCronogramaHeader(date, dayNameUpper, isToday) {
+  const header = document.createElement('div');
+  header.className = 'day-header' + (isToday ? ' today' : '');
+
+  const name = document.createElement('span');
+  name.className = 'day-name';
+  name.textContent = dayNameUpper;
+  header.appendChild(name);
+
+  const num = document.createElement('span');
+  num.className = 'day-number';
+  num.textContent = date.getDate();
+  header.appendChild(num);
+
+  // Botones decorativos (solo lectura). Reusan los iconos del planner.
+  const dialogueBtn = document.createElement('button');
+  dialogueBtn.className = 'dialogue-day-btn';
+  dialogueBtn.tabIndex = -1;
+  dialogueBtn.innerHTML = '<img src="icons/message-square.svg" alt="Diálogo">';
+  header.appendChild(dialogueBtn);
+
+  const durationBtn = document.createElement('button');
+  durationBtn.className = 'duration-day-btn';
+  durationBtn.tabIndex = -1;
+  durationBtn.innerHTML = '<img src="icons/clock.svg" alt="Duración total" width="14" height="14">';
+  header.appendChild(durationBtn);
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'copy-day-btn';
+  copyBtn.tabIndex = -1;
+  copyBtn.innerHTML = '<img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">';
+  header.appendChild(copyBtn);
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'clear-day-btn';
+  clearBtn.tabIndex = -1;
+  clearBtn.innerHTML = '<img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">';
+  header.appendChild(clearBtn);
+
+  return header;
+}
+
+// Dibuja los bloques de tareas con horario para un día concreto dentro de su
+// columna. Devuelve el número de bloques dibujados.
+function renderCronogramaDayBlocks(colEl, date) {
+  const dateStr = formatDate(date);
+  let count = 0;
+  tasks.forEach(task => {
+    if (!checkTaskOccurrence(task, date)) return;
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    const tagVisible = tag ? tag.visible !== false : true;
+    if (!tagVisible) return;
+    const range = parseTimeRangeFromDescription(task.description);
+    if (!range) return;
+
+    const { startMin, endMin, startStr, endStr } = range;
+
+    const block = document.createElement('div');
+    block.className = 'cr-task-block';
+
+    const isCompleted = task.recurrence && task.recurrence.enabled
+      ? !!(task.completedOccurrences && task.completedOccurrences.includes(dateStr))
+      : !!task.completed;
+    if (isCompleted) block.classList.add('completed');
+
+    if (tag && tag.color) {
+      block.style.setProperty('--tag-bg', tag.color.bg);
+      block.style.setProperty('--tag-text', tag.color.text);
+      block.style.setProperty('--tag-border', tag.color.border);
+    }
+
+    // Posición y tamaño (1px = 1 minuto).
+    block.style.top = startMin + 'px';
+    block.style.height = Math.max(endMin - startMin, 16) + 'px';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'cr-task-title';
+    titleEl.textContent = task.title || '(Sin título)';
+    block.appendChild(titleEl);
+
+    const timeEl = document.createElement('div');
+    timeEl.className = 'cr-task-time';
+    timeEl.textContent = `${startStr} – ${endStr}`;
+    block.appendChild(timeEl);
+
+    colEl.appendChild(block);
+    count++;
+  });
+  return count;
+}
+
+function renderCronograma() {
+  const headersEl = document.getElementById('cronograma-headers');
+  const grid = document.getElementById('cronograma-grid');
+  if (!headersEl || !grid) return;
+
+  headersEl.innerHTML = '';
+  grid.innerHTML = '';
+
+  const HOUR_HEIGHT = 60; // px por hora (= 1px por minuto). Coincide con el CSS.
+  const today = new Date();
+  const todayStr = formatDate(today);
+
+  // En móvil mostramos solo HOY; en escritorio, los 7 días de la semana visible.
+  const mobile = isMobile();
+  const dayDates = [];
+  if (mobile) {
+    dayDates.push(new Date(today));
+  } else {
+    for (let i = 0; i < 7; i++) {
+      dayDates.push(addDays(currentWeekStart, i));
+    }
+  }
+
+  // 1) Esquina vacía sobre la columna de horas + cabeceras de día.
+  const corner = document.createElement('div');
+  corner.className = 'cr-corner';
+  headersEl.appendChild(corner);
+
+  dayDates.forEach((date, idx) => {
+    const isToday = formatDate(date) === todayStr;
+    const dayNameUpper = mobile
+      ? CRONOGRAMA_DAY_NAMES[getAppDayIndex(date) - 1]
+      : CRONOGRAMA_DAY_NAMES[idx];
+    headersEl.appendChild(buildCronogramaHeader(date, dayNameUpper, isToday));
+  });
+
+  // 2) Etiquetas de hora (00:00 .. 23:00) y líneas horizontales por hora.
+  for (let h = 0; h < 24; h++) {
+    const label = document.createElement('span');
+    label.className = 'cr-hour-label';
+    label.style.top = (h * HOUR_HEIGHT) + 'px';
+    label.textContent = String(h).padStart(2, '0') + ':00';
+    grid.appendChild(label);
+
+    const line = document.createElement('div');
+    line.className = 'cr-hour-line';
+    line.style.top = (h * HOUR_HEIGHT) + 'px';
+    grid.appendChild(line);
+  }
+  // Línea final al pie de las 24h (cierre de las 23:00).
+  const lastLine = document.createElement('div');
+  lastLine.className = 'cr-hour-line';
+  lastLine.style.top = (24 * HOUR_HEIGHT) + 'px';
+  grid.appendChild(lastLine);
+
+  // 3) Una columna por día con sus bloques de tareas.
+  dayDates.forEach((date, idx) => {
+    const colEl = document.createElement('div');
+    colEl.className = 'cr-day-col' + (formatDate(date) === todayStr ? ' today' : '');
+    colEl.dataset.col = String(idx + 1);
+    renderCronogramaDayBlocks(colEl, date);
+    grid.appendChild(colEl);
+  });
 }
 
 // Devuelve true si el día (YYYY-MM-DD) tiene al menos una tarea (completada o
@@ -4853,6 +5072,12 @@ function setupEventListeners() {
       navigateToWeek(direction);
     }
   });
+
+  // Botón de alternar vista (semanal / día)
+  const viewToggleBtn = document.getElementById('view-toggle-btn');
+  if (viewToggleBtn) {
+    viewToggleBtn.addEventListener('click', toggleCronograma);
+  }
 
   // Navegación con flechas del teclado (solo escritorio)
   document.addEventListener('keydown', (e) => {

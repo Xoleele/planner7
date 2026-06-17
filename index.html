@@ -98,6 +98,11 @@
       </div>
 
       <div class="header-right">
+        <!-- Botón Alternar Vista (Planner / Cronograma) -->
+        <button id="view-toggle-btn" class="icon-button" title="Cronograma" aria-label="Alternar entre planner y cronograma">
+          <img src="icons/clock.svg" alt="Cronograma" width="20" height="20" class="view-toggle-icon-planner">
+          <img src="icons/calendar.svg" alt="Planner" width="20" height="20" class="view-toggle-icon-cronograma">
+        </button>
         <div class="header-icon-group">
           <!-- Botón Papelera (Drop target para eliminar tareas) -->
           <button id="trash-btn" title="Arrastra una tarea aquí para eliminarla" class="icon-button">
@@ -304,6 +309,19 @@
         </div>
       </div>
     </main>
+
+      <!-- Cronograma (vista tipo Google Calendar) - Solo lectura.
+           En escritorio muestra los 7 días de la semana con la misma cabecera
+           del planner; en móvil muestra solo el día de hoy. Todo el contenido
+           (cabeceras, columna de horas, líneas y bloques) se genera en JS. -->
+      <section id="cronograma" class="cronograma hidden" aria-label="Cronograma">
+        <!-- Cabeceras de día (se generan dinámicamente, reusan .day-header) -->
+        <div id="cronograma-headers" class="cronograma-headers"></div>
+        <!-- Zona desplazable con la rejilla de 24 horas -->
+        <div class="cronograma-scroll">
+          <div id="cronograma-grid" class="cronograma-grid"></div>
+        </div>
+      </section>
 
       <!-- Panel Lateral: Tareas Archivadas -->
       <aside id="briefcase-drawer" class="briefcase-drawer closed">
