@@ -310,10 +310,12 @@
            del planner; en móvil muestra solo el día de hoy. Todo el contenido
            (cabeceras, columna de horas, líneas y bloques) se genera en JS. -->
       <section id="cronograma" class="cronograma hidden" aria-label="Cronograma">
-        <!-- Cabeceras de día (se generan dinámicamente, reusan .day-header) -->
-        <div id="cronograma-headers" class="cronograma-headers"></div>
-        <!-- Zona desplazable con la rejilla de 24 horas -->
+        <!-- Zona desplazable: cabeceras (sticky) + rejilla de 24 horas. Ambas
+             viven en el MISMO contenedor para compartir exactamente el mismo
+             ancho y, por tanto, las mismas líneas verticales de columna. -->
         <div class="cronograma-scroll">
+          <!-- Cabeceras de día (se generan dinámicamente, reusan .day-header) -->
+          <div id="cronograma-headers" class="cronograma-headers"></div>
           <div id="cronograma-grid" class="cronograma-grid"></div>
         </div>
       </section>
