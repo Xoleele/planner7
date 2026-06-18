@@ -2369,8 +2369,12 @@ function updateViewToggleMenuLabel() {
 // Construye una cabecera de día reutilizando la estructura .day-header del
 // planner (nombre, número, y los mismos botones, aquí solo decorativos).
 function buildCronogramaHeader(date, dayNameUpper, isToday) {
+  const dateStr = formatDate(date);
   const header = document.createElement('div');
   header.className = 'day-header' + (isToday ? ' today' : '');
+  // Los handlers delegados (limpiar, notas, copiar, duración) resuelven el día
+  // leyendo dataset.date del .day-column o, en el cronograma, de la cabecera.
+  header.dataset.date = dateStr;
 
   const name = document.createElement('span');
   name.className = 'day-name';
@@ -2382,28 +2386,33 @@ function buildCronogramaHeader(date, dayNameUpper, isToday) {
   num.textContent = date.getDate();
   header.appendChild(num);
 
-  // Botones decorativos (solo lectura). Reusan los iconos del planner.
+  // Botón de notas/diálogo (igual que el planner: refleja si hay notas).
   const dialogueBtn = document.createElement('button');
-  dialogueBtn.className = 'dialogue-day-btn';
-  dialogueBtn.tabIndex = -1;
-  dialogueBtn.innerHTML = '<img src="icons/message-square.svg" alt="Diálogo">';
+  const hasNotes = !!notes[dateStr];
+  dialogueBtn.className = 'dialogue-day-btn' + (hasNotes ? ' has-notes' : '');
+  dialogueBtn.title = 'Diálogo';
+  dialogueBtn.innerHTML = `<img src="${hasNotes ? 'icons/message-square-text.svg' : 'icons/message-square.svg'}" alt="Diálogo">`;
   header.appendChild(dialogueBtn);
 
+  // Botón de duración total del día (con su tooltip, igual que el planner).
   const durationBtn = document.createElement('button');
-  durationBtn.className = 'duration-day-btn';
-  durationBtn.tabIndex = -1;
+  const totalMins = getTotalDurationForDay(dateStr);
+  durationBtn.className = 'duration-day-btn' + (totalMins > 0 ? ' has-duration' : '');
+  durationBtn.dataset.tooltip = totalMins > 0
+    ? `Tiempo total tareas por hacer: ${minutesToReadable(totalMins)}`
+    : 'Sin tareas con duración definida';
   durationBtn.innerHTML = '<img src="icons/clock.svg" alt="Duración total" width="14" height="14">';
   header.appendChild(durationBtn);
 
   const copyBtn = document.createElement('button');
   copyBtn.className = 'copy-day-btn';
-  copyBtn.tabIndex = -1;
+  copyBtn.title = 'Copiar tareas como texto';
   copyBtn.innerHTML = '<img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">';
   header.appendChild(copyBtn);
 
   const clearBtn = document.createElement('button');
   clearBtn.className = 'clear-day-btn';
-  clearBtn.tabIndex = -1;
+  clearBtn.title = 'Eliminar todas las tareas de este día';
   clearBtn.innerHTML = '<img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">';
   header.appendChild(clearBtn);
 
@@ -2421,7 +2430,7 @@ function buildCronogramaHeader(date, dayNameUpper, isToday) {
 //   < 45 min      → solo el rectángulo, sin texto.
 //   45 – 59 min   → solo el título.
 //   ≥ 60 min      → título + descripción (recortada con "…" según la altura).
-function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isCompleted, tag) {
+function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isCompleted, tag, task, occurrenceDate) {
   const block = document.createElement('div');
   block.className = 'cr-task-block';
   if (isCompleted) block.classList.add('completed');
@@ -2434,6 +2443,28 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   const heightPx = Math.max(bottomMin - topMin, 16);
   block.style.top = topMin + 'px';
   block.style.height = heightPx + 'px';
+
+  // Click en el bloque: abrir la tarea para editar (salvo click en el checkbox).
+  if (task) {
+    block.addEventListener('click', (e) => {
+      if (e.target.closest('.task-check-btn')) return;
+      e.stopPropagation();
+      openTaskModal(task.id, occurrenceDate || null);
+    });
+
+    // Checkbox para marcar como completada (mismo SVG que el planner).
+    const checkBtn = document.createElement('button');
+    checkBtn.className = 'task-check-btn';
+    checkBtn.title = isCompleted ? 'Marcar como pendiente' : 'Marcar como completada';
+    checkBtn.innerHTML = isCompleted
+      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon checked"><rect x="2" y="2" width="20" height="20" rx="4" ry="4" fill="currentColor" stroke="none"/><polyline points="7 12 10 15 17 8" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon"><rect x="2" y="2" width="20" height="20" rx="4" ry="4"/></svg>';
+    checkBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleTaskCompletion(task, occurrenceDate || task.date);
+    });
+    block.appendChild(checkBtn);
+  }
 
   const durationMin = bottomMin - topMin;
 
@@ -2499,7 +2530,7 @@ function renderCronogramaDayBlocks(colEl, date) {
 
     const block = buildCronogramaBlock(
       startMin, endMin, title, task.description,
-      isTaskCompleted(task, dateStr), tag
+      isTaskCompleted(task, dateStr), tag, task, dateStr
     );
     colEl.appendChild(block);
     count++;
@@ -2524,7 +2555,7 @@ function renderCronogramaDayBlocks(colEl, date) {
 
     const block = buildCronogramaBlock(
       0, tailEnd, title, task.description,
-      isTaskCompleted(task, prevDateStr), tag
+      isTaskCompleted(task, prevDateStr), tag, task, prevDateStr
     );
     colEl.appendChild(block);
     count++;
@@ -5884,7 +5915,7 @@ function setupEventListeners() {
     const clearBtn = e.target.closest('.clear-day-btn');
     if (clearBtn) {
       e.stopPropagation();
-      const col = clearBtn.closest('.day-column');
+      const col = clearBtn.closest('.day-column, .cronograma-headers .day-header');
       if (col) {
         const dateStr = col.dataset.date;
         if (dateStr) {
@@ -5899,7 +5930,7 @@ function setupEventListeners() {
     const dialogueBtn = e.target.closest('.dialogue-day-btn');
     if (dialogueBtn) {
       e.stopPropagation();
-      const col = dialogueBtn.closest('.day-column');
+      const col = dialogueBtn.closest('.day-column, .cronograma-headers .day-header');
       if (col) {
         const dateStr = col.dataset.date;
         if (dateStr) {
@@ -5914,7 +5945,7 @@ function setupEventListeners() {
     const copyBtn = e.target.closest('.copy-day-btn');
     if (copyBtn) {
       e.stopPropagation();
-      const col = copyBtn.closest('.day-column');
+      const col = copyBtn.closest('.day-column, .cronograma-headers .day-header');
       if (col) {
         const dateStr = col.dataset.date;
         if (dateStr) {

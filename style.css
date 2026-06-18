@@ -3278,11 +3278,13 @@ body.cronograma-active .planner-grid { display: none; }
   color: var(--bg-card);
 }
 
-/* Botones de la cabecera: solo lectura → visibles pero desactivados. */
-.cronograma-headers .day-header button {
-  opacity: 0.35;
-  pointer-events: none;
-  cursor: default;
+/* Botones de la cabecera del cronograma: activos, con el mismo comportamiento
+   que en el planner (aparecen al pasar el cursor por la cabecera del día). */
+.cronograma-headers .day-header:hover .clear-day-btn,
+.cronograma-headers .day-header:hover .dialogue-day-btn,
+.cronograma-headers .day-header:hover .copy-day-btn,
+.cronograma-headers .day-header:hover .duration-day-btn.has-duration {
+  opacity: 1;
 }
 
 /* ── Zona desplazable con la rejilla de horas ─────────────────────────────── */
@@ -3367,7 +3369,7 @@ body.cronograma-active .planner-grid { display: none; }
   background-color: var(--tag-bg, #f2f2f7);
   color: #ffffff;
   border: none;
-  cursor: default;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -3378,6 +3380,29 @@ body.cronograma-active .planner-grid { display: none; }
 .cr-task-block * {
   color: #ffffff;
 }
+
+/* Checkbox para completar dentro del bloque (igual que en el planner). */
+.cr-task-block .task-check-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  opacity: 0.55;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 50%;
+  z-index: 2;
+}
+.cr-task-block:hover .task-check-btn { opacity: 0.85; }
+.cr-task-block .task-check-btn:hover { opacity: 1 !important; transform: scale(1.1); }
 
 .cr-task-title {
   font-size: 13.5px;
@@ -3407,13 +3432,11 @@ body.cronograma-active .planner-grid { display: none; }
 .cr-task-block.completed { opacity: 0.5; }
 .cr-task-block.completed .cr-task-title { text-decoration: line-through; }
 
-/* ── Movil: una sola columna (hoy) ──
-   Se colapsa a 1 columna de dia. */
+/* Movil: una sola columna (hoy). Se colapsa a 1 columna de dia. */
 .mobile-mode .cronograma-headers {
   grid-template-columns: var(--cr-time-col) 1fr;
 }
 .mobile-mode .cronograma-grid {
   grid-template-columns: var(--cr-time-col) 1fr;
 }
-/* En movil solo existe la columna de dia 1, ocupando la 2a pista. */
 .mobile-mode .cr-day-col[data-col="1"] { grid-column: 2; }
