@@ -1313,6 +1313,7 @@ let isolatedDay = null;
 // Aplica el estado de aislamiento actual a las columnas de todos los wrappers
 // visibles (se llama al aislar/restablecer y tras cada render de semana).
 function applyDayIsolation() {
+  // Planner (escritorio): columnas .day-column con data-day.
   document.querySelectorAll('.planner-week-wrapper').forEach(wrapper => {
     const cols = wrapper.querySelectorAll('.day-column');
     if (isolatedDay === null) {
@@ -1326,6 +1327,22 @@ function applyDayIsolation() {
       });
     }
   });
+
+  // Horario (cronograma): columnas .cr-day-col con data-col (mismo orden de día).
+  const crGrid = document.getElementById('cronograma-grid');
+  if (crGrid) {
+    const crCols = crGrid.querySelectorAll('.cr-day-col');
+    if (isolatedDay === null) {
+      crGrid.classList.remove('day-isolated');
+      crCols.forEach(c => c.classList.remove('isolated-day'));
+    } else {
+      crGrid.classList.add('day-isolated');
+      crCols.forEach(c => {
+        if (parseInt(c.dataset.col) === isolatedDay) c.classList.add('isolated-day');
+        else c.classList.remove('isolated-day');
+      });
+    }
+  }
 }
 
 function isolateDay(dayIndex) {
@@ -2974,8 +2991,18 @@ function renderCronograma() {
     colEl.dataset.col = String(idx + 1);
     colEl.dataset.date = formatDate(date);
     renderCronogramaDayBlocks(colEl, date);
+    // Click derecho → menú "Aislar día" / "Restablecer días" (solo escritorio).
+    if (!mobile) {
+      colEl.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        openDayContextMenu(e.clientX, e.clientY, idx + 1);
+      });
+    }
     grid.appendChild(colEl);
   });
+
+  // Reaplicar el aislamiento de día también en el horario.
+  applyDayIsolation();
 
   // 4) Línea de hora actual: solo si el día de hoy está visible en la rejilla.
   const todayVisible = dayDates.some(d => formatDate(d) === todayStr);

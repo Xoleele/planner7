@@ -272,6 +272,12 @@ html:not(.mobile-mode) .app-container {
   visibility: hidden;
 }
 
+/* Aislar día en el modo Horario: ocultar los bloques de tarea de los demás
+   días (las columnas y la rejilla siguen visibles). */
+.cronograma-grid.day-isolated .cr-day-col:not(.isolated-day) .cr-task-block {
+  visibility: hidden;
+}
+
 /* Menú contextual genérico (click derecho en una columna). */
 .context-menu {
   position: fixed;
