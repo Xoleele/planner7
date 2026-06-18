@@ -1846,18 +1846,22 @@ body.not-logged-in .app-container {
   border-radius: 0;
   box-shadow: none;
   background: transparent;
-  padding: 0 4px 8px 4px;
-  scroll-padding-left: 4px;
+  padding: 0 0 8px 0;
+  scroll-padding-left: 0;
+  width: 100%;
 }
 
 .mobile-mode .planner-grid::-webkit-scrollbar {
   display: none;
 }
 
-/* Todas las columnas visibles en móvil */
+/* Todas las columnas visibles en móvil. El ancho concreto de cada día lo fija
+   .mobile-feed-day (igualado al ancho del navegador de días). */
 .mobile-mode .day-column {
   display: flex !important;
   flex-direction: column;
+  box-sizing: border-box;
+  scroll-snap-align: start;
   border: none;
   border-radius: 0;
   box-shadow: none;
@@ -1979,11 +1983,12 @@ body.not-logged-in .app-container {
   min-height: 0;
 }
 
-/* Días del feed horizontal: cada día ocupa el ancho del contenedor menos los márgenes */
+/* Días del feed horizontal: cada día ocupa exactamente el mismo ancho que el
+   navegador de días (ancho interno del contenedor = 100vw menos 16px de padding por lado). */
 .mobile-mode .mobile-feed-day {
-  width: calc(100vw - 40px);
-  min-width: calc(100vw - 40px);
-  max-width: calc(100vw - 40px);
+  width: calc(100vw - 32px);
+  min-width: calc(100vw - 32px);
+  max-width: calc(100vw - 32px);
   height: 100%;
   flex-shrink: 0;
   scroll-snap-align: start;
