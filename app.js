@@ -2555,6 +2555,8 @@ function toggleCronograma() {
     if (cronograma) cronograma.classList.remove('hidden');
     if (plannerGrid) plannerGrid.style.display = 'none';
     renderCronograma();
+    // Colocar el scroll para que la línea de hora quede bajo las cabeceras.
+    requestAnimationFrame(scrollHorarioToNowLine);
   } else {
     if (cronograma) cronograma.classList.add('hidden');
     if (plannerGrid) plannerGrid.style.display = '';
@@ -2583,6 +2585,7 @@ function restoreSavedViewMode() {
   if (plannerGrid) plannerGrid.style.display = 'none';
   updateViewToggleMenuLabel();
   renderCronograma();
+  requestAnimationFrame(scrollHorarioToNowLine);
 }
 
 // Construye una cabecera de día reutilizando la estructura .day-header del
@@ -2890,6 +2893,24 @@ function updateNowLinePosition() {
   const now = new Date();
   const minutesIntoDay = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
   nowLine.style.top = minutesIntoDay + 'px';
+}
+
+// Posiciona el scroll del horario para que la línea de hora actual quede justo
+// alineada con el borde inferior de las cabeceras (cabeceras sticky en top:0).
+// Como la rejilla empieza debajo de las cabeceras y la línea está a
+// `minutosDelDia` px dentro de la rejilla, scrollTop = minutosDelDia deja la
+// línea pegada bajo las cabeceras.
+function scrollHorarioToNowLine() {
+  const scroll = document.querySelector('.cronograma-scroll');
+  const nowLine = document.getElementById('cr-now-line');
+  if (!scroll || !nowLine) return;
+  const now = new Date();
+  const minutesIntoDay = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  // Si la hora está muy avanzada, la posición deseada puede superar el scroll
+  // máximo posible: en ese caso simplemente bajamos hasta el fondo (sin dejar
+  // la línea bajo las cabeceras, lo que provocaría un espacio vacío raro).
+  const maxScroll = scroll.scrollHeight - scroll.clientHeight;
+  scroll.scrollTop = Math.min(Math.max(0, minutesIntoDay), maxScroll);
 }
 
 // Mantiene la línea avanzando: la reubica cada 30s mientras esté en pantalla.
