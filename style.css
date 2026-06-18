@@ -1871,7 +1871,6 @@ body.not-logged-in .app-container {
 }
 
 .mobile-mode .day-column.today {
-  border: 1px solid var(--border-light);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1996,7 +1995,7 @@ body.not-logged-in .app-container {
   flex-direction: column;
   overflow: hidden;
   box-sizing: border-box;
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--border-light); /* mismo grosor y color que el navegador de días */
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   background-color: var(--bg-card);
@@ -2005,6 +2004,14 @@ body.not-logged-in .app-container {
 .mobile-mode .mobile-feed-day .day-header,
 .mobile-mode .mobile-feed-day .add-task-btn {
   flex-shrink: 0;
+}
+
+/* El encabezado se extiende sobre el borde de 2px del contenedor para taparlo
+   por completo en la parte superior (sin franja gris alrededor). */
+.mobile-mode .mobile-feed-day .day-header {
+  margin: -1px -1px 0 -1px;
+  border-top-left-radius: var(--radius-md);
+  border-top-right-radius: var(--radius-md);
 }
 
 .mobile-mode .task-card {
