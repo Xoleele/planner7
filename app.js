@@ -2448,8 +2448,14 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   if (task) {
     block.addEventListener('click', (e) => {
       if (e.target.closest('.task-check-btn')) return;
+      if (suppressNextCronogramaClick) { e.stopPropagation(); return; }
       e.stopPropagation();
       openTaskModal(task.id, occurrenceDate || null);
+    });
+
+    // Arrastrar para mover de hora/día (snap 30 min, mantiene duración).
+    block.addEventListener('pointerdown', (e) => {
+      startCronogramaDrag(block, task, e);
     });
 
     // Checkbox para marcar como completada (mismo SVG que el planner).
@@ -2624,10 +2630,169 @@ function renderCronograma() {
     const colEl = document.createElement('div');
     colEl.className = 'cr-day-col' + (formatDate(date) === todayStr ? ' today' : '');
     colEl.dataset.col = String(idx + 1);
+    colEl.dataset.date = formatDate(date);
     renderCronogramaDayBlocks(colEl, date);
     grid.appendChild(colEl);
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// ARRASTRAR BLOQUES EN EL CRONOGRAMA
+// Permite mover una tarea a otra hora (arriba/abajo, con snap de 30 min,
+// manteniendo su duración) y/o a otro día (otra columna). El arrastre es en
+// vivo: el bloque sigue al cursor. Al soltar se reescribe el rango horario al
+// inicio de la descripción y, si cambió de columna, se actualiza task.date.
+// ─────────────────────────────────────────────────────────────────────────
+
+const CR_HOUR_HEIGHT = 60;   // px por hora (= 1px por minuto)
+const CR_SNAP_MIN = 30;      // granularidad del arrastre vertical
+
+// Reescribe el rango "HH:MM - HH:MM" al inicio de la descripción por uno nuevo,
+// preservando el resto del texto exactamente como estaba. Si por algún motivo
+// no había rango (no debería ocurrir aquí), antepone el nuevo rango.
+function rewriteTimeRangeInDescription(description, newStartMin, newEndMin) {
+  const fmt = (mins) => {
+    const m = ((mins % 1440) + 1440) % 1440; // normalizar a 0..1439
+    return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  };
+  const newRange = `${fmt(newStartMin)} - ${fmt(newEndMin)}`;
+  const desc = description || '';
+  const re = /^(\s*)(\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})/;
+  if (re.test(desc)) {
+    return desc.replace(re, (full, lead) => lead + newRange);
+  }
+  return newRange + (desc ? ' ' + desc : '');
+}
+
+// Estado del arrastre en curso.
+let crDrag = null;
+
+// Inicia el arrastre de un bloque del cronograma.
+//   block: el elemento .cr-task-block
+//   task:  la tarea
+//   e:     el evento pointerdown
+function startCronogramaDrag(block, task, e) {
+  // Solo botón principal y no sobre el checkbox.
+  if (e.button !== 0) return;
+  if (e.target.closest('.task-check-btn')) return;
+
+  const grid = document.getElementById('cronograma-grid');
+  if (!grid) return;
+
+  const range = parseTimeRangeFromDescription(task.description);
+  if (!range) return;
+  const durationMin = (range.crossesMidnight ? range.rawEndMin + 1440 : range.rawEndMin) - range.startMin;
+
+  const blockRect = block.getBoundingClientRect();
+  const cols = [...grid.querySelectorAll('.cr-day-col')];
+
+  crDrag = {
+    block,
+    task,
+    durationMin,
+    grid,
+    cols,
+    // Desfase del puntero respecto al borde superior del bloque.
+    pointerOffsetY: e.clientY - blockRect.top,
+    startColEl: block.parentElement,
+    targetColEl: block.parentElement,
+    originalStartMin: range.startMin,
+    newStartMin: range.startMin,
+    moved: false,
+    pointerId: e.pointerId
+  };
+
+  block.classList.add('cr-dragging');
+  block.style.pointerEvents = 'none'; // que no intercepte el hit-test de columnas
+  try { block.setPointerCapture(e.pointerId); } catch (_) {}
+
+  window.addEventListener('pointermove', onCronogramaDragMove);
+  window.addEventListener('pointerup', onCronogramaDragEnd);
+  e.preventDefault();
+}
+
+function onCronogramaDragMove(e) {
+  if (!crDrag) return;
+  crDrag.moved = true;
+
+  // 1) Columna destino: la .cr-day-col bajo el cursor (por X).
+  let targetCol = crDrag.targetColEl;
+  for (const col of crDrag.cols) {
+    const r = col.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX < r.right) { targetCol = col; break; }
+  }
+  if (targetCol !== crDrag.targetColEl) {
+    targetCol.appendChild(crDrag.block);
+    crDrag.targetColEl = targetCol;
+  }
+
+  // 2) Posición vertical: top del bloque = cursor - desfase, relativo al grid.
+  const gridRect = crDrag.grid.getBoundingClientRect();
+  let topPx = (e.clientY - gridRect.top - crDrag.pointerOffsetY) + crDrag.grid.scrollTop;
+  // Snap en pasos de 30 min RELATIVOS al inicio original de la tarea: si empieza
+  // a las 9:14, los valores posibles son 8:44, 9:14, 9:44, ... (conserva los
+  // minutos originales en lugar de cuadrar a :00/:30).
+  const orig = crDrag.originalStartMin;
+  const steps = Math.round((topPx - orig) / CR_SNAP_MIN);
+  let startMin = orig + steps * CR_SNAP_MIN;
+  // Mantener el inicio dentro del día (sin perder los minutos originales):
+  // bajar a la franja válida más cercana por arriba/abajo si se sale.
+  while (startMin < 0) startMin += CR_SNAP_MIN;
+  while (startMin > 1440 - CR_SNAP_MIN) startMin -= CR_SNAP_MIN;
+  crDrag.newStartMin = startMin;
+
+  // Mover visualmente el bloque (alto fijo = duración, recortado a fin de día).
+  crDrag.block.style.top = startMin + 'px';
+  const visibleEnd = Math.min(startMin + crDrag.durationMin, 1440);
+  crDrag.block.style.height = Math.max(visibleEnd - startMin, 16) + 'px';
+}
+
+async function onCronogramaDragEnd(e) {
+  if (!crDrag) return;
+  const drag = crDrag;
+  crDrag = null;
+
+  window.removeEventListener('pointermove', onCronogramaDragMove);
+  window.removeEventListener('pointerup', onCronogramaDragEnd);
+
+  drag.block.classList.remove('cr-dragging');
+  drag.block.style.pointerEvents = '';
+  try { drag.block.releasePointerCapture(drag.pointerId); } catch (_) {}
+
+  if (!drag.moved) return; // fue un click, no un arrastre
+
+  // Evitar que el click posterior abra el modal de edición.
+  suppressNextCronogramaClick = true;
+  setTimeout(() => { suppressNextCronogramaClick = false; }, 0);
+
+  const newStartMin = drag.newStartMin;
+  const newEndMin = newStartMin + drag.durationMin; // puede superar 1440 (cruza medianoche)
+  const newDateStr = drag.targetColEl ? drag.targetColEl.dataset.date : null;
+
+  const oldStart = (parseTimeRangeFromDescription(drag.task.description) || {}).startMin;
+  const sameTime = oldStart === newStartMin;
+  const sameDay = !newDateStr || newDateStr === drag.task.date;
+  if (sameTime && sameDay) {
+    renderCronograma(); // restaurar posición exacta por si el snap no cambió nada
+    return;
+  }
+
+  pushToUndoStack();
+
+  // Reescribir el horario en la descripción (manteniendo la duración).
+  drag.task.description = rewriteTimeRangeInDescription(drag.task.description, newStartMin, newEndMin);
+
+  // Cambiar el día si se soltó en otra columna.
+  if (newDateStr && newDateStr !== drag.task.date) {
+    drag.task.date = newDateStr;
+  }
+
+  await saveTasksToStorage();
+  renderCronograma();
+}
+
+// Bandera para evitar que el click que sigue a un arrastre abra el modal.
+let suppressNextCronogramaClick = false;
 
 // Devuelve true si el día (YYYY-MM-DD) tiene al menos una tarea (completada o
 // no, sin importar la etiqueta). Usado para mostrar/ocultar los botones de

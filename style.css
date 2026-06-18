@@ -3404,6 +3404,15 @@ body.cronograma-active .planner-grid { display: none; }
 .cr-task-block:hover .task-check-btn { opacity: 0.85; }
 .cr-task-block .task-check-btn:hover { opacity: 1 !important; transform: scale(1.1); }
 
+/* Estado mientras se arrastra el bloque por el cronograma. */
+.cr-task-block.cr-dragging {
+  opacity: 0.85;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  z-index: 50;
+  cursor: grabbing;
+  transition: none;
+}
+
 .cr-task-title {
   font-size: 13.5px;
   font-weight: 600;
