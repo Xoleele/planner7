@@ -48,6 +48,26 @@
     }
     /* El feed no necesita scroll horizontal aquí (un solo día). */
     .mobile-mode .planner-grid { overflow-x: hidden; }
+
+    /* ── Encabezado del día: fondo BLANCO y contenido NEGRO ── */
+    .mobile-mode .day-header {
+      background-color: #ffffff;
+      color: #111111;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .mobile-mode .day-name {
+      color: #111111;
+    }
+    .mobile-mode .day-number {
+      color: #111111 !important;
+    }
+    /* Iconos negros: se quita la inversión que los volvía blancos. */
+    .mobile-mode .day-header .duration-day-btn img,
+    .mobile-mode .day-header .copy-day-btn img,
+    .mobile-mode .day-header .clear-day-btn img,
+    .mobile-mode .day-header .dialogue-day-btn img {
+      filter: none !important;
+    }
   </style>
 </head>
 <body class="logged-in">
