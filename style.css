@@ -3264,7 +3264,7 @@ body.cronograma-active .planner-grid { display: none; }
   grid-template-columns: var(--cr-time-col) repeat(7, 1fr);
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 5; /* por encima de la línea de hora actual (z-index 4) para taparla */
   background-color: var(--bg-card);
   border-bottom: 1px solid var(--border-light);
 }
@@ -3357,6 +3357,31 @@ body.cronograma-active .planner-grid { display: none; }
   right: 0;
   height: 1px;
   background-color: var(--border-light);
+}
+
+/* Línea de hora actual: cruza las columnas de día, negra y gruesa para resaltar.
+   Avanza a lo largo del día (su posición vertical se actualiza por JS). */
+.cr-now-line {
+  position: absolute;
+  left: var(--cr-time-col);
+  right: 0;
+  height: 3px;
+  background-color: #000000;
+  z-index: 4;
+  pointer-events: none;
+  border-radius: 2px;
+}
+/* Punto en el extremo izquierdo de la línea, sobre la columna de horas. */
+.cr-now-line::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: #000000;
 }
 
 /* Una columna de día dentro de la rejilla (contiene sus bloques). */

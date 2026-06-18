@@ -2558,6 +2558,7 @@ function toggleCronograma() {
   } else {
     if (cronograma) cronograma.classList.add('hidden');
     if (plannerGrid) plannerGrid.style.display = '';
+    stopNowLineClock(); // detener el reloj de la línea de hora al salir del horario
   }
 
   updateViewToggleMenuLabel();
@@ -2867,6 +2868,38 @@ function renderCronograma() {
     renderCronogramaDayBlocks(colEl, date);
     grid.appendChild(colEl);
   });
+
+  // 4) Línea de hora actual: solo si el día de hoy está visible en la rejilla.
+  const todayVisible = dayDates.some(d => formatDate(d) === todayStr);
+  if (todayVisible) {
+    const nowLine = document.createElement('div');
+    nowLine.className = 'cr-now-line';
+    nowLine.id = 'cr-now-line';
+    grid.appendChild(nowLine);
+    updateNowLinePosition();   // posición inicial
+    startNowLineClock();       // se irá actualizando cada minuto
+  } else {
+    stopNowLineClock();
+  }
+}
+
+// Coloca la línea de hora actual según la hora del día (1px = 1min).
+function updateNowLinePosition() {
+  const nowLine = document.getElementById('cr-now-line');
+  if (!nowLine) return;
+  const now = new Date();
+  const minutesIntoDay = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  nowLine.style.top = minutesIntoDay + 'px';
+}
+
+// Mantiene la línea avanzando: la reubica cada 30s mientras esté en pantalla.
+let nowLineTimer = null;
+function startNowLineClock() {
+  stopNowLineClock();
+  nowLineTimer = setInterval(updateNowLinePosition, 30000);
+}
+function stopNowLineClock() {
+  if (nowLineTimer) { clearInterval(nowLineTimer); nowLineTimer = null; }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
