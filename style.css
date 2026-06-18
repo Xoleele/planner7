@@ -3388,27 +3388,32 @@ body.cronograma-active .planner-grid { display: none; }
   text-overflow: ellipsis;
 }
 
-/* La línea de hora toma el formato de la descripción del planner. */
-.cr-task-time {
+/* Descripción del bloque (incluye la hora al comienzo). Mismo formato que la
+   descripción del planner. Se recorta a las líneas que caben en la altura del
+   bloque (el nº de líneas lo fija el JS con -webkit-line-clamp) y termina en
+   "…" cuando el texto continúa. */
+.cr-task-desc {
   font-size: 11.5px;
   line-height: 1.4;
   opacity: 0.85;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  white-space: pre-wrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1; /* valor por defecto; el JS lo ajusta por bloque */
+  word-break: break-word;
 }
 
 .cr-task-block.completed { opacity: 0.5; }
 .cr-task-block.completed .cr-task-title { text-decoration: line-through; }
 
-/* ── Móvil: una sola columna (hoy) ─────────────────────────────────────────
-   Se colapsa a 1 columna de día. */
+/* ── Movil: una sola columna (hoy) ──
+   Se colapsa a 1 columna de dia. */
 .mobile-mode .cronograma-headers {
   grid-template-columns: var(--cr-time-col) 1fr;
 }
 .mobile-mode .cronograma-grid {
   grid-template-columns: var(--cr-time-col) 1fr;
 }
-/* En móvil solo existe la columna de día 1, ocupando la 2ª pista. */
+/* En movil solo existe la columna de dia 1, ocupando la 2a pista. */
 .mobile-mode .cr-day-col[data-col="1"] { grid-column: 2; }

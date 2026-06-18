@@ -2325,12 +2325,16 @@ function parseTimeRangeFromDescription(description) {
   const eh = parseInt(m[3], 10), em = parseInt(m[4], 10);
   if (sh > 23 || sm > 59 || eh > 23 || em > 59) return null;
   const startMin = sh * 60 + sm;
-  let endMin = eh * 60 + em;
-  // Cruce de medianoche: recortar a fin de día.
-  if (endMin <= startMin) endMin = 24 * 60;
+  const rawEndMin = eh * 60 + em;
+  // Cruce de medianoche: el fin es menor o igual que el inicio.
+  const crossesMidnight = rawEndMin <= startMin;
+  // endMin recortado al fin del día para dibujar el tramo del día actual.
+  const endMin = crossesMidnight ? 24 * 60 : rawEndMin;
   return {
     startMin,
     endMin,
+    rawEndMin,        // fin real sin recortar (minutos del día siguiente si cruza)
+    crossesMidnight,  // true si la tarea termina después de medianoche
     startStr: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`,
     endStr: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`
   };
@@ -2406,11 +2410,82 @@ function buildCronogramaHeader(date, dayNameUpper, isToday) {
   return header;
 }
 
+// Crea el elemento de un bloque de tarea para el cronograma.
+//   topMin/bottomMin: posición vertical en minutos dentro de la columna (0..1440).
+//   titleText: texto del título (puede llevar la marca de continuación "↪ ").
+//   descText:  descripción completa de la tarea (incluye la hora al comienzo).
+//   isCompleted: aplica el estilo de completada.
+//   tag: etiqueta para los colores.
+//
+// El contenido visible depende de la DURACIÓN del tramo (= altura del bloque):
+//   < 45 min      → solo el rectángulo, sin texto.
+//   45 – 59 min   → solo el título.
+//   ≥ 60 min      → título + descripción (recortada con "…" según la altura).
+function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isCompleted, tag) {
+  const block = document.createElement('div');
+  block.className = 'cr-task-block';
+  if (isCompleted) block.classList.add('completed');
+  if (tag && tag.color) {
+    block.style.setProperty('--tag-bg', tag.color.bg);
+    block.style.setProperty('--tag-text', tag.color.text);
+    block.style.setProperty('--tag-border', tag.color.border);
+  }
+  // Posición y tamaño (1px = 1 minuto).
+  const heightPx = Math.max(bottomMin - topMin, 16);
+  block.style.top = topMin + 'px';
+  block.style.height = heightPx + 'px';
+
+  const durationMin = bottomMin - topMin;
+
+  // < 45 min: sin texto.
+  if (durationMin < 45) {
+    return block;
+  }
+
+  // Título (siempre, a partir de 45 min).
+  const titleEl = document.createElement('div');
+  titleEl.className = 'cr-task-title';
+  titleEl.textContent = titleText;
+  block.appendChild(titleEl);
+
+  // > 59 min (es decir, 60 min en adelante): añadir la descripción completa,
+  // recortada a las líneas que caben.
+  if (durationMin > 59 && descText && descText.trim() !== '') {
+    const descEl = document.createElement('div');
+    descEl.className = 'cr-task-desc';
+    descEl.textContent = descText;
+
+    // Calcular cuántas líneas de descripción caben en la altura disponible:
+    //   alto - padding vertical (24px) - alto del título (~18px) - gap (6px).
+    // Altura de línea de la descripción ≈ 11.5px * 1.4 ≈ 16px.
+    const DESC_LINE_PX = 16;
+    const available = heightPx - 24 /*padding*/ - 18 /*título*/ - 6 /*gap*/;
+    const lines = Math.max(1, Math.floor(available / DESC_LINE_PX));
+    descEl.style.webkitLineClamp = String(lines);
+
+    block.appendChild(descEl);
+  }
+
+  return block;
+}
+
 // Dibuja los bloques de tareas con horario para un día concreto dentro de su
-// columna. Devuelve el número de bloques dibujados.
+// columna. Incluye:
+//   (a) el tramo del propio día (recortado a las 24:00 si cruza medianoche), y
+//   (b) la "cola" de las tareas del DÍA ANTERIOR que terminaron después de
+//       medianoche (de 00:00 hasta su hora real de fin), marcada con "↪".
+// La regla de contenido (sin texto / título / título+descripción) se aplica
+// sobre CADA bloque visible según su propia altura.
+// Devuelve el número de bloques dibujados.
 function renderCronogramaDayBlocks(colEl, date) {
   const dateStr = formatDate(date);
   let count = 0;
+
+  const isTaskCompleted = (task, dStr) => task.recurrence && task.recurrence.enabled
+    ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
+    : !!task.completed;
+
+  // (a) Tareas del propio día.
   tasks.forEach(task => {
     if (!checkTaskOccurrence(task, date)) return;
     const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
@@ -2419,39 +2494,42 @@ function renderCronogramaDayBlocks(colEl, date) {
     const range = parseTimeRangeFromDescription(task.description);
     if (!range) return;
 
-    const { startMin, endMin, startStr, endStr } = range;
+    const { startMin, endMin } = range;
+    const title = task.title || '(Sin título)';
 
-    const block = document.createElement('div');
-    block.className = 'cr-task-block';
-
-    const isCompleted = task.recurrence && task.recurrence.enabled
-      ? !!(task.completedOccurrences && task.completedOccurrences.includes(dateStr))
-      : !!task.completed;
-    if (isCompleted) block.classList.add('completed');
-
-    if (tag && tag.color) {
-      block.style.setProperty('--tag-bg', tag.color.bg);
-      block.style.setProperty('--tag-text', tag.color.text);
-      block.style.setProperty('--tag-border', tag.color.border);
-    }
-
-    // Posición y tamaño (1px = 1 minuto).
-    block.style.top = startMin + 'px';
-    block.style.height = Math.max(endMin - startMin, 16) + 'px';
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'cr-task-title';
-    titleEl.textContent = task.title || '(Sin título)';
-    block.appendChild(titleEl);
-
-    const timeEl = document.createElement('div');
-    timeEl.className = 'cr-task-time';
-    timeEl.textContent = `${startStr} – ${endStr}`;
-    block.appendChild(timeEl);
-
+    const block = buildCronogramaBlock(
+      startMin, endMin, title, task.description,
+      isTaskCompleted(task, dateStr), tag
+    );
     colEl.appendChild(block);
     count++;
   });
+
+  // (b) Cola de las tareas del día ANTERIOR que cruzaron medianoche.
+  const prevDate = addDays(date, -1);
+  const prevDateStr = formatDate(prevDate);
+  tasks.forEach(task => {
+    if (!checkTaskOccurrence(task, prevDate)) return;
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    const tagVisible = tag ? tag.visible !== false : true;
+    if (!tagVisible) return;
+    const range = parseTimeRangeFromDescription(task.description);
+    if (!range || !range.crossesMidnight) return;
+
+    // rawEndMin ya es el minuto del día siguiente (p. ej. 01:00 => 60).
+    // La cola va de 00:00 a rawEndMin en la columna de hoy.
+    const tailEnd = range.rawEndMin;
+    if (tailEnd <= 0) return;
+    const title = '↪ ' + (task.title || '(Sin título)');
+
+    const block = buildCronogramaBlock(
+      0, tailEnd, title, task.description,
+      isTaskCompleted(task, prevDateStr), tag
+    );
+    colEl.appendChild(block);
+    count++;
+  });
+
   return count;
 }
 
