@@ -352,6 +352,15 @@
 
   <div id="briefcase-mobile-backdrop" class="briefcase-mobile-backdrop hidden"></div>
 
+  <!-- MODAL: ALARMA -->
+  <div id="alarm-modal" class="modal-backdrop hidden">
+    <div class="modal-content" style="max-width: 320px; text-align: center; padding: 28px 24px;">
+      <h2 style="margin: 0 0 8px 0;">Alarma</h2>
+      <p id="alarm-modal-text" style="color: var(--text-muted); margin: 0 0 22px 0; font-size: 14px;"></p>
+      <button id="alarm-accept-btn" class="btn btn-primary" style="min-width: 140px;">Aceptar</button>
+    </div>
+  </div>
+
   <!-- MODAL: NUEVA TAREA / DETALLE TAREA -->
   <div id="task-modal" class="modal-backdrop hidden">
     <div class="modal-content task-modal-w">
@@ -405,6 +414,10 @@
             <label class="checkbox-container" style="text-transform: none; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text-muted); margin-top: 8px;">
               <input type="checkbox" id="task-in-briefcase-checkbox">
               <span>Archivar tarea</span>
+            </label>
+            <label id="task-alarm-label" class="checkbox-container" style="text-transform: none; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text-muted); margin-top: 6px;">
+              <input type="checkbox" id="task-alarm-checkbox">
+              <span>Activar alarma</span>
             </label>
           </div>
         </div>

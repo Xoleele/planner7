@@ -1418,6 +1418,7 @@ async function startApp(user) {
   ensurePositions();
   renderWeeklyCalendar();
   initMobileFeed();
+  initAlarms();
 }
 
 // ─── Migracion: copiar la hora de cada tarea al inicio de su descripcion ──────
@@ -2361,6 +2362,162 @@ function parseTimeRangeFromDescription(description) {
     startStr: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`,
     endStr: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`
   };
+}
+
+// ─── Alarma: detectar la hora de inicio al comienzo de la descripcion ─────────
+// Acepta una hora suelta ("08:00 ...") o un rango ("08:00 - 13:40 ...").
+// Devuelve "HH:MM" o null si no hay hora de inicio valida.
+function parseStartTimeFromDescription(description) {
+  if (!description || typeof description !== 'string') return null;
+  const s = description.trimStart();
+  const m = s.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+  if (h > 23 || mi > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
+}
+
+// Sincroniza el estado del checkbox de alarma con la descripcion actual:
+// solo se puede activar si hay una hora de inicio. Si no la hay, se desactiva
+// y se deshabilita (atenuado).
+function syncAlarmCheckboxState() {
+  const checkbox = document.getElementById('task-alarm-checkbox');
+  const label = document.getElementById('task-alarm-label');
+  if (!checkbox || !label) return;
+  const desc = document.getElementById('task-input-description').value;
+  const hasStart = parseStartTimeFromDescription(desc) !== null;
+  checkbox.disabled = !hasStart;
+  if (!hasStart) checkbox.checked = false;
+  label.style.opacity = hasStart ? '1' : '0.45';
+  label.style.cursor = hasStart ? 'pointer' : 'not-allowed';
+  label.title = hasStart ? '' : 'Añade una hora de inicio en la descripción (ej. 08:00) para activar la alarma';
+}
+
+// ─── Sistema de alarmas ───────────────────────────────────────────────────────
+// Una tarea con alarm:true y una hora de inicio en su descripción dispara:
+//  · una notificación del navegador a la hora de inicio (con la app abierta), y
+//  · un modal "Alarma" con botón "Aceptar" al abrir la app, para alarmas cuya
+//    hora ya pasó hoy y aún no se reconocieron.
+const ACK_ALARMS_KEY = 'planner7-acknowledged-alarms';
+let alarmTimers = [];          // setTimeout pendientes de hoy
+let pendingAlarmQueue = [];    // alarmas vencidas a mostrar en cola
+
+function getAcknowledgedAlarms() {
+  try { return JSON.parse(localStorage.getItem(ACK_ALARMS_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+function markAlarmAcknowledged(key) {
+  const acks = getAcknowledgedAlarms();
+  acks[key] = Date.now();
+  // Limpieza: conservar solo claves de los últimos 3 días.
+  const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
+  for (const k of Object.keys(acks)) {
+    if (acks[k] < cutoff) delete acks[k];
+  }
+  try { localStorage.setItem(ACK_ALARMS_KEY, JSON.stringify(acks)); } catch (e) {}
+}
+function isAlarmAcknowledged(key) {
+  return Object.prototype.hasOwnProperty.call(getAcknowledgedAlarms(), key);
+}
+
+// Devuelve las ocurrencias de hoy con alarma activa: { task, key, startMin, title }
+function getTodaysAlarmOccurrences() {
+  const today = new Date();
+  const todayStr = formatDate(today);
+  const result = [];
+  tasks.forEach(task => {
+    if (!task.alarm) return;
+    const startStr = parseStartTimeFromDescription(task.description);
+    if (!startStr) return;
+    // ¿La tarea ocurre hoy? (cubre tareas simples y recurrentes)
+    if (!checkTaskOccurrence(task, today)) return;
+    const [h, mi] = startStr.split(':').map(Number);
+    result.push({
+      task,
+      key: `${task.id}|${todayStr}`,
+      startMin: h * 60 + mi,
+      startStr,
+      title: task.title
+    });
+  });
+  return result;
+}
+
+function initAlarms() {
+  // Pedir permiso de notificaciones (no bloquea el resto).
+  if ('Notification' in window && Notification.permission === 'default') {
+    try { Notification.requestPermission(); } catch (e) {}
+  }
+  refreshAlarms();
+}
+
+// Recalcula alarmas vencidas (modal) y programa las futuras de hoy (timers).
+function refreshAlarms() {
+  alarmTimers.forEach(clearTimeout);
+  alarmTimers = [];
+
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const occurrences = getTodaysAlarmOccurrences();
+
+  occurrences.forEach(occ => {
+    if (isAlarmAcknowledged(occ.key)) return;
+    if (occ.startMin <= nowMin) {
+      // Ya venció hoy y no se ha reconocido: a la cola del modal.
+      if (!pendingAlarmQueue.some(a => a.key === occ.key)) {
+        pendingAlarmQueue.push(occ);
+      }
+    } else {
+      // Aún por venir hoy: programar timer.
+      const msUntil = ((occ.startMin - nowMin) * 60 - now.getSeconds()) * 1000;
+      const timer = setTimeout(() => fireAlarm(occ), Math.max(0, msUntil));
+      alarmTimers.push(timer);
+    }
+  });
+
+  showNextAlarmModal();
+}
+
+// Dispara una alarma en el momento (notificación + cola del modal).
+function fireAlarm(occ) {
+  if (isAlarmAcknowledged(occ.key)) return;
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification('Alarma', { body: `${occ.startStr} · ${occ.title}` });
+    } catch (e) {}
+  }
+  if (!pendingAlarmQueue.some(a => a.key === occ.key)) {
+    pendingAlarmQueue.push(occ);
+  }
+  showNextAlarmModal();
+}
+
+// Muestra el modal para la siguiente alarma pendiente de la cola.
+function showNextAlarmModal() {
+  const modal = document.getElementById('alarm-modal');
+  if (!modal) return;
+  // Si ya hay un modal de alarma visible, esperar a que se acepte.
+  if (!modal.classList.contains('hidden')) return;
+  // Saltar las ya reconocidas que quedaron en la cola.
+  while (pendingAlarmQueue.length && isAlarmAcknowledged(pendingAlarmQueue[0].key)) {
+    pendingAlarmQueue.shift();
+  }
+  if (!pendingAlarmQueue.length) return;
+
+  const occ = pendingAlarmQueue[0];
+  const textEl = document.getElementById('alarm-modal-text');
+  if (textEl) textEl.textContent = `${occ.startStr} · ${occ.title}`;
+  modal.classList.remove('hidden');
+}
+
+function acceptAlarmModal() {
+  const modal = document.getElementById('alarm-modal');
+  if (!modal) return;
+  const occ = pendingAlarmQueue.shift();
+  if (occ) markAlarmAcknowledged(occ.key);
+  modal.classList.add('hidden');
+  // Mostrar la siguiente de la cola, si la hay.
+  setTimeout(showNextAlarmModal, 150);
 }
 
 function toggleCronograma() {
@@ -3999,6 +4156,9 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
   dateInput.required = true;
   repeatToggle.disabled = false;
 
+  const alarmCheckbox = document.getElementById('task-alarm-checkbox');
+  if (alarmCheckbox) alarmCheckbox.checked = false;
+
   // Hide end recurrence sub-fields
   document.getElementById('repeat-end-date').classList.add('hidden');
   document.querySelector('.count-input-wrapper').classList.add('hidden');
@@ -4017,6 +4177,7 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
     document.getElementById('task-input-title').value = task.title;
     document.getElementById('task-input-description').value = task.description || '';
     setSelectTagValue(task.tagId);
+    if (alarmCheckbox) alarmCheckbox.checked = !!task.alarm;
 
     if (!task.date) {
       briefcaseCheckbox.checked = true;
@@ -4111,6 +4272,7 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
   // Show Modal
   modal.classList.remove('hidden');
   updateRecurrenceHint();
+  syncAlarmCheckboxState(); // habilita/atenúa la alarma según haya hora de inicio
   if (!selectedTaskId) {
     document.getElementById('task-input-title').focus();
   }
@@ -4148,7 +4310,7 @@ function closeEditRecurringModal() {
  */
 function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
   const { title, description, tagId, isBriefcase, date,
-          startTime, endTime, duration, recurrence } = formData;
+          startTime, endTime, duration, recurrence, alarm } = formData;
 
   pushToUndoStack();
 
@@ -4168,7 +4330,7 @@ function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
           id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
           title, description, tagId,
           date: occurrenceDate,   // queda en el dia de la ocurrencia editada
-          startTime, endTime, duration,
+          startTime, endTime, duration, alarm,
           recurrence: null
         };
         tasks.push(standaloneTask);
@@ -4182,7 +4344,7 @@ function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
         const briefcaseTask = {
           id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
           title, description, tagId, date: '',
-          startTime, endTime, duration, recurrence: null
+          startTime, endTime, duration, alarm, recurrence: null
         };
         const briefcaseTasks = tasks.filter(t => !t.date);
         const minPos = briefcaseTasks.reduce((min, t) => Math.min(min, t.position || 0), 0);
@@ -4193,7 +4355,7 @@ function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
         tasks[idx] = {
           ...tasks[idx],
           title, description, tagId, date,
-          startTime, endTime, duration, recurrence
+          startTime, endTime, duration, recurrence, alarm
         };
         if (dateChanged || tasks[idx].position === undefined) {
           adjustPositionForModifiedTime(tasks[idx]);
@@ -4205,7 +4367,7 @@ function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
     const newTask = {
       id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
       title, description, tagId, date,
-      startTime, endTime, duration, recurrence
+      startTime, endTime, duration, recurrence, alarm
     };
     tasks.push(newTask);
     adjustPositionForModifiedTime(newTask);
@@ -4213,6 +4375,7 @@ function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
 
   saveTasksToStorage();
   renderWeeklyCalendar();
+  if (typeof refreshAlarms === 'function') refreshAlarms();
 }
 
 function openConfirmModal(task, occurrenceDate) {
@@ -5649,6 +5812,14 @@ function setupEventListeners() {
     });
   });
 
+  // La alarma solo se habilita si la descripcion empieza con una hora de inicio.
+  const descInput = document.getElementById('task-input-description');
+  if (descInput) descInput.addEventListener('input', syncAlarmCheckboxState);
+
+  // Botón "Aceptar" del modal de alarma.
+  const alarmAcceptBtn = document.getElementById('alarm-accept-btn');
+  if (alarmAcceptBtn) alarmAcceptBtn.addEventListener('click', acceptAlarmModal);
+
   // Submit Task Form
   document.getElementById('task-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -5667,6 +5838,10 @@ function setupEventListeners() {
     const tagId = document.getElementById('task-select-tag').value;
     const isBriefcase = document.getElementById('task-in-briefcase-checkbox').checked;
     const date = isBriefcase ? "" : document.getElementById('task-input-date').value;
+    // Alarma: solo válida si hay hora de inicio en la descripción.
+    const alarmCheckboxEl = document.getElementById('task-alarm-checkbox');
+    const alarm = !!(alarmCheckboxEl && alarmCheckboxEl.checked &&
+                     parseStartTimeFromDescription(description) !== null);
     // Funcion de hora eliminada: las tareas ya no tienen hora ni duracion
     const startTime = null;
     const endTime = null;
@@ -5708,7 +5883,7 @@ function setupEventListeners() {
     // Empaquetar los datos del formulario para aplicarlos (posiblemente tras
     // preguntar el alcance en tareas recurrentes).
     const formData = { title, description, tagId, isBriefcase, date,
-                       startTime, endTime, duration, recurrence };
+                       startTime, endTime, duration, recurrence, alarm };
 
     // ¿Es la edicion de una tarea recurrente existente sobre una ocurrencia
     // concreta? Entonces preguntamos: todas / solo esta.
@@ -6996,7 +7171,6 @@ async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null)
         if (insertIndex === -1) insertIndex = briefcaseTasks.length;
       }
 
-      briefcaseTasks.splice(insertIndex, 0, task);
       briefcaseTasks.forEach((t, idx) => {
         t.position = idx * 10;
       });
