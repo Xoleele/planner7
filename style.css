@@ -3318,6 +3318,26 @@ body.cronograma-active .planner-grid { display: none; }
   user-select: none;
 }
 
+/* La etiqueta "00:00" (la primera) no se sube, sino que baja un poco, para que
+   no quede tapada por el header sticky del cronograma. */
+.cr-hour-label-first {
+  transform: translateY(4px);
+}
+
+/* La etiqueta "00:00" final (en la última línea, fin del día) se sube un poco
+   más para que no quede tapada por el borde inferior del contenedor. */
+.cr-hour-label-last {
+  transform: translateY(-11px);
+}
+
+/* La última línea horizontal se ancla al borde inferior exacto de la rejilla
+   (no 1px más abajo), para que coincida con el borde del contenedor y no se vea
+   una doble línea con una pequeña separación. */
+.cr-hour-line-last {
+  top: auto !important;
+  bottom: 0;
+}
+
 /* Línea horizontal de hora que cruza las 7 columnas de día. */
 .cr-hour-line {
   position: absolute;
@@ -3383,11 +3403,12 @@ body.cronograma-active .planner-grid { display: none; }
   color: #ffffff;
 }
 
-/* Checkbox para completar dentro del bloque (igual que en el planner). */
+/* Checkbox para completar dentro del bloque: MISMO aspecto que en el planner
+   (misma posición, opacidades y coloreado del icono SVG). */
 .cr-task-block .task-check-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  right: 10px;
   width: 16px;
   height: 16px;
   display: flex;
@@ -3403,8 +3424,27 @@ body.cronograma-active .planner-grid { display: none; }
   border-radius: 50%;
   z-index: 2;
 }
-.cr-task-block:hover .task-check-btn { opacity: 0.85; }
+.cr-task-block:hover .task-check-btn { opacity: 0.8; }
 .cr-task-block .task-check-btn:hover { opacity: 1 !important; transform: scale(1.1); }
+.cr-task-block.completed .task-check-btn { opacity: 0.95; }
+
+/* Coloreado del icono del checkbox, idéntico al planner. */
+.cr-task-block .task-check-icon:not(.checked) {
+  fill: none !important;
+  stroke: #ffffff !important;
+}
+.cr-task-block .task-check-icon.checked {
+  fill: #ffffff !important;
+  stroke: none !important;
+}
+.cr-task-block .task-check-icon.checked rect {
+  fill: #ffffff !important;
+  stroke: none !important;
+}
+.cr-task-block .task-check-icon.checked polyline {
+  stroke: var(--tag-bg, #f2f2f7) !important;
+  fill: none !important;
+}
 
 /* Estado mientras se arrastra el bloque por el cronograma. */
 .cr-task-block.cr-dragging {
@@ -3424,10 +3464,10 @@ body.cronograma-active .planner-grid { display: none; }
   text-overflow: ellipsis;
 }
 
-/* Descripción del bloque (incluye la hora al comienzo). Mismo formato que la
-   descripción del planner. Se recorta a las líneas que caben en la altura del
-   bloque (el nº de líneas lo fija el JS con -webkit-line-clamp) y termina en
-   "…" cuando el texto continúa. */
+/* Descripcion del bloque (incluye la hora al comienzo). Mismo formato que la
+   descripcion del planner. Se recorta a las lineas que caben en la altura del
+   bloque (el numero de lineas lo fija el JS con -webkit-line-clamp) y termina
+   con elipsis cuando el texto continua. */
 .cr-task-desc {
   font-size: 11.5px;
   line-height: 1.4;
@@ -3442,6 +3482,15 @@ body.cronograma-active .planner-grid { display: none; }
 
 .cr-task-block.completed { opacity: 0.5; }
 .cr-task-block.completed .cr-task-title { text-decoration: line-through; }
+
+/* Estado mientras se arrastra el bloque por el cronograma. */
+.cr-task-block.cr-dragging {
+  opacity: 0.85;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  z-index: 50;
+  cursor: grabbing;
+  transition: none;
+}
 
 /* Movil: una sola columna (hoy). Se colapsa a 1 columna de dia. */
 .mobile-mode .cronograma-headers {

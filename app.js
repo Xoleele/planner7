@@ -2644,7 +2644,7 @@ function renderCronograma() {
   // 2) Etiquetas de hora (00:00 .. 23:00) y líneas horizontales por hora.
   for (let h = 0; h < 24; h++) {
     const label = document.createElement('span');
-    label.className = 'cr-hour-label';
+    label.className = 'cr-hour-label' + (h === 0 ? ' cr-hour-label-first' : '');
     label.style.top = (h * HOUR_HEIGHT) + 'px';
     label.textContent = String(h).padStart(2, '0') + ':00';
     grid.appendChild(label);
@@ -2654,11 +2654,19 @@ function renderCronograma() {
     line.style.top = (h * HOUR_HEIGHT) + 'px';
     grid.appendChild(line);
   }
-  // Línea final al pie de las 24h (cierre de las 23:00).
+  // Línea final al pie de las 24h (cierre de las 23:00). Se ancla al borde
+  // inferior de la rejilla (sin desfase respecto al borde del contenedor).
   const lastLine = document.createElement('div');
-  lastLine.className = 'cr-hour-line';
+  lastLine.className = 'cr-hour-line cr-hour-line-last';
   lastLine.style.top = (24 * HOUR_HEIGHT) + 'px';
   grid.appendChild(lastLine);
+
+  // Etiqueta "00:00" repetida en la última línea (fin del día / medianoche).
+  const endLabel = document.createElement('span');
+  endLabel.className = 'cr-hour-label cr-hour-label-last';
+  endLabel.style.top = (24 * HOUR_HEIGHT) + 'px';
+  endLabel.textContent = '00:00';
+  grid.appendChild(endLabel);
 
   // 3) Una columna por día con sus bloques de tareas.
   dayDates.forEach((date, idx) => {
@@ -2743,7 +2751,39 @@ function startCronogramaDrag(block, task, e) {
 
   window.addEventListener('pointermove', onCronogramaDragMove);
   window.addEventListener('pointerup', onCronogramaDragEnd);
+  window.addEventListener('keydown', onCronogramaDragKey);
   e.preventDefault();
+}
+
+// Escape mientras se arrastra: cancelar la operación (sin guardar ni mover).
+function onCronogramaDragKey(e) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    cancelCronogramaDrag();
+  }
+}
+
+// Cancela el arrastre en curso: quita los listeners, descarta el estado y
+// re-renderiza para devolver el bloque a su posición original (los datos no se
+// tocaron, así que el render restaura todo).
+function cancelCronogramaDrag() {
+  if (!crDrag) return;
+  const drag = crDrag;
+  crDrag = null;
+
+  window.removeEventListener('pointermove', onCronogramaDragMove);
+  window.removeEventListener('pointerup', onCronogramaDragEnd);
+  window.removeEventListener('keydown', onCronogramaDragKey);
+
+  drag.block.classList.remove('cr-dragging');
+  drag.block.style.pointerEvents = '';
+  try { drag.block.releasePointerCapture(drag.pointerId); } catch (_) {}
+
+  // Evitar que un click/pointerup posterior abra el modal de edición.
+  suppressNextCronogramaClick = true;
+  setTimeout(() => { suppressNextCronogramaClick = false; }, 0);
+
+  renderCronograma(); // restaura posiciones originales desde los datos
 }
 
 function onCronogramaDragMove(e) {
@@ -2789,6 +2829,7 @@ async function onCronogramaDragEnd(e) {
 
   window.removeEventListener('pointermove', onCronogramaDragMove);
   window.removeEventListener('pointerup', onCronogramaDragEnd);
+  window.removeEventListener('keydown', onCronogramaDragKey);
 
   drag.block.classList.remove('cr-dragging');
   drag.block.style.pointerEvents = '';
@@ -7155,7 +7196,6 @@ window.addEventListener('beforeunload', (e) => {
     }
   }
 });
-
 // Reintentar la sincronizacion en cuanto vuelva la conexion.
 window.addEventListener('online', () => {
   flushPendingSync();
