@@ -2683,7 +2683,6 @@ function startCronogramaDrag(block, task, e) {
   if (!range) return;
   const durationMin = (range.crossesMidnight ? range.rawEndMin + 1440 : range.rawEndMin) - range.startMin;
 
-  const blockRect = block.getBoundingClientRect();
   const cols = [...grid.querySelectorAll('.cr-day-col')];
 
   crDrag = {
@@ -2692,8 +2691,9 @@ function startCronogramaDrag(block, task, e) {
     durationMin,
     grid,
     cols,
-    // Desfase del puntero respecto al borde superior del bloque.
-    pointerOffsetY: e.clientY - blockRect.top,
+    // Y del puntero al agarrar y top original del bloque (en minutos/px). El
+    // movimiento se calcula como un DELTA puro desde aquí, evitando saltos.
+    grabClientY: e.clientY,
     startColEl: block.parentElement,
     targetColEl: block.parentElement,
     originalStartMin: range.startMin,
@@ -2726,14 +2726,14 @@ function onCronogramaDragMove(e) {
     crDrag.targetColEl = targetCol;
   }
 
-  // 2) Posición vertical: top del bloque = cursor - desfase, relativo al grid.
-  const gridRect = crDrag.grid.getBoundingClientRect();
-  let topPx = (e.clientY - gridRect.top - crDrag.pointerOffsetY) + crDrag.grid.scrollTop;
+  // 2) Posición vertical por DELTA del puntero desde el punto donde se agarró.
+  // Esto mantiene el bloque exactamente bajo el cursor (sin saltos al empezar).
+  const deltaPx = e.clientY - crDrag.grabClientY; // 1px = 1min
+  const orig = crDrag.originalStartMin;
   // Snap en pasos de 30 min RELATIVOS al inicio original de la tarea: si empieza
   // a las 9:14, los valores posibles son 8:44, 9:14, 9:44, ... (conserva los
   // minutos originales en lugar de cuadrar a :00/:30).
-  const orig = crDrag.originalStartMin;
-  const steps = Math.round((topPx - orig) / CR_SNAP_MIN);
+  const steps = Math.round(deltaPx / CR_SNAP_MIN);
   let startMin = orig + steps * CR_SNAP_MIN;
   // Mantener el inicio dentro del día (sin perder los minutos originales):
   // bajar a la franja válida más cercana por arriba/abajo si se sale.
