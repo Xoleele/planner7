@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es" class="mobile-mode">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Planner 7 — Playground estético (móvil)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* ──────────────────────────────────────────────────────────────────────
+       PLAYGROUND — solo estético, sin lógica.
+       Estos estilos encuadran la copia en un "marco de teléfono" centrado y
+       neutralizan las reglas del CSS real que dependen del viewport (100vw) y
+       del JS (scroll-snap del feed). Son propios del playground: puedes pedirme
+       que cambie cualquier cosa de aquí o de style.css.
+       ────────────────────────────────────────────────────────────────────── */
+    html.mobile-mode, body { height: 100%; }
+    body {
+      background: #e9e9ee;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+      padding: 24px;
+    }
+    /* El marco actúa como "viewport" del teléfono. */
+    .phone-frame {
+      width: 344px;  /* 430px comprimido 20% horizontal */
+      height: 649px; /* 820px comprimido 10% + 12% vertical */
+      background: var(--bg-app);
+      border-radius: 30px;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.18);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    /* El contenedor de la app ocupa todo el marco. */
+    .phone-frame .app-container {
+      height: 100%;
+      padding: 16px 16px 12px 16px;
+    }
+    /* La columna del día se ajusta al ancho del marco (no al viewport). */
+    .mobile-mode .mobile-feed-day {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+    }
+    /* El feed no necesita scroll horizontal aquí (un solo día). */
+    .mobile-mode .planner-grid { overflow-x: hidden; }
+  </style>
+</head>
+<body class="logged-in">
+  <div class="phone-frame">
+    <div class="app-container">
+
+      <!-- 1. Barra superior (incluye, al envolver, el navegador de día) -->
+      <header class="top-bar">
+        <div class="header-left">
+          <span class="calendar-icon">
+            <img src="icons/logo svg.png" alt="Planner 7">
+          </span>
+        </div>
+
+        <div class="header-right">
+          <div class="header-icon-group">
+            <button class="icon-button" title="Etiquetas">
+              <img src="icons/tag.svg" alt="Etiquetas" width="20" height="20">
+            </button>
+            <button class="icon-button" title="Archivados">
+              <img src="icons/folder-closed.svg" alt="Archivados" width="20" height="20">
+            </button>
+          </div>
+          <div class="user-avatar active" title="Perfil">
+            <span>J</span>
+          </div>
+        </div>
+
+        <!-- Navegador de día: el CSS móvil lo lleva a una segunda fila completa -->
+        <div class="week-navigator">
+          <button aria-label="Día anterior">
+            <img src="icons/chevron-left.svg" alt="Anterior" width="16" height="16">
+          </button>
+          <div class="week-display-container">
+            <span id="week-range-label">Jueves 18/06/2026</span>
+            <button aria-label="Elegir fecha">
+              <img src="icons/datepicker.svg" alt="Elegir fecha" width="14" height="14">
+            </button>
+          </div>
+          <button aria-label="Día siguiente">
+            <img src="icons/chevron-right.svg" alt="Siguiente" width="16" height="16">
+          </button>
+          <button id="today-btn">Hoy</button>
+        </div>
+      </header>
+
+      <!-- 2. Feed móvil: un día (JUEVES 18) -->
+      <main class="planner-grid">
+        <div class="day-column mobile-feed-day today" data-date="2026-06-18">
+
+          <!-- Cabecera del día -->
+          <div class="day-header">
+            <span class="day-name">JUEVES</span>
+            <span class="day-number">18</span>
+            <button class="duration-day-btn has-duration" data-tooltip="Tiempo total">
+              <img src="icons/clock.svg" alt="Duración total" width="14" height="14">
+            </button>
+            <button class="copy-day-btn" title="Copiar tareas como texto">
+              <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">
+            </button>
+            <button class="clear-day-btn" title="Eliminar todas las tareas de este día">
+              <img src="icons/trash.svg" alt="Limpiar día" width="16" height="16">
+            </button>
+            <button class="dialogue-day-btn" title="Notas">
+              <img src="icons/message-square.svg" alt="Notas">
+            </button>
+          </div>
+
+          <!-- Tareas -->
+          <div class="tasks-container">
+
+            <!-- Trabajo -->
+            <div class="task-card" style="--tag-bg:#f9cf39; --tag-text:#ffffff; --tag-border:#f9cf39;">
+              <div class="task-card-title">Trabajo</div>
+              <div class="task-card-desc">09:00 - 13:40</div>
+              <button class="task-check-btn" title="Marcar como completada">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon">
+                  <rect x="2" y="2" width="20" height="20" rx="4" ry="4"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Emprendimiento UBB 2 -->
+            <div class="task-card" style="--tag-bg:#f9cf39; --tag-text:#ffffff; --tag-border:#f9cf39;">
+              <div class="task-card-title">Emprendimiento UBB 2</div>
+              <div class="task-card-desc">14:10 - 15:30</div>
+              <button class="task-check-btn" title="Marcar como completada">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon">
+                  <rect x="2" y="2" width="20" height="20" rx="4" ry="4"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Entrenar -->
+            <div class="task-card" style="--tag-bg:#9cdb43; --tag-text:#ffffff; --tag-border:#9cdb43;">
+              <div class="task-card-title">Entrenar</div>
+              <div class="task-card-desc">1h</div>
+              <button class="task-check-btn" title="Marcar como completada">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon">
+                  <rect x="2" y="2" width="20" height="20" rx="4" ry="4"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Cortarme el pelo -->
+            <div class="task-card" style="--tag-bg:#f45781; --tag-text:#ffffff; --tag-border:#f45781;">
+              <div class="task-card-title">Cortarme el pelo</div>
+              <div class="task-card-desc">1h</div>
+              <button class="task-check-btn" title="Marcar como completada">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon">
+                  <rect x="2" y="2" width="20" height="20" rx="4" ry="4"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Postventa -->
+            <div class="task-card" style="--tag-bg:#f45781; --tag-text:#ffffff; --tag-border:#f45781;">
+              <div class="task-card-title">Postventa</div>
+              <div class="task-card-desc">Arreglar puerta y cocina</div>
+              <button class="task-check-btn" title="Marcar como completada">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon">
+                  <rect x="2" y="2" width="20" height="20" rx="4" ry="4"/>
+                </svg>
+              </button>
+            </div>
+
+          </div>
+
+          <button class="add-task-btn">
+            <span class="plus-icon">+</span> Agregar tarea
+          </button>
+
+        </div>
+      </main>
+
+    </div>
+  </div>
+</body>
+</html>
