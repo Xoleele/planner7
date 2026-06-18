@@ -3335,7 +3335,7 @@ body.cronograma-active .planner-grid { display: none; }
    una doble línea con una pequeña separación. */
 .cr-hour-line-last {
   top: auto !important;
-  bottom: 0;
+  bottom: -1px;
 }
 
 /* Línea horizontal de hora que cruza las 7 columnas de día. */

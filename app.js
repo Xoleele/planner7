@@ -494,6 +494,11 @@ function setupUserMenu() {
         <img src="icons/calendar.svg" alt="" width="14" height="14">
         <span id="view-toggle-menu-label">Ver cronograma</span>
       </button>
+      ${isMobile() ? `
+      <button id="stats-menu-btn" class="user-dropdown-item">
+        <img src="icons/bar-chart.svg" alt="" width="14" height="14">
+        Estadísticas
+      </button>` : ''}
       <button id="advanced-options-btn" class="user-dropdown-item" style="display: none;">
         <img src="icons/settings.svg" alt="" width="14" height="14">
         Opciones avanzadas
@@ -538,6 +543,15 @@ function setupUserMenu() {
       dropdown.remove();
       toggleCronograma();
     });
+
+    const statsMenuBtn = document.getElementById('stats-menu-btn');
+    if (statsMenuBtn) {
+      statsMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.remove();
+        openStatsModal();
+      });
+    }
 
     document.getElementById('advanced-options-btn').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -5411,6 +5425,17 @@ function showDurationToast(msg) {
 }
 
 // --- Wire Up Event Listeners ---
+// Abre el modal de estadísticas y reinicia su estado. Reutilizado por el botón
+// de escritorio y por el ítem del menú de usuario (móvil).
+function openStatsModal() {
+  document.getElementById('stats-results').classList.add('hidden');
+  document.getElementById('stats-keyword').value = '';
+  document.getElementById('stats-period').value = 'today';
+  document.getElementById('stats-custom-range').classList.add('hidden');
+  document.getElementById('stats-modal').classList.remove('hidden');
+  document.getElementById('stats-keyword').focus();
+}
+
 function setupEventListeners() {
   // Navigation
   document.getElementById('prev-week-btn').addEventListener('click', () => {
@@ -5897,15 +5922,7 @@ function setupEventListeners() {
   // ─── Estadísticas ──────────────────────────────────────────────────────────
   const statsBtn = document.getElementById('stats-btn');
   if (statsBtn) {
-    statsBtn.addEventListener('click', () => {
-      // Reset de estado al abrir
-      document.getElementById('stats-results').classList.add('hidden');
-      document.getElementById('stats-keyword').value = '';
-      document.getElementById('stats-period').value = 'today';
-      document.getElementById('stats-custom-range').classList.add('hidden');
-      document.getElementById('stats-modal').classList.remove('hidden');
-      document.getElementById('stats-keyword').focus();
-    });
+    statsBtn.addEventListener('click', openStatsModal);
   }
 
   const statsCancelBtn = document.getElementById('stats-cancel-btn');
