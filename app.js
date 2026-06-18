@@ -2458,9 +2458,9 @@ function buildCronogramaHeader(date, dayNameUpper, isToday) {
 //   < 45 min      → solo el rectángulo, sin texto.
 //   45 – 59 min   → solo el título.
 //   ≥ 60 min      → título + descripción (recortada con "…" según la altura).
-function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isCompleted, tag, task, occurrenceDate) {
+function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isCompleted, tag, task, occurrenceDate, isTail) {
   const block = document.createElement('div');
-  block.className = 'cr-task-block';
+  block.className = 'cr-task-block' + (isTail ? ' cr-tail' : '');
   if (isCompleted) block.classList.add('completed');
   if (tag && tag.color) {
     block.style.setProperty('--tag-bg', tag.color.bg);
@@ -2482,9 +2482,13 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
     });
 
     // Arrastrar para mover de hora/día (snap 30 min, mantiene duración).
-    block.addEventListener('pointerdown', (e) => {
-      startCronogramaDrag(block, task, e);
-    });
+    // Los bloques "cola" (continuación tras medianoche) NO son arrastrables:
+    // la tarea solo se mueve desde su bloque principal.
+    if (!isTail) {
+      block.addEventListener('pointerdown', (e) => {
+        startCronogramaDrag(block, task, e);
+      });
+    }
 
     // Checkbox para marcar como completada (mismo SVG que el planner).
     const checkBtn = document.createElement('button');
@@ -2589,7 +2593,7 @@ function renderCronogramaDayBlocks(colEl, date) {
 
     const block = buildCronogramaBlock(
       0, tailEnd, title, task.description,
-      isTaskCompleted(task, prevDateStr), tag, task, prevDateStr
+      isTaskCompleted(task, prevDateStr), tag, task, prevDateStr, true
     );
     colEl.appendChild(block);
     count++;

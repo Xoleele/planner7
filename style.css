@@ -3266,7 +3266,9 @@ body.cronograma-active .planner-grid { display: none; }
 .cronograma-headers .day-header {
   border-bottom: none;
   border-right: 1px solid var(--border-light);
-  padding: 14px 8px 12px 8px;
+  /* Mismo padding vertical que el encabezado del planner para que ambos
+     tengan exactamente la misma altura. */
+  padding: 20px 8px 16px 8px;
 }
 .cronograma-headers .day-header:last-child {
   border-right: none;
