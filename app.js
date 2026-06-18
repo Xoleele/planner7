@@ -492,7 +492,7 @@ function setupUserMenu() {
       </button>
       <button id="view-toggle-btn" class="user-dropdown-item">
         <img src="icons/calendar.svg" alt="" width="14" height="14">
-        <span id="view-toggle-menu-label">Ver cronograma</span>
+        <span id="view-toggle-menu-label">Vista Horario</span>
       </button>
       ${isMobile() ? `
       <button id="stats-menu-btn" class="user-dropdown-item">
@@ -2548,7 +2548,7 @@ function toggleCronograma() {
 // para que refleje la vista a la que cambiará al pulsarlo.
 function updateViewToggleMenuLabel() {
   const label = document.getElementById('view-toggle-menu-label');
-  if (label) label.textContent = cronogramaActive ? 'Ver planner' : 'Ver cronograma';
+  if (label) label.textContent = cronogramaActive ? 'Vista Planner' : 'Vista Horario';
 }
 
 // Aplica al iniciar la vista guardada en localStorage. Si el usuario dejó la
