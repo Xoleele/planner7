@@ -2520,6 +2520,25 @@ function acceptAlarmModal() {
   setTimeout(showNextAlarmModal, 150);
 }
 
+// Devuelve true si hay alguna ventana/overlay abierto en la app: cualquier modal
+// visible, el menú de usuario, el datepicker o el panel de archivados abierto.
+function isAnyOverlayOpen() {
+  // Modales (.modal-backdrop sin la clase hidden y visibles)
+  const modalOpen = Array.from(document.querySelectorAll('.modal-backdrop')).some(m =>
+    !m.classList.contains('hidden') && m.style.display !== 'none'
+  );
+  if (modalOpen) return true;
+  // Menú de usuario (se añade al DOM solo mientras está abierto)
+  if (document.getElementById('user-dropdown')) return true;
+  // Datepicker desplegable
+  const datepicker = document.getElementById('custom-calendar-dropdown');
+  if (datepicker && !datepicker.classList.contains('hidden')) return true;
+  // Panel de archivados (drawer abierto = sin la clase closed)
+  const drawer = document.getElementById('briefcase-drawer');
+  if (drawer && !drawer.classList.contains('closed')) return true;
+  return false;
+}
+
 function toggleCronograma() {
   cronogramaActive = !cronogramaActive;
   document.body.classList.toggle('cronograma-active', cronogramaActive);
@@ -5649,6 +5668,11 @@ function setupEventListeners() {
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
       navigateToWeek(1);
+    } else if (e.key === 'k' || e.key === 'K') {
+      // Alternar entre Planner y Horario, solo si no hay ninguna ventana abierta.
+      if (isAnyOverlayOpen()) return;
+      e.preventDefault();
+      toggleCronograma();
     }
   });
 
