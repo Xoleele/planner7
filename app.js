@@ -2571,6 +2571,9 @@ function renderCronogramaDayBlocks(colEl, date) {
 }
 
 function renderCronograma() {
+  // Si hay un arrastre en curso, NO reconstruir: borraría el bloque que el
+  // usuario tiene agarrado y provocaría saltos. Se re-renderiza al soltar.
+  if (crDrag) return;
   const headersEl = document.getElementById('cronograma-headers');
   const grid = document.getElementById('cronograma-grid');
   if (!headersEl || !grid) return;
@@ -2787,8 +2790,12 @@ async function onCronogramaDragEnd(e) {
     drag.task.date = newDateStr;
   }
 
-  await saveTasksToStorage();
+  // Re-render INMEDIATO (síncrono) para que la vista refleje el cambio al
+  // instante, sin esperar al guardado. El guardado va en segundo plano: así un
+  // render diferido no puede ejecutarse en medio de un nuevo arrastre y pegar
+  // saltos. (renderCronograma ya se auto-protege si crDrag está activo.)
   renderCronograma();
+  saveTasksToStorage();
 }
 
 // Bandera para evitar que el click que sigue a un arrastre abra el modal.
