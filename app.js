@@ -2308,6 +2308,15 @@ function renderWeeklyCalendar(targetWrapper = document) {
 // ─────────────────────────────────────────────────────────────────────────
 
 let cronogramaActive = false;
+// Restaurar la última vista elegida por el usuario (planner/cronograma). La
+// clave 'viewMode' guarda 'cronograma' o 'planner'. Solo se aplica realmente a
+// la UI en restoreSavedViewMode(), tras montar el DOM.
+let savedViewModeIsCronograma = false;
+try {
+  savedViewModeIsCronograma = window.localStorage.getItem('viewMode') === 'cronograma';
+} catch (e) {
+  savedViewModeIsCronograma = false;
+}
 
 const CRONOGRAMA_DAY_NAMES = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO', 'DOMINGO'];
 
@@ -2344,6 +2353,11 @@ function toggleCronograma() {
   cronogramaActive = !cronogramaActive;
   document.body.classList.toggle('cronograma-active', cronogramaActive);
 
+  // Recordar la vista elegida para la próxima vez que se abra la app.
+  try {
+    window.localStorage.setItem('viewMode', cronogramaActive ? 'cronograma' : 'planner');
+  } catch (e) {}
+
   const cronograma = document.getElementById('cronograma');
   const plannerGrid = document.querySelector('.planner-grid');
 
@@ -2364,6 +2378,20 @@ function toggleCronograma() {
 function updateViewToggleMenuLabel() {
   const label = document.getElementById('view-toggle-menu-label');
   if (label) label.textContent = cronogramaActive ? 'Ver planner' : 'Ver cronograma';
+}
+
+// Aplica al iniciar la vista guardada en localStorage. Si el usuario dejó la
+// app en el cronograma, la reactiva (sin volver a alternar manualmente).
+function restoreSavedViewMode() {
+  if (!savedViewModeIsCronograma || cronogramaActive) return;
+  cronogramaActive = true;
+  document.body.classList.add('cronograma-active');
+  const cronograma = document.getElementById('cronograma');
+  const plannerGrid = document.querySelector('.planner-grid');
+  if (cronograma) cronograma.classList.remove('hidden');
+  if (plannerGrid) plannerGrid.style.display = 'none';
+  updateViewToggleMenuLabel();
+  renderCronograma();
 }
 
 // Construye una cabecera de día reutilizando la estructura .day-header del
@@ -6291,6 +6319,9 @@ function setupEventListeners() {
     e.stopPropagation();
     showDurationToast(btn.dataset.tooltip || '');
   });
+
+  // Restaurar la vista (planner/cronograma) guardada por el usuario.
+  restoreSavedViewMode();
 }
 
 async function confirmAndClearTasksForDay(dateStr) {
