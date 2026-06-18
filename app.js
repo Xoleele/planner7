@@ -1293,7 +1293,110 @@ function setupDesktopColumns(targetWrapper = document) {
     });
   });
 
+  // Click derecho en una columna → menú contextual "Aislar día" / "Restablecer días"
+  targetWrapper.querySelectorAll('.day-column').forEach(col => {
+    col.addEventListener('contextmenu', (e) => {
+      if (isMobile()) return;
+      e.preventDefault();
+      const dayIndex = parseInt(col.dataset.day);
+      openDayContextMenu(e.clientX, e.clientY, dayIndex);
+    });
+  });
+
   setupDragAndDrop(targetWrapper);
+}
+
+// ─── Aislar día (escritorio) ─────────────────────────────────────────────────
+// isolatedDay guarda el data-day (1..7) de la columna aislada, o null si no hay.
+let isolatedDay = null;
+
+// Aplica el estado de aislamiento actual a las columnas de todos los wrappers
+// visibles (se llama al aislar/restablecer y tras cada render de semana).
+function applyDayIsolation() {
+  document.querySelectorAll('.planner-week-wrapper').forEach(wrapper => {
+    const cols = wrapper.querySelectorAll('.day-column');
+    if (isolatedDay === null) {
+      wrapper.classList.remove('day-isolated');
+      cols.forEach(c => c.classList.remove('isolated-day'));
+    } else {
+      wrapper.classList.add('day-isolated');
+      cols.forEach(c => {
+        if (parseInt(c.dataset.day) === isolatedDay) c.classList.add('isolated-day');
+        else c.classList.remove('isolated-day');
+      });
+    }
+  });
+}
+
+function isolateDay(dayIndex) {
+  isolatedDay = dayIndex;
+  applyDayIsolation();
+}
+
+function resetIsolation() {
+  isolatedDay = null;
+  applyDayIsolation();
+}
+
+// ─── Menú contextual de columna ──────────────────────────────────────────────
+function closeDayContextMenu() {
+  const existing = document.getElementById('day-context-menu');
+  if (existing) existing.remove();
+  document.removeEventListener('click', closeDayContextMenu);
+  document.removeEventListener('contextmenu', onOutsideContextMenu, true);
+  window.removeEventListener('blur', closeDayContextMenu);
+  window.removeEventListener('resize', closeDayContextMenu);
+}
+
+// Cerrar el menú si se hace click derecho fuera de una columna.
+function onOutsideContextMenu(e) {
+  if (!e.target.closest('.day-column')) closeDayContextMenu();
+}
+
+function openDayContextMenu(x, y, dayIndex) {
+  closeDayContextMenu(); // cerrar cualquier menú previo
+
+  const menu = document.createElement('div');
+  menu.id = 'day-context-menu';
+  menu.className = 'context-menu';
+
+  const item = document.createElement('button');
+  item.className = 'context-menu-item';
+
+  if (isolatedDay === null) {
+    // No hay día aislado: ofrecer aislar el día sobre el que se hizo click.
+    item.textContent = 'Aislar día';
+    item.addEventListener('click', () => {
+      isolateDay(dayIndex);
+      closeDayContextMenu();
+    });
+  } else {
+    // Ya hay un día aislado: la única opción es restablecer.
+    item.textContent = 'Restablecer días';
+    item.addEventListener('click', () => {
+      resetIsolation();
+      closeDayContextMenu();
+    });
+  }
+
+  menu.appendChild(item);
+  document.body.appendChild(menu);
+
+  // Posicionar el menú evitando que se salga de la pantalla.
+  const rect = menu.getBoundingClientRect();
+  let left = x, top = y;
+  if (left + rect.width > window.innerWidth)  left = window.innerWidth  - rect.width  - 8;
+  if (top + rect.height > window.innerHeight) top = window.innerHeight - rect.height - 8;
+  menu.style.left = Math.max(8, left) + 'px';
+  menu.style.top  = Math.max(8, top)  + 'px';
+
+  // Cerrar al hacer click en cualquier sitio, perder foco o redimensionar.
+  setTimeout(() => {
+    document.addEventListener('click', closeDayContextMenu);
+    document.addEventListener('contextmenu', onOutsideContextMenu, true);
+    window.addEventListener('blur', closeDayContextMenu);
+    window.addEventListener('resize', closeDayContextMenu);
+  }, 0);
 }
 
 // Funciones de compatibilidad obsoletas
@@ -2308,6 +2411,8 @@ function renderWeeklyCalendar(targetWrapper = document) {
     renderTasksToContainer(dayTasks, tasksContainer, colDateStr);
   }
   renderBriefcaseTasks();
+  // Reaplicar el aislamiento de día (persiste al cambiar de semana).
+  applyDayIsolation();
   // Si el cronograma está activo, mantenerlo sincronizado con la semana
   // visible (al navegar entre semanas, cambiar de fecha, etc.).
   if (cronogramaActive) renderCronograma();
