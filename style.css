@@ -3598,18 +3598,36 @@ body.cronograma-active .planner-grid { display: none; }
 }
 .mobile-mode .cr-day-col[data-col="1"] { grid-column: 2; }
 
-/* Que la barra oscura del encabezado (JUEVES 18 + botones) abarque también la
-   columna de horas: la esquina .cr-corner toma el mismo fondo oscuro que el
-   .day-header y el redondeo queda solo en los extremos (izquierda en la
-   esquina, derecha en el header), formando una sola barra continua. */
+/* Columna de horas un poco más estrecha solo en móvil (56px → 44px) para dar
+   más espacio a los bloques de tareas. La variable la usan el grid de cabeceras,
+   el de la rejilla y el posicionamiento de las líneas, así que con cambiarla
+   aquí todo queda alineado. */
+.mobile-mode .cronograma { --cr-time-col: 50px; }
+
+/* Centrar las etiquetas de hora dentro de la columna de horas en el horario
+   móvil (en escritorio van alineadas a la derecha, pegadas a la rejilla). Usamos
+   el ancho completo de la columna y centramos el texto. */
+.mobile-mode .cr-hour-label {
+  width: var(--cr-time-col);
+  text-align: center;
+}
+
+/* La barra oscura del encabezado (JUEVES 18 + botones) abarca ambas columnas:
+   el .day-header se extiende sobre la columna de horas (grid-column: 1 / -1),
+   así que la esquina .cr-corner ya no se ve y se oculta para no interferir. */
 .mobile-mode .cronograma-headers .cr-corner {
-  background-color: #333333;
-  border-right: none;
-  border-top-left-radius: 9px;
-  border-bottom-left-radius: 0;
+  display: none;
 }
 .mobile-mode .cronograma-headers .day-header {
-  border-top-left-radius: 0;
+  /* El header del día ocupa AMBAS columnas (horas + día) para que su texto
+     pueda empezar a la izquierda del todo, sobre la columna de horas, en vez de
+     arrancar después de ella. Al abarcar las dos columnas, el redondeo vuelve a
+     ambos extremos y el padding-left coloca el texto cerca del borde izquierdo. */
+  grid-column: 1 / -1;
+  border-top-left-radius: 9px;
+  /* Altura ligeramente reducida solo en el horario móvil, sin afectar al
+     encabezado del planner que comparte la clase .day-header. */
+  padding: 9px 16px 9px 16px;
 }
 
 /* ── Medidas durante el arrastre de un bloque en el horario (móvil) ─────────
