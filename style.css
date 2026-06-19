@@ -195,7 +195,7 @@ html:not(.mobile-mode) .app-container {
 .header-icon-group {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
 .icon-button {
@@ -1748,15 +1748,7 @@ body.not-logged-in .app-container {
   position: relative;
 }
 
-/* Acercar ícono de etiquetas al de carpeta (solo escritorio) */
-:not(.mobile-mode) #tags-modal-btn {
-  margin-right: -8px;
-}
 
-/* Mover ícono de etiquetas a la izquierda (solo móvil) */
-.mobile-mode #tags-modal-btn {
-  margin-right: 4px;
-}
 
 /* ═══════════════════════════════════════════════════════════
    MOBILE RESPONSIVE (Activado por la clase .mobile-mode)
@@ -1824,7 +1816,7 @@ body.not-logged-in .app-container {
 
 .mobile-mode .header-right {
   flex: 0 0 auto;
-  gap: 13px;
+  gap: 12px;
 }
 
 .mobile-mode .header-icon-group {
@@ -1842,10 +1834,7 @@ body.not-logged-in .app-container {
   display: none !important;
 }
 
-/* Acercar el botón de estadísticas al de etiquetas (escritorio) */
-#stats-btn {
-  margin-right: -8px;
-}
+
 
 /* Filas de resultados del panel de estadísticas */
 .stats-result-row {
