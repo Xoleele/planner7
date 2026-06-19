@@ -7973,8 +7973,43 @@ function setupEventListeners() {
     showDurationToast(btn.dataset.tooltip || '');
   });
 
+  // ── Horario (escritorio): mostrar los iconos de la cabecera al pasar el cursor
+  //    por CUALQUIER parte de la columna del día, no solo por la cabecera. ───────
+  setupCronogramaColumnHover();
+
   // Restaurar la vista (planner/cronograma) guardada por el usuario.
   restoreSavedViewMode();
+}
+
+// Marca la cabecera del día correspondiente cuando el cursor está sobre el cuerpo
+// de su columna en el horario (escritorio), para revelar sus iconos. Usa
+// delegación sobre el grid; se configura una sola vez.
+function setupCronogramaColumnHover() {
+  const grid = document.getElementById('cronograma-grid');
+  if (!grid) return;
+
+  const setHeaderHover = (dateStr, on) => {
+    const headersEl = document.getElementById('cronograma-headers');
+    if (!headersEl || !dateStr) return;
+    const header = headersEl.querySelector(`.day-header[data-date="${dateStr}"]`);
+    if (header) header.classList.toggle('cr-col-hover', on);
+  };
+
+  grid.addEventListener('mouseover', (e) => {
+    if (isMobile()) return;
+    const col = e.target.closest('.cr-day-col');
+    if (!col) return;
+    setHeaderHover(col.dataset.date, true);
+  });
+
+  grid.addEventListener('mouseout', (e) => {
+    if (isMobile()) return;
+    const col = e.target.closest('.cr-day-col');
+    if (!col) return;
+    // Solo desmarcar si el cursor salió realmente de la columna (no a un hijo).
+    if (col.contains(e.relatedTarget)) return;
+    setHeaderHover(col.dataset.date, false);
+  });
 }
 
 async function confirmAndClearTasksForDay(dateStr) {

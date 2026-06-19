@@ -3377,7 +3377,14 @@ body.cronograma-active .planner-grid { display: none; }
 .cronograma-headers .day-header:hover .clear-day-btn,
 .cronograma-headers .day-header:hover .dialogue-day-btn,
 .cronograma-headers .day-header:hover .copy-day-btn,
-.cronograma-headers .day-header:hover .duration-day-btn.has-duration {
+.cronograma-headers .day-header:hover .duration-day-btn.has-duration,
+/* Los iconos también aparecen al pasar el cursor por CUALQUIER parte de la
+   columna de ese día (su cuerpo), no solo por la cabecera. El header se marca
+   con .cr-col-hover desde JS según la columna bajo el cursor. */
+.cronograma-headers .day-header.cr-col-hover .clear-day-btn,
+.cronograma-headers .day-header.cr-col-hover .dialogue-day-btn,
+.cronograma-headers .day-header.cr-col-hover .copy-day-btn,
+.cronograma-headers .day-header.cr-col-hover .duration-day-btn.has-duration {
   opacity: 1;
 }
 
