@@ -3531,6 +3531,18 @@ body.cronograma-active .planner-grid { display: none; }
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Transición suave para el hover (mismo timing que las tarjetas del planner). */
+.cr-task-block {
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-fast);
+}
+
+/* Hover en ESCRITORIO: misma animación que las tarjetas del planner — el bloque
+   se eleva 2px con sombra. No se aplica en móvil ni mientras se arrastra. */
+body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-task);
+}
+
 /* Asegurar texto blanco dentro del bloque (igual que en el planner). */
 .cr-task-block * {
   color: #ffffff;
