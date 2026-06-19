@@ -6096,6 +6096,7 @@ function openStatsModal() {
 // --- Cronómetro de Tareas ---
 let timerInterval = null;
 let timerSeconds = 0;
+let timerStartTime = null;
 
 function setTimerSelectTagValue(tagId) {
   const hiddenInput = document.getElementById('timer-select-tag');
@@ -6152,6 +6153,17 @@ function startTimer() {
   }
   setTimerSelectTagValue('default');
 
+  // Registrar hora de inicio
+  timerStartTime = new Date();
+  const startHrs = String(timerStartTime.getHours()).padStart(2, '0');
+  const startMins = String(timerStartTime.getMinutes()).padStart(2, '0');
+  const startTimeStr = `${startHrs}:${startMins}`;
+  
+  const startTimeDisplay = document.getElementById('timer-start-time-display');
+  if (startTimeDisplay) {
+    startTimeDisplay.textContent = startTimeStr;
+  }
+
   const timerDisplay = document.getElementById('timer-display');
   if (!timerDisplay) return;
 
@@ -6185,6 +6197,67 @@ function startTimer() {
 }
 
 function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  const timerModal = document.getElementById('timer-modal');
+  if (timerModal) {
+    timerModal.classList.add('hidden');
+  }
+}
+
+function finishTimer() {
+  // El cronómetro debe tener al menos 5 minutos (300 segundos) para poder guardarse
+  if (timerSeconds < 300) {
+    showDurationToast("Lo mínimo que se puede cronometrar son 5 minutos");
+    return;
+  }
+
+  const titleInput = document.getElementById('timer-input-title');
+  const title = titleInput ? titleInput.value.trim() : '';
+  const tagId = document.getElementById('timer-select-tag').value;
+
+  const timerEndTime = new Date();
+  
+  const startHrs = String(timerStartTime.getHours()).padStart(2, '0');
+  const startMins = String(timerStartTime.getMinutes()).padStart(2, '0');
+  const startTimeStr = `${startHrs}:${startMins}`;
+
+  const endHrs = String(timerEndTime.getHours()).padStart(2, '0');
+  const endMins = String(timerEndTime.getMinutes()).padStart(2, '0');
+  const endTimeStr = `${endHrs}:${endMins}`;
+
+  const durationMinutes = Math.round((timerEndTime - timerStartTime) / 60000);
+
+  // Obtener fecha del inicio en formato YYYY-MM-DD local
+  const year = timerStartTime.getFullYear();
+  const month = String(timerStartTime.getMonth() + 1).padStart(2, '0');
+  const day = String(timerStartTime.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+
+  const newTask = {
+    id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+    title: title || 'Tarea cronometrada',
+    description: '',
+    tagId: tagId || 'default',
+    date: dateStr,
+    startTime: startTimeStr,
+    endTime: endTimeStr,
+    duration: durationMinutes,
+    recurrence: null,
+    alarm: false,
+    completed: false
+  };
+
+  pushToUndoStack();
+  tasks.push(newTask);
+  adjustPositionForModifiedTime(newTask);
+  saveTasksToStorage();
+  renderWeeklyCalendar();
+  if (typeof refreshAlarms === 'function') refreshAlarms();
+
+  // Detener intervalo y ocultar modal
   if (timerInterval) {
     clearInterval(timerInterval);
     timerInterval = null;
@@ -6704,9 +6777,9 @@ function setupEventListeners() {
   // ahora vive en el menú del usuario (avatar), enlazado al crear el dropdown.
 
   // ─── Cronómetro ─────────────────────────────────────────────────────────────
-  const recordBtn = document.getElementById('record-btn');
-  if (recordBtn) {
-    recordBtn.addEventListener('click', startTimer);
+  const timerBtn = document.getElementById('timer-btn');
+  if (timerBtn) {
+    timerBtn.addEventListener('click', startTimer);
   }
 
   const timerCancelBtn = document.getElementById('timer-cancel-btn');
@@ -6716,7 +6789,7 @@ function setupEventListeners() {
 
   const timerStopBtn = document.getElementById('timer-stop-btn');
   if (timerStopBtn) {
-    timerStopBtn.addEventListener('click', stopTimer);
+    timerStopBtn.addEventListener('click', finishTimer);
   }
 
   // ─── Estadísticas ──────────────────────────────────────────────────────────
