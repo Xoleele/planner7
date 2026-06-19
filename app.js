@@ -3639,6 +3639,18 @@ function applyCronogramaDragMove(clientX, clientY) {
   crDrag.block.style.top = startMin + 'px';
   const visibleEnd = Math.min(startMin + crDrag.durationMin, 1440);
   crDrag.block.style.height = Math.max(visibleEnd - startMin, 16) + 'px';
+
+  // Actualizar EN VIVO el rango horario que se muestra en la descripción del
+  // bloque (p. ej. "13:00 - 15:00" → "13:30 - 15:30"), SIN guardar. El guardado
+  // ocurre solo al soltar; si se vuelve a la posición original no habrá cambios.
+  const descEl = crDrag.block.querySelector('.cr-task-desc');
+  if (descEl) {
+    // Guardar el texto original la primera vez, para poder restaurarlo si hace falta.
+    if (crDrag.originalDescText === undefined) crDrag.originalDescText = descEl.textContent;
+    descEl.textContent = rewriteTimeRangeInDescription(
+      crDrag.originalDescText, startMin, startMin + crDrag.durationMin
+    );
+  }
 }
 
 function onCronogramaDragEnd(e) {
@@ -8806,3 +8818,4 @@ window.addEventListener('beforeunload', (e) => {
 window.addEventListener('online', () => {
   flushPendingSync();
 });
+// EOF
