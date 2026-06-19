@@ -3297,19 +3297,26 @@ body.cronograma-active .planner-grid { display: none; }
 /* ── Cabeceras de día ──────────────────────────────────────────────────────
    Fila fija arriba: una celda vacía sobre la columna de horas + 7 cabeceras
    (o 1 en móvil). Reutiliza la clase .day-header del planner. */
-/* Las cabeceras viven DENTRO de .cronograma-scroll, justo encima de la rejilla,
-   y comparten su mismo ancho. Por eso usan el MISMO grid-template-columns que
-   .cronograma-grid y sus líneas verticales caen exactamente en las mismas
-   posiciones. Se fijan arriba con position: sticky para que no se desplacen al
-   hacer scroll vertical. */
+/* Las cabeceras son hermanas de .cronograma-scroll (por ENCIMA de ella), no van
+   dentro del scroll, para que la barra de scroll empiece justo debajo del
+   encabezado. Comparten el MISMO grid-template-columns que .cronograma-grid y,
+   reservando ambas el mismo hueco de scrollbar, sus líneas verticales caen en
+   las mismas posiciones. */
 .cronograma-headers {
   display: grid;
   grid-template-columns: var(--cr-time-col) repeat(7, 1fr);
-  position: sticky;
-  top: 0;
-  z-index: 5; /* por encima de la línea de hora actual (z-index 4) para taparla */
+  /* Hermano fijo por ENCIMA de la zona desplazable (ya no va dentro del scroll),
+     así la barra de scroll empieza justo debajo del encabezado. */
+  flex: 0 0 auto;
+  z-index: 5;
   background-color: var(--bg-card);
   border-bottom: 1px solid var(--border-light);
+  /* Reservar el mismo hueco de scrollbar que la rejilla para que las columnas
+     queden alineadas. overflow:hidden + scrollbar-gutter:stable hace que el
+     encabezado reserve el mismo hueco a la derecha que la zona desplazable,
+     sin mostrar ninguna barra. */
+  overflow: hidden;
+  scrollbar-gutter: stable;
 }
 
 .cronograma-headers .cr-corner {
@@ -3349,6 +3356,10 @@ body.cronograma-active .planner-grid { display: none; }
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
+  min-height: 0; /* permite que el scroll funcione dentro del flex column */
+  /* Reservar siempre el hueco de la scrollbar para que el ancho de la rejilla
+     no cambie y siga alineado con el encabezado (que reserva el mismo hueco). */
+  scrollbar-gutter: stable;
 }
 
 /* Rejilla: columna de horas + 7 (o 1) columnas de día. 24 filas de 60px. */
