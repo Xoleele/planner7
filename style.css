@@ -1012,6 +1012,20 @@ input:checked + .slider:before {
   background-color: #fafafa;
 }
 
+/* Panel de edición de tarea: quitar el rectángulo gris de fondo tras los
+   botones Cancelar/Guardar y comprimir un poco verticalmente (menos padding en
+   el cuerpo y en el pie). Solo afecta a #task-modal. */
+#task-modal .modal-footer {
+  background-color: transparent;
+  padding: 12px 24px;
+}
+#task-modal .modal-body {
+  padding: 16px 24px;
+}
+#task-modal .form-group {
+  margin-bottom: 14px;
+}
+
 .mobile-only { display: none; }
 .mobile-mode .mobile-only { display: inline-flex; }
 

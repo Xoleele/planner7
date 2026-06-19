@@ -130,6 +130,10 @@ function getTotalDurationForDay(dateStr) {
     } else {
       if (task.completed) return false;
     }
+    // Solo sumar tareas VISIBLES: si su etiqueta está apagada (visible === false),
+    // no se cuenta (igual que no aparece en el planner/horario).
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    if (tag && tag.visible === false) return false;
     return checkTaskOccurrence(task, new Date(dateStr + 'T12:00:00'));
   });
   return dayTasks.reduce((sum, task) => {
@@ -182,6 +186,10 @@ function getTotalDurationForDay(dateStr) {
     } else {
       if (task.completed) return false;
     }
+    // Solo sumar tareas VISIBLES: si su etiqueta está apagada (visible === false),
+    // no se cuenta (igual que no aparece en el planner/horario).
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    if (tag && tag.visible === false) return false;
     return checkTaskOccurrence(task, new Date(dateStr + 'T12:00:00'));
   });
   return dayTasks.reduce((sum, task) => {
@@ -234,6 +242,10 @@ function getTotalDurationForDay(dateStr) {
     } else {
       if (task.completed) return false;
     }
+    // Solo sumar tareas VISIBLES: si su etiqueta está apagada (visible === false),
+    // no se cuenta (igual que no aparece en el planner/horario).
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    if (tag && tag.visible === false) return false;
     return checkTaskOccurrence(task, new Date(dateStr + 'T12:00:00'));
   });
   return dayTasks.reduce((sum, task) => {
