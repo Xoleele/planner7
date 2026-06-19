@@ -3646,6 +3646,56 @@ body.cronograma-active .planner-grid { display: none; }
 }
 .mobile-mode .cr-day-col[data-col="1"] { grid-column: 2; }
 
+/* ── Carrusel horizontal de días en el horario MÓVIL ───────────────────────
+   La columna de horas y las líneas quedan FIJAS de fondo (absolutas en el
+   grid). El track ocupa la 2ª pista del grid (a la derecha de las horas) y se
+   desliza horizontalmente con snap nativo, revelando los días vecinos. */
+.mobile-mode .cr-mobile-track {
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  /* El carrusel queda por encima de las líneas de fondo. */
+  z-index: 2;
+}
+.mobile-mode .cr-mobile-track::-webkit-scrollbar { display: none; }
+
+/* Cada día del carrusel ocupa todo el ancho de la zona de día. */
+.mobile-mode .cr-mobile-day {
+  position: relative;
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+  border-right: none;
+  border-left: none;
+  /* Fondo transparente para dejar ver las líneas de hora de fondo. */
+  background: transparent;
+}
+
+/* La línea de "ahora" dentro de una columna del carrusel se ancla a esa columna
+   (no a la rejilla global como en escritorio). */
+.cr-now-line-mobile {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+/* Durante el arrastre de un bloque, congelar el scroll del carrusel para que el
+   gesto mueva el bloque y no deslice de día. */
+.mobile-mode body.cr-dragging-active .cr-mobile-track {
+  overflow-x: hidden !important;
+  touch-action: none !important;
+}
+
 /* Columna de horas un poco más estrecha solo en móvil (56px → 44px) para dar
    más espacio a los bloques de tareas. La variable la usan el grid de cabeceras,
    el de la rejilla y el posicionamiento de las líneas, así que con cambiarla
