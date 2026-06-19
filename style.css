@@ -232,6 +232,11 @@ html:not(.mobile-mode) .app-container {
   50% { opacity: 0.36; }
 }
 
+/* Label "Tiempo transcurrido" parpadeando mientras el cronómetro está abierto. */
+.timer-elapsed-label {
+  animation: timerBlink 1.5s ease-in-out infinite;
+}
+
 .user-avatar {
   width: 34px;
   height: 34px;

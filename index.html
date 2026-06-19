@@ -704,7 +704,13 @@
         </button>
       </div>
       <div class="modal-body" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; text-align: left; box-sizing: border-box;">
-        
+
+        <!-- Tiempo transcurrido -->
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-top: 8px;">
+          <label class="timer-elapsed-label" style="display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 2px; text-align: center;">Tiempo transcurrido</label>
+          <div id="timer-display" style="font-size: 38px; font-weight: 700; font-family: monospace; color: var(--text-main); letter-spacing: 1px;">00:00:00</div>
+        </div>
+
         <!-- Nombre de la tarea -->
         <div class="form-group" style="margin: 0; width: 100%;">
           <label for="timer-input-title" class="sr-only">Título</label>
@@ -746,12 +752,6 @@
             <input type="time" id="timer-input-start" style="width: 100%; box-sizing: border-box;">
           </div>
 
-        </div>
-
-        <!-- Tiempo transcurrido -->
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-top: 10px;">
-          <label style="display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 2px; text-align: center;">Tiempo transcurrido</label>
-          <div id="timer-display" style="font-size: 38px; font-weight: 700; font-family: monospace; color: var(--text-main); letter-spacing: 1px;">00:00:00</div>
         </div>
 
       </div>
