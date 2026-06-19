@@ -3598,6 +3598,20 @@ body.cronograma-active .planner-grid { display: none; }
 }
 .mobile-mode .cr-day-col[data-col="1"] { grid-column: 2; }
 
+/* Que la barra oscura del encabezado (JUEVES 18 + botones) abarque también la
+   columna de horas: la esquina .cr-corner toma el mismo fondo oscuro que el
+   .day-header y el redondeo queda solo en los extremos (izquierda en la
+   esquina, derecha en el header), formando una sola barra continua. */
+.mobile-mode .cronograma-headers .cr-corner {
+  background-color: #333333;
+  border-right: none;
+  border-top-left-radius: 9px;
+  border-bottom-left-radius: 0;
+}
+.mobile-mode .cronograma-headers .day-header {
+  border-top-left-radius: 0;
+}
+
 /* ── Medidas durante el arrastre de un bloque en el horario (móvil) ─────────
    Mientras se arrastra (la marca body.cr-dragging-active se pone en JS al
    cumplirse el long-press y se quita al soltar), cortamos el scroll/zoom del
