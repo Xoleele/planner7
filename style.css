@@ -3476,6 +3476,18 @@ body.cronograma-active .planner-grid { display: none; }
   flex-direction: column;
   gap: 6px;
   min-height: 16px;
+  /* Evitar que el long-press seleccione el texto del bloque en móvil (el
+     resaltado azul y los manejadores de selección rompen el gesto de
+     arrastrar). Mismo criterio que las tarjetas del planner. */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  /* Quitar la vista previa / callout nativo de iOS al mantener presionado. */
+  -webkit-touch-callout: none;
+  /* Quitar el flash azul de iOS/Android al tocar el bloque (interfiere con el
+     feedback del long-press para arrastrar). */
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Asegurar texto blanco dentro del bloque (igual que en el planner). */
@@ -3526,6 +3538,12 @@ body.cronograma-active .planner-grid { display: none; }
   fill: none !important;
 }
 
+/* Resaltado de la columna de día destino mientras se arrastra un bloque
+   (medida #12 del planner: deja claro en qué día caerá la tarea). */
+.cr-day-col.cr-drag-over {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
 /* Estado mientras se arrastra el bloque por el cronograma. */
 .cr-task-block.cr-dragging {
   opacity: 0.85;
@@ -3560,18 +3578,6 @@ body.cronograma-active .planner-grid { display: none; }
   word-break: break-word;
 }
 
-.cr-task-block.completed { opacity: 0.5; }
-.cr-task-block.completed .cr-task-title { text-decoration: line-through; }
-
-/* Estado mientras se arrastra el bloque por el cronograma. */
-.cr-task-block.cr-dragging {
-  opacity: 0.85;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
-  z-index: 50;
-  cursor: grabbing;
-  transition: none;
-}
-
 /* Movil: una sola columna (hoy). Se colapsa a 1 columna de dia. */
 .mobile-mode .cronograma-headers {
   grid-template-columns: var(--cr-time-col) 1fr;
@@ -3580,3 +3586,23 @@ body.cronograma-active .planner-grid { display: none; }
   grid-template-columns: var(--cr-time-col) 1fr;
 }
 .mobile-mode .cr-day-col[data-col="1"] { grid-column: 2; }
+
+/* ── Medidas durante el arrastre de un bloque en el horario (móvil) ─────────
+   Mientras se arrastra (la marca body.cr-dragging-active se pone en JS al
+   cumplirse el long-press y se quita al soltar), cortamos el scroll/zoom del
+   navegador y la selección de texto. En reposo el horario sigue scrolleando
+   con normalidad. Mismo enfoque que body.dragging-active del planner. */
+.mobile-mode body.cr-dragging-active {
+  touch-action: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  overscroll-behavior: contain;
+}
+.mobile-mode body.cr-dragging-active .cronograma-scroll {
+  touch-action: none !important;
+}
+.mobile-mode .cr-task-block.cr-dragging {
+  touch-action: none !important;
+}

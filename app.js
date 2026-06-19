@@ -2345,6 +2345,11 @@ function renderWeeklyCalendar(targetWrapper = document) {
     // Actualizar label de semana
     const visibleDate = getMobileVisibleDate() || new Date();
     document.getElementById('week-range-label').textContent = formatSingleDate(visibleDate);
+    // Si el horario está activo, mantenerlo sincronizado también en móvil. Sin
+    // esto, cuando las tareas llegan de la nube DESPUÉS del primer render del
+    // cronograma (carga asíncrona), el horario móvil se quedaba vacío porque
+    // este return cortaba antes de re-renderizarlo.
+    if (cronogramaActive) renderCronograma();
     return;
   }
 
@@ -2801,9 +2806,24 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
     // Los bloques "cola" (continuación tras medianoche) NO son arrastrables:
     // la tarea solo se mueve desde su bloque principal.
     if (!isTail) {
+      // Escritorio: ratón con pointer events (arrastre inmediato).
       block.addEventListener('pointerdown', (e) => {
+        // En móvil el arrastre se gestiona con touch + long-press (más abajo),
+        // así que ignoramos los pointerdown táctiles para no duplicar el gesto.
+        if (e.pointerType === 'touch') return;
         startCronogramaDrag(block, task, e);
       });
+      // Móvil: long-press para iniciar el arrastre (deja intacto el scroll del
+      // horario y el toque normal para abrir la tarea).
+      block.addEventListener('touchstart', (e) => {
+        startCronogramaTouch(block, task, e);
+      }, { passive: false });
+
+      // Evitar que mantener presionado el bloque abra el menú contextual del
+      // navegador (Atrás, Recargar, Inspeccionar, "Abrir en pestaña nueva"…),
+      // que en móvil interfiere con el long-press para arrastrar. Mismo bloqueo
+      // que aplican las tarjetas del planner.
+      block.addEventListener('contextmenu', (e) => e.preventDefault());
     }
 
     // Checkbox para marcar como completada (mismo SVG que el planner).
@@ -3154,6 +3174,7 @@ function cancelCronogramaDrag() {
   drag.block.classList.remove('cr-dragging');
   drag.block.style.pointerEvents = '';
   try { drag.block.releasePointerCapture(drag.pointerId); } catch (_) {}
+  clearCronogramaDragOver();
 
   // Evitar que un click/pointerup posterior abra el modal de edición.
   suppressNextCronogramaClick = true;
@@ -3164,22 +3185,36 @@ function cancelCronogramaDrag() {
 
 function onCronogramaDragMove(e) {
   if (!crDrag) return;
+  applyCronogramaDragMove(e.clientX, e.clientY);
+}
+
+// Lógica compartida de movimiento (ratón y táctil): coloca el bloque bajo el
+// puntero/dedo, elige columna destino por X y aplica el snap de 30 min por
+// DELTA desde el punto donde se agarró. Recibe coordenadas de cliente.
+function applyCronogramaDragMove(clientX, clientY) {
+  if (!crDrag) return;
   crDrag.moved = true;
 
   // 1) Columna destino: la .cr-day-col bajo el cursor (por X).
   let targetCol = crDrag.targetColEl;
   for (const col of crDrag.cols) {
     const r = col.getBoundingClientRect();
-    if (e.clientX >= r.left && e.clientX < r.right) { targetCol = col; break; }
+    if (clientX >= r.left && clientX < r.right) { targetCol = col; break; }
   }
   if (targetCol !== crDrag.targetColEl) {
+    // Quitar el resaltado de la columna anterior y marcar la nueva, para que en
+    // móvil quede claro en qué día va a caer la tarea (medida #12 del planner).
+    if (crDrag.targetColEl) crDrag.targetColEl.classList.remove('cr-drag-over');
     targetCol.appendChild(crDrag.block);
     crDrag.targetColEl = targetCol;
+    targetCol.classList.add('cr-drag-over');
+  } else if (!targetCol.classList.contains('cr-drag-over')) {
+    targetCol.classList.add('cr-drag-over');
   }
 
   // 2) Posición vertical por DELTA del puntero desde el punto donde se agarró.
   // Esto mantiene el bloque exactamente bajo el cursor (sin saltos al empezar).
-  const deltaPx = e.clientY - crDrag.grabClientY; // 1px = 1min
+  const deltaPx = clientY - crDrag.grabClientY; // 1px = 1min
   const orig = crDrag.originalStartMin;
   // Snap en pasos de 30 min RELATIVOS al inicio original de la tarea: si empieza
   // a las 9:14, los valores posibles son 8:44, 9:14, 9:44, ... (conserva los
@@ -3198,7 +3233,7 @@ function onCronogramaDragMove(e) {
   crDrag.block.style.height = Math.max(visibleEnd - startMin, 16) + 'px';
 }
 
-async function onCronogramaDragEnd(e) {
+function onCronogramaDragEnd(e) {
   if (!crDrag) return;
   const drag = crDrag;
   crDrag = null;
@@ -3210,7 +3245,23 @@ async function onCronogramaDragEnd(e) {
   drag.block.classList.remove('cr-dragging');
   drag.block.style.pointerEvents = '';
   try { drag.block.releasePointerCapture(drag.pointerId); } catch (_) {}
+  clearCronogramaDragOver();
 
+  commitCronogramaDragResult(drag);
+}
+
+// Quita el resaltado .cr-drag-over de todas las columnas del horario. Se llama
+// al soltar o cancelar el arrastre para no dejar columnas marcadas.
+function clearCronogramaDragOver() {
+  document.querySelectorAll('.cr-day-col.cr-drag-over')
+    .forEach(c => c.classList.remove('cr-drag-over'));
+}
+
+// Persiste el resultado de un arrastre (compartido por ratón y táctil). Espera
+// que la limpieza específica del input (listeners, captura) ya se haya hecho y
+// que crDrag ya esté en null. Si no hubo movimiento real, trata el gesto como
+// un click y no toca los datos.
+function commitCronogramaDragResult(drag) {
   if (!drag.moved) return; // fue un click, no un arrastre
 
   // Evitar que el click posterior abra el modal de edición.
@@ -3245,6 +3296,218 @@ async function onCronogramaDragEnd(e) {
   // saltos. (renderCronograma ya se auto-protege si crDrag está activo.)
   renderCronograma();
   saveTasksToStorage();
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ARRASTRE TÁCTIL (MÓVIL) EN EL CRONOGRAMA
+// Mismo resultado que en escritorio (mover de hora con snap de 30 min y/o de
+// día), pero el gesto se inicia con un LONG-PRESS para no interferir con el
+// scroll vertical del horario ni con el toque normal (que abre la tarea).
+//   - touchstart: arma un temporizador; si el dedo se mueve antes de que salte,
+//     se cancela y el navegador hace scroll con normalidad.
+//   - al saltar el temporizador: se entra en modo arrastre (se crea crDrag) y a
+//     partir de ahí los touchmove mueven el bloque (preventDefault corta el
+//     scroll) reusando la misma lógica que el ratón.
+//   - touchend: si hubo arrastre, se persiste; si fue un toque, se abre la tarea.
+// ─────────────────────────────────────────────────────────────────────────
+
+const CR_TOUCH_LONGPRESS_MS = 400; // tiempo de pulsación para iniciar el arrastre
+const CR_TOUCH_MOVE_TOLERANCE = 10; // px de margen antes de cancelar el long-press
+
+let crTouch = null; // estado del long-press táctil (antes de entrar en arrastre)
+
+function startCronogramaTouch(block, task, e) {
+  // Un solo dedo; sobre el checkbox no se arrastra.
+  if (e.touches.length !== 1) return;
+  if (e.target.closest('.task-check-btn')) return;
+  // Si ya hay un arrastre en curso, ignorar.
+  if (crDrag || crTouch) return;
+
+  const grid = document.getElementById('cronograma-grid');
+  if (!grid) return;
+  const range = parseTimeRangeFromDescription(task.description);
+  if (!range) return;
+
+  const touch = e.touches[0];
+  crTouch = {
+    block,
+    task,
+    grid,
+    startX: touch.clientX,
+    startY: touch.clientY,
+    range,
+    timer: setTimeout(() => beginCronogramaTouchDrag(), CR_TOUCH_LONGPRESS_MS)
+  };
+
+  window.addEventListener('touchmove', onCronogramaTouchMove, { passive: false });
+  window.addEventListener('touchend', onCronogramaTouchEnd);
+  window.addEventListener('touchcancel', onCronogramaTouchEnd);
+}
+
+// Al cumplirse el long-press: pasar de "esperando" a "arrastrando" creando el
+// estado crDrag (idéntico al de escritorio) a partir del touch guardado.
+function beginCronogramaTouchDrag() {
+  if (!crTouch) return;
+  const { block, task, grid, range, startY } = crTouch;
+
+  const durationMin = (range.crossesMidnight ? range.rawEndMin + 1440 : range.rawEndMin) - range.startMin;
+  const cols = [...grid.querySelectorAll('.cr-day-col')];
+
+  crDrag = {
+    block,
+    task,
+    durationMin,
+    grid,
+    cols,
+    grabClientY: startY,
+    startColEl: block.parentElement,
+    targetColEl: block.parentElement,
+    originalStartMin: range.startMin,
+    newStartMin: range.startMin,
+    moved: false,
+    pointerId: null
+  };
+
+  block.classList.add('cr-dragging');
+  block.style.pointerEvents = 'none';
+
+  // Marca a nivel de documento mientras dura el arrastre. El CSS la usa para
+  // cortar el scroll/zoom del navegador (touch-action:none) y la selección de
+  // texto (user-select:none) SOLO mientras se arrastra, igual que el planner
+  // hace con body.dragging-active. En reposo el horario sigue scrolleando.
+  document.body.classList.add('cr-dragging-active');
+
+  // Feedback háptico (igual que el arrastre táctil del planner).
+  if (navigator.vibrate) navigator.vibrate(50);
+}
+
+function onCronogramaTouchMove(e) {
+  // Caso A: ya estamos arrastrando → mover el bloque y cortar el scroll.
+  if (crDrag) {
+    if (e.cancelable) e.preventDefault();
+    const t = e.touches[0];
+    // Guardar la última posición del dedo para el auto-scroll de borde (la usa
+    // el bucle rAF para seguir moviendo el bloque mientras la vista se desplaza).
+    crEdgeScroll.lastX = t.clientX;
+    crEdgeScroll.lastY = t.clientY;
+    applyCronogramaDragMove(t.clientX, t.clientY);
+    updateCronogramaEdgeScroll(t.clientY);
+    return;
+  }
+  // Caso B: aún esperando el long-press → si el dedo se mueve, era un scroll:
+  // cancelar el temporizador y soltar los listeners (deja scrollear al navegador).
+  if (!crTouch) return;
+  const t = e.touches[0];
+  const dx = Math.abs(t.clientX - crTouch.startX);
+  const dy = Math.abs(t.clientY - crTouch.startY);
+  if (dx > CR_TOUCH_MOVE_TOLERANCE || dy > CR_TOUCH_MOVE_TOLERANCE) {
+    cancelCronogramaTouch();
+  }
+}
+
+// ── Auto-scroll de borde durante el arrastre táctil del horario ────────────
+// En el teléfono el dedo choca con el borde de la pantalla antes de poder mover
+// una tarea muchas horas arriba/abajo. Cuando el dedo entra en la franja de
+// borde de .cronograma-scroll, desplazamos la vista con un bucle rAF. Al
+// desplazar el contenedor, el contenido se mueve bajo el dedo: compensamos
+// grabClientY por el mismo delta para que el bloque siga apuntando a la hora
+// correcta, y reaplicamos el movimiento con la última posición del dedo.
+const CR_EDGE_ZONE = 70;       // px desde el borde donde empieza el auto-scroll
+const CR_EDGE_MAX_SPEED = 14;  // px por frame en el borde mismo
+
+let crEdgeScroll = { rafId: null, dir: 0, speed: 0, lastX: 0, lastY: 0, container: null };
+
+// Decide si hay que auto-scrollear según la cercanía del dedo a los bordes.
+function updateCronogramaEdgeScroll(clientY) {
+  const container = document.querySelector('.cronograma-scroll');
+  if (!container) { stopCronogramaEdgeScroll(); return; }
+  const r = container.getBoundingClientRect();
+
+  let dir = 0, speed = 0;
+  if (clientY < r.top + CR_EDGE_ZONE) {
+    dir = -1;
+    const intensity = (r.top + CR_EDGE_ZONE - clientY) / CR_EDGE_ZONE;
+    speed = Math.ceil(Math.min(1, intensity) * CR_EDGE_MAX_SPEED);
+  } else if (clientY > r.bottom - CR_EDGE_ZONE) {
+    dir = 1;
+    const intensity = (clientY - (r.bottom - CR_EDGE_ZONE)) / CR_EDGE_ZONE;
+    speed = Math.ceil(Math.min(1, intensity) * CR_EDGE_MAX_SPEED);
+  }
+
+  crEdgeScroll.container = container;
+  crEdgeScroll.dir = dir;
+  crEdgeScroll.speed = speed;
+
+  if (dir === 0) { stopCronogramaEdgeScroll(); return; }
+  if (crEdgeScroll.rafId == null) {
+    crEdgeScroll.rafId = requestAnimationFrame(cronogramaEdgeScrollStep);
+  }
+}
+
+// Un paso del bucle: desplaza la vista, compensa grabClientY y reaplica la
+// posición del bloque para que siga la hora correcta sin saltos.
+function cronogramaEdgeScrollStep() {
+  crEdgeScroll.rafId = null;
+  if (!crDrag || crEdgeScroll.dir === 0) return;
+
+  const container = crEdgeScroll.container;
+  if (!container) return;
+
+  const before = container.scrollTop;
+  const maxScroll = container.scrollHeight - container.clientHeight;
+  const next = Math.min(Math.max(0, before + crEdgeScroll.dir * crEdgeScroll.speed), maxScroll);
+  const applied = next - before;
+
+  if (applied !== 0) {
+    container.scrollTop = next;
+    // El contenido se desplazó "applied" px bajo el dedo. Para que el delta
+    // (clientY - grabClientY) refleje el movimiento real respecto al contenido,
+    // movemos el origen en sentido contrario.
+    crDrag.grabClientY -= applied;
+    applyCronogramaDragMove(crEdgeScroll.lastX, crEdgeScroll.lastY);
+  }
+
+  // Continuar mientras siga habiendo dirección y margen para desplazar.
+  if (crEdgeScroll.dir !== 0 && applied !== 0) {
+    crEdgeScroll.rafId = requestAnimationFrame(cronogramaEdgeScrollStep);
+  }
+}
+
+function stopCronogramaEdgeScroll() {
+  if (crEdgeScroll.rafId != null) cancelAnimationFrame(crEdgeScroll.rafId);
+  crEdgeScroll.rafId = null;
+  crEdgeScroll.dir = 0;
+  crEdgeScroll.speed = 0;
+}
+
+function onCronogramaTouchEnd() {
+  const wasDragging = !!crDrag;
+  const drag = crDrag;
+
+  // Quitar listeners y limpiar el estado de long-press si seguía pendiente.
+  cancelCronogramaTouch();
+
+  // Quitar la marca de documento del arrastre (restaura scroll y selección).
+  document.body.classList.remove('cr-dragging-active');
+  stopCronogramaEdgeScroll();
+  clearCronogramaDragOver();
+
+  if (wasDragging && drag) {
+    crDrag = null;
+    drag.block.classList.remove('cr-dragging');
+    drag.block.style.pointerEvents = '';
+    commitCronogramaDragResult(drag);
+  }
+}
+
+// Limpia el estado de long-press y los listeners táctiles. No toca crDrag (de
+// eso se encarga onCronogramaTouchEnd), solo cancela el temporizador pendiente.
+function cancelCronogramaTouch() {
+  if (crTouch && crTouch.timer) clearTimeout(crTouch.timer);
+  crTouch = null;
+  window.removeEventListener('touchmove', onCronogramaTouchMove);
+  window.removeEventListener('touchend', onCronogramaTouchEnd);
+  window.removeEventListener('touchcancel', onCronogramaTouchEnd);
 }
 
 // Bandera para evitar que el click que sigue a un arrastre abra el modal.
@@ -7471,6 +7734,7 @@ function setupBriefcaseDragAndDrop() {
 
   if (briefcaseBtn) {
     briefcaseBtn.addEventListener('dragover', (e) => {
+      e.preventDefault();
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       briefcaseBtn.classList.add('drag-over');
