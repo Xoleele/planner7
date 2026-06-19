@@ -6132,9 +6132,11 @@ async function saveActiveTimerState() {
   if (!timerStartTime) return;
   const titleInput = document.getElementById('timer-input-title');
   const descInput = document.getElementById('timer-input-description');
+  const startInput = document.getElementById('timer-input-start');
   const tagEl = document.getElementById('timer-select-tag');
   const state = {
-    startTime: timerStartTime.toISOString(),
+    startTime: timerStartTime.toISOString(),       // hora REAL de arranque (contador/límite 12h)
+    startTimeEdited: startInput ? startInput.value : '', // hora de inicio editada (HH:MM) para la tarea
     title: titleInput ? titleInput.value : '',
     description: descInput ? descInput.value : '',
     tagId: (tagEl && tagEl.value) ? tagEl.value : 'default'
@@ -6244,17 +6246,22 @@ function startTimer() {
   if (descInput) {
     descInput.value = '';
   }
+  // Limpiar la hora editable para que openTimerModal la rellene con la real.
+  const startInput = document.getElementById('timer-input-start');
+  if (startInput) {
+    startInput.value = '';
+  }
   setTimerSelectTagValue('default');
 
   // Registrar hora de inicio
   timerStartTime = new Date();
 
-  // El solo hecho de abrir el cronómetro ya persiste el estado en Supabase,
-  // para que siga "corriendo" aunque el usuario cierre la app.
-  saveActiveTimerState();
+  // Abrir el modal primero para que la hora de inicio editable quede rellena,
+  // y luego persistir el estado (incluida esa hora) en Supabase. Así el
+  // cronómetro sigue "corriendo" aunque el usuario cierre la app.
   setTimerButtonActive(true);
-
   openTimerModal();
+  saveActiveTimerState();
 
   // Enfoque inmediato al input de título
   if (titleInput) {
@@ -6272,9 +6279,11 @@ function openTimerModal() {
   const startMins = String(timerStartTime.getMinutes()).padStart(2, '0');
   const startTimeStr = `${startHrs}:${startMins}`;
 
-  const startTimeDisplay = document.getElementById('timer-start-time-display');
-  if (startTimeDisplay) {
-    startTimeDisplay.textContent = startTimeStr;
+  // Rellenar la hora de inicio editable solo si está vacía, para no pisar una
+  // hora que el usuario ya haya modificado (p. ej. tras minimizar y reabrir).
+  const startTimeInput = document.getElementById('timer-input-start');
+  if (startTimeInput && !startTimeInput.value) {
+    startTimeInput.value = startTimeStr;
   }
 
   const timerDisplay = document.getElementById('timer-display');
@@ -6341,6 +6350,22 @@ function minimizeTimer() {
     timerModal.classList.add('hidden');
   }
   setTimerButtonActive(true);
+}
+
+// Devuelve la hora de inicio EFECTIVA para guardar la tarea: si el usuario editó
+// el campo "Hora de inicio" del cronómetro, usa esa hora (sobre la fecha del
+// inicio real); si no, usa la hora real de arranque (timerStartTime).
+function getEffectiveStartDate() {
+  if (!timerStartTime) return new Date();
+  const input = document.getElementById('timer-input-start');
+  const val = input ? input.value : '';
+  const m = val && val.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return timerStartTime;
+  const h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+  if (h > 23 || mi > 59) return timerStartTime;
+  const d = new Date(timerStartTime);
+  d.setHours(h, mi, 0, 0);
+  return d;
 }
 
 // Construye y guarda la tarea cronometrada a partir de una hora de inicio y fin.
@@ -6417,7 +6442,8 @@ function finishTimer() {
   const tagEl = document.getElementById('timer-select-tag');
   const tagId = tagEl ? tagEl.value : 'default';
 
-  createTimedTask(timerStartTime, new Date(), title, tagId, description);
+  // Inicio = hora editada por el usuario (o la real); fin = hora real de término.
+  createTimedTask(getEffectiveStartDate(), new Date(), title, tagId, description);
 
   // Detener intervalo, ocultar modal y limpiar estado persistido.
   if (timerInterval) {
@@ -6446,8 +6472,9 @@ function finishTimerAuto() {
   const tagEl = document.getElementById('timer-select-tag');
   const tagId = tagEl ? tagEl.value : 'default';
 
+  // Fin real = arranque real + 12h; inicio = hora editada por el usuario (o real).
   const endDate = new Date(timerStartTime.getTime() + TIMER_MAX_MS);
-  createTimedTask(timerStartTime, endDate, title, tagId, description);
+  createTimedTask(getEffectiveStartDate(), endDate, title, tagId, description);
 
   if (timerInterval) {
     clearInterval(timerInterval);
@@ -6475,10 +6502,22 @@ function resumeTimerFromState(state) {
 
   const elapsedMs = Date.now() - start.getTime();
 
+  // Aplica la hora de inicio editada (HH:MM) sobre la fecha real de arranque.
+  const applyEditedStart = (baseDate, edited) => {
+    const m = edited && String(edited).match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return baseDate;
+    const h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+    if (h > 23 || mi > 59) return baseDate;
+    const d = new Date(baseDate);
+    d.setHours(h, mi, 0, 0);
+    return d;
+  };
+
   // Caso 1: ya se alcanzó el límite de 12h estando la app cerrada → tarea de 12h.
   if (elapsedMs >= TIMER_MAX_MS) {
     const endDate = new Date(start.getTime() + TIMER_MAX_MS);
-    createTimedTask(start, endDate, state.title, state.tagId, state.description);
+    const effectiveStart = applyEditedStart(start, state.startTimeEdited);
+    createTimedTask(effectiveStart, endDate, state.title, state.tagId, state.description);
     clearActiveTimerState();
     setTimerButtonActive(false);
     return;
@@ -6489,11 +6528,15 @@ function resumeTimerFromState(state) {
   timerSeconds = Math.floor(elapsedMs / 1000);
   setTimerButtonActive(true);
 
-  // Restaurar título/descripción/etiqueta en el modal (aún oculto) para cuando lo abra.
+  // Restaurar título/descripción/hora/etiqueta en el modal (aún oculto) para
+  // cuando lo abra. Si había una hora de inicio editada, se conserva; si no,
+  // openTimerModal la rellenará con la hora real al abrir.
   const titleInput = document.getElementById('timer-input-title');
   if (titleInput) titleInput.value = state.title || '';
   const descInput = document.getElementById('timer-input-description');
   if (descInput) descInput.value = state.description || '';
+  const startInput = document.getElementById('timer-input-start');
+  if (startInput) startInput.value = state.startTimeEdited || '';
   setTimerSelectTagValue(state.tagId || 'default');
 }
 
@@ -7034,6 +7077,13 @@ function setupEventListeners() {
   const timerDescInput = document.getElementById('timer-input-description');
   if (timerDescInput) {
     timerDescInput.addEventListener('input', () => {
+      if (timerStartTime) saveActiveTimerState();
+    });
+  }
+
+  const timerStartInput = document.getElementById('timer-input-start');
+  if (timerStartInput) {
+    timerStartInput.addEventListener('input', () => {
       if (timerStartTime) saveActiveTimerState();
     });
   }

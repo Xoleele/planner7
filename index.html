@@ -717,30 +717,35 @@
           <textarea id="timer-input-description" placeholder="Añade una descripción (opcional)" rows="3"></textarea>
         </div>
 
-        <!-- Dropdown para asignar etiqueta -->
-        <div class="form-group" style="margin: 0; width: 100%;">
-          <label for="timer-select-tag" style="display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px;">Etiqueta</label>
-          <div class="custom-select-wrapper" style="position: relative; width: 100%;">
-            <input type="hidden" id="timer-select-tag" value="default">
-            <div class="custom-select-trigger" id="timer-tag-select-trigger" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background-color: var(--bg-card); cursor: pointer; font-size: 13px; color: var(--text-main); user-select: none;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="custom-select-color-circle" style="background-color: #50a9ed; width: 10px; height: 10px; border-radius: 50%; display: inline-block;"></span>
-                <span class="custom-select-trigger-text">Por defecto</span>
+        <!-- Fila: etiqueta + hora de inicio (editable) -->
+        <div style="display: flex; gap: 12px; width: 100%; align-items: flex-start;">
+
+          <!-- Dropdown para asignar etiqueta -->
+          <div class="form-group" style="margin: 0; flex: 1; min-width: 0;">
+            <label for="timer-select-tag" style="display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px;">Etiqueta</label>
+            <div class="custom-select-wrapper" style="position: relative; width: 100%;">
+              <input type="hidden" id="timer-select-tag" value="default">
+              <div class="custom-select-trigger" id="timer-tag-select-trigger" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background-color: var(--bg-card); cursor: pointer; font-size: 13px; color: var(--text-main); user-select: none;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="custom-select-color-circle" style="background-color: #50a9ed; width: 10px; height: 10px; border-radius: 50%; display: inline-block;"></span>
+                  <span class="custom-select-trigger-text">Por defecto</span>
+                </div>
+                <span class="custom-select-arrow" style="display: flex; align-items: center;">
+                  <img src="icons/chevron-down.svg" alt="Abrir" width="10" height="10">
+                </span>
               </div>
-              <span class="custom-select-arrow" style="display: flex; align-items: center;">
-                <img src="icons/chevron-down.svg" alt="Abrir" width="10" height="10">
-              </span>
-            </div>
-            <div class="custom-options-container hidden" id="timer-tag-options-container" style="position: absolute; top: 100%; left: 0; right: 0; background-color: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); box-shadow: var(--shadow-md); z-index: 2010; max-height: 200px; overflow-y: auto; margin-top: 4px;">
-              <!-- Las opciones se generarán por JS -->
+              <div class="custom-options-container hidden" id="timer-tag-options-container" style="position: absolute; top: 100%; left: 0; right: 0; background-color: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); box-shadow: var(--shadow-md); z-index: 2010; max-height: 200px; overflow-y: auto; margin-top: 4px;">
+                <!-- Las opciones se generarán por JS -->
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Hora de inicio -->
-        <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-main); margin-top: -4px;">
-          <span style="font-weight: 600;">Hora de inicio:</span>
-          <span id="timer-start-time-display">—</span>
+          <!-- Hora de inicio (editable) -->
+          <div class="form-group" style="margin: 0; flex: 1; min-width: 0;">
+            <label for="timer-input-start" style="display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px;">Hora de inicio</label>
+            <input type="time" id="timer-input-start" style="width: 100%; box-sizing: border-box;">
+          </div>
+
         </div>
 
         <!-- Tiempo transcurrido -->
