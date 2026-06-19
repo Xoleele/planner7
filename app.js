@@ -2688,6 +2688,16 @@ function toggleCronograma() {
     if (cronograma) cronograma.classList.add('hidden');
     if (plannerGrid) plannerGrid.style.display = '';
     stopNowLineClock(); // detener el reloj de la línea de hora al salir del horario
+
+    // En móvil el horario siempre muestra HOY; al volver al planner, colocar el
+    // feed en HOY también (antes se quedaba en el inicio de la semana, p. ej. el
+    // lunes 8, en vez del día que se estaba viendo). El feed estaba oculto, así
+    // que esperamos a que tenga layout antes de scrollear.
+    if (isMobile()) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => jumpMobileFeedToDate(new Date()));
+      });
+    }
   }
 
   updateViewToggleMenuLabel();
