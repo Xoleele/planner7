@@ -6131,10 +6131,12 @@ const TIMER_MAX_SECONDS = 12 * 60 * 60;
 async function saveActiveTimerState() {
   if (!timerStartTime) return;
   const titleInput = document.getElementById('timer-input-title');
+  const descInput = document.getElementById('timer-input-description');
   const tagEl = document.getElementById('timer-select-tag');
   const state = {
     startTime: timerStartTime.toISOString(),
     title: titleInput ? titleInput.value : '',
+    description: descInput ? descInput.value : '',
     tagId: (tagEl && tagEl.value) ? tagEl.value : 'default'
   };
   await persistActiveTimer(state);
@@ -6238,6 +6240,10 @@ function startTimer() {
   if (titleInput) {
     titleInput.value = '';
   }
+  const descInput = document.getElementById('timer-input-description');
+  if (descInput) {
+    descInput.value = '';
+  }
   setTimerSelectTagValue('default');
 
   // Registrar hora de inicio
@@ -6339,7 +6345,7 @@ function minimizeTimer() {
 
 // Construye y guarda la tarea cronometrada a partir de una hora de inicio y fin.
 // title vacío → "Tarea cronometrada" (predomina siempre el nombre del usuario).
-function createTimedTask(startDate, endDate, title, tagId) {
+function createTimedTask(startDate, endDate, title, tagId, userDescription) {
   const startHrs = String(startDate.getHours()).padStart(2, '0');
   const startMins = String(startDate.getMinutes()).padStart(2, '0');
   const startTimeStr = `${startHrs}:${startMins}`;
@@ -6358,7 +6364,11 @@ function createTimedTask(startDate, endDate, title, tagId) {
 
   // La hora de inicio y fin se colocan como rango "HH:MM - HH:MM" al inicio de
   // la descripción (mismo formato que el resto de la app reconoce y dibuja).
-  const description = `${startTimeStr} - ${endTimeStr}`;
+  // Si el usuario escribió una descripción, va después del rango horario.
+  const extra = (userDescription && userDescription.trim()) ? userDescription.trim() : '';
+  const description = extra
+    ? `${startTimeStr} - ${endTimeStr}. ${extra}`
+    : `${startTimeStr} - ${endTimeStr}`;
 
   const newTask = {
     id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
@@ -6402,10 +6412,12 @@ function finishTimer() {
 
   const titleInput = document.getElementById('timer-input-title');
   const title = titleInput ? titleInput.value.trim() : '';
+  const descInput = document.getElementById('timer-input-description');
+  const description = descInput ? descInput.value.trim() : '';
   const tagEl = document.getElementById('timer-select-tag');
   const tagId = tagEl ? tagEl.value : 'default';
 
-  createTimedTask(timerStartTime, new Date(), title, tagId);
+  createTimedTask(timerStartTime, new Date(), title, tagId, description);
 
   // Detener intervalo, ocultar modal y limpiar estado persistido.
   if (timerInterval) {
@@ -6429,11 +6441,13 @@ function finishTimerAuto() {
 
   const titleInput = document.getElementById('timer-input-title');
   const title = titleInput ? titleInput.value.trim() : '';
+  const descInput = document.getElementById('timer-input-description');
+  const description = descInput ? descInput.value.trim() : '';
   const tagEl = document.getElementById('timer-select-tag');
   const tagId = tagEl ? tagEl.value : 'default';
 
   const endDate = new Date(timerStartTime.getTime() + TIMER_MAX_MS);
-  createTimedTask(timerStartTime, endDate, title, tagId);
+  createTimedTask(timerStartTime, endDate, title, tagId, description);
 
   if (timerInterval) {
     clearInterval(timerInterval);
@@ -6464,7 +6478,7 @@ function resumeTimerFromState(state) {
   // Caso 1: ya se alcanzó el límite de 12h estando la app cerrada → tarea de 12h.
   if (elapsedMs >= TIMER_MAX_MS) {
     const endDate = new Date(start.getTime() + TIMER_MAX_MS);
-    createTimedTask(start, endDate, state.title, state.tagId);
+    createTimedTask(start, endDate, state.title, state.tagId, state.description);
     clearActiveTimerState();
     setTimerButtonActive(false);
     return;
@@ -6475,9 +6489,11 @@ function resumeTimerFromState(state) {
   timerSeconds = Math.floor(elapsedMs / 1000);
   setTimerButtonActive(true);
 
-  // Restaurar título/etiqueta en el modal (aún oculto) para cuando lo abra.
+  // Restaurar título/descripción/etiqueta en el modal (aún oculto) para cuando lo abra.
   const titleInput = document.getElementById('timer-input-title');
   if (titleInput) titleInput.value = state.title || '';
+  const descInput = document.getElementById('timer-input-description');
+  if (descInput) descInput.value = state.description || '';
   setTimerSelectTagValue(state.tagId || 'default');
 }
 
@@ -7011,6 +7027,13 @@ function setupEventListeners() {
   const timerTitleInput = document.getElementById('timer-input-title');
   if (timerTitleInput) {
     timerTitleInput.addEventListener('input', () => {
+      if (timerStartTime) saveActiveTimerState();
+    });
+  }
+
+  const timerDescInput = document.getElementById('timer-input-description');
+  if (timerDescInput) {
+    timerDescInput.addEventListener('input', () => {
       if (timerStartTime) saveActiveTimerState();
     });
   }
