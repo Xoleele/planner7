@@ -2984,6 +2984,14 @@ function buildCronogramaHeader(date, dayNameUpper, isToday) {
 //   45 – 59 min   → solo el título.
 //   ≥ 60 min      → título + descripción (recortada con "…" según la altura).
 function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isCompleted, tag, task, occurrenceDate, isTail) {
+  // Reglas de contenido por duración (horario, escritorio y móvil por igual):
+  //   < 25 min            → el bloque NO se muestra en absoluto (return null).
+  //   25–39 min           → solo el color (sin texto y sin checkbox).
+  //   40–59 min           → título + checkbox, centrados verticalmente.
+  //   >= 60 min           → título + descripción.
+  const durationMin = bottomMin - topMin;
+  if (durationMin < 25) return null;
+
   const block = document.createElement('div');
   block.className = 'cr-task-block' + (isTail ? ' cr-tail' : '');
   if (isCompleted) block.classList.add('completed');
@@ -3031,27 +3039,34 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
     }
 
     // Checkbox para marcar como completada (mismo SVG que el planner).
-    const checkBtn = document.createElement('button');
-    checkBtn.className = 'task-check-btn';
-    checkBtn.title = isCompleted ? 'Marcar como pendiente' : 'Marcar como completada';
-    checkBtn.innerHTML = isCompleted
-      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon checked"><rect x="2" y="2" width="20" height="20" rx="4" ry="4" fill="currentColor" stroke="none"/><polyline points="7 12 10 15 17 8" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>'
-      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon"><rect x="2" y="2" width="20" height="20" rx="4" ry="4"/></svg>';
-    checkBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggleTaskCompletion(task, occurrenceDate || task.date);
-    });
-    block.appendChild(checkBtn);
+    // Solo se muestra a partir de 40 min (por debajo, el bloque va sin checkbox).
+    if (durationMin >= 40) {
+      const checkBtn = document.createElement('button');
+      checkBtn.className = 'task-check-btn';
+      checkBtn.title = isCompleted ? 'Marcar como pendiente' : 'Marcar como completada';
+      checkBtn.innerHTML = isCompleted
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon checked"><rect x="2" y="2" width="20" height="20" rx="4" ry="4" fill="currentColor" stroke="none"/><polyline points="7 12 10 15 17 8" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>'
+        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon"><rect x="2" y="2" width="20" height="20" rx="4" ry="4"/></svg>';
+      checkBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleTaskCompletion(task, occurrenceDate || task.date);
+      });
+      block.appendChild(checkBtn);
+    }
   }
 
-  const durationMin = bottomMin - topMin;
-
-  // < 45 min: sin texto.
-  if (durationMin < 45) {
+  // Por debajo de 40 min: solo color (sin texto). (El <25 ya salió antes.)
+  if (durationMin < 40) {
     return block;
   }
 
-  // Título (siempre, a partir de 45 min).
+  // Rango "compacto" (40..59 min): título + checkbox centrados verticalmente.
+  // El centrado real se aplica por CSS (.cr-block-compact), escritorio y móvil.
+  if (durationMin <= 59) {
+    block.classList.add('cr-block-compact');
+  }
+
+  // Título (a partir de 40 min).
   const titleEl = document.createElement('div');
   titleEl.className = 'cr-task-title';
   titleEl.textContent = titleText;
@@ -3110,6 +3125,7 @@ function renderCronogramaDayBlocks(colEl, date) {
       startMin, endMin, title, task.description,
       isTaskCompleted(task, dateStr), tag, task, dateStr
     );
+    if (!block) return; // tareas < 25 min no se dibujan
     colEl.appendChild(block);
     count++;
   });
@@ -3135,6 +3151,7 @@ function renderCronogramaDayBlocks(colEl, date) {
       0, tailEnd, title, task.description,
       isTaskCompleted(task, prevDateStr), tag, task, prevDateStr, true
     );
+    if (!block) return; // colas < 25 min no se dibujan
     colEl.appendChild(block);
     count++;
   });
@@ -3270,21 +3287,35 @@ function buildCronogramaMobileDayCol(date, todayStr) {
   return colEl;
 }
 
-// Coloca la línea de hora actual dentro de la columna de HOY del carrusel móvil.
+// Coloca la línea de hora actual en el horario móvil. Se monta a nivel del GRID
+// (capa fija, por encima de la columna de horas, no dentro del carrusel), de modo
+// que su marca no queda tapada por las etiquetas de hora. Solo es visible cuando
+// el día centrado del carrusel es HOY (se controla con sync...VisibilityMobile).
 function updateNowLineForMobile(todayStr) {
-  const track = document.getElementById('cr-mobile-track');
-  if (!track) { stopNowLineClock(); return; }
-  const todayCol = track.querySelector(`.cr-mobile-day[data-date="${todayStr}"]`);
+  const grid = document.getElementById('cronograma-grid');
+  if (!grid) { stopNowLineClock(); return; }
   // Quitar cualquier línea previa.
   const prev = document.getElementById('cr-now-line');
   if (prev) prev.remove();
-  if (!todayCol) { stopNowLineClock(); return; }
+
   const nowLine = document.createElement('div');
   nowLine.className = 'cr-now-line cr-now-line-mobile';
   nowLine.id = 'cr-now-line';
-  todayCol.appendChild(nowLine);
+  grid.appendChild(nowLine);
   updateNowLinePosition();
   startNowLineClock();
+
+  // Mostrarla solo si el día centrado es hoy.
+  syncNowLineVisibilityMobile(todayStr);
+}
+
+// Muestra u oculta la línea de "ahora" del horario móvil según el día centrado.
+function syncNowLineVisibilityMobile(todayStr) {
+  const nowLine = document.getElementById('cr-now-line');
+  if (!nowLine) return;
+  const ts = todayStr || formatDate(new Date());
+  const centerStr = cronogramaMobileDate ? formatDate(cronogramaMobileDate) : ts;
+  nowLine.style.display = (centerStr === ts) ? '' : 'none';
 }
 
 // Desplaza el carrusel para centrar (alinear al inicio) la columna del día dado.
@@ -3346,6 +3377,8 @@ function setupCronogramaTrackScroll() {
       cronogramaMobileDate = d;
       updateCronogramaMobileHeader(d);
       updateCronogramaMobileLabel(d);
+      // La línea de "ahora" solo se ve cuando el día centrado es hoy.
+      syncNowLineVisibilityMobile();
     }
     // Al detenerse el scroll, expandir bordes si hace falta.
     crTrackScrollTimer = setTimeout(() => {

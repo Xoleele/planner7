@@ -3561,6 +3561,20 @@ body.cronograma-active .planner-grid { display: none; }
 .cr-task-block .task-check-btn:hover { opacity: 1 !important; transform: scale(1.1); }
 .cr-task-block.completed .task-check-btn { opacity: 0.95; }
 
+/* Horario (escritorio y móvil) — bloques "compactos" (40–59 min): el título y el
+   checkbox se centran en el eje horizontal que pasa por la mitad del bloque. */
+.cr-task-block.cr-block-compact {
+  justify-content: center;   /* centra el título verticalmente (flex column) */
+}
+.cr-task-block.cr-block-compact .task-check-btn {
+  top: 50%;
+  transform: translateY(-50%);
+}
+/* Conservar el realce al pasar/pulsar sin perder el centrado vertical. */
+.cr-task-block.cr-block-compact .task-check-btn:hover {
+  transform: translateY(-50%) scale(1.1);
+}
+
 /* Tarea completada en el horario: misma atenuación y tachado que en el planner
    (.task-card.completed). El checkbox se mantiene más visible con su propia
    regla de arriba para que se pueda volver a marcar como pendiente. */
@@ -3681,12 +3695,25 @@ body.cronograma-active .planner-grid { display: none; }
   background: transparent;
 }
 
-/* La línea de "ahora" dentro de una columna del carrusel se ancla a esa columna
-   (no a la rejilla global como en escritorio). */
+/* Línea de "ahora" del horario MÓVIL. Va a nivel del grid (capa fija) con z-index
+   alto para que quede por encima de las etiquetas de hora. Empieza en el borde
+   izquierdo de la columna de DÍAS (var(--cr-time-col)) y se extiende a la derecha;
+   NO se prolonga sobre la columna de horas. */
 .cr-now-line-mobile {
-  position: absolute;
-  left: 0;
+  left: var(--cr-time-col);
   right: 0;
+  z-index: 30;
+}
+/* La marca (círculo) queda CENTRADA justo en el borde izquierdo de la columna de
+   días (inicio de la línea), no desplazada hacia la columna de horas. */
+.cr-now-line-mobile::before {
+  left: 0;
+  transform: translate(-50%, -50%);
+  z-index: 31;
+}
+/* En el horario móvil, las etiquetas de hora quedan por debajo de la línea. */
+.mobile-mode .cr-hour-label {
+  z-index: 1;
 }
 
 /* Durante el arrastre de un bloque, congelar el scroll del carrusel para que el
