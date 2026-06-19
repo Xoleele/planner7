@@ -235,13 +235,15 @@ function minutesToReadable(minutes) {
   if (h > 0) return `${h}h`;
   return `${m}m`;
 }
-function getTotalDurationForDay(dateStr) {
+// Suma la duración (en minutos) de las tareas de un día.
+//   completed = false → solo tareas NO completadas (por hacer)
+//   completed = true  → solo tareas COMPLETADAS
+function getDurationForDay(dateStr, completed) {
   const dayTasks = tasks.filter(task => {
-    if (task.recurrence && task.recurrence.enabled) {
-      if (task.completedOccurrences && task.completedOccurrences.includes(dateStr)) return false;
-    } else {
-      if (task.completed) return false;
-    }
+    const isCompleted = (task.recurrence && task.recurrence.enabled)
+      ? !!(task.completedOccurrences && task.completedOccurrences.includes(dateStr))
+      : !!task.completed;
+    if (isCompleted !== completed) return false;
     // Solo sumar tareas VISIBLES: si su etiqueta está apagada (visible === false),
     // no se cuenta (igual que no aparece en el planner/horario).
     const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
@@ -252,6 +254,26 @@ function getTotalDurationForDay(dateStr) {
     const parsed = parseDurationFromDescription(task.description);
     return sum + (parsed ? parsed.minutes : 0);
   }, 0);
+}
+
+// Total de tareas NO completadas (por hacer) de un día.
+function getTotalDurationForDay(dateStr) {
+  return getDurationForDay(dateStr, false);
+}
+
+// Construye el tooltip del icono de reloj con ambas líneas (no completadas /
+// completadas). Devuelve el texto de "sin duración" si no hay nada que sumar.
+function buildDurationTooltip(dateStr) {
+  const pendingMins = getDurationForDay(dateStr, false);
+  const completedMins = getDurationForDay(dateStr, true);
+  if (pendingMins === 0 && completedMins === 0) {
+    return 'Sin tareas con duración definida';
+  }
+  // Cada línea solo se muestra si su suma es mayor que 0.
+  const lines = [];
+  if (pendingMins > 0) lines.push(`Tareas no completadas: ${minutesToReadable(pendingMins)}`);
+  if (completedMins > 0) lines.push(`Tareas completadas: ${minutesToReadable(completedMins)}`);
+  return lines.join('\n');
 }
 
 // ─── DB helpers ─────────────────────────────────────────────────────────────
@@ -2556,14 +2578,14 @@ function renderWeeklyCalendar(targetWrapper = document) {
 
     const durationBtn = colElement.querySelector('.duration-day-btn');
     if (durationBtn) {
-      const totalMins = getTotalDurationForDay(colDateStr);
-      if (totalMins > 0) {
+      const pendingMins = getDurationForDay(colDateStr, false);
+      const completedMins = getDurationForDay(colDateStr, true);
+      if (pendingMins > 0 || completedMins > 0) {
         durationBtn.classList.add('has-duration');
-        durationBtn.dataset.tooltip = `Tiempo total tareas por hacer: ${minutesToReadable(totalMins)}`;
       } else {
         durationBtn.classList.remove('has-duration');
-        durationBtn.dataset.tooltip = 'Sin tareas con duración definida';
       }
+      durationBtn.dataset.tooltip = buildDurationTooltip(colDateStr);
     }
 
     // Actualizar botón de duración total del día
@@ -7961,11 +7983,10 @@ function makeMobileDayCard(date) {
   const iconSrc = hasNotes ? 'icons/message-square-text.svg' : 'icons/message-square.svg';
   const notesClass = hasNotes ? 'dialogue-day-btn has-notes' : 'dialogue-day-btn';
 
-  const totalMins = getTotalDurationForDay(dateStr);
-  const clockTitle = totalMins > 0
-    ? `Tiempo total tareas por hacer: ${minutesToReadable(totalMins)}`
-    : 'Sin tareas con duración definida';
-  const clockActiveClass = totalMins > 0 ? ' has-duration' : '';
+  const pendingMins = getDurationForDay(dateStr, false);
+  const completedMins = getDurationForDay(dateStr, true);
+  const clockTitle = buildDurationTooltip(dateStr);
+  const clockActiveClass = (pendingMins > 0 || completedMins > 0) ? ' has-duration' : '';
 
   // Móvil: orden de iconos -> reloj, copiar, basurero, notas.
   header.innerHTML = `
@@ -8185,10 +8206,11 @@ function updateMobileFeedTasks() {
 
     const durationBtn2 = col.querySelector('.duration-day-btn');
     if (durationBtn2) {
-      const totalMins2 = getTotalDurationForDay(dateStr);
-      if (totalMins2 > 0) {
+      const pendingMins2 = getDurationForDay(dateStr, false);
+      const completedMins2 = getDurationForDay(dateStr, true);
+      if (pendingMins2 > 0 || completedMins2 > 0) {
         durationBtn2.classList.add('has-duration');
-        durationBtn2.dataset.tooltip = `Tiempo total tareas por hacer: ${minutesToReadable(totalMins2)}`;
+        durationBtn2.dataset.tooltip = buildDurationTooltip(dateStr);
       } else {
         durationBtn2.classList.remove('has-duration');
         durationBtn2.dataset.tooltip = 'Sin tareas con duración definida';

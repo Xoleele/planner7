@@ -2345,7 +2345,8 @@ body.not-logged-in .app-container {
   color: #fff;
   font-size: 11px;
   font-family: var(--font-primary);
-  white-space: nowrap;
+  white-space: pre-line;
+  text-align: left;
   padding: 4px 8px;
   border-radius: 5px;
   pointer-events: none;
@@ -2426,7 +2427,8 @@ body.not-logged-in .app-container {
   color: #fff;
   font-size: 13px;
   font-family: var(--font-primary);
-  white-space: nowrap;
+  white-space: pre-line;
+  text-align: center;
   padding: 8px 16px;
   border-radius: 20px;
   pointer-events: none;
