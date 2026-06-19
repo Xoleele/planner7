@@ -1476,12 +1476,25 @@ async function startApp(user) {
   }
 
   const prefs = await loadPreferences();
+  let activeTimerState = null;
   if (prefs) {
     notes = prefs.notes || {};
     noteTemplate = prefs.noteTemplate || '';
     if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
+    activeTimerState = prefs.activeTimer || null;
     try {
       localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
+    } catch (e) {}
+  }
+  // Fallback al caché local si Supabase no devolvió un cronómetro activo
+  // (p. ej. sin conexión al arrancar).
+  if (!activeTimerState) {
+    try {
+      const rawCached = localStorage.getItem(prefsCacheKey);
+      if (rawCached) {
+        const parsed = JSON.parse(rawCached);
+        if (parsed && parsed.activeTimer) activeTimerState = parsed.activeTimer;
+      }
     } catch (e) {}
   }
   const titleEl = document.getElementById('app-title');
@@ -1561,6 +1574,12 @@ async function startApp(user) {
   renderWeeklyCalendar();
   initMobileFeed();
   initAlarms();
+
+  // Reanudar el cronómetro si quedó uno activo de una sesión anterior. Si superó
+  // las 12h estando cerrada la app, se crea la tarea de 12h automáticamente.
+  if (activeTimerState) {
+    resumeTimerFromState(activeTimerState);
+  }
 }
 
 // ─── Migracion: copiar la hora de cada tarea al inicio de su descripcion ──────
@@ -6098,6 +6117,70 @@ let timerInterval = null;
 let timerSeconds = 0;
 let timerStartTime = null;
 
+// Duración máxima del cronómetro: 12 horas (en milisegundos / segundos).
+const TIMER_MAX_MS = 12 * 60 * 60 * 1000;
+const TIMER_MAX_SECONDS = 12 * 60 * 60;
+
+// ─── Persistencia del cronómetro activo ──────────────────────────────────────
+// El estado del cronómetro se guarda en preferences (Supabase + caché local) de
+// forma que, aunque el usuario cierre la app, el cronómetro "siga corriendo":
+// al reabrir, el tiempo se recalcula desde la hora de inicio guardada.
+
+// Guarda/actualiza el estado del cronómetro activo. Se llama al iniciar el
+// cronómetro y cada vez que el usuario cambia el título o la etiqueta en vivo.
+async function saveActiveTimerState() {
+  if (!timerStartTime) return;
+  const titleInput = document.getElementById('timer-input-title');
+  const tagEl = document.getElementById('timer-select-tag');
+  const state = {
+    startTime: timerStartTime.toISOString(),
+    title: titleInput ? titleInput.value : '',
+    tagId: (tagEl && tagEl.value) ? tagEl.value : 'default'
+  };
+  await persistActiveTimer(state);
+}
+
+// Limpia el estado del cronómetro activo (al finalizar o cancelar).
+async function clearActiveTimerState() {
+  await persistActiveTimer(null);
+}
+
+// Escribe activeTimer en preferences. Reutiliza el patrón de savePreferences:
+// fusiona con las preferencias en caché local y sincroniza con Supabase.
+async function persistActiveTimer(activeTimer) {
+  // Actualizar caché local inmediatamente (sobrevive a recargas sin red).
+  if (currentUser) {
+    const prefsCacheKey = 'prefs_cache_' + currentUser.id;
+    let cached = {};
+    try {
+      const raw = localStorage.getItem(prefsCacheKey);
+      if (raw) cached = JSON.parse(raw) || {};
+    } catch (e) {}
+    if (activeTimer) cached.activeTimer = activeTimer;
+    else delete cached.activeTimer;
+    try { localStorage.setItem(prefsCacheKey, JSON.stringify(cached)); } catch (e) {}
+  }
+
+  // Sincronizar con Supabase. Leemos las preferencias actuales para no pisar
+  // notes/noteTemplate/copyOptions al hacer el upsert.
+  if (!currentUser) return;
+  try {
+    const prefs = await loadPreferences();
+    if (activeTimer) prefs.activeTimer = activeTimer;
+    else delete prefs.activeTimer;
+    await savePreferences(prefs);
+  } catch (e) {
+    console.warn('No se pudo sincronizar el estado del cronómetro con Supabase:', e);
+  }
+}
+
+// Marca visualmente el botón del cronómetro como activo (rojo y parpadeante).
+function setTimerButtonActive(active) {
+  const btn = document.getElementById('timer-btn');
+  if (!btn) return;
+  btn.classList.toggle('timer-active', !!active);
+}
+
 function setTimerSelectTagValue(tagId) {
   const hiddenInput = document.getElementById('timer-select-tag');
   if (hiddenInput) {
@@ -6140,12 +6223,16 @@ function buildTimerTagSelectorOptions() {
       e.stopPropagation();
       setTimerSelectTagValue(tag.id);
       container.classList.add('hidden');
+      // Persistir la etiqueta en vivo si hay un cronómetro activo.
+      if (timerStartTime) saveActiveTimerState();
     });
 
     container.appendChild(option);
   });
 }
 
+// Inicia un cronómetro NUEVO (botón de la barra). Registra la hora de inicio,
+// guarda el estado en Supabase y abre el modal.
 function startTimer() {
   const titleInput = document.getElementById('timer-input-title');
   if (titleInput) {
@@ -6155,10 +6242,30 @@ function startTimer() {
 
   // Registrar hora de inicio
   timerStartTime = new Date();
+
+  // El solo hecho de abrir el cronómetro ya persiste el estado en Supabase,
+  // para que siga "corriendo" aunque el usuario cierre la app.
+  saveActiveTimerState();
+  setTimerButtonActive(true);
+
+  openTimerModal();
+
+  // Enfoque inmediato al input de título
+  if (titleInput) {
+    titleInput.focus();
+  }
+}
+
+// Abre el modal del cronómetro y arranca el intervalo de UI. El tiempo mostrado
+// se calcula SIEMPRE desde timerStartTime, de modo que es correcto aunque la app
+// haya estado cerrada un rato.
+function openTimerModal() {
+  if (!timerStartTime) return;
+
   const startHrs = String(timerStartTime.getHours()).padStart(2, '0');
   const startMins = String(timerStartTime.getMinutes()).padStart(2, '0');
   const startTimeStr = `${startHrs}:${startMins}`;
-  
+
   const startTimeDisplay = document.getElementById('timer-start-time-display');
   if (startTimeDisplay) {
     startTimeDisplay.textContent = startTimeStr;
@@ -6167,35 +6274,39 @@ function startTimer() {
   const timerDisplay = document.getElementById('timer-display');
   if (!timerDisplay) return;
 
-  timerSeconds = 0;
-  timerDisplay.textContent = '00:00:00';
-
   const timerModal = document.getElementById('timer-modal');
   if (timerModal) {
     timerModal.classList.remove('hidden');
-  }
-
-  // Enfoque inmediato al input de título
-  if (titleInput) {
-    titleInput.focus();
   }
 
   if (timerInterval) {
     clearInterval(timerInterval);
   }
 
-  timerInterval = setInterval(() => {
-    timerSeconds++;
+  const renderTick = () => {
+    timerSeconds = Math.floor((Date.now() - timerStartTime.getTime()) / 1000);
+    if (timerSeconds < 0) timerSeconds = 0;
+
+    // Límite de 12 horas: al alcanzarlo, se finaliza automáticamente.
+    if (timerSeconds >= TIMER_MAX_SECONDS) {
+      finishTimerAuto();
+      return;
+    }
+
     const hrs = Math.floor(timerSeconds / 3600);
     const mins = Math.floor((timerSeconds % 3600) / 60);
     const secs = timerSeconds % 60;
-    timerDisplay.textContent = 
+    timerDisplay.textContent =
       String(hrs).padStart(2, '0') + ':' +
       String(mins).padStart(2, '0') + ':' +
       String(secs).padStart(2, '0');
-  }, 1000);
+  };
+
+  renderTick();
+  timerInterval = setInterval(renderTick, 1000);
 }
 
+// Cancelar: cierra el modal y descarta el cronómetro (limpia estado persistido).
 function stopTimer() {
   if (timerInterval) {
     clearInterval(timerInterval);
@@ -6205,40 +6316,49 @@ function stopTimer() {
   if (timerModal) {
     timerModal.classList.add('hidden');
   }
+  timerStartTime = null;
+  timerSeconds = 0;
+  setTimerButtonActive(false);
+  clearActiveTimerState();
 }
 
-function finishTimer() {
-  // El cronómetro debe tener al menos 5 minutos (300 segundos) para poder guardarse
-  if (timerSeconds < 300) {
-    showDurationToast("Lo mínimo que se puede cronometrar son 5 minutos");
-    return;
+// Minimizar: cierra la ventana pero el cronómetro SIGUE corriendo. No se toca
+// timerStartTime ni el estado persistido; solo se detiene el intervalo de UI.
+// El botón de la barra permanece activo (rojo parpadeante) y reabre el modal.
+function minimizeTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
   }
+  const timerModal = document.getElementById('timer-modal');
+  if (timerModal) {
+    timerModal.classList.add('hidden');
+  }
+  setTimerButtonActive(true);
+}
 
-  const titleInput = document.getElementById('timer-input-title');
-  const title = titleInput ? titleInput.value.trim() : '';
-  const tagId = document.getElementById('timer-select-tag').value;
-
-  const timerEndTime = new Date();
-  
-  const startHrs = String(timerStartTime.getHours()).padStart(2, '0');
-  const startMins = String(timerStartTime.getMinutes()).padStart(2, '0');
+// Construye y guarda la tarea cronometrada a partir de una hora de inicio y fin.
+// title vacío → "Tarea cronometrada" (predomina siempre el nombre del usuario).
+function createTimedTask(startDate, endDate, title, tagId) {
+  const startHrs = String(startDate.getHours()).padStart(2, '0');
+  const startMins = String(startDate.getMinutes()).padStart(2, '0');
   const startTimeStr = `${startHrs}:${startMins}`;
 
-  const endHrs = String(timerEndTime.getHours()).padStart(2, '0');
-  const endMins = String(timerEndTime.getMinutes()).padStart(2, '0');
+  const endHrs = String(endDate.getHours()).padStart(2, '0');
+  const endMins = String(endDate.getMinutes()).padStart(2, '0');
   const endTimeStr = `${endHrs}:${endMins}`;
 
-  const durationMinutes = Math.round((timerEndTime - timerStartTime) / 60000);
+  const durationMinutes = Math.round((endDate - startDate) / 60000);
 
-  // Obtener fecha del inicio en formato YYYY-MM-DD local
-  const year = timerStartTime.getFullYear();
-  const month = String(timerStartTime.getMonth() + 1).padStart(2, '0');
-  const day = String(timerStartTime.getDate()).padStart(2, '0');
+  // Fecha del inicio en formato YYYY-MM-DD local
+  const year = startDate.getFullYear();
+  const month = String(startDate.getMonth() + 1).padStart(2, '0');
+  const day = String(startDate.getDate()).padStart(2, '0');
   const dateStr = `${year}-${month}-${day}`;
 
   const newTask = {
     id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
-    title: title || 'Tarea cronometrada',
+    title: (title && title.trim()) ? title.trim() : 'Tarea cronometrada',
     description: '',
     tagId: tagId || 'default',
     date: dateStr,
@@ -6257,7 +6377,26 @@ function finishTimer() {
   renderWeeklyCalendar();
   if (typeof refreshAlarms === 'function') refreshAlarms();
 
-  // Detener intervalo y ocultar modal
+  return newTask;
+}
+
+// Finalizar manualmente desde el modal (botón "Finalizar").
+function finishTimer() {
+  // El cronómetro debe tener al menos 5 minutos (300 segundos) para guardarse.
+  const elapsed = timerStartTime ? Math.floor((Date.now() - timerStartTime.getTime()) / 1000) : 0;
+  if (elapsed < 300) {
+    showDurationToast("Lo mínimo que se puede cronometrar son 5 minutos");
+    return;
+  }
+
+  const titleInput = document.getElementById('timer-input-title');
+  const title = titleInput ? titleInput.value.trim() : '';
+  const tagEl = document.getElementById('timer-select-tag');
+  const tagId = tagEl ? tagEl.value : 'default';
+
+  createTimedTask(timerStartTime, new Date(), title, tagId);
+
+  // Detener intervalo, ocultar modal y limpiar estado persistido.
   if (timerInterval) {
     clearInterval(timerInterval);
     timerInterval = null;
@@ -6266,6 +6405,69 @@ function finishTimer() {
   if (timerModal) {
     timerModal.classList.add('hidden');
   }
+  timerStartTime = null;
+  timerSeconds = 0;
+  setTimerButtonActive(false);
+  clearActiveTimerState();
+}
+
+// Finalización automática al alcanzar el límite de 12h con el modal abierto.
+// Crea una tarea de exactamente 12 horas desde la hora de inicio.
+function finishTimerAuto() {
+  if (!timerStartTime) return;
+
+  const titleInput = document.getElementById('timer-input-title');
+  const title = titleInput ? titleInput.value.trim() : '';
+  const tagEl = document.getElementById('timer-select-tag');
+  const tagId = tagEl ? tagEl.value : 'default';
+
+  const endDate = new Date(timerStartTime.getTime() + TIMER_MAX_MS);
+  createTimedTask(timerStartTime, endDate, title, tagId);
+
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  const timerModal = document.getElementById('timer-modal');
+  if (timerModal) {
+    timerModal.classList.add('hidden');
+  }
+  timerStartTime = null;
+  timerSeconds = 0;
+  setTimerButtonActive(false);
+  clearActiveTimerState();
+  showDurationToast("El cronómetro alcanzó el máximo de 12 horas y se guardó como tarea");
+}
+
+// Reanuda un cronómetro guardado al reabrir la app. Si ya superó las 12h mientras
+// la app estaba cerrada, crea la tarea de 12h automáticamente (silenciosa). Si no,
+// marca el botón como activo (indicador rojo parpadeante) sin abrir el modal.
+function resumeTimerFromState(state) {
+  if (!state || !state.startTime) return;
+
+  const start = new Date(state.startTime);
+  if (isNaN(start.getTime())) return;
+
+  const elapsedMs = Date.now() - start.getTime();
+
+  // Caso 1: ya se alcanzó el límite de 12h estando la app cerrada → tarea de 12h.
+  if (elapsedMs >= TIMER_MAX_MS) {
+    const endDate = new Date(start.getTime() + TIMER_MAX_MS);
+    createTimedTask(start, endDate, state.title, state.tagId);
+    clearActiveTimerState();
+    setTimerButtonActive(false);
+    return;
+  }
+
+  // Caso 2: cronómetro aún activo (<12h) → restaurar estado e indicador discreto.
+  timerStartTime = start;
+  timerSeconds = Math.floor(elapsedMs / 1000);
+  setTimerButtonActive(true);
+
+  // Restaurar título/etiqueta en el modal (aún oculto) para cuando lo abra.
+  const titleInput = document.getElementById('timer-input-title');
+  if (titleInput) titleInput.value = state.title || '';
+  setTimerSelectTagValue(state.tagId || 'default');
 }
 
 function setupEventListeners() {
@@ -6719,7 +6921,8 @@ function setupEventListeners() {
       const isTimerModalOpen = timerModal && !timerModal.classList.contains('hidden');
       if (isTimerModalOpen) {
         e.preventDefault();
-        stopTimer();
+        // Escape minimiza (el cronómetro sigue corriendo); no lo descarta.
+        minimizeTimer();
         return;
       }
 
@@ -6779,12 +6982,42 @@ function setupEventListeners() {
   // ─── Cronómetro ─────────────────────────────────────────────────────────────
   const timerBtn = document.getElementById('timer-btn');
   if (timerBtn) {
-    timerBtn.addEventListener('click', startTimer);
+    timerBtn.addEventListener('click', () => {
+      // Si ya hay un cronómetro activo, reabrir el modal en curso en lugar de
+      // iniciar uno nuevo (evita perder el cronómetro que sigue corriendo).
+      if (timerStartTime) {
+        openTimerModal();
+        const titleInput = document.getElementById('timer-input-title');
+        if (titleInput) titleInput.focus();
+      } else {
+        startTimer();
+      }
+    });
+  }
+
+  // Guardado en vivo del título mientras el cronómetro corre, para que una tarea
+  // creada automáticamente (límite de 12h) use el nombre elegido.
+  const timerTitleInput = document.getElementById('timer-input-title');
+  if (timerTitleInput) {
+    timerTitleInput.addEventListener('input', () => {
+      if (timerStartTime) saveActiveTimerState();
+    });
   }
 
   const timerCancelBtn = document.getElementById('timer-cancel-btn');
   if (timerCancelBtn) {
     timerCancelBtn.addEventListener('click', stopTimer);
+  }
+
+  const timerMinimizeBtn = document.getElementById('timer-minimize-btn');
+  if (timerMinimizeBtn) {
+    timerMinimizeBtn.addEventListener('click', minimizeTimer);
+  }
+
+  // La X de la esquina superior también minimiza (no descarta el cronómetro).
+  const timerCloseBtn = document.getElementById('timer-close-btn');
+  if (timerCloseBtn) {
+    timerCloseBtn.addEventListener('click', minimizeTimer);
   }
 
   const timerStopBtn = document.getElementById('timer-stop-btn');
