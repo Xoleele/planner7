@@ -3676,3 +3676,19 @@ body.cronograma-active .planner-grid { display: none; }
 .mobile-mode .cr-task-block.cr-dragging {
   touch-action: none !important;
 }
+
+/* Estilos específicos para evitar scrollbars en el modal del cronómetro */
+#timer-modal .modal-content,
+#timer-modal .modal-body {
+  overflow: visible !important;
+}
+
+#timer-modal .modal-header {
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+}
+
+#timer-modal .modal-footer {
+  border-bottom-left-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
+}
