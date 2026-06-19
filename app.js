@@ -6523,14 +6523,13 @@ function resumeTimerFromState(state) {
     return;
   }
 
-  // Caso 2: cronómetro aún activo (<12h) → restaurar estado e indicador discreto.
+  // Caso 2: cronómetro aún activo (<12h) → restaurar estado y abrir la ventana.
   timerStartTime = start;
   timerSeconds = Math.floor(elapsedMs / 1000);
   setTimerButtonActive(true);
 
-  // Restaurar título/descripción/hora/etiqueta en el modal (aún oculto) para
-  // cuando lo abra. Si había una hora de inicio editada, se conserva; si no,
-  // openTimerModal la rellenará con la hora real al abrir.
+  // Restaurar título/descripción/hora/etiqueta en el modal. Si había una hora de
+  // inicio editada, se conserva; si no, openTimerModal la rellenará con la real.
   const titleInput = document.getElementById('timer-input-title');
   if (titleInput) titleInput.value = state.title || '';
   const descInput = document.getElementById('timer-input-description');
@@ -6538,6 +6537,10 @@ function resumeTimerFromState(state) {
   const startInput = document.getElementById('timer-input-start');
   if (startInput) startInput.value = state.startTimeEdited || '';
   setTimerSelectTagValue(state.tagId || 'default');
+
+  // Al reabrir la app con un cronómetro corriendo, mostrar automáticamente la
+  // ventana del cronómetro (tras cerrar la app, cambiar de dispositivo, etc.).
+  openTimerModal();
 }
 
 function setupEventListeners() {
