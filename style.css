@@ -3308,7 +3308,10 @@ body.not-logged-in .app-container {
 body.cronograma-active .planner-grid { display: none; }
 
 .cronograma {
-  flex: 1 1 auto;
+  /* flex: 7 → mismo peso que .planner-grid, para que el panel de archivados
+     quede con el MISMO ancho que en el planner (proporción 7:1 frente al drawer)
+     en lugar de repartirse el espacio a la mitad con el cronograma. */
+  flex: 7 1 0;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-card);
