@@ -288,6 +288,111 @@ async function saveTasks(taskList) {
     if (error) console.error('saveTasks (delete):', id, error);
   }
 }
+// ─── Sincronización incremental (diff por snapshot) ──────────────────────────
+// En vez de reenviar TODAS las tareas en cada guardado, comparamos el estado
+// actual (tasks[]) contra una "foto" del último estado ya sincronizado con la
+// nube (lastSyncedById). Solo viajan las filas nuevas/modificadas (upsert) y se
+// borran solo las que desaparecieron (un único delete con .in()). El coste por
+// acción deja de crecer con el total de tareas del usuario.
+
+// Mapa id -> JSON del objeto tal como se subió por última vez.
+let lastSyncedById = new Map();
+
+function snapshotKeyFor() {
+  return currentUser ? 'tasks_synced_snapshot_' + currentUser.id : null;
+}
+
+// Persiste el snapshot en localStorage (sobrevive a recargas y cierres).
+function persistSyncSnapshot() {
+  const key = snapshotKeyFor();
+  if (!key) return;
+  try {
+    const obj = {};
+    lastSyncedById.forEach((json, id) => { obj[id] = json; });
+    localStorage.setItem(key, JSON.stringify(obj));
+  } catch (e) {
+    console.warn('No se pudo guardar el snapshot de sincronización:', e);
+  }
+}
+
+// Carga el snapshot desde localStorage al iniciar sesión.
+function loadSyncSnapshot() {
+  lastSyncedById = new Map();
+  const key = snapshotKeyFor();
+  if (!key) return;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      Object.keys(obj).forEach(id => lastSyncedById.set(id, obj[id]));
+    }
+  } catch (e) {
+    console.warn('No se pudo leer el snapshot de sincronización:', e);
+  }
+}
+
+// Reemplaza el snapshot por el estado dado (lista de tareas ya sincronizadas).
+// Se usa tras la carga inicial: lo que viene de la nube ya está "sincronizado".
+function resetSyncSnapshot(taskList) {
+  lastSyncedById = new Map();
+  (taskList || []).forEach(t => {
+    if (t && t.id) lastSyncedById.set(t.id, JSON.stringify(t));
+  });
+  persistSyncSnapshot();
+}
+
+// Calcula el diff entre tasks[] y el snapshot. Devuelve:
+//   changed: tareas nuevas o cuyo contenido cambió (para upsert)
+//   deletedIds: ids que estaban sincronizados pero ya no existen (para delete)
+function computeTaskDiff(taskList) {
+  const changed = [];
+  const currentIds = new Set();
+  (taskList || []).forEach(t => {
+    if (!t || !t.id) return;
+    currentIds.add(t.id);
+    const json = JSON.stringify(t);
+    if (lastSyncedById.get(t.id) !== json) {
+      changed.push(t);
+    }
+  });
+  const deletedIds = [];
+  lastSyncedById.forEach((_, id) => {
+    if (!currentIds.has(id)) deletedIds.push(id);
+  });
+  return { changed, deletedIds };
+}
+
+// Sincronización incremental: sube solo lo cambiado y borra solo lo eliminado.
+// Lanza el error si falla (para que el retry lo capture) y NO actualiza el
+// snapshot en ese caso, así el próximo intento reenvía lo mismo.
+async function saveTasksIncremental(taskList) {
+  if (!currentUser) return;
+
+  const { changed, deletedIds } = computeTaskDiff(taskList);
+
+  // 1. Upsert solo de las tareas nuevas/modificadas.
+  if (changed.length > 0) {
+    const rows = changed.map(t => ({ id: t.id, user_id: currentUser.id, data: t }));
+    const { error } = await sb.from('tasks').upsert(rows, { onConflict: 'id' });
+    if (error) { console.error('saveTasksIncremental (upsert):', error); throw error; }
+  }
+
+  // SALVAGUARDA: si la lista local está vacía, NO borramos nada en la nube.
+  // Un array vacío casi siempre significa "aún no cargó", no "borra todo".
+  const allowDeletes = (taskList && taskList.length > 0);
+
+  // 2. Delete en una sola llamada con .in() (no un bucle).
+  if (allowDeletes && deletedIds.length > 0) {
+    const { error } = await sb.from('tasks').delete().in('id', deletedIds).eq('user_id', currentUser.id);
+    if (error) { console.error('saveTasksIncremental (delete):', error); throw error; }
+  }
+
+  // 3. Éxito: actualizar el snapshot para reflejar lo que ahora está en la nube.
+  changed.forEach(t => lastSyncedById.set(t.id, JSON.stringify(t)));
+  if (allowDeletes) deletedIds.forEach(id => lastSyncedById.delete(id));
+  persistSyncSnapshot();
+}
+
 async function loadTags() {
   if (!currentUser) return null;
   const { data, error } = await sb.from('user_data').select('tags').eq('user_id', currentUser.id).maybeSingle();
@@ -1539,6 +1644,9 @@ async function startApp(user) {
     console.warn('No se pudo leer el caché local:', e);
   }
 
+  // Cargar el snapshot del último estado sincronizado (para el diff incremental).
+  loadSyncSnapshot();
+
   // Solo subimos el cache local si REALMENTE hay tareas locales sin sincronizar.
   // Un cache vacio con pending_sync=true significa que el localStorage se perdio,
   // NO que el usuario borro todo: en ese caso cargamos desde la nube.
@@ -1547,7 +1655,11 @@ async function startApp(user) {
     try {
       const cloudTasks = await loadTasks();
       tasks = mergeTaskLists(cloudTasks, tasks);
+      // El snapshot parte de lo que hay en la nube; saveTasks subirá el resto.
+      resetSyncSnapshot(cloudTasks);
       await saveTasks(tasks);
+      // Tras subir todo, la nube refleja tasks[]: ese es el nuevo snapshot.
+      resetSyncSnapshot(tasks);
       localStorage.setItem(cacheKey, JSON.stringify(tasks));
       localStorage.setItem(pendingSyncKey, 'false');
     } catch (e) {
@@ -1557,6 +1669,8 @@ async function startApp(user) {
     const storedTasks = await loadTasks();
     if (storedTasks.length > 0) {
       tasks = storedTasks;
+      // Lo recién cargado de la nube ya está sincronizado: inicializa el snapshot.
+      resetSyncSnapshot(tasks);
       try {
         localStorage.setItem(cacheKey, JSON.stringify(tasks));
         localStorage.setItem(pendingSyncKey, 'false');
@@ -1621,8 +1735,11 @@ function resetApp(clearCache = false) {
     try {
       localStorage.removeItem('tasks_cache_' + currentUser.id);
       localStorage.removeItem('prefs_cache_' + currentUser.id);
+      localStorage.removeItem('tasks_synced_snapshot_' + currentUser.id);
     } catch (e) {}
   }
+  // Limpiar el snapshot en memoria para no mezclar estados entre cuentas.
+  lastSyncedById = new Map();
   tasks = [];
   tags = [];
   notes = {};
@@ -1726,7 +1843,8 @@ async function saveTasksToStorage() {
 async function syncTasksWithRetry(taskList, maxAttempts = 3) {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await saveTasks(taskList);
+      // Sincronización incremental: solo viaja lo que cambió respecto al snapshot.
+      await saveTasksIncremental(taskList);
       return true;
     } catch (err) {
       console.warn(`saveTasks intento ${attempt}/${maxAttempts} fallo:`, err);
@@ -8393,7 +8511,12 @@ function beaconFlushTasks() {
   if (localStorage.getItem(pendingSyncKey) !== 'true') return;
   if (!tasks || tasks.length === 0) return;
   try {
-    const rows = tasks.map(t => ({ id: t.id, user_id: currentUser.id, data: t }));
+    // Al cerrar la pestaña enviamos solo las tareas nuevas/modificadas (diff),
+    // no toda la lista. Los borrados se completan en la próxima sincronización
+    // normal (un upsert vía keepalive es fiable; encadenar un delete no lo es).
+    const { changed } = computeTaskDiff(tasks);
+    if (changed.length === 0) return;
+    const rows = changed.map(t => ({ id: t.id, user_id: currentUser.id, data: t }));
     const url = SUPABASE_URL + '/rest/v1/tasks?on_conflict=id';
     const token = getAccessTokenSync() || SUPABASE_ANON_KEY;
     fetch(url, {
@@ -8406,6 +8529,11 @@ function beaconFlushTasks() {
         'Prefer': 'resolution=merge-duplicates'
       },
       body: JSON.stringify(rows)
+    }).then(() => {
+      // Si el envío arranca bien, reflejamos esos cambios en el snapshot para no
+      // reenviarlos al reabrir. (Best-effort: si falla, se reintenta normal.)
+      changed.forEach(t => lastSyncedById.set(t.id, JSON.stringify(t)));
+      persistSyncSnapshot();
     }).catch(() => {});
   } catch (e) {}
 }
