@@ -6356,10 +6356,14 @@ function createTimedTask(startDate, endDate, title, tagId) {
   const day = String(startDate.getDate()).padStart(2, '0');
   const dateStr = `${year}-${month}-${day}`;
 
+  // La hora de inicio y fin se colocan como rango "HH:MM - HH:MM" al inicio de
+  // la descripción (mismo formato que el resto de la app reconoce y dibuja).
+  const description = `${startTimeStr} - ${endTimeStr}`;
+
   const newTask = {
     id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
     title: (title && title.trim()) ? title.trim() : 'Tarea cronometrada',
-    description: '',
+    description: description,
     tagId: tagId || 'default',
     date: dateStr,
     startTime: startTimeStr,
@@ -6372,7 +6376,14 @@ function createTimedTask(startDate, endDate, title, tagId) {
 
   pushToUndoStack();
   tasks.push(newTask);
-  adjustPositionForModifiedTime(newTask);
+
+  // Colocar la tarea ARRIBA de las tareas del día (las pendientes se renderizan
+  // antes que las completadas, así que con la posición mínima queda al tope de
+  // las no completadas del día en que se empezó a cronometrar).
+  const sameDayTasks = tasks.filter(t => t.date === dateStr && t.id !== newTask.id);
+  const minPos = sameDayTasks.reduce((min, t) => Math.min(min, t.position || 0), 0);
+  newTask.position = minPos - 10;
+
   saveTasksToStorage();
   renderWeeklyCalendar();
   if (typeof refreshAlarms === 'function') refreshAlarms();
