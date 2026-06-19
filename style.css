@@ -3590,6 +3590,13 @@ body.cronograma-active .planner-grid { display: none; }
 }
 
 /* Movil: una sola columna (hoy). Se colapsa a 1 columna de dia. */
+
+/* Mismo radio de contenedor que la tarjeta de día del planner (--radius-md),
+   para que al alternar Planner ↔ Horario el contorno redondeado no cambie. */
+.mobile-mode .cronograma {
+  border-radius: var(--radius-md);
+}
+
 .mobile-mode .cronograma-headers {
   grid-template-columns: var(--cr-time-col) 1fr;
 }
@@ -3620,14 +3627,17 @@ body.cronograma-active .planner-grid { display: none; }
 }
 .mobile-mode .cronograma-headers .day-header {
   /* El header del día ocupa AMBAS columnas (horas + día) para que su texto
-     pueda empezar a la izquierda del todo, sobre la columna de horas, en vez de
-     arrancar después de ella. Al abarcar las dos columnas, el redondeo vuelve a
-     ambos extremos y el padding-left coloca el texto cerca del borde izquierdo. */
+     empiece a la izquierda del todo, sobre la columna de horas. */
   grid-column: 1 / -1;
-  border-top-left-radius: 9px;
-  /* Altura ligeramente reducida solo en el horario móvil, sin afectar al
-     encabezado del planner que comparte la clase .day-header. */
-  padding: 9px 16px 9px 16px;
+  /* Igualar EXACTAMENTE el encabezado de la tarjeta de día del planner
+     (.mobile-mode .mobile-feed-day .day-header) para que al alternar Planner ↔
+     Horario el encabezado no cambie: mismo padding (8px 16px, heredado de
+     .mobile-mode .day-header), mismo radio (--radius-md) y mismo margen negativo
+     que monta el header sobre el borde del contenedor por arriba y los lados. */
+  padding: 8px 16px;
+  margin: -1px -1px 0 -1px;
+  border-top-left-radius: var(--radius-md);
+  border-top-right-radius: var(--radius-md);
 }
 
 /* ── Medidas durante el arrastre de un bloque en el horario (móvil) ─────────
