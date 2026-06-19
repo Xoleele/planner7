@@ -694,6 +694,54 @@
     </div>
   </div>
 
+  <!-- MODAL: CRONÓMETRO DE TAREA -->
+  <div id="timer-modal" class="modal-backdrop hidden">
+    <div class="modal-content" style="width: 320px; max-width: 90vw;">
+      <div class="modal-header" style="justify-content: flex-start; padding: 20px 24px 10px 24px;">
+        <h2 id="timer-modal-title" style="margin: 0; font-size: 18px; font-weight: 600; color: var(--text-main);">Cronometrando tarea</h2>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; text-align: left; box-sizing: border-box;">
+        
+        <!-- Nombre de la tarea -->
+        <div class="form-group" style="margin: 0; width: 100%;">
+          <label for="timer-input-title" class="sr-only">Título</label>
+          <input type="text" id="timer-input-title" placeholder="Título de la tarea" autocomplete="off">
+        </div>
+
+        <!-- Dropdown para asignar etiqueta -->
+        <div class="form-group" style="margin: 0; width: 100%;">
+          <label for="timer-select-tag" style="display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px;">Etiqueta</label>
+          <div class="custom-select-wrapper" style="position: relative; width: 100%;">
+            <input type="hidden" id="timer-select-tag" value="default">
+            <div class="custom-select-trigger" id="timer-tag-select-trigger" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background-color: var(--bg-card); cursor: pointer; font-size: 13px; color: var(--text-main); user-select: none;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="custom-select-color-circle" style="background-color: #50a9ed; width: 10px; height: 10px; border-radius: 50%; display: inline-block;"></span>
+                <span class="custom-select-trigger-text">Por defecto</span>
+              </div>
+              <span class="custom-select-arrow" style="display: flex; align-items: center;">
+                <img src="icons/chevron-down.svg" alt="Abrir" width="10" height="10">
+              </span>
+            </div>
+            <div class="custom-options-container hidden" id="timer-tag-options-container" style="position: absolute; top: 100%; left: 0; right: 0; background-color: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-md); box-shadow: var(--shadow-md); z-index: 2010; max-height: 200px; overflow-y: auto; margin-top: 4px;">
+              <!-- Las opciones se generarán por JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Tiempo transcurrido -->
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; margin-top: 10px;">
+          <label style="display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 2px; text-align: center;">Tiempo transcurrido</label>
+          <div id="timer-display" style="font-size: 38px; font-weight: 700; font-family: monospace; color: var(--text-main); letter-spacing: 1px;">00:00:00</div>
+        </div>
+
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 12px; justify-content: center; padding: 16px 24px;">
+        <button type="button" class="btn btn-secondary" id="timer-cancel-btn" style="flex: 1; margin: 0;">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="timer-stop-btn" style="flex: 1; margin: 0;">Finalizar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: COPIAR TAREAS COMO TEXTO -->
   <div id="copy-text-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">

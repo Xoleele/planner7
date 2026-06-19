@@ -5943,6 +5943,7 @@ function buildTagSelectorOptions() {
 
     container.appendChild(option);
   });
+  buildTimerTagSelectorOptions();
 }
 
 // --- Custom Date Picker Dropdown ---
@@ -6090,6 +6091,108 @@ function openStatsModal() {
   document.getElementById('stats-custom-range').classList.add('hidden');
   document.getElementById('stats-modal').classList.remove('hidden');
   document.getElementById('stats-keyword').focus();
+}
+
+// --- Cronómetro de Tareas ---
+let timerInterval = null;
+let timerSeconds = 0;
+
+function setTimerSelectTagValue(tagId) {
+  const hiddenInput = document.getElementById('timer-select-tag');
+  if (hiddenInput) {
+    hiddenInput.value = tagId;
+  }
+  
+  // Update trigger UI
+  const tag = tags.find(t => t.id === tagId) || tags.find(t => t.id === 'default');
+  const trigger = document.getElementById('timer-tag-select-trigger');
+  if (trigger && tag) {
+    const circle = trigger.querySelector('.custom-select-color-circle');
+    const text = trigger.querySelector('.custom-select-trigger-text');
+    if (circle) circle.style.backgroundColor = tag.color.bg;
+    if (text) text.textContent = tag.name;
+  }
+}
+
+function buildTimerTagSelectorOptions() {
+  const container = document.getElementById('timer-tag-options-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  tags.forEach(tag => {
+    const option = document.createElement('div');
+    option.className = 'custom-option';
+    option.dataset.value = tag.id;
+    
+    const circle = document.createElement('span');
+    circle.className = 'custom-select-color-circle';
+    circle.style.backgroundColor = tag.color.bg;
+    circle.style.borderColor = tag.color.border;
+
+    const label = document.createElement('span');
+    label.textContent = tag.name;
+
+    option.appendChild(circle);
+    option.appendChild(label);
+
+    option.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setTimerSelectTagValue(tag.id);
+      container.classList.add('hidden');
+    });
+
+    container.appendChild(option);
+  });
+}
+
+function startTimer() {
+  const titleInput = document.getElementById('timer-input-title');
+  if (titleInput) {
+    titleInput.value = '';
+  }
+  setTimerSelectTagValue('default');
+
+  const timerDisplay = document.getElementById('timer-display');
+  if (!timerDisplay) return;
+
+  timerSeconds = 0;
+  timerDisplay.textContent = '00:00:00';
+
+  const timerModal = document.getElementById('timer-modal');
+  if (timerModal) {
+    timerModal.classList.remove('hidden');
+  }
+
+  // Enfoque inmediato al input de título
+  if (titleInput) {
+    titleInput.focus();
+  }
+
+  if (timerInterval) {
+    clearInterval(timerInterval);
+  }
+
+  timerInterval = setInterval(() => {
+    timerSeconds++;
+    const hrs = Math.floor(timerSeconds / 3600);
+    const mins = Math.floor((timerSeconds % 3600) / 60);
+    const secs = timerSeconds % 60;
+    timerDisplay.textContent = 
+      String(hrs).padStart(2, '0') + ':' +
+      String(mins).padStart(2, '0') + ':' +
+      String(secs).padStart(2, '0');
+  }, 1000);
+}
+
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  const timerModal = document.getElementById('timer-modal');
+  if (timerModal) {
+    timerModal.classList.add('hidden');
+  }
 }
 
 function setupEventListeners() {
@@ -6539,6 +6642,14 @@ function setupEventListeners() {
 
     // Check for Escape key to close open modals
     if (e.key === 'Escape') {
+      const timerModal = document.getElementById('timer-modal');
+      const isTimerModalOpen = timerModal && !timerModal.classList.contains('hidden');
+      if (isTimerModalOpen) {
+        e.preventDefault();
+        stopTimer();
+        return;
+      }
+
       const confirmModal = document.getElementById('confirm-modal');
       const isConfirmModalOpen = confirmModal && !confirmModal.classList.contains('hidden');
       if (isConfirmModalOpen) {
@@ -6591,6 +6702,22 @@ function setupEventListeners() {
 
   // El botón de etiquetas de la barra superior se eliminó: "Gestionar etiquetas"
   // ahora vive en el menú del usuario (avatar), enlazado al crear el dropdown.
+
+  // ─── Cronómetro ─────────────────────────────────────────────────────────────
+  const recordBtn = document.getElementById('record-btn');
+  if (recordBtn) {
+    recordBtn.addEventListener('click', startTimer);
+  }
+
+  const timerCancelBtn = document.getElementById('timer-cancel-btn');
+  if (timerCancelBtn) {
+    timerCancelBtn.addEventListener('click', stopTimer);
+  }
+
+  const timerStopBtn = document.getElementById('timer-stop-btn');
+  if (timerStopBtn) {
+    timerStopBtn.addEventListener('click', stopTimer);
+  }
 
   // ─── Estadísticas ──────────────────────────────────────────────────────────
   const statsBtn = document.getElementById('stats-btn');
@@ -6821,6 +6948,24 @@ function setupEventListeners() {
     document.addEventListener('click', (e) => {
       if (!tagSelectTrigger.contains(e.target) && !tagOptionsContainer.contains(e.target)) {
         tagOptionsContainer.classList.add('hidden');
+      }
+    });
+  }
+
+  // Custom Select Dropdown for Timer Tags
+  const timerTagSelectTrigger = document.getElementById('timer-tag-select-trigger');
+  const timerTagOptionsContainer = document.getElementById('timer-tag-options-container');
+
+  if (timerTagSelectTrigger && timerTagOptionsContainer) {
+    timerTagSelectTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      timerTagOptionsContainer.classList.toggle('hidden');
+    });
+
+    // Close options list when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!timerTagSelectTrigger.contains(e.target) && !timerTagOptionsContainer.contains(e.target)) {
+        timerTagOptionsContainer.classList.add('hidden');
       }
     });
   }

@@ -766,7 +766,8 @@ input[type="number"]:focus {
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
 }
 
-#task-input-title {
+#task-input-title,
+#timer-input-title {
   font-size: 18px;
   font-weight: 600;
   padding: 8px 0;
@@ -774,9 +775,11 @@ input[type="number"]:focus {
   border-bottom: 1.5px solid var(--border-light);
   border-radius: 0;
   margin-bottom: 6px;
+  width: 100%;
 }
 
-#task-input-title:focus {
+#task-input-title:focus,
+#timer-input-title:focus {
   border-bottom-color: var(--border-focus);
   box-shadow: none;
 }
