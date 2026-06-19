@@ -3520,6 +3520,17 @@ body.cronograma-active .planner-grid { display: none; }
 .cr-task-block .task-check-btn:hover { opacity: 1 !important; transform: scale(1.1); }
 .cr-task-block.completed .task-check-btn { opacity: 0.95; }
 
+/* Tarea completada en el horario: misma atenuación y tachado que en el planner
+   (.task-card.completed). El checkbox se mantiene más visible con su propia
+   regla de arriba para que se pueda volver a marcar como pendiente. */
+.cr-task-block.completed {
+  opacity: 0.40;
+}
+.cr-task-block.completed .cr-task-title,
+.cr-task-block.completed .cr-task-desc {
+  text-decoration: line-through;
+}
+
 /* Coloreado del icono del checkbox, idéntico al planner. */
 .cr-task-block .task-check-icon:not(.checked) {
   fill: none !important;
