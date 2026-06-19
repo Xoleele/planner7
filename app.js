@@ -6430,8 +6430,8 @@ function createTimedTask(startDate, endDate, title, tagId, userDescription) {
 function finishTimer() {
   // El cronómetro debe tener al menos 5 minutos (300 segundos) para guardarse.
   const elapsed = timerStartTime ? Math.floor((Date.now() - timerStartTime.getTime()) / 1000) : 0;
-  if (elapsed < 300) {
-    showDurationToast("Lo mínimo que se puede cronometrar son 5 minutos");
+  if (elapsed < 60) {
+    showDurationToast("Lo mínimo que se puede cronometrar es 1 minuto");
     return;
   }
 
