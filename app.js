@@ -502,6 +502,10 @@ function setupUserMenu() {
         <img src="icons/edit.svg" alt="" width="13.3" height="13.3">
         Plantilla de notas
       </button>
+      <button id="manage-tags-btn" class="user-dropdown-item">
+        <img src="icons/tag.svg" alt="" width="14" height="14">
+        Gestionar etiquetas
+      </button>
       <button id="view-toggle-btn" class="user-dropdown-item">
         <img src="icons/calendar.svg" alt="" width="14" height="14">
         <span id="view-toggle-menu-label">Vista Horario</span>
@@ -548,6 +552,12 @@ function setupUserMenu() {
       e.stopPropagation();
       dropdown.remove();
       openNoteTemplateModal();
+    });
+
+    document.getElementById('manage-tags-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdown.remove();
+      openTagsModal();
     });
 
     document.getElementById('view-toggle-btn').addEventListener('click', (e) => {
@@ -2765,15 +2775,8 @@ function buildCronogramaHeader(date, dayNameUpper, isToday) {
   dialogueBtn.innerHTML = `<img src="${hasNotes ? 'icons/message-square-text.svg' : 'icons/message-square.svg'}" alt="Diálogo">`;
   header.appendChild(dialogueBtn);
 
-  // Botón de duración total del día (con su tooltip, igual que el planner).
-  const durationBtn = document.createElement('button');
-  const totalMins = getTotalDurationForDay(dateStr);
-  durationBtn.className = 'duration-day-btn' + (totalMins > 0 ? ' has-duration' : '');
-  durationBtn.dataset.tooltip = totalMins > 0
-    ? `Tiempo total tareas por hacer: ${minutesToReadable(totalMins)}`
-    : 'Sin tareas con duración definida';
-  durationBtn.innerHTML = '<img src="icons/clock.svg" alt="Duración total" width="14" height="14">';
-  header.appendChild(durationBtn);
+  // El botón de duración total del día (icono reloj) NO se muestra en el modo
+  // horario: solo aparece en el planner.
 
   const copyBtn = document.createElement('button');
   copyBtn.className = 'copy-day-btn';
@@ -6586,8 +6589,8 @@ function setupEventListeners() {
     }
   });
 
-  // Open Tags Modal Button
-  document.getElementById('tags-modal-btn').addEventListener('click', openTagsModal);
+  // El botón de etiquetas de la barra superior se eliminó: "Gestionar etiquetas"
+  // ahora vive en el menú del usuario (avatar), enlazado al crear el dropdown.
 
   // ─── Estadísticas ──────────────────────────────────────────────────────────
   const statsBtn = document.getElementById('stats-btn');
