@@ -435,7 +435,7 @@ html:not(.mobile-mode) .app-container {
   transition: transform var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-fast);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
@@ -557,8 +557,25 @@ html:not(.mobile-mode) .app-container {
   white-space: pre-wrap;
 }
 
-/* Hora de la tarjeta: MISMO tipo de letra que la descripción. No fijamos ninguna
-   propiedad de fuente para que herede exactamente de .task-card-desc. */
+/* Hora de la tarjeta: misma tipografía que la descripción, con icono de reloj
+   blanco a la izquierda y la duración entre paréntesis a la derecha. */
+.task-card-time {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+.task-card-time-clock {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: #ffffff;
+}
+.task-card-time-dur {
+  opacity: 0.85;
+}
 
 /* Campo de hora del editor con icono de reloj a la IZQUIERDA y botón ✕ a la
    derecha para dejarlo "sin hora". */
@@ -2256,6 +2273,10 @@ body.not-logged-in .app-container {
 }
 
 .mobile-mode .task-card-desc {
+  font-size: 11px;
+}
+
+.mobile-mode .task-card-time {
   font-size: 11px;
 }
 

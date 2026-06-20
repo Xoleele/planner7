@@ -4062,6 +4062,24 @@ function updateDayHeaderButtonsVisibility(colElement, dateStr) {
   if (clearBtn) clearBtn.classList.toggle('day-btn-hidden', !hasTasks);
 }
 
+// Calcula la duración entre una hora de inicio y de fin ("HH:MM") y la devuelve
+// abreviada: "1h20m", "20m", "1h", "2h". Si cruza medianoche, suma 24h. Devuelve
+// cadena vacía si falta alguna de las dos horas o el rango es nulo.
+function formatTaskDuration(startTime, endTime) {
+  if (!startTime || !endTime) return '';
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  if ([sh, sm, eh, em].some(n => Number.isNaN(n))) return '';
+  let mins = (eh * 60 + em) - (sh * 60 + sm);
+  if (mins < 0) mins += 24 * 60; // cruza medianoche
+  if (mins <= 0) return '';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h && m) return `${h}h${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
+}
+
 function createTaskCard(task, occurrenceDate) {
   const card = document.createElement('div');
   card.className = 'task-card';
@@ -4090,34 +4108,44 @@ function createTaskCard(task, occurrenceDate) {
   title.textContent = task.title;
   card.appendChild(title);
 
-  // Hora + descripción en UN SOLO bloque (mismo estilo y espaciado que tenía la
-  // descripción). La hora y la descripción son elementos separados (spans), pero
-  // se renderizan en línea para verse como un texto continuo:
-  //   "00:00-00:00. descripción"   (hora sin espacios; ". " como separador).
-  // Si solo hay hora, se ve la hora; si solo hay descripción, solo la descripción.
+  // Hora (arriba) y descripción (debajo) en bloques SEPARADOS.
+  // La hora lleva un icono de reloj a la izquierda y, si hay inicio + fin, la
+  // duración calculada entre paréntesis a la derecha: "🕐 14:00-15:00 (1h)".
   const hasDescText = task.description && task.description.trim() !== '';
-  if (task.startTime || hasDescText) {
+
+  if (task.startTime) {
+    const timeBlock = document.createElement('div');
+    timeBlock.className = 'task-card-time';
+
+    // Icono de reloj blanco a la izquierda de la hora.
+    const clockIcon = document.createElement('span');
+    clockIcon.className = 'task-card-time-clock';
+    clockIcon.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>';
+    timeBlock.appendChild(clockIcon);
+
+    const timeText = document.createElement('span');
+    timeText.className = 'task-card-time-text';
+    timeText.textContent = task.endTime
+      ? `${task.startTime}-${task.endTime}`
+      : task.startTime;
+    timeBlock.appendChild(timeText);
+
+    // Duración entre paréntesis (solo si hay inicio + fin).
+    const dur = formatTaskDuration(task.startTime, task.endTime);
+    if (dur) {
+      const durEl = document.createElement('span');
+      durEl.className = 'task-card-time-dur';
+      durEl.textContent = ` (${dur})`;
+      timeBlock.appendChild(durEl);
+    }
+
+    card.appendChild(timeBlock);
+  }
+
+  if (hasDescText) {
     const descBlock = document.createElement('div');
     descBlock.className = 'task-card-desc';
-
-    if (task.startTime) {
-      const timeEl = document.createElement('span');
-      timeEl.className = 'task-card-time';
-      timeEl.textContent = task.endTime
-        ? `${task.startTime}-${task.endTime}`
-        : task.startTime;
-      descBlock.appendChild(timeEl);
-      // Separador ". " solo si además hay descripción.
-      if (hasDescText) descBlock.appendChild(document.createTextNode('. '));
-    }
-
-    if (hasDescText) {
-      const descSpan = document.createElement('span');
-      descSpan.className = 'task-card-desc-text';
-      descSpan.textContent = task.description;
-      descBlock.appendChild(descSpan);
-    }
-
+    descBlock.textContent = task.description;
     card.appendChild(descBlock);
   }
 
