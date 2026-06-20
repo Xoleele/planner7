@@ -805,13 +805,12 @@
             <input type="checkbox" id="copy-opt-pending" checked>
             <span>Copiar no completadas</span>
           </label>
-          <label class="copy-option">
-            <input type="checkbox" id="copy-opt-separate">
-            <span>Separar tareas completadas y no completadas</span>
-          </label>
+          <!-- "Separar" está siempre activa; la casilla se mantiene oculta para
+               no romper el JS que la lee. -->
+          <input type="checkbox" id="copy-opt-separate" checked style="display:none;">
           <label class="copy-option">
             <input type="checkbox" id="copy-opt-date">
-            <span>Incluir fecha</span>
+            <span>Incluir fecha y hora</span>
           </label>
           <label class="copy-option">
             <input type="checkbox" id="copy-opt-desc">

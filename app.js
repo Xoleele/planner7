@@ -5623,7 +5623,7 @@ let copyTextModalDate = null;
 let copyTextOptions = {
   includeCompleted: true,
   includePending: true,
-  separate: false,
+  separate: true, // siempre se separan los grupos
   includeDate: false,
   includeDesc: false,
   includeNote: false,
@@ -5677,11 +5677,8 @@ function updateCopyOptionsState(e) {
     }
   }
 
-  const bothSelected = completed.checked && pending.checked;
-  separate.disabled = !bothSelected;
-  const sepLabel = separate.closest('.copy-option');
-  if (sepLabel) sepLabel.classList.toggle('copy-option-disabled', !bothSelected);
-  if (!bothSelected) separate.checked = false;
+  // "Separar" está SIEMPRE activa (la casilla está oculta); la mantenemos marcada.
+  separate.checked = true;
 }
 
 // Devuelve las tareas del día separadas en pendientes y completadas, en el
@@ -5710,6 +5707,11 @@ function buildCopyText(dateStr, opts) {
 
   const lineFor = (task) => {
     let line = task.title || '';
+    // Hora de la tarea (si la opción "fecha y hora" está activa y hay hora).
+    if (opts.includeDate && task.startTime) {
+      const timeStr = task.endTime ? `${task.startTime}-${task.endTime}` : task.startTime;
+      line = `${timeStr}. ${line}`;
+    }
     if (opts.includeDesc && task.description && task.description.trim() !== '') {
       line += `. ${task.description.trim()}`;
     }
@@ -5722,28 +5724,16 @@ function buildCopyText(dateStr, opts) {
     blocks.push(formatSingleDate(new Date(dateStr + 'T00:00:00')));
   }
 
-  if (opts.separate) {
-    // Grupos separados, cada uno con su encabezado, respetando el orden.
-    if (opts.includePending) {
-      const lines = pending.map(lineFor);
-      const section = ['No completadas:'];
-      if (lines.length > 0) section.push(...lines);
-      else section.push('—');
-      blocks.push(section.join('\n'));
-    }
-    if (opts.includeCompleted) {
-      const lines = completed.map(lineFor);
-      const section = ['Completadas:'];
-      if (lines.length > 0) section.push(...lines);
-      else section.push('—');
-      blocks.push(section.join('\n'));
-    }
-  } else {
-    // Lista única en el orden de aparición, filtrando por estado seleccionado.
-    const lines = all
-      .filter(t => isCompleted(t) ? opts.includeCompleted : opts.includePending)
-      .map(lineFor);
-    if (lines.length > 0) blocks.push(lines.join('\n'));
+  // Grupos separados (siempre). El encabezado de un grupo SOLO se muestra si ese
+  // grupo tiene tareas: si no hay completadas, no aparece "Completadas:", e igual
+  // para "No completadas:".
+  if (opts.includePending && pending.length > 0) {
+    const section = ['No completadas:', ...pending.map(lineFor)];
+    blocks.push(section.join('\n'));
+  }
+  if (opts.includeCompleted && completed.length > 0) {
+    const section = ['Completadas:', ...completed.map(lineFor)];
+    blocks.push(section.join('\n'));
   }
 
   // Nota del día al final, si está activada y existe.
