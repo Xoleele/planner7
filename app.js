@@ -38,6 +38,14 @@ let eventListenersInitialized = false;
 let intentionalLogout = false; // true solo cuando el usuario hace logout explícito
 let welcomeShownThisSession = false; // evita repetir el panel de bienvenida al volver de otra pestaña
 
+// ─── Configuración de funciones ──────────────────────────────────────────────
+// Al marcar una tarea como COMPLETADA, se rellena automáticamente su "hora de
+// fin" con la hora actual. Si la tarea ya tenía hora de fin, se pregunta al
+// usuario (Cancelar / Mantener / Sobrescribir). Para DESHABILITAR esta función
+// por completo, basta con poner este flag en false.
+// (En el futuro esto se conectará a una opción de configuración en la interfaz.)
+const AUTO_SET_END_TIME_ON_COMPLETE = true;
+
 
 // ─── Duration parser ─────────────────────────────────────────────────────────
 // Detecta una duración escrita al PRINCIPIO de la descripción. Reconoce:
@@ -3047,9 +3055,7 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
 
       const timeEl = document.createElement('span');
       timeEl.className = 'cr-task-time';
-      timeEl.textContent = task.endTime
-        ? `${task.startTime}-${task.endTime}`
-        : task.startTime;
+      timeEl.textContent = formatTaskTimeText(task);
       timeBlock.appendChild(timeEl);
 
       const dur = formatTaskDuration(task.startTime, task.endTime);
@@ -3639,7 +3645,7 @@ function applyCronogramaDragMove(clientX, clientY) {
     };
     const newStart = toHHMM(startMin);
     const newEnd = toHHMM(startMin + crDrag.durationMin);
-    timeEl.textContent = `${newStart}-${newEnd}`;
+    timeEl.textContent = `${newStart} - ${newEnd}`;
 
     // Actualizar también la duración en vivo (paréntesis a la derecha).
     const durEl = crDrag.block.querySelector('.cr-task-time-dur');
@@ -3972,6 +3978,21 @@ function formatTaskDuration(startTime, endTime) {
   return `${m}m`;
 }
 
+// Texto de la hora de una tarea para mostrar en tarjetas/bloques. Reglas:
+//   • solo inicio:   "00:00"
+//   • solo fin:      "- 00:00"
+//   • inicio y fin:  "00:00 - 01:00"   (con espacios alrededor del guion)
+// Devuelve cadena vacía si la tarea no tiene ninguna hora.
+function formatTaskTimeText(task) {
+  if (!task) return '';
+  const start = task.startTime || '';
+  const end = task.endTime || '';
+  if (start && end) return `${start} - ${end}`;
+  if (start) return start;
+  if (end) return `- ${end}`;
+  return '';
+}
+
 function createTaskCard(task, occurrenceDate) {
   const card = document.createElement('div');
   card.className = 'task-card';
@@ -4002,10 +4023,11 @@ function createTaskCard(task, occurrenceDate) {
 
   // Hora (arriba) y descripción (debajo) en bloques SEPARADOS.
   // La hora lleva un icono de reloj a la izquierda y, si hay inicio + fin, la
-  // duración calculada entre paréntesis a la derecha: "🕐 14:00-15:00 (1h)".
+  // duración calculada entre paréntesis a la derecha: "🕐 14:00 - 15:00 (1h)".
+  // Se muestra el bloque de hora si hay inicio O fin (el fin puede ir solo).
   const hasDescText = task.description && task.description.trim() !== '';
 
-  if (task.startTime) {
+  if (task.startTime || task.endTime) {
     const timeBlock = document.createElement('div');
     timeBlock.className = 'task-card-time';
 
@@ -4017,9 +4039,7 @@ function createTaskCard(task, occurrenceDate) {
 
     const timeText = document.createElement('span');
     timeText.className = 'task-card-time-text';
-    timeText.textContent = task.endTime
-      ? `${task.startTime}-${task.endTime}`
-      : task.startTime;
+    timeText.textContent = formatTaskTimeText(task);
     timeBlock.appendChild(timeText);
 
     // Duración entre paréntesis (solo si hay inicio + fin).
@@ -5101,7 +5121,7 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
   const alarmCheckbox = document.getElementById('task-alarm-checkbox');
   if (alarmCheckbox) alarmCheckbox.checked = false;
 
-  // Estado inicial de los campos de hora (fin deshabilitado si no hay inicio).
+  // Estado inicial de los campos de hora (fin siempre habilitado, independiente).
   syncEndTimeEnabled();
   syncAlarmCheckboxState(); // estado inicial del icono de campana
 
@@ -5340,18 +5360,15 @@ function closeConfirmModal() {
   document.getElementById('confirm-modal').classList.add('hidden');
 }
 
-// Habilita la "Hora de fin" solo si hay "Hora de inicio". Si se borra el inicio,
-// también se limpia y deshabilita el fin.
+// La "Hora de fin" ya NO depende de la "Hora de inicio": se puede definir un fin
+// sin inicio. Esta función deja el campo de fin siempre habilitado (se mantiene
+// por compatibilidad con las llamadas existentes).
 function syncEndTimeEnabled() {
-  const startEl = document.getElementById('task-input-start');
   const endEl = document.getElementById('task-input-end');
-  if (!startEl || !endEl) return;
-  const hasStart = !!startEl.value;
-  endEl.disabled = !hasStart;
-  if (!hasStart) endEl.value = '';
-  // Reflejar visualmente el estado deshabilitado.
-  endEl.style.opacity = hasStart ? '1' : '0.5';
-  endEl.style.cursor = hasStart ? '' : 'not-allowed';
+  if (!endEl) return;
+  endEl.disabled = false;
+  endEl.style.opacity = '1';
+  endEl.style.cursor = '';
 }
 
 // Duration Calculator
@@ -5628,8 +5645,8 @@ function buildCopyText(dateStr, opts) {
   const lineFor = (task) => {
     let line = task.title || '';
     // Hora de la tarea (si la opción "fecha y hora" está activa y hay hora).
-    if (opts.includeDate && task.startTime) {
-      const timeStr = task.endTime ? `${task.startTime}-${task.endTime}` : task.startTime;
+    if (opts.includeDate && (task.startTime || task.endTime)) {
+      const timeStr = formatTaskTimeText(task);
       line = `${timeStr}. ${line}`;
     }
     if (opts.includeDesc && task.description && task.description.trim() !== '') {
@@ -7366,12 +7383,12 @@ function setupEventListeners() {
     const isBriefcase = document.getElementById('task-in-briefcase-checkbox').checked;
     const date = isBriefcase ? "" : document.getElementById('task-input-date').value;
 
-    // Hora de inicio / fin desde los campos del editor. Ambas opcionales; la hora
-    // de fin solo es válida si hay hora de inicio.
+    // Hora de inicio / fin desde los campos del editor. Ambas son OPCIONALES e
+    // INDEPENDIENTES: se puede definir un fin sin inicio (y viceversa).
     const startInputEl = document.getElementById('task-input-start');
     const endInputEl = document.getElementById('task-input-end');
     const startTime = (startInputEl && startInputEl.value) ? startInputEl.value : null;
-    const endTime = (startTime && endInputEl && endInputEl.value) ? endInputEl.value : null;
+    const endTime = (endInputEl && endInputEl.value) ? endInputEl.value : null;
 
     // Duración (minutos) a partir de inicio/fin (soporta cruce de medianoche).
     let duration = null;
@@ -8412,6 +8429,76 @@ function runStatsCalculation() {
   document.getElementById('stats-results').classList.remove('hidden');
 }
 
+// Devuelve la hora actual en formato "HH:MM".
+function currentTimeHHMM() {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+// Diálogo de conflicto de hora de fin. Se muestra cuando, al completar una
+// tarea que YA tiene hora de fin, hay que decidir entre conservarla o
+// reemplazarla por la hora actual. Devuelve una Promise que resuelve a:
+//   'cancel'    → no completar / no cambiar nada
+//   'keep'      → mantener la hora de fin original
+//   'overwrite' → usar la hora actual como hora de fin
+function askEndTimeConflict(originalEnd, currentEnd) {
+  return new Promise((resolve) => {
+    // Overlay.
+    const overlay = document.createElement('div');
+    overlay.className = 'endtime-conflict-overlay';
+
+    const box = document.createElement('div');
+    box.className = 'endtime-conflict-box';
+
+    const h = document.createElement('h3');
+    h.className = 'endtime-conflict-title';
+    h.textContent = 'Hora de fin';
+
+    const p = document.createElement('p');
+    p.className = 'endtime-conflict-desc';
+    p.textContent = 'Esta tarea ya tiene una hora de fin asignada. ¿Qué deseas hacer?';
+
+    const info = document.createElement('div');
+    info.className = 'endtime-conflict-info';
+    info.innerHTML =
+      `<div><span>Hora original</span><strong>${originalEnd}</strong></div>` +
+      `<div><span>Hora actual</span><strong>${currentEnd}</strong></div>`;
+
+    const actions = document.createElement('div');
+    actions.className = 'endtime-conflict-actions';
+
+    const finish = (value) => {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+      resolve(value);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') finish('cancel'); };
+    document.addEventListener('keydown', onKey);
+
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'btn btn-secondary';
+    btnCancel.textContent = 'Cancelar';
+    btnCancel.addEventListener('click', () => finish('cancel'));
+
+    const btnKeep = document.createElement('button');
+    btnKeep.className = 'btn btn-secondary';
+    btnKeep.textContent = 'Mantener';
+    btnKeep.addEventListener('click', () => finish('keep'));
+
+    const btnOverwrite = document.createElement('button');
+    btnOverwrite.className = 'btn btn-primary';
+    btnOverwrite.textContent = 'Sobrescribir';
+    btnOverwrite.addEventListener('click', () => finish('overwrite'));
+
+    actions.append(btnCancel, btnKeep, btnOverwrite);
+    box.append(h, p, info, actions);
+    overlay.appendChild(box);
+    // Clic fuera de la caja = cancelar.
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) finish('cancel'); });
+    document.body.appendChild(overlay);
+  });
+}
+
 async function toggleTaskCompletion(task, occurrenceDate) {
   pushToUndoStack();
 
@@ -8431,6 +8518,36 @@ async function toggleTaskCompletion(task, occurrenceDate) {
   } else {
     task.completed = !task.completed;
     nowCompleted = task.completed;
+  }
+
+  // ── Hora de fin automática al COMPLETAR ────────────────────────────────────
+  // Si la función está activada y la tarea pasa a completada, se rellena su hora
+  // de fin con la hora actual. Si ya tenía una hora de fin, se pregunta al
+  // usuario qué hacer. Aplica con o sin hora de inicio.
+  if (AUTO_SET_END_TIME_ON_COMPLETE && nowCompleted) {
+    const nowStr = currentTimeHHMM();
+    if (task.endTime) {
+      // Ya hay hora de fin: preguntar (Cancelar / Mantener / Sobrescribir).
+      const choice = await askEndTimeConflict(task.endTime, nowStr);
+      if (choice === 'cancel') {
+        // Revertir la marca de completado y no tocar nada más.
+        if (task.recurrence && task.recurrence.enabled) {
+          const i = task.completedOccurrences.indexOf(occurrenceDate);
+          if (i !== -1) task.completedOccurrences.splice(i, 1);
+        } else {
+          task.completed = false;
+        }
+        renderWeeklyCalendar();
+        return;
+      }
+      if (choice === 'overwrite') {
+        task.endTime = nowStr;
+      }
+      // 'keep' → no se modifica la hora de fin.
+    } else {
+      // No tenía hora de fin: se asigna directamente la hora actual.
+      task.endTime = nowStr;
+    }
   }
 
   // Reubicar la tarea segun su nuevo estado:
