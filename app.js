@@ -9151,4 +9151,95 @@ window.addEventListener('beforeunload', (e) => {
 window.addEventListener('online', () => {
   flushPendingSync();
 });
+
+// ─── Recuperación de horas perdidas (uso manual desde la consola) ─────────────
+// Reconstruye startTime/endTime de las tareas a partir del respaldo _descBackup
+// (o, en su defecto, de la descripción actual) leyendo DIRECTAMENTE de Supabase.
+// Uso: en la consola del navegador (con tu sesión iniciada):
+//   await recuperarHoras()            → DIAGNÓSTICO (no cambia nada)
+//   await recuperarHoras(true)        → aplica los cambios y guarda en Supabase
+window.recuperarHoras = async function (aplicar = false) {
+  if (!currentUser) { console.warn('No hay sesión iniciada.'); return; }
+
+  // Leer las filas reales del usuario desde Supabase.
+  const { data, error } = await sb.from('tasks').select('*').eq('user_id', currentUser.id);
+  if (error) { console.error('Error leyendo tareas:', error); return; }
+  const rows = data || [];
+
+  // Extrae "HH:MM - HH:MM" o "HH:MM" del inicio de un texto.
+  const extractTimes = (text) => {
+    if (!text || typeof text !== 'string') return null;
+    const s = text.trimStart();
+    let m = s.match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+    if (m) {
+      const sh = +m[1], sm = +m[2], eh = +m[3], em = +m[4];
+      if (sh <= 23 && sm <= 59 && eh <= 23 && em <= 59) {
+        return {
+          startTime: `${String(sh).padStart(2,'0')}:${String(sm).padStart(2,'0')}`,
+          endTime: `${String(eh).padStart(2,'0')}:${String(em).padStart(2,'0')}`
+        };
+      }
+    }
+    m = s.match(/^(\d{1,2}):(\d{2})/);
+    if (m) {
+      const sh = +m[1], sm = +m[2];
+      if (sh <= 23 && sm <= 59) {
+        return { startTime: `${String(sh).padStart(2,'0')}:${String(sm).padStart(2,'0')}`, endTime: null };
+      }
+    }
+    return null;
+  };
+
+  let conBackup = 0, yaTienenHora = 0, recuperables = 0, sinFuente = 0;
+  const cambios = [];
+
+  rows.forEach(row => {
+    const t = row.data || {};
+    const tieneHora = !!t.startTime;
+    if (tieneHora) { yaTienenHora++; return; } // no tocar las que ya tienen hora
+
+    // Fuente: primero el respaldo, luego la descripción actual.
+    const fuente = (t._descBackup !== undefined && t._descBackup !== null)
+      ? t._descBackup : (t.description || '');
+    if (t._descBackup !== undefined) conBackup++;
+
+    const found = extractTimes(fuente);
+    if (found) {
+      recuperables++;
+      cambios.push({ id: row.id, titulo: t.title, ...found, fuente });
+    } else {
+      sinFuente++;
+    }
+  });
+
+  console.log('───── DIAGNÓSTICO DE HORAS ─────');
+  console.log('Total de tareas:', rows.length);
+  console.log('Ya tienen hora (no se tocan):', yaTienenHora);
+  console.log('Con respaldo _descBackup:', conBackup);
+  console.log('RECUPERABLES (se les puede poner hora):', recuperables);
+  console.log('Sin hora detectable:', sinFuente);
+  if (cambios.length) {
+    console.table(cambios.map(c => ({ titulo: c.titulo, inicio: c.startTime, fin: c.endTime, origen: c.fuente })));
+  }
+
+  if (!aplicar) {
+    console.log('▶ Esto fue solo un diagnóstico. Para APLICAR, ejecuta: await recuperarHoras(true)');
+    return { recuperables, cambios };
+  }
+
+  if (cambios.length === 0) { console.log('No hay nada que aplicar.'); return; }
+
+  // Aplicar: actualizar cada fila en Supabase (no destructivo: solo añade hora).
+  let ok = 0, fail = 0;
+  for (const c of cambios) {
+    const row = rows.find(r => r.id === c.id);
+    const nuevo = { ...row.data, startTime: c.startTime, endTime: c.endTime, _timeFieldsMigrated: true };
+    const { error: upErr } = await sb.from('tasks').update({ data: nuevo }).eq('id', c.id).eq('user_id', currentUser.id);
+    if (upErr) { console.error('Falló', c.id, upErr); fail++; }
+    else ok++;
+  }
+  console.log(`✔ Aplicado: ${ok} tareas actualizadas, ${fail} fallos.`);
+  console.log('Recarga la app para ver las horas. (Quizá necesites Ctrl+Shift+R.)');
+  return { ok, fail };
+};
 // EOF
