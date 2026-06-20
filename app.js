@@ -7760,6 +7760,14 @@ function setupEventListeners() {
         saveActiveTimerState();
       }
     });
+    // Clic en cualquier parte del campo → abrir el selector de hora nativo
+    // (mismo comportamiento que los campos de hora del editor de tareas).
+    timerStartInput.addEventListener('click', () => {
+      if (timerStartInput.disabled) return;
+      if (typeof timerStartInput.showPicker === 'function') {
+        try { timerStartInput.showPicker(); } catch (_) {}
+      }
+    });
   }
 
   const timerCancelBtn = document.getElementById('timer-cancel-btn');
