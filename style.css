@@ -3699,7 +3699,7 @@ body.cronograma-active .planner-grid { display: none; }
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   min-height: 16px;
   /* Evitar que el long-press seleccione el texto del bloque en móvil (el
      resaltado azul y los manejadores de selección rompen el gesto de
@@ -3778,6 +3778,7 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   opacity: 0.40;
 }
 .cr-task-block.completed .cr-task-title,
+.cr-task-block.completed .cr-task-time-row,
 .cr-task-block.completed .cr-task-desc {
   text-decoration: line-through;
 }
@@ -3828,8 +3829,29 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
    descripcion del planner. Se recorta a las lineas que caben en la altura del
    bloque (el numero de lineas lo fija el JS con -webkit-line-clamp) y termina
    con elipsis cuando el texto continua. */
-/* Hora del bloque del horario: MISMO tipo de letra que la descripción. Sin
-   propiedades de fuente propias para heredar exactamente de .cr-task-desc. */
+/* Fila de hora del bloque del horario: icono de reloj blanco a la izquierda,
+   rango horario y duración entre paréntesis a la derecha. Mismo tamaño/peso que
+   la descripción. */
+.cr-task-time-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cr-task-time-clock {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: #ffffff;
+}
+.cr-task-time-dur {
+  opacity: 0.85;
+}
 
 .cr-task-desc {
   font-size: 11.5px;

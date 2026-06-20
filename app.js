@@ -3161,38 +3161,54 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   titleEl.textContent = titleText;
   block.appendChild(titleEl);
 
-  // Hora + descripción en UN SOLO bloque (≥60 min), en línea y con el mismo
-  // estilo: "00:00-00:00. descripción". Son elementos separados (spans). La hora
-  // (.cr-task-time) se actualiza en vivo durante el arrastre.
+  // Hora (arriba) y descripción (debajo) en bloques SEPARADOS, igual que las
+  // tarjetas del planner: la hora lleva un icono de reloj a la izquierda y la
+  // duración entre paréntesis a la derecha ("🕐 14:00-15:00 (1h)"). La hora
+  // (.cr-task-time) y la duración (.cr-task-time-dur) se actualizan en vivo
+  // durante el arrastre.
   const crHasDesc = descText && descText.trim() !== '';
   const crHasTime = task && task.startTime;
   if (durationMin > 59 && (crHasTime || crHasDesc)) {
-    const descEl = document.createElement('div');
-    descEl.className = 'cr-task-desc';
-
     if (crHasTime) {
+      const timeBlock = document.createElement('div');
+      timeBlock.className = 'cr-task-time-row';
+
+      const clockIcon = document.createElement('span');
+      clockIcon.className = 'cr-task-time-clock';
+      clockIcon.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>';
+      timeBlock.appendChild(clockIcon);
+
       const timeEl = document.createElement('span');
       timeEl.className = 'cr-task-time';
       timeEl.textContent = task.endTime
         ? `${task.startTime}-${task.endTime}`
         : task.startTime;
-      descEl.appendChild(timeEl);
-      if (crHasDesc) descEl.appendChild(document.createTextNode('. '));
+      timeBlock.appendChild(timeEl);
+
+      const dur = formatTaskDuration(task.startTime, task.endTime);
+      if (dur) {
+        const durEl = document.createElement('span');
+        durEl.className = 'cr-task-time-dur';
+        durEl.textContent = ` (${dur})`;
+        timeBlock.appendChild(durEl);
+      }
+
+      block.appendChild(timeBlock);
     }
+
     if (crHasDesc) {
-      const descSpan = document.createElement('span');
-      descSpan.className = 'cr-task-desc-text';
-      descSpan.textContent = descText;
-      descEl.appendChild(descSpan);
+      const descEl = document.createElement('div');
+      descEl.className = 'cr-task-desc';
+      descEl.textContent = descText;
+
+      // Calcular cuántas líneas caben en la altura disponible.
+      const DESC_LINE_PX = 16;
+      const available = heightPx - 24 /*padding*/ - 18 /*título*/ - 16 /*hora*/ - 6 /*gap*/;
+      const lines = Math.max(1, Math.floor(available / DESC_LINE_PX));
+      descEl.style.webkitLineClamp = String(lines);
+
+      block.appendChild(descEl);
     }
-
-    // Calcular cuántas líneas caben en la altura disponible.
-    const DESC_LINE_PX = 16;
-    const available = heightPx - 24 /*padding*/ - 18 /*título*/ - 6 /*gap*/;
-    const lines = Math.max(1, Math.floor(available / DESC_LINE_PX));
-    descEl.style.webkitLineClamp = String(lines);
-
-    block.appendChild(descEl);
   }
 
   return block;
@@ -3754,7 +3770,16 @@ function applyCronogramaDragMove(clientX, clientY) {
       const m = ((min % 1440) + 1440) % 1440;
       return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     };
-    timeEl.textContent = `${toHHMM(startMin)}-${toHHMM(startMin + crDrag.durationMin)}`;
+    const newStart = toHHMM(startMin);
+    const newEnd = toHHMM(startMin + crDrag.durationMin);
+    timeEl.textContent = `${newStart}-${newEnd}`;
+
+    // Actualizar también la duración en vivo (paréntesis a la derecha).
+    const durEl = crDrag.block.querySelector('.cr-task-time-dur');
+    if (durEl) {
+      const dur = formatTaskDuration(newStart, newEnd);
+      durEl.textContent = dur ? ` (${dur})` : '';
+    }
   }
 }
 
@@ -7246,7 +7271,12 @@ function setupEventListeners() {
     taskEndInput.addEventListener('input', updateDurationDisplay);
   }
 
-  // Clic en cualquier parte de un campo de hora → abrir el selector nativo.
+  // Campos de hora: se puede ESCRIBIR con el teclado Y abrir el selector nativo.
+  // - Teclear los segmentos HH/MM funciona de forma nativa cuando el campo tiene
+  //   el foco (por eso NO hacemos preventDefault, que bloquearía el foco).
+  // - Un clic de ratón en el campo abre además el selector desplegable nativo.
+  // Las pulsaciones de teclado (Tab para enfocar, dígitos para escribir) NO
+  // abren el desplegable, así que ambas vías conviven.
   [taskStartInput, taskEndInput].forEach(inp => {
     if (!inp) return;
     inp.addEventListener('click', () => {
@@ -7788,8 +7818,8 @@ function setupEventListeners() {
         saveActiveTimerState();
       }
     });
-    // Clic en cualquier parte del campo → abrir el selector de hora nativo
-    // (mismo comportamiento que los campos de hora del editor de tareas).
+    // Clic de ratón → abre el selector nativo. Teclear (con el campo enfocado)
+    // sigue funcionando de forma nativa, así conviven ambas vías.
     timerStartInput.addEventListener('click', () => {
       if (timerStartInput.disabled) return;
       if (typeof timerStartInput.showPicker === 'function') {
