@@ -393,6 +393,18 @@
           <textarea id="task-input-description" placeholder="Añade una descripción (opcional)" rows="3"></textarea>
         </div>
 
+        <!-- Hora de inicio / fin (ambas opcionales; fin solo si hay inicio). -->
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="task-input-start">Hora de inicio</label>
+            <input type="time" id="task-input-start">
+          </div>
+          <div class="form-group flex-1">
+            <label for="task-input-end">Hora de fin</label>
+            <input type="time" id="task-input-end" disabled>
+          </div>
+        </div>
+
         <div class="form-row">
           <!-- Etiquetas dropdown -->
           <div class="form-group flex-1">
@@ -426,18 +438,6 @@
           </div>
         </div>
 
-        <!-- Funcion de hora eliminada: campos ocultos (se conservan en el DOM
-             para no romper referencias antiguas, pero no son visibles ni se usan). -->
-        <div class="form-row" style="display:none">
-          <div class="form-group flex-1">
-            <label for="task-input-start">Inicio (opcional)</label>
-            <input type="time" id="task-input-start">
-          </div>
-          <div class="form-group flex-1">
-            <label for="task-input-end">Fin (opcional)</label>
-            <input type="time" id="task-input-end">
-          </div>
-        </div>
 
         <div id="duration-display" class="duration-badge hidden" style="display:none">
           <span>Duración: <strong id="duration-val">-</strong></span>

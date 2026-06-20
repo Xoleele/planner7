@@ -251,8 +251,8 @@ function getDurationForDay(dateStr, completed) {
     return checkTaskOccurrence(task, new Date(dateStr + 'T12:00:00'));
   });
   return dayTasks.reduce((sum, task) => {
-    const parsed = parseDurationFromDescription(task.description);
-    return sum + (parsed ? parsed.minutes : 0);
+    const mins = getTaskDurationMinutes(task);
+    return sum + (mins || 0);
   }, 0);
 }
 
@@ -1702,8 +1702,10 @@ async function startApp(user) {
   // Si Supabase devuelve vacío pero el caché local tiene datos, los conservamos
   // (no pisamos tasks[] con un array vacío)
 
-  // Migrar horas existentes a la descripcion (una sola vez por tarea)
-  migrateTimesToDescription();
+  // Migrar la hora EMBEBIDA en la descripción a campos startTime/endTime.
+  // (La antigua migración inversa migrateTimesToDescription quedó obsoleta con el
+  // modelo de campos y ya NO se ejecuta, para no reintroducir la hora en el texto.)
+  migrateTimesFromDescription();
 
   // Ensure all tasks have position indices for sorting
   ensurePositions();
@@ -1746,6 +1748,51 @@ function migrateTimesToDescription() {
   if (changed) {
     saveTasksToStorage();
   }
+}
+
+// ─── Migración: de la hora EMBEBIDA en la descripción a campos startTime/endTime
+// Detecta al inicio de la descripción un rango "HH:MM - HH:MM" o una hora suelta
+// "HH:MM", copia esos valores a task.startTime / task.endTime, GUARDA el texto
+// original en task._descBackup (red de seguridad) y LIMPIA ese prefijo de la
+// descripción (corte limpio). Marca _timeFieldsMigrated; corre una vez por tarea.
+function migrateTimesFromDescription() {
+  let changed = false;
+  tasks.forEach(task => {
+    if (task._timeFieldsMigrated) return;
+
+    const desc = (task.description || '');
+    const s = desc.trimStart();
+
+    // Rango "HH:MM - HH:MM" al inicio (opcionalmente seguido de ". " o espacios).
+    let m = s.match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})\s*\.?\s*/);
+    if (m) {
+      const sh = parseInt(m[1], 10), sm = parseInt(m[2], 10);
+      const eh = parseInt(m[3], 10), em = parseInt(m[4], 10);
+      if (sh <= 23 && sm <= 59 && eh <= 23 && em <= 59) {
+        if (task._descBackup === undefined) task._descBackup = desc;
+        task.startTime = `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`;
+        task.endTime = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+        task.description = s.slice(m[0].length); // quitar el prefijo de hora
+        changed = true;
+      }
+    } else {
+      // Hora de inicio suelta "HH:MM" al inicio (sin fin).
+      m = s.match(/^(\d{1,2}):(\d{2})\s*\.?\s*/);
+      if (m) {
+        const sh = parseInt(m[1], 10), sm = parseInt(m[2], 10);
+        if (sh <= 23 && sm <= 59) {
+          if (task._descBackup === undefined) task._descBackup = desc;
+          task.startTime = `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`;
+          // sin endTime
+          task.description = s.slice(m[0].length);
+          changed = true;
+        }
+      }
+    }
+
+    task._timeFieldsMigrated = true;
+  });
+  if (changed) saveTasksToStorage();
 }
 
 /**
@@ -2680,6 +2727,36 @@ function parseTimeRangeFromDescription(description) {
   };
 }
 
+// ─── Rango horario de una tarea desde sus CAMPOS startTime/endTime ────────────
+// Fuente única de verdad para horario/arrastre. Devuelve la misma estructura que
+// parseTimeRangeFromDescription, o null si la tarea no tiene inicio Y fin (un
+// bloque del horario necesita ambos para tener altura).
+function getTaskTimeRange(task) {
+  if (!task || !task.startTime || !task.endTime) return null;
+  const ms = String(task.startTime).match(/^(\d{1,2}):(\d{2})$/);
+  const me = String(task.endTime).match(/^(\d{1,2}):(\d{2})$/);
+  if (!ms || !me) return null;
+  const sh = parseInt(ms[1], 10), sm = parseInt(ms[2], 10);
+  const eh = parseInt(me[1], 10), em = parseInt(me[2], 10);
+  if (sh > 23 || sm > 59 || eh > 23 || em > 59) return null;
+  const startMin = sh * 60 + sm;
+  const rawEndMin = eh * 60 + em;
+  const crossesMidnight = rawEndMin <= startMin;
+  const endMin = crossesMidnight ? 24 * 60 : rawEndMin;
+  return {
+    startMin, endMin, rawEndMin, crossesMidnight,
+    startStr: `${String(sh).padStart(2, '0')}:${String(sm).padStart(2, '0')}`,
+    endStr: `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`
+  };
+}
+
+// Duración (minutos) de una tarea desde sus campos. null si no tiene inicio+fin.
+function getTaskDurationMinutes(task) {
+  const r = getTaskTimeRange(task);
+  if (!r) return null;
+  return (r.crossesMidnight ? r.rawEndMin + 1440 : r.rawEndMin) - r.startMin;
+}
+
 // ─── Alarma: detectar la hora de inicio al comienzo de la descripcion ─────────
 // Acepta una hora suelta ("08:00 ...") o un rango ("08:00 - 13:40 ...").
 // Devuelve "HH:MM" o null si no hay hora de inicio valida.
@@ -2700,13 +2777,14 @@ function syncAlarmCheckboxState() {
   const checkbox = document.getElementById('task-alarm-checkbox');
   const label = document.getElementById('task-alarm-label');
   if (!checkbox || !label) return;
-  const desc = document.getElementById('task-input-description').value;
-  const hasStart = parseStartTimeFromDescription(desc) !== null;
+  // La alarma requiere una HORA DE INICIO (campo del editor).
+  const startEl = document.getElementById('task-input-start');
+  const hasStart = !!(startEl && startEl.value);
   checkbox.disabled = !hasStart;
   if (!hasStart) checkbox.checked = false;
   label.style.opacity = hasStart ? '1' : '0.45';
   label.style.cursor = hasStart ? 'pointer' : 'not-allowed';
-  label.title = hasStart ? '' : 'Añade una hora de inicio en la descripción (ej. 08:00) para activar la alarma';
+  label.title = hasStart ? '' : 'Define una hora de inicio para activar la alarma';
 }
 
 // ─── Sistema de alarmas ───────────────────────────────────────────────────────
@@ -2743,7 +2821,7 @@ function getTodaysAlarmOccurrences() {
   const result = [];
   tasks.forEach(task => {
     if (!task.alarm) return;
-    const startStr = parseStartTimeFromDescription(task.description);
+    const startStr = (task.startTime && /^\d{1,2}:\d{2}$/.test(task.startTime)) ? task.startTime : null;
     if (!startStr) return;
     // ¿La tarea ocurre hoy? (cubre tareas simples y recurrentes)
     if (!checkTaskOccurrence(task, today)) return;
@@ -3072,6 +3150,18 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   titleEl.textContent = titleText;
   block.appendChild(titleEl);
 
+  // Rango horario del bloque (entre título y descripción). Se actualiza en vivo
+  // durante el arrastre. Solo en bloques con descripción visible (≥60 min) para
+  // no saturar los compactos.
+  if (durationMin > 59 && task && task.startTime) {
+    const timeEl = document.createElement('div');
+    timeEl.className = 'cr-task-time';
+    timeEl.textContent = task.endTime
+      ? `${task.startTime} - ${task.endTime}`
+      : task.startTime;
+    block.appendChild(timeEl);
+  }
+
   // > 59 min (es decir, 60 min en adelante): añadir la descripción completa,
   // recortada a las líneas que caben.
   if (durationMin > 59 && descText && descText.trim() !== '') {
@@ -3115,7 +3205,7 @@ function renderCronogramaDayBlocks(colEl, date) {
     const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
     const tagVisible = tag ? tag.visible !== false : true;
     if (!tagVisible) return;
-    const range = parseTimeRangeFromDescription(task.description);
+    const range = getTaskTimeRange(task);
     if (!range) return;
 
     const { startMin, endMin } = range;
@@ -3138,7 +3228,7 @@ function renderCronogramaDayBlocks(colEl, date) {
     const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
     const tagVisible = tag ? tag.visible !== false : true;
     if (!tagVisible) return;
-    const range = parseTimeRangeFromDescription(task.description);
+    const range = getTaskTimeRange(task);
     if (!range || !range.crossesMidnight) return;
 
     // rawEndMin ya es el minuto del día siguiente (p. ej. 01:00 => 60).
@@ -3526,7 +3616,7 @@ function startCronogramaDrag(block, task, e) {
   const grid = document.getElementById('cronograma-grid');
   if (!grid) return;
 
-  const range = parseTimeRangeFromDescription(task.description);
+  const range = getTaskTimeRange(task);
   if (!range) return;
   const durationMin = (range.crossesMidnight ? range.rawEndMin + 1440 : range.rawEndMin) - range.startMin;
 
@@ -3640,16 +3730,16 @@ function applyCronogramaDragMove(clientX, clientY) {
   const visibleEnd = Math.min(startMin + crDrag.durationMin, 1440);
   crDrag.block.style.height = Math.max(visibleEnd - startMin, 16) + 'px';
 
-  // Actualizar EN VIVO el rango horario que se muestra en la descripción del
-  // bloque (p. ej. "13:00 - 15:00" → "13:30 - 15:30"), SIN guardar. El guardado
-  // ocurre solo al soltar; si se vuelve a la posición original no habrá cambios.
-  const descEl = crDrag.block.querySelector('.cr-task-desc');
-  if (descEl) {
-    // Guardar el texto original la primera vez, para poder restaurarlo si hace falta.
-    if (crDrag.originalDescText === undefined) crDrag.originalDescText = descEl.textContent;
-    descEl.textContent = rewriteTimeRangeInDescription(
-      crDrag.originalDescText, startMin, startMin + crDrag.durationMin
-    );
+  // Actualizar EN VIVO el rango horario mostrado en el bloque (elemento dedicado
+  // .cr-task-time), p. ej. "13:00 - 15:00" → "13:30 - 15:30", SIN guardar. El
+  // guardado ocurre solo al soltar.
+  const timeEl = crDrag.block.querySelector('.cr-task-time');
+  if (timeEl) {
+    const toHHMM = (min) => {
+      const m = ((min % 1440) + 1440) % 1440;
+      return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    };
+    timeEl.textContent = `${toHHMM(startMin)} - ${toHHMM(startMin + crDrag.durationMin)}`;
   }
 }
 
@@ -3692,7 +3782,7 @@ function commitCronogramaDragResult(drag) {
   const newEndMin = newStartMin + drag.durationMin; // puede superar 1440 (cruza medianoche)
   const newDateStr = drag.targetColEl ? drag.targetColEl.dataset.date : null;
 
-  const oldStart = (parseTimeRangeFromDescription(drag.task.description) || {}).startMin;
+  const oldStart = (getTaskTimeRange(drag.task) || {}).startMin;
   const sameTime = oldStart === newStartMin;
   const sameDay = !newDateStr || newDateStr === drag.task.date;
   if (sameTime && sameDay) {
@@ -3702,8 +3792,14 @@ function commitCronogramaDragResult(drag) {
 
   pushToUndoStack();
 
-  // Reescribir el horario en la descripción (manteniendo la duración).
-  drag.task.description = rewriteTimeRangeInDescription(drag.task.description, newStartMin, newEndMin);
+  // Actualizar la hora en los CAMPOS (manteniendo la duración). El fin se envuelve
+  // a 24h si la tarea cruza medianoche.
+  const toHHMM = (min) => {
+    const m = ((min % 1440) + 1440) % 1440;
+    return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  };
+  drag.task.startTime = toHHMM(newStartMin);
+  drag.task.endTime = toHHMM(newEndMin);
 
   // Cambiar el día si se soltó en otra columna.
   if (newDateStr && newDateStr !== drag.task.date) {
@@ -3745,7 +3841,7 @@ function startCronogramaTouch(block, task, e) {
 
   const grid = document.getElementById('cronograma-grid');
   if (!grid) return;
-  const range = parseTimeRangeFromDescription(task.description);
+  const range = getTaskTimeRange(task);
   if (!range) return;
 
   const touch = e.touches[0];
@@ -3978,6 +4074,18 @@ function createTaskCard(task, occurrenceDate) {
   title.className = 'task-card-title';
   title.textContent = task.title;
   card.appendChild(title);
+
+  // Hora (entre el título y la descripción). Formato "HH:MM - HH:MM" si hay fin,
+  // o solo "HH:MM" si hay inicio sin fin. Si no hay hora, no se muestra (la
+  // descripción queda directamente bajo el título).
+  if (task.startTime) {
+    const timeEl = document.createElement('div');
+    timeEl.className = 'task-card-time';
+    timeEl.textContent = task.endTime
+      ? `${task.startTime} - ${task.endTime}`
+      : task.startTime;
+    card.appendChild(timeEl);
+  }
 
   // Description (if present)
   if (task.description && task.description.trim() !== '') {
@@ -5047,6 +5155,9 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
   const alarmCheckbox = document.getElementById('task-alarm-checkbox');
   if (alarmCheckbox) alarmCheckbox.checked = false;
 
+  // Estado inicial de los campos de hora (fin deshabilitado si no hay inicio).
+  syncEndTimeEnabled();
+
   // Hide end recurrence sub-fields
   document.getElementById('repeat-end-date').classList.add('hidden');
   document.querySelector('.count-input-wrapper').classList.add('hidden');
@@ -5064,6 +5175,12 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
 
     document.getElementById('task-input-title').value = task.title;
     document.getElementById('task-input-description').value = task.description || '';
+    // Cargar hora de inicio/fin en sus campos y aplicar la regla (fin ⟸ inicio).
+    const startEl = document.getElementById('task-input-start');
+    const endEl = document.getElementById('task-input-end');
+    if (startEl) startEl.value = task.startTime || '';
+    if (endEl) endEl.value = task.endTime || '';
+    syncEndTimeEnabled();
     setSelectTagValue(task.tagId);
     if (alarmCheckbox) alarmCheckbox.checked = !!task.alarm;
 
@@ -5273,6 +5390,20 @@ function openConfirmModal(task, occurrenceDate) {
 
 function closeConfirmModal() {
   document.getElementById('confirm-modal').classList.add('hidden');
+}
+
+// Habilita la "Hora de fin" solo si hay "Hora de inicio". Si se borra el inicio,
+// también se limpia y deshabilita el fin.
+function syncEndTimeEnabled() {
+  const startEl = document.getElementById('task-input-start');
+  const endEl = document.getElementById('task-input-end');
+  if (!startEl || !endEl) return;
+  const hasStart = !!startEl.value;
+  endEl.disabled = !hasStart;
+  if (!hasStart) endEl.value = '';
+  // Reflejar visualmente el estado deshabilitado.
+  endEl.style.opacity = hasStart ? '1' : '0.5';
+  endEl.style.cursor = hasStart ? '' : 'not-allowed';
 }
 
 // Duration Calculator
@@ -7056,8 +7187,20 @@ function setupEventListeners() {
   // Setup desktop columns click, add task buttons, and drag-and-drop listeners
   setupDesktopColumns(document);
 
-  // Task Form Duration calculation listeners (both input and change events for real-time update)
-  // (Listeners de hora/duracion eliminados)
+  // Campos de hora del editor: la "Hora de fin" se habilita solo si hay inicio,
+  // y se muestra la duración calculada en tiempo real.
+  const taskStartInput = document.getElementById('task-input-start');
+  const taskEndInput = document.getElementById('task-input-end');
+  if (taskStartInput) {
+    taskStartInput.addEventListener('input', () => {
+      syncEndTimeEnabled();
+      updateDurationDisplay();
+      syncAlarmCheckboxState();
+    });
+  }
+  if (taskEndInput) {
+    taskEndInput.addEventListener('input', updateDurationDisplay);
+  }
 
   // Close modals clicking X
   document.querySelectorAll('.close-modal-btn').forEach(btn => {
@@ -7209,15 +7352,27 @@ function setupEventListeners() {
     const tagId = document.getElementById('task-select-tag').value;
     const isBriefcase = document.getElementById('task-in-briefcase-checkbox').checked;
     const date = isBriefcase ? "" : document.getElementById('task-input-date').value;
-    // Alarma: solo válida si hay hora de inicio en la descripción.
+
+    // Hora de inicio / fin desde los campos del editor. Ambas opcionales; la hora
+    // de fin solo es válida si hay hora de inicio.
+    const startInputEl = document.getElementById('task-input-start');
+    const endInputEl = document.getElementById('task-input-end');
+    const startTime = (startInputEl && startInputEl.value) ? startInputEl.value : null;
+    const endTime = (startTime && endInputEl && endInputEl.value) ? endInputEl.value : null;
+
+    // Duración (minutos) a partir de inicio/fin (soporta cruce de medianoche).
+    let duration = null;
+    if (startTime && endTime) {
+      const [sh, sm] = startTime.split(':').map(Number);
+      const [eh, em] = endTime.split(':').map(Number);
+      let diff = (eh * 60 + em) - (sh * 60 + sm);
+      if (diff < 0) diff += 24 * 60;
+      duration = diff;
+    }
+
+    // Alarma: solo válida si hay hora de inicio (campo).
     const alarmCheckboxEl = document.getElementById('task-alarm-checkbox');
-    const alarm = !!(alarmCheckboxEl && alarmCheckboxEl.checked &&
-                     parseStartTimeFromDescription(description) !== null);
-    // Funcion de hora eliminada: las tareas ya no tienen hora ni duracion
-    const startTime = null;
-    const endTime = null;
-    const parsedDuration = parseDurationFromDescription(description);
-    const duration = parsedDuration ? parsedDuration.minutes : null;
+    const alarm = !!(alarmCheckboxEl && alarmCheckboxEl.checked && startTime);
 
     // Recurrence logic
     let recurrence = null;
@@ -8197,8 +8352,7 @@ function computeStats(keyword, period) {
   tasks.forEach(task => {
     if (kw && !normalizeForSearch(task.title).includes(kw)) return;
 
-    const parsed = parseDurationFromDescription(task.description);
-    const minutes = parsed ? parsed.minutes : 0;
+    const minutes = getTaskDurationMinutes(task) || 0;
 
     const addOccurrence = (dateStr) => {
       if (!dateInRange(dateStr, from, to)) return;
