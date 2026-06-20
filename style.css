@@ -1157,13 +1157,33 @@ input:checked + .slider:before {
    el cuerpo y en el pie). Solo afecta a #task-modal. */
 #task-modal .modal-footer {
   background-color: transparent;
-  padding: 12px 24px;
+  padding: 10px 24px 14px;
+  /* Sin línea horizontal sobre los botones (editor más compacto). */
+  border-top: none;
 }
 #task-modal .modal-body {
-  padding: 16px 24px;
+  padding: 14px 24px 4px;
 }
 #task-modal .form-group {
-  margin-bottom: 14px;
+  margin-bottom: 10px;
+}
+#task-modal .form-row {
+  margin-bottom: 10px;
+}
+/* Sección "¿Se repite?" sin las líneas horizontales arriba/abajo y más compacta. */
+#task-modal .recurrence-section {
+  border-top: none;
+  padding-top: 2px;
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+/* Panel de repetición (cuando se expande) un poco más compacto. */
+#task-modal .recurrence-panel {
+  margin-top: 10px;
+  padding: 12px;
+}
+#task-modal .recurrence-panel .form-group {
+  margin-bottom: 10px;
 }
 
 .mobile-only { display: none; }
