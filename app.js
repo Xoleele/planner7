@@ -6492,6 +6492,10 @@ function openStatsModal() {
 let timerInterval = null;
 let timerSeconds = 0;
 let timerStartTime = null;
+// true solo si el usuario EDITÓ manualmente la hora de inicio. Mientras sea
+// false, el contador usa timerStartTime (con segundos reales) y arranca en 0,
+// en lugar de la hora HH:MM redondeada del input (que perdería los segundos).
+let timerStartEdited = false;
 
 // Duración máxima del cronómetro: 12 horas (en milisegundos / segundos).
 const TIMER_MAX_MS = 12 * 60 * 60 * 1000;
@@ -6629,6 +6633,13 @@ function startTimer() {
   }
   setTimerSelectTagValue('default');
 
+  // Reset explícito del contador y del display, para que un cronómetro NUEVO
+  // siempre arranque desde 00:00:00 sin importar cómo se cerró el anterior.
+  timerSeconds = 0;
+  timerStartEdited = false; // hora aún no editada por el usuario
+  const timerDisplayEl = document.getElementById('timer-display');
+  if (timerDisplayEl) timerDisplayEl.textContent = '00:00:00';
+
   // Registrar hora de inicio
   timerStartTime = new Date();
 
@@ -6674,27 +6685,34 @@ function openTimerModal() {
     clearInterval(timerInterval);
   }
 
-  const renderTick = () => {
-    timerSeconds = Math.floor((Date.now() - timerStartTime.getTime()) / 1000);
-    if (timerSeconds < 0) timerSeconds = 0;
+  renderTimerTick();
+  timerInterval = setInterval(renderTimerTick, 1000);
+}
 
-    // Límite de 12 horas: al alcanzarlo, se finaliza automáticamente.
-    if (timerSeconds >= TIMER_MAX_SECONDS) {
-      finishTimerAuto();
-      return;
-    }
+// Actualiza el display del cronómetro. El tiempo corriendo se calcula desde la
+// hora de inicio EFECTIVA (getEffectiveStartDate): si el usuario edita la hora de
+// inicio, el contador se ajusta automáticamente, sin esperar al siguiente tick.
+function renderTimerTick() {
+  if (!timerStartTime) return;
+  const timerDisplay = document.getElementById('timer-display');
+  if (!timerDisplay) return;
 
-    const hrs = Math.floor(timerSeconds / 3600);
-    const mins = Math.floor((timerSeconds % 3600) / 60);
-    const secs = timerSeconds % 60;
-    timerDisplay.textContent =
-      String(hrs).padStart(2, '0') + ':' +
-      String(mins).padStart(2, '0') + ':' +
-      String(secs).padStart(2, '0');
-  };
+  timerSeconds = Math.floor((Date.now() - getEffectiveStartDate().getTime()) / 1000);
+  if (timerSeconds < 0) timerSeconds = 0;
 
-  renderTick();
-  timerInterval = setInterval(renderTick, 1000);
+  // Límite de 12 horas: al alcanzarlo, se finaliza automáticamente.
+  if (timerSeconds >= TIMER_MAX_SECONDS) {
+    finishTimerAuto();
+    return;
+  }
+
+  const hrs = Math.floor(timerSeconds / 3600);
+  const mins = Math.floor((timerSeconds % 3600) / 60);
+  const secs = timerSeconds % 60;
+  timerDisplay.textContent =
+    String(hrs).padStart(2, '0') + ':' +
+    String(mins).padStart(2, '0') + ':' +
+    String(secs).padStart(2, '0');
 }
 
 // Cancelar: cierra el modal y descarta el cronómetro (limpia estado persistido).
@@ -6709,6 +6727,15 @@ function stopTimer() {
   }
   timerStartTime = null;
   timerSeconds = 0;
+  timerStartEdited = false;
+
+  // Limpiar también la UI: display a 00:00:00 e input de hora vacío, para que el
+  // próximo cronómetro arranque de cero sin residuos del anterior.
+  const timerDisplayEl = document.getElementById('timer-display');
+  if (timerDisplayEl) timerDisplayEl.textContent = '00:00:00';
+  const startInputEl = document.getElementById('timer-input-start');
+  if (startInputEl) startInputEl.value = '';
+
   setTimerButtonActive(false);
   clearActiveTimerState();
 }
@@ -6733,6 +6760,9 @@ function minimizeTimer() {
 // inicio real); si no, usa la hora real de arranque (timerStartTime).
 function getEffectiveStartDate() {
   if (!timerStartTime) return new Date();
+  // Si el usuario no editó la hora, usar timerStartTime tal cual (con segundos),
+  // para que el contador arranque EXACTAMENTE en 00:00:00.
+  if (!timerStartEdited) return timerStartTime;
   const input = document.getElementById('timer-input-start');
   const val = input ? input.value : '';
   const m = val && val.match(/^(\d{1,2}):(\d{2})$/);
@@ -6804,8 +6834,11 @@ function createTimedTask(startDate, endDate, title, tagId, userDescription) {
 
 // Finalizar manualmente desde el modal (botón "Finalizar").
 function finishTimer() {
-  // El cronómetro debe tener al menos 5 minutos (300 segundos) para guardarse.
-  const elapsed = timerStartTime ? Math.floor((Date.now() - timerStartTime.getTime()) / 1000) : 0;
+  // La duración mínima para guardar es 1 minuto, calculada desde la hora de
+  // inicio EFECTIVA (la editada por el usuario si la cambió). Así, si el usuario
+  // ajusta el inicio a varios minutos antes, puede guardar aunque no haya pasado
+  // un minuto real desde que abrió el cronómetro.
+  const elapsed = timerStartTime ? Math.floor((Date.now() - getEffectiveStartDate().getTime()) / 1000) : 0;
   if (elapsed < 60) {
     showDurationToast("Lo mínimo que se puede cronometrar es 1 minuto");
     return;
@@ -6912,6 +6945,8 @@ function resumeTimerFromState(state) {
   if (descInput) descInput.value = state.description || '';
   const startInput = document.getElementById('timer-input-start');
   if (startInput) startInput.value = state.startTimeEdited || '';
+  // Solo tratamos la hora como "editada" si había un valor guardado distinto.
+  timerStartEdited = !!state.startTimeEdited;
   setTimerSelectTagValue(state.tagId || 'default');
 
   // Al reabrir la app con un cronómetro corriendo, mostrar automáticamente la
@@ -7043,7 +7078,14 @@ function setupEventListeners() {
     });
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop && pressStartedOnBackdrop) {
-        backdrop.classList.add('hidden');
+        // El modal del cronómetro no se "oculta a secas" al hacer clic fuera:
+        // se minimiza (sigue corriendo, el botón de la barra queda activo). Así
+        // no queda un cronómetro corriendo de forma inconsistente.
+        if (backdrop.id === 'timer-modal' && timerStartTime) {
+          minimizeTimer();
+        } else {
+          backdrop.classList.add('hidden');
+        }
       } else if (!e.target.closest('input, textarea, select, button, .custom-select-trigger, .color-circle')) {
         if (document.activeElement && typeof document.activeElement.blur === 'function') {
           document.activeElement.blur();
@@ -7467,7 +7509,13 @@ function setupEventListeners() {
   const timerStartInput = document.getElementById('timer-input-start');
   if (timerStartInput) {
     timerStartInput.addEventListener('input', () => {
-      if (timerStartTime) saveActiveTimerState();
+      if (timerStartTime) {
+        // El usuario cambió la hora manualmente: a partir de aquí el contador
+        // usa la hora editada. Se ajusta de inmediato.
+        timerStartEdited = true;
+        renderTimerTick();
+        saveActiveTimerState();
+      }
     });
   }
 

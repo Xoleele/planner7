@@ -1,0 +1,1 @@
+si haces cambios a la app, al final de tu respuesta dame un summary en una frase para pegar en github desktop
