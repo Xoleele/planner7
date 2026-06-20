@@ -6942,13 +6942,11 @@ function createTimedTask(startDate, endDate, title, tagId, userDescription) {
   const day = String(startDate.getDate()).padStart(2, '0');
   const dateStr = `${year}-${month}-${day}`;
 
-  // La hora de inicio y fin se colocan como rango "HH:MM - HH:MM" al inicio de
-  // la descripción (mismo formato que el resto de la app reconoce y dibuja).
-  // Si el usuario escribió una descripción, va después del rango horario.
-  const extra = (userDescription && userDescription.trim()) ? userDescription.trim() : '';
-  const description = extra
-    ? `${startTimeStr} - ${endTimeStr}. ${extra}`
-    : `${startTimeStr} - ${endTimeStr}`;
+  // La hora de inicio y fin NO se escriben en la descripción: viven en los
+  // campos task.startTime / task.endTime (que es de donde la app muestra la hora
+  // en su sección específica y el horario dibuja el bloque). La descripción
+  // contiene únicamente lo que el usuario escribió.
+  const description = (userDescription && userDescription.trim()) ? userDescription.trim() : '';
 
   const newTask = {
     id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
