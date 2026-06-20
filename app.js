@@ -38,114 +38,23 @@ let eventListenersInitialized = false;
 let intentionalLogout = false; // true solo cuando el usuario hace logout explícito
 let welcomeShownThisSession = false; // evita repetir el panel de bienvenida al volver de otra pestaña
 
-// ─── Duration parser ─────────────────────────────────────────────────────────
-function parseDurationFromDescription(description) {
-  if (!description || typeof description !== 'string') return null;
-  const s = description.trimStart();
-  const rangeRe = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/;
-  const rangeMatch = s.match(rangeRe);
-  if (rangeMatch) {
-    const startMin = parseInt(rangeMatch[1]) * 60 + parseInt(rangeMatch[2]);
-    const endMin   = parseInt(rangeMatch[3]) * 60 + parseInt(rangeMatch[4]);
-    const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
-    return { minutes: diff, rawMatch: rangeMatch[0] };
-  }
-  // Detectar duracion al PRINCIPIO de la descripcion. No exigimos que despues
-  // venga un espacio o el fin de texto: cualquier caracter posterior (".", ")",
-  // ",", letras, etc.) se ignora. Asi "2h." detecta igual que "2h".
-  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?/i;
-  const hminMatch = s.match(hminRe);
-  if (hminMatch) {
-    return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
-  }
-  const minRe = /^(\d+)(?:min|m)/i;
-  const minMatch = s.match(minRe);
-  if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
-  return null;
-}
-function minutesToHHMM(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-function minutesToReadable(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h > 0 && m > 0) return `${h}h${m}m`;
-  if (h > 0) return `${h}h`;
-  return `${m}m`;
-}
-function getTotalDurationForDay(dateStr) {
-  const dayTasks = tasks.filter(task => {
-    if (task.completed) return false;
-    return checkTaskOccurrence(task, new Date(dateStr + 'T12:00:00'));
-  });
-  return dayTasks.reduce((sum, task) => {
-    const parsed = parseDurationFromDescription(task.description);
-    return sum + (parsed ? parsed.minutes : 0);
-  }, 0);
-}
 
 // ─── Duration parser ─────────────────────────────────────────────────────────
+// Detecta una duración escrita al PRINCIPIO de la descripción. Reconoce:
+//   • Rango horario:        "08:00-09:30", "8:00 - 9:30"
+//   • Horas + minutos:      "1h", "1h20m", "1h20min", "1h 20m", "1h 20min"
+//   • Solo minutos:         "20m", "20min", "20 min"
+//   • Palabras completas:   "1 hora", "2 horas", "1 hora 20 minutos",
+//                           "20 minutos", "62 minutos"
+//   • Combinaciones mixtas: "1h 20 min", "1 hora 20m", etc.
+// No exige separador después: cualquier carácter posterior (".", ")", ",",
+// letras…) se ignora. Así "1h. Dormir la tarde" detecta "1h" igual que "1h".
+// Devuelve { minutes, rawMatch } o null si no hay una duración válida al inicio.
 function parseDurationFromDescription(description) {
   if (!description || typeof description !== 'string') return null;
   const s = description.trimStart();
-  const rangeRe = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/;
-  const rangeMatch = s.match(rangeRe);
-  if (rangeMatch) {
-    const startMin = parseInt(rangeMatch[1]) * 60 + parseInt(rangeMatch[2]);
-    const endMin   = parseInt(rangeMatch[3]) * 60 + parseInt(rangeMatch[4]);
-    const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
-    return { minutes: diff, rawMatch: rangeMatch[0] };
-  }
-  // Detectar duracion al PRINCIPIO de la descripcion. No exigimos que despues
-  // venga un espacio o el fin de texto: cualquier caracter posterior (".", ")",
-  // ",", letras, etc.) se ignora. Asi "2h." detecta igual que "2h".
-  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?/i;
-  const hminMatch = s.match(hminRe);
-  if (hminMatch) {
-    return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
-  }
-  const minRe = /^(\d+)(?:min|m)/i;
-  const minMatch = s.match(minRe);
-  if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
-  return null;
-}
-function minutesToHHMM(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-function minutesToReadable(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h > 0 && m > 0) return `${h}h${m}m`;
-  if (h > 0) return `${h}h`;
-  return `${m}m`;
-}
-function getTotalDurationForDay(dateStr) {
-  const dayTasks = tasks.filter(task => {
-    if (task.recurrence && task.recurrence.enabled) {
-      if (task.completedOccurrences && task.completedOccurrences.includes(dateStr)) return false;
-    } else {
-      if (task.completed) return false;
-    }
-    // Solo sumar tareas VISIBLES: si su etiqueta está apagada (visible === false),
-    // no se cuenta (igual que no aparece en el planner/horario).
-    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
-    if (tag && tag.visible === false) return false;
-    return checkTaskOccurrence(task, new Date(dateStr + 'T12:00:00'));
-  });
-  return dayTasks.reduce((sum, task) => {
-    const parsed = parseDurationFromDescription(task.description);
-    return sum + (parsed ? parsed.minutes : 0);
-  }, 0);
-}
 
-// ─── Duration parser ─────────────────────────────────────────────────────────
-function parseDurationFromDescription(description) {
-  if (!description || typeof description !== 'string') return null;
-  const s = description.trimStart();
+  // 1) Rango horario "HH:MM-HH:MM".
   const rangeRe = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/;
   const rangeMatch = s.match(rangeRe);
   if (rangeMatch) {
@@ -154,73 +63,25 @@ function parseDurationFromDescription(description) {
     const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
     return { minutes: diff, rawMatch: rangeMatch[0] };
   }
-  // Detectar duracion al PRINCIPIO de la descripcion. No exigimos que despues
-  // venga un espacio o el fin de texto: cualquier caracter posterior (".", ")",
-  // ",", letras, etc.) se ignora. Asi "2h." detecta igual que "2h".
-  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?/i;
-  const hminMatch = s.match(hminRe);
-  if (hminMatch) {
-    return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
-  }
-  const minRe = /^(\d+)(?:min|m)/i;
-  const minMatch = s.match(minRe);
-  if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
-  return null;
-}
-function minutesToHHMM(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-function minutesToReadable(minutes) {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h > 0 && m > 0) return `${h}h${m}m`;
-  if (h > 0) return `${h}h`;
-  return `${m}m`;
-}
-function getTotalDurationForDay(dateStr) {
-  const dayTasks = tasks.filter(task => {
-    if (task.recurrence && task.recurrence.enabled) {
-      if (task.completedOccurrences && task.completedOccurrences.includes(dateStr)) return false;
-    } else {
-      if (task.completed) return false;
-    }
-    // Solo sumar tareas VISIBLES: si su etiqueta está apagada (visible === false),
-    // no se cuenta (igual que no aparece en el planner/horario).
-    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
-    if (tag && tag.visible === false) return false;
-    return checkTaskOccurrence(task, new Date(dateStr + 'T12:00:00'));
-  });
-  return dayTasks.reduce((sum, task) => {
-    const parsed = parseDurationFromDescription(task.description);
-    return sum + (parsed ? parsed.minutes : 0);
-  }, 0);
-}
 
-// ─── Duration parser ─────────────────────────────────────────────────────────
-function parseDurationFromDescription(description) {
-  if (!description || typeof description !== 'string') return null;
-  const s = description.trimStart();
-  const rangeRe = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/;
-  const rangeMatch = s.match(rangeRe);
-  if (rangeMatch) {
-    const startMin = parseInt(rangeMatch[1]) * 60 + parseInt(rangeMatch[2]);
-    const endMin   = parseInt(rangeMatch[3]) * 60 + parseInt(rangeMatch[4]);
-    const diff = endMin > startMin ? endMin - startMin : (24 * 60 - startMin) + endMin;
-    return { minutes: diff, rawMatch: rangeMatch[0] };
+  // 2) Duración "N horas [y] M minutos" en cualquiera de sus formas. Las
+  //    unidades aceptan: h / hr / hora / horas  y  m / min / minuto / minutos.
+  //    Se permiten espacios opcionales entre número y unidad, y entre el bloque
+  //    de horas y el de minutos (con o sin "y").
+  const HOUR_U = '(?:horas?|hr?s?|h)';
+  const MIN_U  = '(?:minutos?|mins?|m)';
+  // a) Horas (con minutos opcionales): "1h", "1 hora", "1h20m", "1h 20 min", …
+  const hReN = new RegExp(`^(\\d+)\\s*${HOUR_U}(?:\\s*(?:y\\s*)?(\\d+)\\s*${MIN_U})?`, 'i');
+  const hM = s.match(hReN);
+  if (hM) {
+    const mins = parseInt(hM[1]) * 60 + (hM[2] ? parseInt(hM[2]) : 0);
+    return { minutes: mins, rawMatch: hM[0] };
   }
-  // Detectar duracion al PRINCIPIO de la descripcion. No exigimos que despues
-  // venga un espacio o el fin de texto: cualquier caracter posterior (".", ")",
-  // ",", letras, etc.) se ignora. Asi "2h." detecta igual que "2h".
-  const hminRe = /^(\d+)h(?:(\d+)(?:min|m))?/i;
-  const hminMatch = s.match(hminRe);
-  if (hminMatch) {
-    return { minutes: parseInt(hminMatch[1]) * 60 + (hminMatch[2] ? parseInt(hminMatch[2]) : 0), rawMatch: hminMatch[0] };
-  }
-  const minRe = /^(\d+)(?:min|m)/i;
-  const minMatch = s.match(minRe);
-  if (minMatch) return { minutes: parseInt(minMatch[1]), rawMatch: minMatch[0] };
+  // b) Solo minutos: "20m", "20 min", "62 minutos".
+  const mReN = new RegExp(`^(\\d+)\\s*${MIN_U}`, 'i');
+  const mM = s.match(mReN);
+  if (mM) return { minutes: parseInt(mM[1]), rawMatch: mM[0] };
+
   return null;
 }
 function minutesToHHMM(minutes) {
@@ -2750,11 +2611,17 @@ function getTaskTimeRange(task) {
   };
 }
 
-// Duración (minutos) de una tarea desde sus campos. null si no tiene inicio+fin.
+// Duración (minutos) de una tarea para estadísticas/sumas.
+// Prioridad: (1) si la tarea tiene hora de inicio + fin definidas, se usa esa
+// duración; (2) en caso contrario, se usa la duración escrita al inicio de la
+// descripción ("1h", "20 min", "1 hora 20 minutos", …). null si no hay ninguna.
 function getTaskDurationMinutes(task) {
   const r = getTaskTimeRange(task);
-  if (!r) return null;
-  return (r.crossesMidnight ? r.rawEndMin + 1440 : r.rawEndMin) - r.startMin;
+  if (r) {
+    return (r.crossesMidnight ? r.rawEndMin + 1440 : r.rawEndMin) - r.startMin;
+  }
+  const parsed = parseDurationFromDescription(task && task.description);
+  return parsed ? parsed.minutes : null;
 }
 
 // ─── Alarma: detectar la hora de inicio al comienzo de la descripcion ─────────
