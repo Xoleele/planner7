@@ -7270,8 +7270,9 @@ function setupEventListeners() {
     });
   }
 
-  // Icono de reloj (a la izquierda del campo) → abre el selector de hora.
-  document.querySelectorAll('.time-clock-icon').forEach(icon => {
+  // Iconos de reloj y de calendario (a la izquierda del campo) → abren el
+  // selector nativo del campo correspondiente.
+  document.querySelectorAll('.time-clock-icon, .date-calendar-icon').forEach(icon => {
     icon.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();

@@ -1,7 +1,7 @@
 // IMPORTANTE: sube este número de versión cada vez que cambies app.js, style.css
 // o index.html. Al cambiar, el navegador activará un service worker nuevo, borrará
 // el caché viejo y servirá los archivos actualizados.
-const CACHE_VERSION = 'v31';
+const CACHE_VERSION = 'v32';
 const CACHE_NAME = 'planner7-' + CACHE_VERSION;
 
 // Archivos de código de la app: siempre se intenta traer la versión más reciente

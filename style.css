@@ -635,7 +635,7 @@ html:not(.mobile-mode) .app-container {
   cursor: not-allowed;
 }
 
-/* Campo de FECHA con botón ✕ (quitar fecha → archivar). */
+/* Campo de FECHA con icono de calendario a la IZQUIERDA y botón ✕ a la derecha. */
 .date-input-wrapper {
   position: relative;
   display: flex;
@@ -644,6 +644,24 @@ html:not(.mobile-mode) .app-container {
 .date-input-wrapper input[type="date"] {
   flex: 1;
   padding-right: 30px;
+}
+.date-input-wrapper.has-calendar input[type="date"] {
+  padding-left: 30px;
+}
+/* Icono de calendario propio, a la izquierda del campo (reemplaza al nativo). */
+.date-calendar-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.55;
+  cursor: pointer;
+  z-index: 1;
+}
+/* Ocultar el icono nativo del selector de fecha. */
+.date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
 }
 .time-clear-btn {
   position: absolute;
