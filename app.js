@@ -2775,16 +2775,27 @@ function parseStartTimeFromDescription(description) {
 // y se deshabilita (atenuado).
 function syncAlarmCheckboxState() {
   const checkbox = document.getElementById('task-alarm-checkbox');
-  const label = document.getElementById('task-alarm-label');
-  if (!checkbox || !label) return;
+  if (!checkbox) return;
   // La alarma requiere una HORA DE INICIO (campo del editor).
   const startEl = document.getElementById('task-input-start');
   const hasStart = !!(startEl && startEl.value);
   checkbox.disabled = !hasStart;
   if (!hasStart) checkbox.checked = false;
-  label.style.opacity = hasStart ? '1' : '0.45';
-  label.style.cursor = hasStart ? 'pointer' : 'not-allowed';
-  label.title = hasStart ? '' : 'Define una hora de inicio para activar la alarma';
+
+  // Reflejar el estado en el icono de campana: deshabilitado si no hay hora,
+  // resaltado ("active") si la alarma está activada.
+  const bell = document.getElementById('task-alarm-bell');
+  if (bell) {
+    const on = hasStart && checkbox.checked;
+    bell.disabled = !hasStart;
+    bell.classList.toggle('active', on);
+    // Campana rellena (negra) cuando está activa; de contorno cuando no.
+    const bellImg = bell.querySelector('img');
+    if (bellImg) bellImg.src = on ? 'icons/bell-filled.svg' : 'icons/bell.svg';
+    bell.title = !hasStart
+      ? 'Define una hora de inicio para activar la alarma'
+      : (checkbox.checked ? 'Alarma activada (clic para desactivar)' : 'Activar alarma');
+  }
 }
 
 // ─── Sistema de alarmas ───────────────────────────────────────────────────────
@@ -3150,28 +3161,32 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   titleEl.textContent = titleText;
   block.appendChild(titleEl);
 
-  // Rango horario del bloque (entre título y descripción). Se actualiza en vivo
-  // durante el arrastre. Solo en bloques con descripción visible (≥60 min) para
-  // no saturar los compactos.
-  if (durationMin > 59 && task && task.startTime) {
-    const timeEl = document.createElement('div');
-    timeEl.className = 'cr-task-time';
-    timeEl.textContent = task.endTime
-      ? `${task.startTime} - ${task.endTime}`
-      : task.startTime;
-    block.appendChild(timeEl);
-  }
-
-  // > 59 min (es decir, 60 min en adelante): añadir la descripción completa,
-  // recortada a las líneas que caben.
-  if (durationMin > 59 && descText && descText.trim() !== '') {
+  // Hora + descripción en UN SOLO bloque (≥60 min), en línea y con el mismo
+  // estilo: "00:00-00:00. descripción". Son elementos separados (spans). La hora
+  // (.cr-task-time) se actualiza en vivo durante el arrastre.
+  const crHasDesc = descText && descText.trim() !== '';
+  const crHasTime = task && task.startTime;
+  if (durationMin > 59 && (crHasTime || crHasDesc)) {
     const descEl = document.createElement('div');
     descEl.className = 'cr-task-desc';
-    descEl.textContent = descText;
 
-    // Calcular cuántas líneas de descripción caben en la altura disponible:
-    //   alto - padding vertical (24px) - alto del título (~18px) - gap (6px).
-    // Altura de línea de la descripción ≈ 11.5px * 1.4 ≈ 16px.
+    if (crHasTime) {
+      const timeEl = document.createElement('span');
+      timeEl.className = 'cr-task-time';
+      timeEl.textContent = task.endTime
+        ? `${task.startTime}-${task.endTime}`
+        : task.startTime;
+      descEl.appendChild(timeEl);
+      if (crHasDesc) descEl.appendChild(document.createTextNode('. '));
+    }
+    if (crHasDesc) {
+      const descSpan = document.createElement('span');
+      descSpan.className = 'cr-task-desc-text';
+      descSpan.textContent = descText;
+      descEl.appendChild(descSpan);
+    }
+
+    // Calcular cuántas líneas caben en la altura disponible.
     const DESC_LINE_PX = 16;
     const available = heightPx - 24 /*padding*/ - 18 /*título*/ - 6 /*gap*/;
     const lines = Math.max(1, Math.floor(available / DESC_LINE_PX));
@@ -3739,7 +3754,7 @@ function applyCronogramaDragMove(clientX, clientY) {
       const m = ((min % 1440) + 1440) % 1440;
       return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
     };
-    timeEl.textContent = `${toHHMM(startMin)} - ${toHHMM(startMin + crDrag.durationMin)}`;
+    timeEl.textContent = `${toHHMM(startMin)}-${toHHMM(startMin + crDrag.durationMin)}`;
   }
 }
 
@@ -4075,24 +4090,35 @@ function createTaskCard(task, occurrenceDate) {
   title.textContent = task.title;
   card.appendChild(title);
 
-  // Hora (entre el título y la descripción). Formato "HH:MM - HH:MM" si hay fin,
-  // o solo "HH:MM" si hay inicio sin fin. Si no hay hora, no se muestra (la
-  // descripción queda directamente bajo el título).
-  if (task.startTime) {
-    const timeEl = document.createElement('div');
-    timeEl.className = 'task-card-time';
-    timeEl.textContent = task.endTime
-      ? `${task.startTime} - ${task.endTime}`
-      : task.startTime;
-    card.appendChild(timeEl);
-  }
+  // Hora + descripción en UN SOLO bloque (mismo estilo y espaciado que tenía la
+  // descripción). La hora y la descripción son elementos separados (spans), pero
+  // se renderizan en línea para verse como un texto continuo:
+  //   "00:00-00:00. descripción"   (hora sin espacios; ". " como separador).
+  // Si solo hay hora, se ve la hora; si solo hay descripción, solo la descripción.
+  const hasDescText = task.description && task.description.trim() !== '';
+  if (task.startTime || hasDescText) {
+    const descBlock = document.createElement('div');
+    descBlock.className = 'task-card-desc';
 
-  // Description (if present)
-  if (task.description && task.description.trim() !== '') {
-    const desc = document.createElement('div');
-    desc.className = 'task-card-desc';
-    desc.textContent = task.description;
-    card.appendChild(desc);
+    if (task.startTime) {
+      const timeEl = document.createElement('span');
+      timeEl.className = 'task-card-time';
+      timeEl.textContent = task.endTime
+        ? `${task.startTime}-${task.endTime}`
+        : task.startTime;
+      descBlock.appendChild(timeEl);
+      // Separador ". " solo si además hay descripción.
+      if (hasDescText) descBlock.appendChild(document.createTextNode('. '));
+    }
+
+    if (hasDescText) {
+      const descSpan = document.createElement('span');
+      descSpan.className = 'task-card-desc-text';
+      descSpan.textContent = task.description;
+      descBlock.appendChild(descSpan);
+    }
+
+    card.appendChild(descBlock);
   }
 
   // Meta row (Time badges and recurrence indicator)
@@ -5157,6 +5183,7 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
 
   // Estado inicial de los campos de hora (fin deshabilitado si no hay inicio).
   syncEndTimeEnabled();
+  syncAlarmCheckboxState(); // estado inicial del icono de campana
 
   // Hide end recurrence sub-fields
   document.getElementById('repeat-end-date').classList.add('hidden');
@@ -5183,6 +5210,7 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
     syncEndTimeEnabled();
     setSelectTagValue(task.tagId);
     if (alarmCheckbox) alarmCheckbox.checked = !!task.alarm;
+    syncAlarmCheckboxState(); // reflejar el estado en el icono de campana
 
     if (!task.date) {
       briefcaseCheckbox.checked = true;
@@ -7200,6 +7228,77 @@ function setupEventListeners() {
   }
   if (taskEndInput) {
     taskEndInput.addEventListener('input', updateDurationDisplay);
+  }
+
+  // Clic en cualquier parte de un campo de hora → abrir el selector nativo.
+  [taskStartInput, taskEndInput].forEach(inp => {
+    if (!inp) return;
+    inp.addEventListener('click', () => {
+      if (inp.disabled) return;
+      if (typeof inp.showPicker === 'function') {
+        try { inp.showPicker(); } catch (_) {}
+      }
+    });
+  });
+
+  // Botones ✕ "Sin hora": vacían el campo y refrescan fin/alarma/duración.
+  // (Solo los que tienen data-target; el ✕ de fecha se maneja por separado.)
+  document.querySelectorAll('.time-clear-btn[data-target]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const target = document.getElementById(btn.dataset.target);
+      if (!target || target.disabled) return;
+      target.value = '';
+      syncEndTimeEnabled();
+      updateDurationDisplay();
+      syncAlarmCheckboxState();
+    });
+  });
+
+  // Icono de campana → activa/desactiva la alarma (solo si hay hora de inicio).
+  const alarmBell = document.getElementById('task-alarm-bell');
+  if (alarmBell) {
+    alarmBell.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startEl = document.getElementById('task-input-start');
+      const checkbox = document.getElementById('task-alarm-checkbox');
+      if (!checkbox || !(startEl && startEl.value)) return; // sin hora → no se activa
+      checkbox.checked = !checkbox.checked;
+      syncAlarmCheckboxState();
+    });
+  }
+
+  // Icono de reloj (a la izquierda del campo) → abre el selector de hora.
+  document.querySelectorAll('.time-clock-icon').forEach(icon => {
+    icon.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const target = document.getElementById(icon.dataset.target);
+      if (!target || target.disabled) return;
+      if (typeof target.showPicker === 'function') {
+        try { target.showPicker(); } catch (_) { target.focus(); }
+      } else {
+        target.focus();
+      }
+    });
+  });
+
+  // ✕ junto a la FECHA → quita la fecha y archiva la tarea (reutiliza el checkbox
+  // oculto de archivar, disparando su lógica existente).
+  const dateClearBtn = document.getElementById('task-date-clear');
+  if (dateClearBtn) {
+    dateClearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const briefcaseCheckbox = document.getElementById('task-in-briefcase-checkbox');
+      if (!briefcaseCheckbox) return;
+      // Alternar: si tiene fecha → archivar (sin fecha); si ya está archivada →
+      // desarchivar y volver a habilitar la fecha (hoy por defecto).
+      briefcaseCheckbox.checked = !briefcaseCheckbox.checked;
+      briefcaseCheckbox.dispatchEvent(new Event('change'));
+    });
   }
 
   // Close modals clicking X
