@@ -2789,6 +2789,13 @@ body.not-logged-in .app-container {
   transform-origin: right center;
 }
 
+/* Resaltado al arrastrar una tarea del horario sobre el panel de archivados. */
+.briefcase-drawer.drag-over {
+  border-color: var(--border-focus, #0071e3);
+  box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.35), var(--shadow-md);
+  background-color: rgba(0, 113, 227, 0.04);
+}
+
 .planner-grid {
   flex: 7;  /* 7 partes vs 1 del drawer = mismo ancho por columna */
   min-width: 0;

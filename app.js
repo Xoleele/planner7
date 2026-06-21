@@ -4053,16 +4053,23 @@ function applyCronogramaDragMove(clientX, clientY) {
   }
   crDrag.overTrash = overTrash;
 
-  // 0a) ¿El puntero está sobre el archivado (maletín, #briefcase-btn)? Al soltar
-  // ahí se archiva la tarea (igual que arrastrarla al maletín en el planner).
+  // 0a) ¿El puntero está sobre el archivado? Cuenta tanto el ICONO (#briefcase-btn)
+  // como el PANEL de archivados abierto (#briefcase-drawer). Al soltar en
+  // cualquiera de los dos, se archiva la tarea.
   const briefcaseBtn = document.getElementById('briefcase-btn');
-  let overBriefcase = false;
-  if (briefcaseBtn) {
-    const br = briefcaseBtn.getBoundingClientRect();
-    overBriefcase = clientX >= br.left && clientX <= br.right
-      && clientY >= br.top && clientY <= br.bottom;
-    briefcaseBtn.classList.toggle('drag-over', overBriefcase);
-  }
+  const briefcaseDrawer = document.getElementById('briefcase-drawer');
+  const inRect = (el) => {
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return false;
+    return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+  };
+  const overBtn = inRect(briefcaseBtn);
+  const drawerOpen = briefcaseDrawer && !briefcaseDrawer.classList.contains('closed');
+  const overDrawer = drawerOpen && inRect(briefcaseDrawer);
+  const overBriefcase = overBtn || overDrawer;
+  if (briefcaseBtn) briefcaseBtn.classList.toggle('drag-over', overBtn);
+  if (briefcaseDrawer) briefcaseDrawer.classList.toggle('drag-over', overDrawer);
   crDrag.overBriefcase = overBriefcase;
 
   // 0b) ¿El puntero está por ENCIMA del área de scroll del horario (zona del
@@ -4186,6 +4193,8 @@ function clearCronogramaHeaderTargets() {
   if (t) t.classList.remove('drag-over');
   const b = document.getElementById('briefcase-btn');
   if (b) b.classList.remove('drag-over');
+  const d = document.getElementById('briefcase-drawer');
+  if (d) d.classList.remove('drag-over');
 }
 
 // Persiste el resultado de un arrastre (compartido por ratón y táctil). Espera
