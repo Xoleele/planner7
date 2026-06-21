@@ -6265,28 +6265,36 @@ function renderPieChartSVG(includedGroups) {
   }
   
   if (includedGroups.length === 1) {
+    const percentVal = 100;
+    const textEl = percentVal >= 5 ? `<text x="0" y="0" fill="#ffffff" font-size="0.11" font-weight="700" text-anchor="middle" dominant-baseline="central" style="font-family: inherit;">100%</text>` : '';
     return `
       <svg viewBox="-1.05 -1.05 2.1 2.1" style="width: 100%; height: 100%; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.06));">
         <circle cx="0" cy="0" r="0.95" fill="${includedGroups[0].color.bg}" stroke="none" />
+        ${textEl}
       </svg>
     `;
   }
   
-  let cumulativePercent = 0;
+  let cumulativeAngle = -Math.PI / 2; // Inicia a las 12 en punto (arriba)
   const paths = [];
+  const labels = [];
   
   includedGroups.forEach(group => {
     const percent = group.minutes / totalMins;
     if (percent <= 0) return;
     
+    const percentVal = Math.round(percent * 100);
+    const startAngle = cumulativeAngle;
+    cumulativeAngle += percent * 2 * Math.PI;
+    const endAngle = cumulativeAngle;
+    
     if (percent >= 0.999) {
       paths.push(`<circle cx="0" cy="0" r="0.95" fill="${group.color.bg}" stroke="none" />`);
+      if (percentVal >= 5) {
+        labels.push(`<text x="0" y="0" fill="#ffffff" font-size="0.11" font-weight="700" text-anchor="middle" dominant-baseline="central" style="font-family: inherit;">${percentVal}%</text>`);
+      }
       return;
     }
-    
-    const startAngle = cumulativePercent * 2 * Math.PI;
-    cumulativePercent += percent;
-    const endAngle = cumulativePercent * 2 * Math.PI;
     
     const startX = Math.cos(startAngle);
     const startY = Math.sin(startAngle);
@@ -6303,11 +6311,20 @@ function renderPieChartSVG(includedGroups) {
     ].join(' ');
     
     paths.push(`<path d="${pathData}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.02" stroke-linejoin="round" />`);
+    
+    if (percentVal >= 5) {
+      const middleAngle = (startAngle + endAngle) / 2;
+      const labelR = 0.68; // Posiciona la etiqueta a un 68% del radio (más hacia el exterior)
+      const labelX = labelR * Math.cos(middleAngle);
+      const labelY = labelR * Math.sin(middleAngle);
+      labels.push(`<text x="${labelX.toFixed(3)}" y="${labelY.toFixed(3)}" fill="#ffffff" font-size="0.11" font-weight="700" text-anchor="middle" dominant-baseline="central" style="font-family: inherit;">${percentVal}%</text>`);
+    }
   });
   
   return `
-    <svg viewBox="-1.05 -1.05 2.1 2.1" style="width: 100%; height: 100%; transform: rotate(-90deg); filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.06));">
+    <svg viewBox="-1.05 -1.05 2.1 2.1" style="width: 100%; height: 100%; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.06));">
       ${paths.join('')}
+      ${labels.join('')}
     </svg>
   `;
 }
@@ -6347,6 +6364,9 @@ function renderDailyStatsPanel(panelEl, dateStr) {
   });
   
   const groupedList = Object.values(grouped);
+  
+  // Ordenar de mayor a menor duración (minutos)
+  groupedList.sort((a, b) => b.minutes - a.minutes);
   
   // Asignar colores a los grupos
   const usedColors = new Set();
@@ -6412,7 +6432,7 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       const wrapper = document.createElement('div');
       wrapper.style.display = 'flex';
       wrapper.style.alignItems = 'center';
-      wrapper.style.gap = '10px';
+      wrapper.style.gap = '6px';
       wrapper.style.minWidth = '0';
       wrapper.style.overflow = 'hidden';
       
@@ -6433,8 +6453,7 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       // 2. Celda de Porcentaje
       const tdPercent = document.createElement('td');
       tdPercent.style.textAlign = 'right';
-      tdPercent.style.fontWeight = '600';
-      tdPercent.style.width = '60px';
+      tdPercent.style.width = '42px';
       tdPercent.textContent = percentStr;
       tr.appendChild(tdPercent);
       
@@ -6442,21 +6461,20 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       const tdDuration = document.createElement('td');
       tdDuration.style.textAlign = 'right';
       tdDuration.style.color = 'var(--text-main)';
-      tdDuration.style.fontWeight = '500';
-      tdDuration.style.width = '80px';
+      tdDuration.style.width = '62px';
       tdDuration.textContent = durationStr;
       tr.appendChild(tdDuration);
       
       // 4. Botón de acción con icono '+' para excluir/incluir
       const tdAction = document.createElement('td');
       tdAction.style.textAlign = 'center';
-      tdAction.style.width = '40px';
+      tdAction.style.width = '30px';
       
       const btn = document.createElement('button');
       btn.className = 'daily-stats-btn-exclude' + (isExcluded ? ' excluded' : '');
       btn.title = isExcluded ? 'Incluir en el total' : 'Excluir del total';
       btn.innerHTML = `
-        <svg width="14.4" height="14.4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg width="12.5" height="12.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect x="2" y="2" width="20" height="20" rx="5" fill="${isExcluded ? '#9a9a9a' : '#111111'}" />
           <line x1="12" y1="7" x2="12" y2="17" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
           <line x1="7" y1="12" x2="17" y2="12" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
@@ -6490,18 +6508,18 @@ function renderDailyStatsPanel(panelEl, dateStr) {
     
     const tdTotalPercent = document.createElement('td');
     tdTotalPercent.style.textAlign = 'right';
-    tdTotalPercent.style.width = '60px';
+    tdTotalPercent.style.width = '42px';
     tdTotalPercent.textContent = '100%';
     trTotal.appendChild(tdTotalPercent);
     
     const tdTotalDuration = document.createElement('td');
     tdTotalDuration.style.textAlign = 'right';
-    tdTotalDuration.style.width = '80px';
+    tdTotalDuration.style.width = '62px';
     tdTotalDuration.textContent = minutesToReadable(totalIncludedMins);
     trTotal.appendChild(tdTotalDuration);
     
     const tdTotalAction = document.createElement('td');
-    tdTotalAction.style.width = '40px';
+    tdTotalAction.style.width = '30px';
     trTotal.appendChild(tdTotalAction);
     
     tbody.appendChild(trTotal);
@@ -8040,6 +8058,37 @@ function setupEventListeners() {
 
   // Navegación con flechas del teclado (solo escritorio)
   document.addEventListener('keydown', (e) => {
+    // Si el modal de estadísticas diarias está abierto, usar flechas para cambiar de día con animación de deslizamiento
+    const dailyStatsModal = document.getElementById('daily-stats-modal');
+    if (dailyStatsModal && !dailyStatsModal.classList.contains('hidden') && currentDailyStatsDate) {
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const slider = document.getElementById('daily-stats-slider');
+        if (slider) {
+          slider.style.transition = 'transform 0.25s ease';
+          slider.style.transform = 'translateX(0%)';
+          setTimeout(() => {
+            const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
+            currentDate.setDate(currentDate.getDate() - 1);
+            estadisticasDiarias(formatDate(currentDate));
+          }, 250);
+        }
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const slider = document.getElementById('daily-stats-slider');
+        if (slider) {
+          slider.style.transition = 'transform 0.25s ease';
+          slider.style.transform = 'translateX(-66.6666%)';
+          setTimeout(() => {
+            const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
+            currentDate.setDate(currentDate.getDate() + 1);
+            estadisticasDiarias(formatDate(currentDate));
+          }, 250);
+        }
+      }
+      return;
+    }
+
     if (isMobile()) return;
     // No activar si el foco está en un input, textarea o elemento editable
     const tag = document.activeElement?.tagName;
