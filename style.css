@@ -3596,6 +3596,8 @@ body.cronograma-active .planner-grid { display: none; }
   transform: translateY(-6px);
   font-variant-numeric: tabular-nums;
   user-select: none;
+  /* Decorativa: nunca capturar clics (dejar pasar a la columna). */
+  pointer-events: none;
 }
 
 /* La etiqueta "00:00" (la primera) no se sube, sino que baja un poco, para que
@@ -3625,6 +3627,8 @@ body.cronograma-active .planner-grid { display: none; }
   right: 0;
   height: 1px;
   background-color: var(--border-light);
+  /* Decorativa: dejar pasar los clics a la columna de abajo (crear tarea en hueco). */
+  pointer-events: none;
 }
 
 /* Línea de hora actual: cruza las columnas de día, negra y gruesa para resaltar.
@@ -3657,6 +3661,9 @@ body.cronograma-active .planner-grid { display: none; }
   position: relative;
   grid-row: 1;
   border-right: 1px solid var(--border-light);
+  /* El espacio vacío es clicable (crea una tarea): mostrar cursor de manito.
+     Los bloques de tarea redefinen su propio cursor encima. */
+  cursor: pointer;
 }
 .cr-day-col:last-child {
   border-right: none;

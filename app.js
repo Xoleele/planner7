@@ -3199,18 +3199,35 @@ function handleCronogramaEmptyClick(colEl, clickMin) {
     if (r.start >= clickMin) nextStart = nextStart === null ? r.start : Math.min(nextStart, r.start);
   });
 
-  const gapStart = prevEnd === null ? 0 : prevEnd;
-  const gapEnd = nextStart === null ? 24 * 60 : nextStart;
-
   selectedDayDate = dateStr;
-  prefilledTimes = null;
 
-  // Solo predefinir horas si el hueco está acotado por DOS tareas y mide < 2 h.
-  if (prevEnd !== null && nextStart !== null && (gapEnd - gapStart) < 120) {
-    const startMin = Math.min(gapStart + 1, gapEnd - 1);
-    const endMin = Math.max(gapEnd - 1, gapStart + 1);
-    prefilledTimes = { start: minutesToHHMM(startMin), end: minutesToHHMM(endMin) };
+  // ── HORA DE INICIO ─────────────────────────────────────────────────────────
+  // Si hay una tarea anterior cuyo FIN está a menos de 1 h del punto del clic,
+  // la nueva tarea arranca pegada a ella: fin anterior + 1 min.
+  // En caso contrario, se redondea el punto del clic a la media hora hacia abajo
+  // (15:58 → 15:30, 15:11 → 15:00).
+  let startMin;
+  if (prevEnd !== null && (clickMin - prevEnd) < 60) {
+    startMin = prevEnd + 1;
+  } else {
+    startMin = Math.floor(clickMin / 30) * 30;
   }
+
+  // ── HORA DE FIN ────────────────────────────────────────────────────────────
+  // Si existe una tarea siguiente y el hueco (inicio → inicio de la siguiente)
+  // es menor a 2 h, la nueva termina justo antes: inicio siguiente − 1 min.
+  // Si no, duración por defecto de 1 h.
+  let endMin;
+  if (nextStart !== null && (nextStart - startMin) < 120) {
+    endMin = nextStart - 1;
+  } else {
+    endMin = startMin + 60;
+  }
+
+  // Salvaguarda: el fin nunca antes que el inicio (huecos diminutos).
+  if (endMin <= startMin) endMin = startMin + 1;
+
+  prefilledTimes = { start: minutesToHHMM(startMin), end: minutesToHHMM(endMin) };
 
   openTaskModal();
 }
@@ -3219,6 +3236,45 @@ function handleCronogramaEmptyClick(colEl, clickMin) {
 function minutesToHHMM(min) {
   const m = Math.max(0, Math.min(1439, Math.round(min)));
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
+// Engancha UNA sola vez en el grid del horario un listener delegado para crear
+// tareas al pinchar en espacios vacíos. Es más robusto que un listener por
+// columna: el evento `click` exige que mousedown y mouseup caigan en el MISMO
+// elemento; con líneas de hora, etiquetas y sub-píxeles de movimiento eso fallaba
+// de forma intermitente. Aquí localizamos la columna por coordenadas, así que el
+// clic funciona caiga donde caiga dentro del área de días.
+let cronogramaClickDelegationBound = false;
+function setupCronogramaClickDelegation() {
+  const grid = document.getElementById('cronograma-grid');
+  if (!grid || cronogramaClickDelegationBound) return;
+  cronogramaClickDelegationBound = true;
+
+  // Usamos `pointerdown` (no `click`): el evento `click` NO se dispara si el
+  // mousedown y el mouseup caen en elementos distintos (p. ej. un sub-píxel de
+  // movimiento entre press y release sobre un borde o una capa vecina), lo que
+  // dejaba "áreas muertas". `pointerdown` se dispara siempre en el punto presionado.
+  grid.addEventListener('pointerdown', (e) => {
+    // Solo botón principal (izquierdo) del ratón / toque primario.
+    if (e.button !== undefined && e.button !== 0) return;
+    // Si se presiona sobre un bloque de tarea, es para abrir/arrastrar la tarea.
+    if (e.target.closest('.cr-task-block')) return;
+    // Final de un arrastre: ignorar el evento sintético que le sigue.
+    if (suppressNextCronogramaClick) return;
+
+    // Localizar la columna-día bajo el cursor. Como las capas decorativas
+    // (líneas/etiquetas de hora, línea de "ahora") tienen pointer-events:none,
+    // e.target suele ser ya la columna; si no, la buscamos por coordenadas.
+    let col = e.target.closest('.cr-day-col');
+    if (!col) {
+      col = document.elementsFromPoint(e.clientX, e.clientY)
+        .find(el => el.classList && el.classList.contains('cr-day-col')) || null;
+    }
+    if (!col) return; // clic en la columna de horas o fuera de los días
+
+    const rect = col.getBoundingClientRect();
+    handleCronogramaEmptyClick(col, e.clientY - rect.top);
+  });
 }
 
 function renderCronograma() {
@@ -3317,14 +3373,8 @@ function renderCronograma() {
       colEl.dataset.col = String(idx + 1);
       colEl.dataset.date = formatDate(date);
       renderCronogramaDayBlocks(colEl, date);
-      colEl.addEventListener('click', (e) => {
-        // Solo en espacio vacío: si el clic llegó a un bloque, este ya lo
-        // gestionó (stopPropagation). Ignorar también el final de un arrastre.
-        if (e.target.closest('.cr-task-block')) return;
-        if (suppressNextCronogramaClick) return;
-        const rect = colEl.getBoundingClientRect();
-        handleCronogramaEmptyClick(colEl, e.clientY - rect.top);
-      });
+      // El clic en espacio vacío se gestiona por DELEGACIÓN en el grid
+      // (setupCronogramaClickDelegation), más robusto que un listener por columna.
       colEl.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         openDayContextMenu(e.clientX, e.clientY, idx + 1);
@@ -3354,12 +3404,7 @@ function buildCronogramaMobileDayCol(date, todayStr) {
   colEl.className = 'cr-day-col cr-mobile-day' + (formatDate(date) === todayStr ? ' today' : '');
   colEl.dataset.date = formatDate(date);
   renderCronogramaDayBlocks(colEl, date);
-  colEl.addEventListener('click', (e) => {
-    if (e.target.closest('.cr-task-block')) return;
-    if (suppressNextCronogramaClick) return;
-    const rect = colEl.getBoundingClientRect();
-    handleCronogramaEmptyClick(colEl, e.clientY - rect.top);
-  });
+  // El clic en espacio vacío se gestiona por DELEGACIÓN en el grid.
   return colEl;
 }
 
@@ -7244,6 +7289,9 @@ function setupEventListeners() {
 
   // Setup desktop columns click, add task buttons, and drag-and-drop listeners
   setupDesktopColumns(document);
+
+  // Clic en espacios vacíos del horario → crear tarea (delegado en el grid).
+  setupCronogramaClickDelegation();
 
   // Campos de hora del editor: la "Hora de fin" se habilita solo si hay inicio,
   // y se muestra la duración calculada en tiempo real.
