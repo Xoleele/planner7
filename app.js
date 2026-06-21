@@ -874,6 +874,7 @@ let noteTemplate = '';
 let currentWeekStart = new Date(); // Monday of the currently viewed week
 let selectedTaskId = null;
 let selectedDayDate = null; // Used for pre-filling date on new task
+let prefilledTimes = null; // {start:'HH:MM', end:'HH:MM'} para nueva tarea desde hueco del horario
 let activeRecurrenceDays = new Set(); // Stores 1-7 representing days for recurrence
 let selectedColorIndex = 0; // Index of selected color in the palette
 let customColor = null; // color HSL personalizado: { bg, text, border } o null
@@ -3153,6 +3154,73 @@ function renderCronogramaDayBlocks(colEl, date) {
   return count;
 }
 
+// Maneja el clic en un espacio vacío de una columna del horario para crear una
+// tarea nueva. `colEl` es la .cr-day-col; `clickMin` es el minuto del día (0..1440)
+// donde se hizo clic. Si el hueco disponible entre las 2 tareas visibles que
+// rodean el punto de clic es menor a 2 h, se predefinen las horas: inicio =
+// fin de la tarea anterior + 1 min, fin = inicio de la tarea siguiente − 1 min.
+function handleCronogramaEmptyClick(colEl, clickMin) {
+  const dateStr = colEl.dataset.date;
+  if (!dateStr) return;
+  const date = new Date(dateStr + 'T00:00:00');
+
+  // Reunir los rangos [startMin, endMin) de todas las tareas VISIBLES del día
+  // (mismas reglas de visibilidad que renderCronogramaDayBlocks), incluyendo la
+  // cola de tareas del día anterior que cruzaron medianoche.
+  const ranges = [];
+  const addRange = (s, e) => { if (e > s) ranges.push({ start: s, end: e }); };
+
+  tasks.forEach(task => {
+    if (!checkTaskOccurrence(task, date)) return;
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    if (tag && tag.visible === false) return;
+    const range = getTaskTimeRange(task);
+    if (!range) return;
+    addRange(range.startMin, range.endMin);
+  });
+
+  const prevDate = addDays(date, -1);
+  tasks.forEach(task => {
+    if (!checkTaskOccurrence(task, prevDate)) return;
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    if (tag && tag.visible === false) return;
+    const range = getTaskTimeRange(task);
+    if (!range || !range.crossesMidnight) return;
+    addRange(0, range.rawEndMin); // cola: 00:00 → rawEndMin
+  });
+
+  // Si se hizo clic dentro de una tarea, no creamos nada (la abre su bloque).
+  if (ranges.some(r => clickMin >= r.start && clickMin < r.end)) return;
+
+  // Vecinos: tarea anterior (mayor end ≤ clickMin) y siguiente (menor start ≥ clickMin).
+  let prevEnd = null, nextStart = null;
+  ranges.forEach(r => {
+    if (r.end <= clickMin) prevEnd = prevEnd === null ? r.end : Math.max(prevEnd, r.end);
+    if (r.start >= clickMin) nextStart = nextStart === null ? r.start : Math.min(nextStart, r.start);
+  });
+
+  const gapStart = prevEnd === null ? 0 : prevEnd;
+  const gapEnd = nextStart === null ? 24 * 60 : nextStart;
+
+  selectedDayDate = dateStr;
+  prefilledTimes = null;
+
+  // Solo predefinir horas si el hueco está acotado por DOS tareas y mide < 2 h.
+  if (prevEnd !== null && nextStart !== null && (gapEnd - gapStart) < 120) {
+    const startMin = Math.min(gapStart + 1, gapEnd - 1);
+    const endMin = Math.max(gapEnd - 1, gapStart + 1);
+    prefilledTimes = { start: minutesToHHMM(startMin), end: minutesToHHMM(endMin) };
+  }
+
+  openTaskModal();
+}
+
+// Convierte minutos del día (0..1439) a "HH:MM".
+function minutesToHHMM(min) {
+  const m = Math.max(0, Math.min(1439, Math.round(min)));
+  return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
 function renderCronograma() {
   // Si hay un arrastre en curso, NO reconstruir: borraría el bloque que el
   // usuario tiene agarrado y provocaría saltos. Se re-renderiza al soltar.
@@ -3249,6 +3317,14 @@ function renderCronograma() {
       colEl.dataset.col = String(idx + 1);
       colEl.dataset.date = formatDate(date);
       renderCronogramaDayBlocks(colEl, date);
+      colEl.addEventListener('click', (e) => {
+        // Solo en espacio vacío: si el clic llegó a un bloque, este ya lo
+        // gestionó (stopPropagation). Ignorar también el final de un arrastre.
+        if (e.target.closest('.cr-task-block')) return;
+        if (suppressNextCronogramaClick) return;
+        const rect = colEl.getBoundingClientRect();
+        handleCronogramaEmptyClick(colEl, e.clientY - rect.top);
+      });
       colEl.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         openDayContextMenu(e.clientX, e.clientY, idx + 1);
@@ -3278,6 +3354,12 @@ function buildCronogramaMobileDayCol(date, todayStr) {
   colEl.className = 'cr-day-col cr-mobile-day' + (formatDate(date) === todayStr ? ' today' : '');
   colEl.dataset.date = formatDate(date);
   renderCronogramaDayBlocks(colEl, date);
+  colEl.addEventListener('click', (e) => {
+    if (e.target.closest('.cr-task-block')) return;
+    if (suppressNextCronogramaClick) return;
+    const rect = colEl.getBoundingClientRect();
+    handleCronogramaEmptyClick(colEl, e.clientY - rect.top);
+  });
   return colEl;
 }
 
@@ -5249,6 +5331,15 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
       repeatToggle.disabled = false;
       repeatToggle.checked = false;
     }
+    // Horas predefinidas al crear desde un hueco del horario (entre 2 tareas).
+    if (prefilledTimes) {
+      const startEl = document.getElementById('task-input-start');
+      const endEl = document.getElementById('task-input-end');
+      if (startEl) startEl.value = prefilledTimes.start || '';
+      if (endEl) endEl.value = prefilledTimes.end || '';
+      syncEndTimeEnabled();
+      updateDurationDisplay();
+    }
     setSelectTagValue('default');
     document.getElementById('repeat-unit').value = 'weekly';
     document.getElementById('repeat-interval').value = 1;
@@ -5268,6 +5359,7 @@ function closeTaskModal() {
   document.getElementById('task-modal').classList.add('hidden');
   selectedTaskId = null;
   selectedDayDate = null;
+  prefilledTimes = null;
 }
 
 // ─── Edicion de tareas recurrentes: alcance del cambio ───────────────────────
