@@ -3316,6 +3316,65 @@ function cronogramaClickToMinutes(col, clientY) {
   return visualOffset * scale;
 }
 
+// Suelta una tarea (arrastrada con HTML5 desde el maletín o el planner) sobre una
+// columna del horario. La hora de inicio se ajusta al múltiplo de 30 min más
+// cercano (00:00, 00:30, …). La duración es la que ya tenga la tarea (si tiene
+// inicio+fin definidos) o, por defecto, 1 hora. `isCopy` crea un clon en lugar
+// de mover. Funciona tanto para tareas del maletín (sin fecha) como del planner.
+function dropTaskOnCronograma(taskId, colEl, clientY, isCopy) {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task) return;
+  const dateStr = colEl.dataset.date;
+  if (!dateStr) return;
+
+  // Minuto del día ajustado al intervalo de 30 min más cercano.
+  const rawMin = cronogramaClickToMinutes(colEl, clientY);
+  let startMin = Math.round(rawMin / 30) * 30;
+  startMin = Math.max(0, Math.min(1440 - 30, startMin));
+
+  // Duración: la que ya tenga la tarea (por horas inicio+fin, o por la duración
+  // escrita en su descripción), o 1 h por defecto si no tiene ninguna.
+  let durationMin = getTaskDurationMinutes(task);
+  if (!durationMin || durationMin <= 0) durationMin = 60;
+
+  const toHHMM = (min) => {
+    const m = ((min % 1440) + 1440) % 1440;
+    return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  };
+  const startTime = toHHMM(startMin);
+  const endTime = toHHMM(startMin + durationMin);
+
+  pushToUndoStack();
+
+  if (isCopy) {
+    // COPIAR: clon independiente colocado en el horario.
+    const clon = {
+      ...task,
+      id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      date: dateStr,
+      startTime,
+      endTime
+    };
+    if (clon.recurrence && clon.recurrence.enabled) clon.recurrence = null;
+    tasks.push(clon);
+  } else {
+    // MOVER: la tarea del maletín pasa al día/hora soltados.
+    task.date = dateStr;
+    task.startTime = startTime;
+    task.endTime = endTime;
+  }
+
+  // Limpiar el estado del arrastre HTML5 y ocultar la marca global.
+  draggedTaskId = null;
+  draggedTaskSourceDate = null;
+  document.body.classList.remove('dragging-active');
+
+  renderCronograma();
+  renderWeeklyCalendar();
+  renderBriefcaseTasks();
+  saveTasksToStorage();
+}
+
 function renderCronograma() {
   // Si hay un arrastre en curso, NO reconstruir: borraría el bloque que el
   // usuario tiene agarrado y provocaría saltos. Se re-renderiza al soltar.
@@ -3417,6 +3476,24 @@ function renderCronograma() {
       colEl.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         openDayContextMenu(e.clientX, e.clientY, idx + 1);
+      });
+      // Arrastre HTML5 desde el maletín (o desde el planner) → soltar en el horario.
+      colEl.addEventListener('dragover', (e) => {
+        if (!draggedTaskId) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = (e.ctrlKey || e.metaKey) ? 'copy' : 'move';
+        colEl.classList.add('cr-drag-over');
+      });
+      colEl.addEventListener('dragleave', (e) => {
+        if (colEl.contains(e.relatedTarget)) return;
+        colEl.classList.remove('cr-drag-over');
+      });
+      colEl.addEventListener('drop', (e) => {
+        e.preventDefault();
+        colEl.classList.remove('cr-drag-over');
+        const id = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || draggedTaskId;
+        if (!id) return;
+        dropTaskOnCronograma(id, colEl, e.clientY, e.ctrlKey || e.metaKey);
       });
       grid.appendChild(colEl);
     });
@@ -3719,6 +3796,7 @@ function startCronogramaDrag(block, task, e) {
     sourceDate: task.date,        // día de origen (para copiar/mover)
     copy: !!(e.ctrlKey || e.metaKey), // Ctrl/Cmd → copiar en vez de mover
     overTrash: false,             // ¿el puntero está sobre la papelera?
+    overBriefcase: false,         // ¿el puntero está sobre el archivado (maletín)?
     originColEl: block.parentElement, // columna original (para el fantasma de copia)
     originTopPx: range.startMin,  // posición vertical original (px = min)
     ghost: null,                  // clon estático que se ve al copiar (Ctrl)
@@ -3830,10 +3908,9 @@ function cancelCronogramaDrag() {
   try { drag.block.releasePointerCapture(drag.pointerId); } catch (_) {}
   clearCronogramaDragOver();
 
-  // Ocultar/limpiar la papelera (arrastre cancelado).
+  // Ocultar/limpiar los destinos del header (arrastre cancelado).
   document.body.classList.remove('dragging-active');
-  const trashBtn = document.getElementById('trash-btn');
-  if (trashBtn) trashBtn.classList.remove('drag-over');
+  clearCronogramaHeaderTargets();
 
   // Evitar que un click/pointerup posterior abra el modal de edición.
   suppressNextCronogramaClick = true;
@@ -3916,14 +3993,26 @@ function applyCronogramaDragMove(clientX, clientY) {
   }
   crDrag.overTrash = overTrash;
 
+  // 0a) ¿El puntero está sobre el archivado (maletín, #briefcase-btn)? Al soltar
+  // ahí se archiva la tarea (igual que arrastrarla al maletín en el planner).
+  const briefcaseBtn = document.getElementById('briefcase-btn');
+  let overBriefcase = false;
+  if (briefcaseBtn) {
+    const br = briefcaseBtn.getBoundingClientRect();
+    overBriefcase = clientX >= br.left && clientX <= br.right
+      && clientY >= br.top && clientY <= br.bottom;
+    briefcaseBtn.classList.toggle('drag-over', overBriefcase);
+  }
+  crDrag.overBriefcase = overBriefcase;
+
   // 0b) ¿El puntero está por ENCIMA del área de scroll del horario (zona del
-  // header) o sobre la papelera? En ese caso el bloque "flota" (position:fixed)
-  // siguiendo al cursor, para que pueda salir del recorte del scroll y llegar
-  // visualmente hasta la papelera del header. Si vuelve dentro del horario, se
-  // recoloca de forma normal en su columna.
+  // header) o sobre la papelera/archivado? En ese caso el bloque "flota"
+  // (position:fixed) siguiendo al cursor, para que pueda salir del recorte del
+  // scroll y llegar visualmente hasta los iconos del header. Si vuelve dentro
+  // del horario, se recoloca de forma normal en su columna.
   const scrollEl = document.querySelector('.cronograma-scroll');
   const scrollTop = scrollEl ? scrollEl.getBoundingClientRect().top : 0;
-  const shouldFloat = overTrash || clientY < scrollTop;
+  const shouldFloat = overTrash || overBriefcase || clientY < scrollTop;
 
   if (shouldFloat) {
     enterCronogramaFloat();
@@ -4016,10 +4105,9 @@ function onCronogramaDragEnd(e) {
   try { drag.block.releasePointerCapture(drag.pointerId); } catch (_) {}
   clearCronogramaDragOver();
 
-  // Ocultar/limpiar la papelera (fin del arrastre).
+  // Ocultar/limpiar los destinos del header (papelera y archivado).
   document.body.classList.remove('dragging-active');
-  const trashBtn = document.getElementById('trash-btn');
-  if (trashBtn) trashBtn.classList.remove('drag-over');
+  clearCronogramaHeaderTargets();
 
   commitCronogramaDragResult(drag);
 }
@@ -4029,6 +4117,15 @@ function onCronogramaDragEnd(e) {
 function clearCronogramaDragOver() {
   document.querySelectorAll('.cr-day-col.cr-drag-over')
     .forEach(c => c.classList.remove('cr-drag-over'));
+}
+
+// Quita el resaltado de los destinos del header (papelera y archivado) al soltar
+// o cancelar un arrastre del horario.
+function clearCronogramaHeaderTargets() {
+  const t = document.getElementById('trash-btn');
+  if (t) t.classList.remove('drag-over');
+  const b = document.getElementById('briefcase-btn');
+  if (b) b.classList.remove('drag-over');
 }
 
 // Persiste el resultado de un arrastre (compartido por ratón y táctil). Espera
@@ -4052,6 +4149,15 @@ function commitCronogramaDragResult(drag) {
   // (deleteTask gestiona la confirmación para recurrentes). Re-render del horario.
   if (drag.overTrash) {
     deleteTask(drag.task.id, drag.sourceDate || drag.task.date);
+    renderCronograma();
+    return;
+  }
+
+  // ── SOLTAR EN EL ARCHIVADO (MALETÍN) → ARCHIVAR ────────────────────────────
+  // Igual que el planner: si se soltó sobre #briefcase-btn, la tarea pasa al
+  // maletín (moveTaskToBriefcase gestiona recurrentes/simples). Re-render.
+  if (drag.overBriefcase) {
+    moveTaskToBriefcase(drag.task.id, null, drag.sourceDate || drag.task.date);
     renderCronograma();
     return;
   }
@@ -4176,6 +4282,7 @@ function beginCronogramaTouchDrag() {
     sourceDate: task.date,
     copy: false,        // copiar con Ctrl es solo de escritorio
     overTrash: false,
+    overBriefcase: false,
     moved: false,
     pointerId: null
   };
@@ -4301,8 +4408,7 @@ function onCronogramaTouchEnd() {
 
   // Quitar la marca de documento del arrastre (restaura scroll y selección).
   document.body.classList.remove('cr-dragging-active');
-  const trashBtnT = document.getElementById('trash-btn');
-  if (trashBtnT) trashBtnT.classList.remove('drag-over');
+  clearCronogramaHeaderTargets();
   stopCronogramaEdgeScroll();
   clearCronogramaDragOver();
 
