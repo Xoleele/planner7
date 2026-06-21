@@ -884,6 +884,9 @@ let selectedOccurrenceDate = null; // Fecha específica de la ocurrencia selecci
 let desktopGridHTML = null; // Caches the original desktop layout of .planner-grid
 let completedTasksExpanded = false;
 let statsCustomColors = {};
+let statsMergedTasks = {};
+let statsMergeModeActive = false;
+let statsMergeFirstSelected = '';
 let editingTaskOriginalName = '';
 let editingTaskColorIndex = 0; // -1 for custom HSL
 let editingTaskCustomColor = null; // { bg, text, border }
@@ -1471,6 +1474,7 @@ async function startApp(user) {
       notes = parsedPrefs.notes || {};
       noteTemplate = parsedPrefs.noteTemplate || '';
       statsCustomColors = parsedPrefs.statsCustomColors || {};
+      statsMergedTasks = parsedPrefs.statsMergedTasks || {};
       if (parsedPrefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...parsedPrefs.copyOptions };
     }
   } catch (e) {
@@ -1483,6 +1487,7 @@ async function startApp(user) {
     notes = prefs.notes || {};
     noteTemplate = prefs.noteTemplate || '';
     statsCustomColors = prefs.statsCustomColors || {};
+    statsMergedTasks = prefs.statsMergedTasks || {};
     if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
     activeTimerState = prefs.activeTimer || null;
     try {
@@ -6352,16 +6357,30 @@ function renderDailyStatsPanel(panelEl, dateStr) {
     return mins !== null && mins > 0;
   });
   
-  // Agrupar actividades con el mismo nombre y sumar sus duraciones
+  // Agrupar actividades con el mismo nombre y sumar sus duraciones (resolviendo combinaciones)
   const grouped = {};
   tasksWithDuration.forEach(task => {
-    const name = task.title || '(Sin título)';
+    const originalName = task.title || '(Sin título)';
     const mins = getTaskDurationMinutes(task);
+    
+    // Resolver nombre combinado recursivamente
+    let name = originalName;
+    const maxIterations = 10;
+    let iter = 0;
+    while (statsMergedTasks[`${dateStr}_${name}`] && iter < maxIterations) {
+      name = statsMergedTasks[`${dateStr}_${name}`];
+      iter++;
+    }
+    
     if (!grouped[name]) {
+      // Buscar el tagId de la tarea destino para mantener su color original
+      const targetTask = tasksWithDuration.find(t => (t.title || '(Sin título)') === name);
+      const tagId = targetTask ? targetTask.tagId : task.tagId;
+      
       grouped[name] = {
         name,
         minutes: 0,
-        tagId: task.tagId,
+        tagId: tagId,
         tasks: []
       };
     }
@@ -6448,6 +6467,9 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       
       const tr = document.createElement('tr');
       tr.className = 'daily-stats-row';
+      if (statsMergeModeActive && statsMergeFirstSelected === group.name) {
+        tr.classList.add('merge-selected');
+      }
       
       // 1. Celda de Actividad (Muestra de color cuadrada + nombre)
       const tdName = document.createElement('td');
@@ -6492,9 +6514,13 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       tdPercent.textContent = percentStr;
       tr.appendChild(tdPercent);
       
-      // Delegar click en muestra, nombre, duración o % para abrir edición
+      // Delegar click en muestra, nombre, duración o % para abrir edición o combinar
       const handleEditClick = (e) => {
-        openStatsTaskEditView(group);
+        if (statsMergeModeActive) {
+          handleStatsMergeClick(group, tr);
+        } else {
+          openStatsTaskEditView(group);
+        }
       };
       tdName.addEventListener('click', handleEditClick);
       tdPercent.addEventListener('click', handleEditClick);
@@ -6601,11 +6627,16 @@ function estadisticasDiarias(dateStr) {
   const modal = document.getElementById('daily-stats-modal');
   if (modal) {
     modal.classList.remove('hidden');
-    // Asegurar que comience en la vista principal
+    // Asegurar que comience en la vista principal y con la fusión desactivada
     const mainContent = document.getElementById('daily-stats-main-content');
     const editContent = document.getElementById('daily-stats-edit-content');
     if (mainContent) mainContent.classList.remove('hidden');
     if (editContent) editContent.classList.add('hidden');
+    
+    statsMergeModeActive = false;
+    statsMergeFirstSelected = '';
+    const mergeBtn = document.getElementById('daily-stats-merge-btn');
+    if (mergeBtn) mergeBtn.classList.remove('active');
   }
 }
 
@@ -6802,6 +6833,93 @@ async function saveStatsTaskEdit() {
 
   // 6. Volver a la vista de estadísticas
   closeStatsTaskEditView();
+}
+
+// ─── Funciones de Fusión de Tareas en Estadísticas ──────────────────────────
+function saveStatsMergePreferences() {
+  if (currentUser) {
+    const prefsCacheKey = 'prefs_cache_' + currentUser.id;
+    let prefs = {};
+    try {
+      const cached = localStorage.getItem(prefsCacheKey);
+      if (cached) prefs = JSON.parse(cached);
+    } catch(e) {}
+    
+    prefs.statsMergedTasks = statsMergedTasks;
+    
+    try {
+      localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
+    } catch(e) {}
+    
+    savePreferences(prefs);
+  }
+}
+
+function toggleStatsMergeMode() {
+  const mergeBtn = document.getElementById('daily-stats-merge-btn');
+  if (!mergeBtn) return;
+  
+  if (statsMergeModeActive) {
+    // Desactivar y RESTABLECER combinaciones para el día actual
+    statsMergeModeActive = false;
+    statsMergeFirstSelected = '';
+    mergeBtn.classList.remove('active');
+    
+    if (currentDailyStatsDate) {
+      const prefix = `${currentDailyStatsDate}_`;
+      Object.keys(statsMergedTasks).forEach(key => {
+        if (key.startsWith(prefix)) {
+          delete statsMergedTasks[key];
+        }
+      });
+      
+      saveStatsMergePreferences();
+      estadisticasDiarias(currentDailyStatsDate);
+    }
+  } else {
+    // Activar modo combinación
+    statsMergeModeActive = true;
+    statsMergeFirstSelected = '';
+    mergeBtn.classList.add('active');
+    
+    // Quitar cualquier resaltado previo de fila
+    document.querySelectorAll('.daily-stats-row').forEach(row => {
+      row.classList.remove('merge-selected');
+    });
+  }
+}
+
+function handleStatsMergeClick(group, tr) {
+  if (!statsMergeFirstSelected) {
+    statsMergeFirstSelected = group.name;
+    tr.classList.add('merge-selected');
+  } else {
+    // Si hace click en la misma tarea, deseleccionar
+    if (statsMergeFirstSelected === group.name) {
+      statsMergeFirstSelected = '';
+      tr.classList.remove('merge-selected');
+      return;
+    }
+    
+    // Fusionar la tarea actual (group.name) en la primera seleccionada (statsMergeFirstSelected)
+    // "sumando sus duraciones y manteniendo el nombre y el color de la primera tarea seleccionada."
+    statsMergedTasks[`${currentDailyStatsDate}_${group.name}`] = statsMergeFirstSelected;
+    
+    // Desactivar modo de fusión
+    statsMergeModeActive = false;
+    statsMergeFirstSelected = '';
+    
+    const mergeBtn = document.getElementById('daily-stats-merge-btn');
+    if (mergeBtn) mergeBtn.classList.remove('active');
+    
+    // Guardar
+    saveStatsMergePreferences();
+    
+    // Re-renderizar
+    if (currentDailyStatsDate) {
+      estadisticasDiarias(currentDailyStatsDate);
+    }
+  }
 }
 
 function openCopyTextModal(dateStr) {
@@ -9046,6 +9164,10 @@ function setupEventListeners() {
 
   const statsEditCloseBtn = document.getElementById('stats-edit-close-btn');
   if (statsEditCloseBtn) statsEditCloseBtn.addEventListener('click', closeStatsTaskEditView);
+
+  // Botón de fusionar/combinar tareas en la cabecera de estadísticas
+  const statsMergeBtn = document.getElementById('daily-stats-merge-btn');
+  if (statsMergeBtn) statsMergeBtn.addEventListener('click', toggleStatsMergeMode);
 
   // Sliders del selector de color personalizado en estadísticas: actualizar en vivo
   ['stats-edit-hsl-h', 'stats-edit-hsl-s', 'stats-edit-hsl-l'].forEach(id => {

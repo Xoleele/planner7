@@ -4374,5 +4374,16 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   flex-direction: column;
 }
 
+/* Estado activo del botón combinar y fila seleccionada */
+#daily-stats-merge-btn.active img {
+  filter: invert(28%) sepia(96%) saturate(7000%) hue-rotate(356deg) brightness(95%) contrast(118%);
+}
+#daily-stats-merge-btn.active:hover {
+  background-color: rgba(255, 0, 0, 0.08);
+}
+.daily-stats-row.merge-selected {
+  background-color: rgba(255, 59, 48, 0.06);
+}
+
 
 
