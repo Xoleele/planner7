@@ -1,1 +1,1 @@
-si haces cambios a la app, al final de tu respuesta dame un summary en una frase muy breve para pegar en github desktop
+si haces cambios a la app, al final de tu respuesta dame un summary (maximo 10 palabras) para pegar en github desktop

@@ -2969,8 +2969,14 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   const heightPx = Math.max(bottomMin - topMin, 16);
   block.style.top = topMin + 'px';
   block.style.height = heightPx + 'px';
+  // Guardar el rango REAL (minutos) para distinguir clics dentro de la tarea de
+  // clics en el píxel sobrante cuando la altura visual se infla al mínimo (16px).
+  block.dataset.topMin = String(topMin);
+  block.dataset.bottomMin = String(bottomMin);
 
   // Click en el bloque: abrir la tarea para editar (salvo click en el checkbox).
+  // Un clic sobre un bloque VISIBLE siempre abre su tarea; los clics en espacio
+  // sin bloque los gestiona el grid (crear tarea), aunque haya tareas solapadas.
   if (task) {
     block.addEventListener('click', (e) => {
       if (e.target.closest('.task-check-btn')) return;
@@ -3176,6 +3182,10 @@ function handleCronogramaEmptyClick(colEl, clickMin) {
     if (tag && tag.visible === false) return;
     const range = getTaskTimeRange(task);
     if (!range) return;
+    // Solo cuentan las tareas que SÍ se dibujan como bloque (≥ 25 min). Las más
+    // cortas no aparecen en el horario, así que su franja es espacio vacío
+    // clicable; si las incluyéramos, crearían "zonas muertas" invisibles.
+    if ((range.endMin - range.startMin) < 25) return;
     addRange(range.startMin, range.endMin);
   });
 
@@ -3186,11 +3196,14 @@ function handleCronogramaEmptyClick(colEl, clickMin) {
     if (tag && tag.visible === false) return;
     const range = getTaskTimeRange(task);
     if (!range || !range.crossesMidnight) return;
+    if (range.rawEndMin < 25) return; // cola < 25 min: no se dibuja
     addRange(0, range.rawEndMin); // cola: 00:00 → rawEndMin
   });
 
-  // Si se hizo clic dentro de una tarea, no creamos nada (la abre su bloque).
-  if (ranges.some(r => clickMin >= r.start && clickMin < r.end)) return;
+  // NOTA: no abortamos si el punto cae dentro del rango de una tarea. La decisión
+  // de "hay tarea aquí" la toma el handler del grid según el bloque DIBUJADO bajo
+  // el cursor; aquí siempre creamos. Esto permite crear tareas en huecos visuales
+  // sobre tareas solapadas/ocultas. Los rangos se usan solo para calcular vecinos.
 
   // Vecinos: tarea anterior (mayor end ≤ clickMin) y siguiente (menor start ≥ clickMin).
   let prevEnd = null, nextStart = null;
@@ -3257,14 +3270,22 @@ function setupCronogramaClickDelegation() {
   grid.addEventListener('pointerdown', (e) => {
     // Solo botón principal (izquierdo) del ratón / toque primario.
     if (e.button !== undefined && e.button !== 0) return;
-    // Si se presiona sobre un bloque de tarea, es para abrir/arrastrar la tarea.
-    if (e.target.closest('.cr-task-block')) return;
     // Final de un arrastre: ignorar el evento sintético que le sigue.
     if (suppressNextCronogramaClick) return;
+    // Nunca interferir con el checkbox de completar.
+    if (e.target.closest('.task-check-btn')) return;
 
-    // Localizar la columna-día bajo el cursor. Como las capas decorativas
+    // DECISIÓN POR LO QUE ESTÁ DIBUJADO, NO POR RANGOS DE TIEMPO.
+    // Si bajo el cursor hay un bloque de tarea VISIBLE, ese bloque gestiona el
+    // clic (abrir/arrastrar). Si NO hay bloque visible (solo la columna), creamos
+    // una tarea — aunque por debajo exista una tarea solapada/oculta cuyo horario
+    // cubra ese minuto. Así, pinchar donde se ve vacío siempre abre el creador,
+    // y desaparecen las "zonas muertas" que producían las tareas solapadas.
+    if (e.target.closest('.cr-task-block')) return;
+
+    // Localizar la columna-día bajo el cursor. Las capas decorativas
     // (líneas/etiquetas de hora, línea de "ahora") tienen pointer-events:none,
-    // e.target suele ser ya la columna; si no, la buscamos por coordenadas.
+    // así que e.target ya es la columna; si no, la buscamos por coordenadas.
     let col = e.target.closest('.cr-day-col');
     if (!col) {
       col = document.elementsFromPoint(e.clientX, e.clientY)
@@ -3272,9 +3293,22 @@ function setupCronogramaClickDelegation() {
     }
     if (!col) return; // clic en la columna de horas o fuera de los días
 
-    const rect = col.getBoundingClientRect();
-    handleCronogramaEmptyClick(col, e.clientY - rect.top);
+    handleCronogramaEmptyClick(col, cronogramaClickToMinutes(col, e.clientY));
   });
+}
+
+// Convierte la coordenada Y del puntero (px de viewport) al MINUTO lógico dentro
+// de la columna (0..1440). Los bloques se posicionan con `top` en px LÓGICOS
+// (1px = 1min), pero getBoundingClientRect() devuelve px VISUALES, que difieren
+// de los lógicos cuando el navegador tiene zoom ≠ 100% (p. ej. 125%/150%). Sin
+// esta corrección, pinchar a las 7:15 creaba la tarea a una hora desfasada.
+// Escalamos por la razón altura-lógica / altura-visual de la propia columna.
+function cronogramaClickToMinutes(col, clientY) {
+  const rect = col.getBoundingClientRect();
+  const visualOffset = clientY - rect.top;          // px visuales desde el tope
+  const logicalHeight = col.offsetHeight || rect.height; // px lógicos (= minutos)
+  const scale = rect.height ? (logicalHeight / rect.height) : 1;
+  return visualOffset * scale;
 }
 
 function renderCronograma() {
