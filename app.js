@@ -3214,25 +3214,30 @@ function handleCronogramaEmptyClick(colEl, clickMin) {
 
   selectedDayDate = dateStr;
 
+  // Separación (minutos) que se deja entre la tarea nueva y sus vecinas al
+  // pegarla. Actualmente 0 (la nueva empieza/termina justo en el borde de la
+  // vecina). Si en el futuro se quiere un colchón de 1 min, poner GAP_MIN = 1.
+  const GAP_MIN = 0;
+
   // ── HORA DE INICIO ─────────────────────────────────────────────────────────
   // Si hay una tarea anterior cuyo FIN está a menos de 1 h del punto del clic,
-  // la nueva tarea arranca pegada a ella: fin anterior + 1 min.
+  // la nueva tarea arranca pegada a ella: fin anterior + GAP_MIN.
   // En caso contrario, se redondea el punto del clic a la media hora hacia abajo
   // (15:58 → 15:30, 15:11 → 15:00).
   let startMin;
   if (prevEnd !== null && (clickMin - prevEnd) < 60) {
-    startMin = prevEnd + 1;
+    startMin = prevEnd + GAP_MIN;
   } else {
     startMin = Math.floor(clickMin / 30) * 30;
   }
 
   // ── HORA DE FIN ────────────────────────────────────────────────────────────
   // Si existe una tarea siguiente y el hueco (inicio → inicio de la siguiente)
-  // es menor a 2 h, la nueva termina justo antes: inicio siguiente − 1 min.
+  // es menor o igual a 2 h, la nueva termina justo antes: inicio siguiente − GAP_MIN.
   // Si no, duración por defecto de 1 h.
   let endMin;
-  if (nextStart !== null && (nextStart - startMin) < 120) {
-    endMin = nextStart - 1;
+  if (nextStart !== null && (nextStart - startMin) <= 120) {
+    endMin = nextStart - GAP_MIN;
   } else {
     endMin = startMin + 60;
   }
@@ -3700,6 +3705,9 @@ function startCronogramaDrag(block, task, e) {
     targetColEl: block.parentElement,
     originalStartMin: range.startMin,
     newStartMin: range.startMin,
+    sourceDate: task.date,        // día de origen (para copiar/mover)
+    copy: !!(e.ctrlKey || e.metaKey), // Ctrl/Cmd → copiar en vez de mover
+    overTrash: false,             // ¿el puntero está sobre la papelera?
     moved: false,
     pointerId: e.pointerId
   };
@@ -3707,6 +3715,10 @@ function startCronogramaDrag(block, task, e) {
   block.classList.add('cr-dragging');
   block.style.pointerEvents = 'none'; // que no intercepte el hit-test de columnas
   try { block.setPointerCapture(e.pointerId); } catch (_) {}
+
+  // Mostrar la papelera (mismo botón #trash-btn que el planner): aparece al poner
+  // body.dragging-active y se oculta al soltar/cancelar.
+  document.body.classList.add('dragging-active');
 
   window.addEventListener('pointermove', onCronogramaDragMove);
   window.addEventListener('pointerup', onCronogramaDragEnd);
@@ -3739,6 +3751,11 @@ function cancelCronogramaDrag() {
   try { drag.block.releasePointerCapture(drag.pointerId); } catch (_) {}
   clearCronogramaDragOver();
 
+  // Ocultar/limpiar la papelera (arrastre cancelado).
+  document.body.classList.remove('dragging-active');
+  const trashBtn = document.getElementById('trash-btn');
+  if (trashBtn) trashBtn.classList.remove('drag-over');
+
   // Evitar que un click/pointerup posterior abra el modal de edición.
   suppressNextCronogramaClick = true;
   setTimeout(() => { suppressNextCronogramaClick = false; }, 0);
@@ -3748,6 +3765,9 @@ function cancelCronogramaDrag() {
 
 function onCronogramaDragMove(e) {
   if (!crDrag) return;
+  // Actualizar el modo copia en vivo según Ctrl/Cmd (el usuario puede pulsarlo o
+  // soltarlo a mitad del arrastre).
+  crDrag.copy = !!(e.ctrlKey || e.metaKey);
   applyCronogramaDragMove(e.clientX, e.clientY);
 }
 
@@ -3757,6 +3777,23 @@ function onCronogramaDragMove(e) {
 function applyCronogramaDragMove(clientX, clientY) {
   if (!crDrag) return;
   crDrag.moved = true;
+
+  // 0) ¿El puntero está sobre la papelera? (mismo botón #trash-btn del planner).
+  // Si es así, resaltarla y no recolocar el bloque por columna/hora: al soltar
+  // ahí se eliminará la tarea.
+  const trashBtn = document.getElementById('trash-btn');
+  let overTrash = false;
+  if (trashBtn) {
+    const tr = trashBtn.getBoundingClientRect();
+    overTrash = clientX >= tr.left && clientX <= tr.right
+      && clientY >= tr.top && clientY <= tr.bottom;
+    trashBtn.classList.toggle('drag-over', overTrash);
+  }
+  crDrag.overTrash = overTrash;
+  if (overTrash) {
+    if (crDrag.targetColEl) crDrag.targetColEl.classList.remove('cr-drag-over');
+    return; // sobre la papelera: no recolocar el bloque
+  }
 
   // 1) Columna destino: la .cr-day-col bajo el cursor (por X).
   let targetCol = crDrag.targetColEl;
@@ -3831,6 +3868,11 @@ function onCronogramaDragEnd(e) {
   try { drag.block.releasePointerCapture(drag.pointerId); } catch (_) {}
   clearCronogramaDragOver();
 
+  // Ocultar/limpiar la papelera (fin del arrastre).
+  document.body.classList.remove('dragging-active');
+  const trashBtn = document.getElementById('trash-btn');
+  if (trashBtn) trashBtn.classList.remove('drag-over');
+
   commitCronogramaDragResult(drag);
 }
 
@@ -3852,9 +3894,42 @@ function commitCronogramaDragResult(drag) {
   suppressNextCronogramaClick = true;
   setTimeout(() => { suppressNextCronogramaClick = false; }, 0);
 
+  const toHHMM = (min) => {
+    const m = ((min % 1440) + 1440) % 1440;
+    return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  };
+
+  // ── SOLTAR EN LA PAPELERA → ELIMINAR ───────────────────────────────────────
+  // Igual que el planner: si se soltó sobre #trash-btn, se elimina la tarea
+  // (deleteTask gestiona la confirmación para recurrentes). Re-render del horario.
+  if (drag.overTrash) {
+    deleteTask(drag.task.id, drag.sourceDate || drag.task.date);
+    renderCronograma();
+    return;
+  }
+
   const newStartMin = drag.newStartMin;
   const newEndMin = newStartMin + drag.durationMin; // puede superar 1440 (cruza medianoche)
   const newDateStr = drag.targetColEl ? drag.targetColEl.dataset.date : null;
+
+  // ── CTRL/CMD → COPIAR (crear un clon independiente) ────────────────────────
+  if (drag.copy) {
+    pushToUndoStack();
+    const clon = {
+      ...drag.task,
+      id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      date: newDateStr || drag.task.date,
+      startTime: toHHMM(newStartMin),
+      endTime: toHHMM(newEndMin)
+    };
+    // Una copia de una ocurrencia recurrente se vuelve una tarea simple (mismo
+    // criterio que la copia con Ctrl del planner).
+    if (clon.recurrence && clon.recurrence.enabled) clon.recurrence = null;
+    tasks.push(clon);
+    renderCronograma();
+    saveTasksToStorage();
+    return;
+  }
 
   const oldStart = (getTaskTimeRange(drag.task) || {}).startMin;
   const sameTime = oldStart === newStartMin;
@@ -3868,10 +3943,6 @@ function commitCronogramaDragResult(drag) {
 
   // Actualizar la hora en los CAMPOS (manteniendo la duración). El fin se envuelve
   // a 24h si la tarea cruza medianoche.
-  const toHHMM = (min) => {
-    const m = ((min % 1440) + 1440) % 1440;
-    return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-  };
   drag.task.startTime = toHHMM(newStartMin);
   drag.task.endTime = toHHMM(newEndMin);
 
@@ -3954,6 +4025,9 @@ function beginCronogramaTouchDrag() {
     targetColEl: block.parentElement,
     originalStartMin: range.startMin,
     newStartMin: range.startMin,
+    sourceDate: task.date,
+    copy: false,        // copiar con Ctrl es solo de escritorio
+    overTrash: false,
     moved: false,
     pointerId: null
   };
@@ -4079,6 +4153,8 @@ function onCronogramaTouchEnd() {
 
   // Quitar la marca de documento del arrastre (restaura scroll y selección).
   document.body.classList.remove('cr-dragging-active');
+  const trashBtnT = document.getElementById('trash-btn');
+  if (trashBtnT) trashBtnT.classList.remove('drag-over');
   stopCronogramaEdgeScroll();
   clearCronogramaDragOver();
 
@@ -5430,7 +5506,21 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
   updateRecurrenceHint();
   syncAlarmCheckboxState(); // habilita/atenúa la alarma según haya hora de inicio
   if (!selectedTaskId) {
-    document.getElementById('task-input-title').focus();
+    const titleEl = document.getElementById('task-input-title');
+    titleEl.focus();
+    // En el modo Horario el modal se abre desde un `pointerdown`; el `mouseup`/
+    // `click` que le sigue puede robar el foco recién puesto. Reaplicamos el foco
+    // tras finalizar el gesto para que se pueda escribir el título de inmediato,
+    // igual que en el planner. Dos respaldos (rAF y un timeout breve) cubren los
+    // distintos momentos en que puede llegar el mouseup.
+    const refocusTitle = () => {
+      if (!document.getElementById('task-modal').classList.contains('hidden')
+          && document.activeElement !== titleEl) {
+        titleEl.focus();
+      }
+    };
+    requestAnimationFrame(refocusTitle);
+    setTimeout(refocusTitle, 60);
   }
 }
 
