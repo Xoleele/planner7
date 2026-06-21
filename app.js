@@ -4268,6 +4268,11 @@ function beginCronogramaTouchDrag() {
   const durationMin = (range.crossesMidnight ? range.rawEndMin + 1440 : range.rawEndMin) - range.startMin;
   const cols = [...grid.querySelectorAll('.cr-day-col')];
 
+  // Desfase del dedo dentro del bloque y ancho, para poder "flotar" el bloque y
+  // llevarlo sobre el header (papelera/archivado) sin saltos ni recorte.
+  const blockRect = block.getBoundingClientRect();
+  const startX = crTouch.startX;
+
   crDrag = {
     block,
     task,
@@ -4275,10 +4280,17 @@ function beginCronogramaTouchDrag() {
     grid,
     cols,
     grabClientY: startY,
+    grabOffsetX: startX - blockRect.left,
+    grabOffsetY: startY - blockRect.top,
+    blockWidth: blockRect.width,
+    floating: false,
     startColEl: block.parentElement,
     targetColEl: block.parentElement,
     originalStartMin: range.startMin,
     newStartMin: range.startMin,
+    originColEl: block.parentElement,
+    originTopPx: range.startMin,
+    ghost: null,
     sourceDate: task.date,
     copy: false,        // copiar con Ctrl es solo de escritorio
     overTrash: false,
@@ -4295,6 +4307,9 @@ function beginCronogramaTouchDrag() {
   // texto (user-select:none) SOLO mientras se arrastra, igual que el planner
   // hace con body.dragging-active. En reposo el horario sigue scrolleando.
   document.body.classList.add('cr-dragging-active');
+  // También dragging-active para que aparezca la papelera (#trash-btn), igual que
+  // en escritorio. El archivado (#briefcase-btn) ya está siempre visible.
+  document.body.classList.add('dragging-active');
 
   // Feedback háptico (igual que el arrastre táctil del planner).
   if (navigator.vibrate) navigator.vibrate(50);
@@ -4305,12 +4320,16 @@ function onCronogramaTouchMove(e) {
   if (crDrag) {
     if (e.cancelable) e.preventDefault();
     const t = e.touches[0];
-    // Guardar la última posición del dedo para el auto-scroll de borde (la usa
-    // el bucle rAF para seguir moviendo el bloque mientras la vista se desplaza).
-    crEdgeScroll.lastX = t.clientX;
-    crEdgeScroll.lastY = t.clientY;
     applyCronogramaDragMove(t.clientX, t.clientY);
-    updateCronogramaEdgeScroll(t.clientY);
+    // Auto-scroll de borde, salvo si el bloque flota sobre el header
+    // (papelera/archivado): ahí no se scrollea.
+    if (crDrag.floating) {
+      stopCronogramaEdgeScroll();
+    } else {
+      crEdgeScroll.lastX = t.clientX;
+      crEdgeScroll.lastY = t.clientY;
+      updateCronogramaEdgeScroll(t.clientY);
+    }
     return;
   }
   // Caso B: aún esperando el long-press → si el dedo se mueve, era un scroll:
@@ -4408,13 +4427,19 @@ function onCronogramaTouchEnd() {
 
   // Quitar la marca de documento del arrastre (restaura scroll y selección).
   document.body.classList.remove('cr-dragging-active');
+  document.body.classList.remove('dragging-active');
   clearCronogramaHeaderTargets();
   stopCronogramaEdgeScroll();
   clearCronogramaDragOver();
 
   if (wasDragging && drag) {
     crDrag = null;
-    drag.block.classList.remove('cr-dragging');
+    // Si el bloque quedó flotando (sobre el body), quitarlo: renderCronograma lo
+    // redibujará desde los datos.
+    if (drag.floating && drag.block.parentElement === document.body) {
+      drag.block.remove();
+    }
+    drag.block.classList.remove('cr-dragging', 'cr-floating');
     drag.block.style.pointerEvents = '';
     commitCronogramaDragResult(drag);
   }
@@ -5390,6 +5415,18 @@ function handleTouchEnd(e) {
       if (touchGhost) touchGhost.style.display = 'none';
       const elAtPoint = document.elementFromPoint(lastTouchX, lastTouchY);
       if (touchGhost) touchGhost.style.display = '';
+
+      // ¿Se soltó sobre una columna del HORARIO (cronograma)? Entonces se coloca
+      // ahí con snap de 30 min y duración por defecto/propia (igual que en
+      // escritorio). Esto permite arrastrar tareas del maletín al horario en móvil.
+      const crCol = elAtPoint ? elAtPoint.closest('.cr-day-col') : null;
+      if (crCol) {
+        dropTaskOnCronograma(touchDraggedTaskId, crCol, lastTouchY, false);
+        cleanupDraggingUI();
+        cleanupGlobalTouchListeners();
+        return;
+      }
+
       if (elAtPoint) dropColumn = elAtPoint.closest('.day-column');
       if (!dropColumn) dropColumn = lastTargetColumn;
 
