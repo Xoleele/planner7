@@ -3815,6 +3815,21 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 }
 
 /* Estado mientras se arrastra el bloque por el cronograma. */
+/* Bloque del horario "flotando" (position:fixed) durante el arrastre para poder
+   llevarlo sobre el header hasta la papelera, sin que lo recorte el scroll. */
+.cr-task-block.cr-floating {
+  pointer-events: none;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* Fantasma del original mostrado mientras se COPIA (Ctrl) un bloque del horario:
+   el original queda fijo en su sitio, algo atenuado, y se arrastra la copia. */
+.cr-task-block.cr-copy-ghost {
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 1;
+}
+
 .cr-task-block.cr-dragging {
   opacity: 0.85;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);

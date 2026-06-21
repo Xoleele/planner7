@@ -3692,6 +3692,13 @@ function startCronogramaDrag(block, task, e) {
 
   const cols = [...grid.querySelectorAll('.cr-day-col')];
 
+  // Desfase del puntero dentro del bloque y ancho actual: se usan para que, al
+  // "flotar" el bloque (position:fixed) y poder llevarlo sobre el header hasta la
+  // papelera, siga al cursor sin saltos y conserve su tamaño.
+  const blockRect = block.getBoundingClientRect();
+  const grabOffsetX = e.clientX - blockRect.left;
+  const grabOffsetY = e.clientY - blockRect.top;
+
   crDrag = {
     block,
     task,
@@ -3701,6 +3708,10 @@ function startCronogramaDrag(block, task, e) {
     // Y del puntero al agarrar y top original del bloque (en minutos/px). El
     // movimiento se calcula como un DELTA puro desde aquí, evitando saltos.
     grabClientY: e.clientY,
+    grabOffsetX,
+    grabOffsetY,
+    blockWidth: blockRect.width,
+    floating: false,             // ¿el bloque está flotando sobre el header?
     startColEl: block.parentElement,
     targetColEl: block.parentElement,
     originalStartMin: range.startMin,
@@ -3708,6 +3719,9 @@ function startCronogramaDrag(block, task, e) {
     sourceDate: task.date,        // día de origen (para copiar/mover)
     copy: !!(e.ctrlKey || e.metaKey), // Ctrl/Cmd → copiar en vez de mover
     overTrash: false,             // ¿el puntero está sobre la papelera?
+    originColEl: block.parentElement, // columna original (para el fantasma de copia)
+    originTopPx: range.startMin,  // posición vertical original (px = min)
+    ghost: null,                  // clon estático que se ve al copiar (Ctrl)
     moved: false,
     pointerId: e.pointerId
   };
@@ -3716,6 +3730,9 @@ function startCronogramaDrag(block, task, e) {
   block.style.pointerEvents = 'none'; // que no intercepte el hit-test de columnas
   try { block.setPointerCapture(e.pointerId); } catch (_) {}
 
+  // Si ya se arranca con Ctrl, mostrar el fantasma del original desde el inicio.
+  syncCronogramaCopyGhost();
+
   // Mostrar la papelera (mismo botón #trash-btn que el planner): aparece al poner
   // body.dragging-active y se oculta al soltar/cancelar.
   document.body.classList.add('dragging-active');
@@ -3723,14 +3740,70 @@ function startCronogramaDrag(block, task, e) {
   window.addEventListener('pointermove', onCronogramaDragMove);
   window.addEventListener('pointerup', onCronogramaDragEnd);
   window.addEventListener('keydown', onCronogramaDragKey);
+  window.addEventListener('keyup', onCronogramaDragKey);
   e.preventDefault();
 }
 
+// Muestra u oculta el "fantasma" del original mientras se copia (Ctrl/Cmd).
+// Al copiar, el bloque que se arrastra es la COPIA; el original debe seguir
+// viéndose fijo en su sitio. Cuando no se copia (mover), no hay fantasma.
+function syncCronogramaCopyGhost() {
+  if (!crDrag) return;
+
+  // Modo copia activo y aún no hay fantasma → crearlo en la posición original.
+  if (crDrag.copy && !crDrag.ghost && crDrag.originColEl) {
+    const ghost = crDrag.block.cloneNode(true);
+    ghost.classList.remove('cr-dragging', 'cr-floating');
+    ghost.classList.add('cr-copy-ghost');
+    ghost.style.pointerEvents = 'none';
+    // El clon debe quedar en posicionamiento normal (absoluto en su columna),
+    // aunque el bloque arrastrado esté flotando (fixed) en ese momento.
+    ghost.style.position = '';
+    ghost.style.left = '';
+    ghost.style.right = '';
+    ghost.style.width = '';
+    ghost.style.zIndex = '';
+    ghost.style.top = crDrag.originTopPx + 'px';
+    const h = Math.min(crDrag.originTopPx + crDrag.durationMin, 1440) - crDrag.originTopPx;
+    ghost.style.height = Math.max(h, 16) + 'px';
+    // Restaurar el rango horario original en el texto del fantasma (el bloque
+    // arrastrado puede mostrar el rango nuevo en vivo).
+    const tEl = ghost.querySelector('.cr-task-time');
+    if (tEl) {
+      const r = getTaskTimeRange(crDrag.task);
+      if (r) tEl.textContent = `${r.startStr} - ${r.endStr}`;
+    }
+    crDrag.originColEl.appendChild(ghost);
+    crDrag.ghost = ghost;
+  }
+
+  // Modo mover y hay fantasma → quitarlo.
+  if (!crDrag.copy && crDrag.ghost) {
+    crDrag.ghost.remove();
+    crDrag.ghost = null;
+  }
+}
+
+// Quita el fantasma de copia si existe (al soltar/cancelar).
+function removeCronogramaCopyGhost() {
+  if (crDrag && crDrag.ghost) {
+    crDrag.ghost.remove();
+    crDrag.ghost = null;
+  }
+}
+
 // Escape mientras se arrastra: cancelar la operación (sin guardar ni mover).
+// Ctrl/Cmd (pulsar o soltar) alterna el modo copia y su fantasma sin necesidad
+// de mover el ratón.
 function onCronogramaDragKey(e) {
   if (e.key === 'Escape') {
     e.preventDefault();
     cancelCronogramaDrag();
+    return;
+  }
+  if (crDrag && (e.key === 'Control' || e.key === 'Meta')) {
+    crDrag.copy = !!(e.ctrlKey || e.metaKey);
+    syncCronogramaCopyGhost();
   }
 }
 
@@ -3745,8 +3818,14 @@ function cancelCronogramaDrag() {
   window.removeEventListener('pointermove', onCronogramaDragMove);
   window.removeEventListener('pointerup', onCronogramaDragEnd);
   window.removeEventListener('keydown', onCronogramaDragKey);
+  window.removeEventListener('keyup', onCronogramaDragKey);
+  stopCronogramaEdgeScroll();
 
-  drag.block.classList.remove('cr-dragging');
+  if (drag.ghost) drag.ghost.remove();
+  if (drag.floating && drag.block.parentElement === document.body) {
+    drag.block.remove();
+  }
+  drag.block.classList.remove('cr-dragging', 'cr-floating');
   drag.block.style.pointerEvents = '';
   try { drag.block.releasePointerCapture(drag.pointerId); } catch (_) {}
   clearCronogramaDragOver();
@@ -3768,7 +3847,53 @@ function onCronogramaDragMove(e) {
   // Actualizar el modo copia en vivo según Ctrl/Cmd (el usuario puede pulsarlo o
   // soltarlo a mitad del arrastre).
   crDrag.copy = !!(e.ctrlKey || e.metaKey);
+  syncCronogramaCopyGhost();
   applyCronogramaDragMove(e.clientX, e.clientY);
+  // Auto-scroll de borde también con ratón: si el cursor se acerca al borde
+  // superior/inferior del horario, desplazar la vista automáticamente (mismo
+  // mecanismo que el arrastre táctil). Pero si el bloque está FLOTANDO sobre el
+  // header/papelera (fuera del horario), no scrollear.
+  if (crDrag.floating) {
+    stopCronogramaEdgeScroll();
+  } else {
+    crEdgeScroll.lastX = e.clientX;
+    crEdgeScroll.lastY = e.clientY;
+    updateCronogramaEdgeScroll(e.clientY);
+  }
+}
+
+// Hace que el bloque arrastrado "flote" (position:fixed sobre el body) para que
+// pueda salir del recorte del scroll del horario y llegar hasta la papelera del
+// header. Se mueve al body para que ningún ancestro con overflow lo recorte.
+function enterCronogramaFloat() {
+  if (!crDrag || crDrag.floating) return;
+  crDrag.floating = true;
+  const b = crDrag.block;
+  b.classList.add('cr-floating');
+  b.style.position = 'fixed';
+  b.style.width = crDrag.blockWidth + 'px';
+  b.style.right = 'auto';
+  b.style.zIndex = '100002'; // por encima del header y la papelera
+  document.body.appendChild(b);
+}
+
+// Devuelve el bloque flotante al horario: lo re-inserta en la columna destino y
+// restaura el posicionamiento absoluto normal (top en minutos lo fija el flujo
+// normal de applyCronogramaDragMove justo después).
+function exitCronogramaFloat() {
+  if (!crDrag || !crDrag.floating) return;
+  crDrag.floating = false;
+  const b = crDrag.block;
+  b.classList.remove('cr-floating');
+  b.style.position = '';
+  b.style.left = '';
+  b.style.right = '';
+  b.style.width = '';
+  b.style.zIndex = '';
+  // Reinsertar en la columna destino actual (o la de origen) para que el
+  // posicionamiento por `top` (relativo a la columna) vuelva a ser válido.
+  const col = crDrag.targetColEl || crDrag.startColEl;
+  if (col && b.parentElement !== col) col.appendChild(b);
 }
 
 // Lógica compartida de movimiento (ratón y táctil): coloca el bloque bajo el
@@ -3790,10 +3915,25 @@ function applyCronogramaDragMove(clientX, clientY) {
     trashBtn.classList.toggle('drag-over', overTrash);
   }
   crDrag.overTrash = overTrash;
-  if (overTrash) {
+
+  // 0b) ¿El puntero está por ENCIMA del área de scroll del horario (zona del
+  // header) o sobre la papelera? En ese caso el bloque "flota" (position:fixed)
+  // siguiendo al cursor, para que pueda salir del recorte del scroll y llegar
+  // visualmente hasta la papelera del header. Si vuelve dentro del horario, se
+  // recoloca de forma normal en su columna.
+  const scrollEl = document.querySelector('.cronograma-scroll');
+  const scrollTop = scrollEl ? scrollEl.getBoundingClientRect().top : 0;
+  const shouldFloat = overTrash || clientY < scrollTop;
+
+  if (shouldFloat) {
+    enterCronogramaFloat();
+    crDrag.block.style.left = (clientX - crDrag.grabOffsetX) + 'px';
+    crDrag.block.style.top = (clientY - crDrag.grabOffsetY) + 'px';
     if (crDrag.targetColEl) crDrag.targetColEl.classList.remove('cr-drag-over');
-    return; // sobre la papelera: no recolocar el bloque
+    return; // flotando: no recolocar por columna/hora
   }
+  // Si venía flotando y vuelve al horario, restaurar el posicionamiento normal.
+  if (crDrag.floating) exitCronogramaFloat();
 
   // 1) Columna destino: la .cr-day-col bajo el cursor (por X).
   let targetCol = crDrag.targetColEl;
@@ -3862,8 +4002,16 @@ function onCronogramaDragEnd(e) {
   window.removeEventListener('pointermove', onCronogramaDragMove);
   window.removeEventListener('pointerup', onCronogramaDragEnd);
   window.removeEventListener('keydown', onCronogramaDragKey);
+  window.removeEventListener('keyup', onCronogramaDragKey);
+  stopCronogramaEdgeScroll();
 
-  drag.block.classList.remove('cr-dragging');
+  if (drag.ghost) drag.ghost.remove();
+  // Si el bloque quedó flotando (sobre el body), quitarlo: renderCronograma lo
+  // redibujará en su sitio desde los datos. Evita un bloque huérfano en el body.
+  if (drag.floating && drag.block.parentElement === document.body) {
+    drag.block.remove();
+  }
+  drag.block.classList.remove('cr-dragging', 'cr-floating');
   drag.block.style.pointerEvents = '';
   try { drag.block.releasePointerCapture(drag.pointerId); } catch (_) {}
   clearCronogramaDragOver();
