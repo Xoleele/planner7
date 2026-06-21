@@ -819,9 +819,12 @@
           </div>
         </div>
       </div>
-      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border-light); padding: 16px 24px; width: 100%; box-sizing: border-box;">
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--border-light); padding: 16px 24px; width: 100%; box-sizing: border-box;">
         <button type="button" class="btn btn-secondary" id="stats-edit-cancel-btn" style="min-width: 100px;">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="stats-edit-save-btn" style="min-width: 100px;">Aceptar</button>
+        <div style="display: flex; gap: 12px;">
+          <button type="button" class="btn btn-secondary" id="stats-edit-reset-btn" style="color: #000000; min-width: 100px;">Restablecer</button>
+          <button type="button" class="btn btn-primary" id="stats-edit-save-btn" style="min-width: 100px;">Aceptar</button>
+        </div>
       </div>
     </div>
   </div>

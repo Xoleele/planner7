@@ -884,6 +884,7 @@ let selectedOccurrenceDate = null; // Fecha específica de la ocurrencia selecci
 let desktopGridHTML = null; // Caches the original desktop layout of .planner-grid
 let completedTasksExpanded = false;
 let statsCustomColors = {};
+let statsCustomNames = {};
 let statsMergedTasks = {};
 let statsMergeModeActive = false;
 let statsMergeFirstSelected = '';
@@ -1474,6 +1475,7 @@ async function startApp(user) {
       notes = parsedPrefs.notes || {};
       noteTemplate = parsedPrefs.noteTemplate || '';
       statsCustomColors = parsedPrefs.statsCustomColors || {};
+      statsCustomNames = parsedPrefs.statsCustomNames || {};
       statsMergedTasks = parsedPrefs.statsMergedTasks || {};
       if (parsedPrefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...parsedPrefs.copyOptions };
     }
@@ -1487,6 +1489,7 @@ async function startApp(user) {
     notes = prefs.notes || {};
     noteTemplate = prefs.noteTemplate || '';
     statsCustomColors = prefs.statsCustomColors || {};
+    statsCustomNames = prefs.statsCustomNames || {};
     statsMergedTasks = prefs.statsMergedTasks || {};
     if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
     activeTimerState = prefs.activeTimer || null;
@@ -6379,6 +6382,7 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       
       grouped[name] = {
         name,
+        displayName: statsCustomNames[`${dateStr}_${name}`] || name,
         minutes: 0,
         tagId: tagId,
         tasks: []
@@ -6490,7 +6494,7 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       
       const nameSpan = document.createElement('span');
       nameSpan.className = 'activity-name';
-      nameSpan.textContent = group.name;
+      nameSpan.textContent = group.displayName || group.name;
       
       wrapper.appendChild(colorBox);
       wrapper.appendChild(nameSpan);
@@ -6721,7 +6725,7 @@ function openStatsTaskEditView(group) {
   editingTaskOriginalName = group.name;
   const titleInput = document.getElementById('stats-edit-task-title');
   if (titleInput) {
-    titleInput.value = group.name;
+    titleInput.value = group.displayName || group.name;
     setTimeout(() => titleInput.focus(), 50);
   }
 
@@ -6776,31 +6780,18 @@ async function saveStatsTaskEdit() {
     selectedColor = editingTaskCustomColor;
   }
 
-  // 2. Si el título cambió, actualizar todas las tareas con ese título
-  let tasksChanged = false;
-  if (newTitle !== editingTaskOriginalName) {
-    tasks.forEach(task => {
-      if (task.title === editingTaskOriginalName) {
-        task.title = newTitle;
-        tasksChanged = true;
-      }
-    });
-    
-    // Mover colores personalizados en estadísticas de cualquier fecha si existían
-    Object.keys(statsCustomColors).forEach(key => {
-      if (key.endsWith(`_${editingTaskOriginalName}`)) {
-        const parts = key.split('_');
-        const datePart = parts[0];
-        const newKey = `${datePart}_${newTitle}`;
-        statsCustomColors[newKey] = statsCustomColors[key];
-        delete statsCustomColors[key];
-      }
-    });
+  // 2. Guardar o limpiar el alias de nombre para la fecha actual
+  if (currentDailyStatsDate) {
+    if (newTitle === editingTaskOriginalName) {
+      delete statsCustomNames[`${currentDailyStatsDate}_${editingTaskOriginalName}`];
+    } else {
+      statsCustomNames[`${currentDailyStatsDate}_${editingTaskOriginalName}`] = newTitle;
+    }
   }
 
   // 3. Guardar el color personalizado en estadísticas para el día actual solamente
   if (selectedColor && currentDailyStatsDate) {
-    const currentColorKey = `${currentDailyStatsDate}_${newTitle}`;
+    const currentColorKey = `${currentDailyStatsDate}_${editingTaskOriginalName}`;
     statsCustomColors[currentColorKey] = {
       bg: selectedColor.bg,
       border: selectedColor.border || selectedColor.bg
@@ -6817,6 +6808,7 @@ async function saveStatsTaskEdit() {
     } catch(e) {}
     
     prefs.statsCustomColors = statsCustomColors;
+    prefs.statsCustomNames = statsCustomNames;
     
     try {
       localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
@@ -6825,13 +6817,37 @@ async function saveStatsTaskEdit() {
     await savePreferences(prefs);
   }
 
-  // 5. Si cambiaron las tareas, guardar e inyectar al calendario
-  if (tasksChanged) {
-    await saveTasksToStorage();
-    renderWeeklyCalendar();
+  // 5. Volver a la vista de estadísticas
+  closeStatsTaskEditView();
+}
+
+async function resetStatsTaskEdit() {
+  if (currentDailyStatsDate && editingTaskOriginalName) {
+    const key = `${currentDailyStatsDate}_${editingTaskOriginalName}`;
+    delete statsCustomColors[key];
+    delete statsCustomNames[key];
+
+    // Persistir preferencias
+    if (currentUser) {
+      const prefsCacheKey = 'prefs_cache_' + currentUser.id;
+      let prefs = {};
+      try {
+        const cached = localStorage.getItem(prefsCacheKey);
+        if (cached) prefs = JSON.parse(cached);
+      } catch(e) {}
+      
+      prefs.statsCustomColors = statsCustomColors;
+      prefs.statsCustomNames = statsCustomNames;
+      
+      try {
+        localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
+      } catch(e) {}
+      
+      await savePreferences(prefs);
+    }
   }
 
-  // 6. Volver a la vista de estadísticas
+  // Volver a la vista de estadísticas
   closeStatsTaskEditView();
 }
 
@@ -9161,6 +9177,9 @@ function setupEventListeners() {
 
   const statsEditSaveBtn = document.getElementById('stats-edit-save-btn');
   if (statsEditSaveBtn) statsEditSaveBtn.addEventListener('click', saveStatsTaskEdit);
+
+  const statsEditResetBtn = document.getElementById('stats-edit-reset-btn');
+  if (statsEditResetBtn) statsEditResetBtn.addEventListener('click', resetStatsTaskEdit);
 
   const statsEditCloseBtn = document.getElementById('stats-edit-close-btn');
   if (statsEditCloseBtn) statsEditCloseBtn.addEventListener('click', closeStatsTaskEditView);
