@@ -3298,9 +3298,69 @@ function setupCronogramaClickDelegation() {
     }
     if (!col) return; // clic en la columna de horas o fuera de los días
 
+    // TÁCTIL: NO abrir en el pointerdown. Al abrir el modal en mitad del gesto,
+    // el touchend posterior generaba un "click fantasma" dentro del panel recién
+    // abierto. En su lugar, esperamos al pointerup y solo abrimos si el dedo no
+    // se movió (un toque, no un scroll del horario).
+    if (e.pointerType === 'touch') {
+      crEmptyTapPending = {
+        x: e.clientX, y: e.clientY,
+        date: col.dataset.date,
+        min: cronogramaClickToMinutes(col, e.clientY)
+      };
+      return;
+    }
+
+    // RATÓN: abrir de inmediato en el pointerdown (evita áreas muertas en escritorio).
     handleCronogramaEmptyClick(col, cronogramaClickToMinutes(col, e.clientY));
   });
+
+  // Resolución del toque táctil: si el dedo apenas se movió desde el pointerdown
+  // (fue un toque, no un scroll/arrastre), abrir el creador AL SOLTAR. Abrirlo
+  // aquí (y no en pointerdown) evita el click fantasma dentro del panel.
+  grid.addEventListener('pointerup', (e) => {
+    if (e.pointerType !== 'touch') return;
+    const pend = crEmptyTapPending;
+    crEmptyTapPending = null;
+    if (!pend) return;
+    if (suppressNextCronogramaClick) return;
+    const dx = Math.abs(e.clientX - pend.x);
+    const dy = Math.abs(e.clientY - pend.y);
+    if (dx > 10 || dy > 10) return; // hubo desplazamiento → fue scroll, no un toque
+    const col = document.querySelector(`.cr-day-col[data-date="${pend.date}"]`);
+    if (!col) return;
+    // Tragar el click sintético que el navegador dispara tras el touchend: cae
+    // sobre el panel recién abierto (p. ej. el selector de etiqueta) y abría
+    // controles sin querer. Lo capturamos a nivel de documento y lo anulamos.
+    swallowNextGhostClick();
+    handleCronogramaEmptyClick(col, pend.min);
+  });
+
+  // Si el toque se cancela (scroll, gesto del sistema), descartar el pendiente.
+  grid.addEventListener('pointercancel', () => { crEmptyTapPending = null; });
 }
+
+// Anula el PRÓXIMO click que dispare el navegador (el "click fantasma" sintético
+// que sigue a un touchend). Se engancha en fase de CAPTURA a nivel de documento,
+// así intercepta el click antes de que llegue a cualquier control del panel
+// recién abierto. Se autodesengancha tras consumir un click o a los 700 ms.
+function swallowNextGhostClick() {
+  const handler = (ev) => {
+    ev.stopPropagation();
+    ev.preventDefault();
+    cleanup();
+  };
+  const cleanup = () => {
+    document.removeEventListener('click', handler, true);
+    clearTimeout(timer);
+  };
+  const timer = setTimeout(cleanup, 700);
+  document.addEventListener('click', handler, true);
+}
+
+// Toque táctil pendiente en un espacio vacío del horario (entre pointerdown y
+// pointerup), para abrir el creador al soltar y evitar el click fantasma.
+let crEmptyTapPending = null;
 
 // Convierte la coordenada Y del puntero (px de viewport) al MINUTO lógico dentro
 // de la columna (0..1440). Los bloques se posicionan con `top` en px LÓGICOS
