@@ -2919,8 +2919,13 @@ function buildCronogramaHeader(date, dayNameUpper, isToday) {
   dialogueBtn.innerHTML = `<img src="${hasNotes ? 'icons/message-square-text.svg' : 'icons/message-square.svg'}" alt="Diálogo">`;
   header.appendChild(dialogueBtn);
 
-  // El botón de duración total del día (icono reloj) NO se muestra en el modo
-  // horario: solo aparece en el planner.
+  // Botón de estadísticas (círculo tipo gráfico de pizza). Misma presencia que
+  // en el planner. Su función futura se definirá; por ahora es solo el botón.
+  const statsBtn = document.createElement('button');
+  statsBtn.className = 'stats-day-btn';
+  statsBtn.title = 'Estadísticas';
+  statsBtn.innerHTML = '<img src="icons/pie-chart.svg" alt="Estadísticas" width="14" height="14">';
+  header.appendChild(statsBtn);
 
   const copyBtn = document.createElement('button');
   copyBtn.className = 'copy-day-btn';
@@ -9248,8 +9253,8 @@ function makeMobileDayCard(date) {
   header.innerHTML = `
     <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
     <span class="day-number">${date.getDate()}</span>
-    <button class="duration-day-btn${clockActiveClass}" data-tooltip="${clockTitle}">
-      <img src="icons/clock.svg" alt="Duración total" width="14" height="14">
+    <button class="stats-day-btn" title="Estadísticas">
+      <img src="icons/pie-chart.svg" alt="Estadísticas" width="14" height="14">
     </button>
     <button class="copy-day-btn" title="Copiar tareas como texto">
       <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">

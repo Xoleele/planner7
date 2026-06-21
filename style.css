@@ -2458,6 +2458,7 @@ body.not-logged-in .app-container {
 .clear-day-btn,
 .dialogue-day-btn,
 .copy-day-btn,
+.stats-day-btn,
 .duration-day-btn {
   position: absolute;
   right: 14px;
@@ -2499,6 +2500,19 @@ body.not-logged-in .app-container {
   right: 15px;
 }
 
+/* Botón de estadísticas (círculo, gráfico de pizza): ocupa el mismo lugar que
+   ocupaba el de duración (debajo del de notas, a la derecha). */
+.stats-day-btn {
+  top: 46px;
+  right: 15px;
+}
+
+.stats-day-btn img {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
 /* Sin has-duration el botón nunca es visible, ni en hover */
 .duration-day-btn:not(.has-duration) {
   opacity: 0 !important;
@@ -2537,11 +2551,13 @@ body.not-logged-in .app-container {
 .day-column:hover .clear-day-btn,
 .day-column:hover .dialogue-day-btn,
 .day-column:hover .copy-day-btn,
+.day-column:hover .stats-day-btn,
 .day-column:hover .duration-day-btn.has-duration {
   opacity: 1;
 }
 
-.clear-day-btn:hover {
+.clear-day-btn:hover,
+.stats-day-btn:hover {
   color: var(--text-main);
   background-color: #f2f2f7;
   border-color: #c7c7cc;
@@ -2577,6 +2593,32 @@ body.not-logged-in .app-container {
   opacity: 1;
   padding: 4px;
   border-radius: var(--radius-sm);
+}
+
+/* Botón de estadísticas en móvil — ocupa el lugar a la izquierda del copiar
+   (donde antes iba el reloj). Siempre visible, icono blanco, estilo plano como
+   los demás iconos de la cabecera móvil. */
+.mobile-mode .stats-day-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  right: 108px;
+  left: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  box-shadow: none;
+  opacity: 1;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.mobile-mode .stats-day-btn img {
+  width: 14px;
+  height: 14px;
+  filter: invert(100%) !important; /* Icono blanco */
 }
 
 .mobile-mode .duration-day-btn.has-duration {
@@ -2617,7 +2659,8 @@ body.not-logged-in .app-container {
 /* Icono en gris por defecto */
 .dialogue-day-btn img,
 .clear-day-btn img,
-.copy-day-btn img {
+.copy-day-btn img,
+.stats-day-btn img {
   filter: invert(62%) sepia(6%) saturate(120%) hue-rotate(200deg) brightness(91%) contrast(85%);
 }
 
@@ -3561,6 +3604,7 @@ body.cronograma-active .planner-grid { display: none; }
 .cronograma-headers .day-header:hover .clear-day-btn,
 .cronograma-headers .day-header:hover .dialogue-day-btn,
 .cronograma-headers .day-header:hover .copy-day-btn,
+.cronograma-headers .day-header:hover .stats-day-btn,
 .cronograma-headers .day-header:hover .duration-day-btn.has-duration,
 /* Los iconos también aparecen al pasar el cursor por CUALQUIER parte de la
    columna de ese día (su cuerpo), no solo por la cabecera. El header se marca
@@ -3568,6 +3612,7 @@ body.cronograma-active .planner-grid { display: none; }
 .cronograma-headers .day-header.cr-col-hover .clear-day-btn,
 .cronograma-headers .day-header.cr-col-hover .dialogue-day-btn,
 .cronograma-headers .day-header.cr-col-hover .copy-day-btn,
+.cronograma-headers .day-header.cr-col-hover .stats-day-btn,
 .cronograma-headers .day-header.cr-col-hover .duration-day-btn.has-duration {
   opacity: 1;
 }
