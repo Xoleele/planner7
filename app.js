@@ -6377,9 +6377,10 @@ function renderDailyStatsPanel(panelEl, dateStr) {
   // Asignar colores a los grupos
   const usedColors = new Set();
   groupedList.forEach((group, index) => {
-    // Si tiene un color personalizado asignado en estadísticas, usarlo
-    if (statsCustomColors[group.name]) {
-      group.color = statsCustomColors[group.name];
+    // Si tiene un color personalizado asignado en estadísticas para este día específico, usarlo
+    const customColorKey = `${dateStr}_${group.name}`;
+    if (statsCustomColors[customColorKey]) {
+      group.color = statsCustomColors[customColorKey];
       usedColors.add(group.color.bg.toLowerCase());
       return;
     }
@@ -6754,16 +6755,22 @@ async function saveStatsTaskEdit() {
       }
     });
     
-    // Mover color personalizado en estadísticas si existía
-    if (statsCustomColors[editingTaskOriginalName]) {
-      statsCustomColors[newTitle] = statsCustomColors[editingTaskOriginalName];
-      delete statsCustomColors[editingTaskOriginalName];
-    }
+    // Mover colores personalizados en estadísticas de cualquier fecha si existían
+    Object.keys(statsCustomColors).forEach(key => {
+      if (key.endsWith(`_${editingTaskOriginalName}`)) {
+        const parts = key.split('_');
+        const datePart = parts[0];
+        const newKey = `${datePart}_${newTitle}`;
+        statsCustomColors[newKey] = statsCustomColors[key];
+        delete statsCustomColors[key];
+      }
+    });
   }
 
-  // 3. Guardar el color personalizado en estadísticas
-  if (selectedColor) {
-    statsCustomColors[newTitle] = {
+  // 3. Guardar el color personalizado en estadísticas para el día actual solamente
+  if (selectedColor && currentDailyStatsDate) {
+    const currentColorKey = `${currentDailyStatsDate}_${newTitle}`;
+    statsCustomColors[currentColorKey] = {
       bg: selectedColor.bg,
       border: selectedColor.border || selectedColor.bg
     };
