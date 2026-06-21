@@ -7919,6 +7919,146 @@ function showDurationToast(msg) {
   durationToastTimer = setTimeout(() => toast.classList.remove('visible'), 2000);
 }
 
+function setupTimeMaskInput(inputEl) {
+  if (!inputEl) return;
+  inputEl.type = 'text';
+  inputEl.classList.add('time-masked-input');
+  
+  const originalDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  const currentVal = originalDescriptor.get.call(inputEl);
+  if (!currentVal || currentVal.trim() === '') {
+    originalDescriptor.set.call(inputEl, '  :  ');
+  }
+  
+  Object.defineProperty(inputEl, 'value', {
+    get() {
+      const raw = originalDescriptor.get.call(this) || '';
+      if (/^\d{2}:\d{2}$/.test(raw)) {
+        return raw;
+      }
+      return '';
+    },
+    set(val) {
+      if (!val || val === '  :  ' || val.trim() === ':') {
+        originalDescriptor.set.call(this, '  :  ');
+      } else {
+        if (/^\d{2}:\d{2}$/.test(val)) {
+          originalDescriptor.set.call(this, val);
+        } else {
+          originalDescriptor.set.call(this, '  :  ');
+        }
+      }
+    },
+    configurable: true
+  });
+  
+  inputEl.addEventListener('keydown', (e) => {
+    const isDigit = /^[0-9]$/.test(e.key);
+    const isBackspace = e.key === 'Backspace';
+    const isDelete = e.key === 'Delete';
+    const isArrow = ['ArrowLeft', 'ArrowRight'].includes(e.key);
+    const isTab = e.key === 'Tab';
+    const isEnter = e.key === 'Enter';
+    
+    if (isTab || isEnter || e.ctrlKey || e.metaKey) {
+      return;
+    }
+    
+    e.preventDefault();
+    
+    let selStart = inputEl.selectionStart;
+    let val = originalDescriptor.get.call(inputEl) || '  :  ';
+    let valArr = val.split('');
+    
+    if (isDigit) {
+      if (selStart === 2) {
+        selStart = 3;
+      }
+      if (selStart < 5) {
+        let valid = true;
+        if (selStart === 0 && !['0', '1', '2'].includes(e.key)) valid = false;
+        if (selStart === 1) {
+          const h1 = valArr[0];
+          if (h1 === '2' && !['0', '1', '2', '3'].includes(e.key)) valid = false;
+        }
+        if (selStart === 3 && !['0', '1', '2', '3', '4', '5'].includes(e.key)) valid = false;
+        
+        if (valid) {
+          valArr[selStart] = e.key;
+          originalDescriptor.set.call(inputEl, valArr.join(''));
+          let nextSel = selStart + 1;
+          if (nextSel === 2) nextSel = 3;
+          inputEl.setSelectionRange(nextSel, nextSel);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+    } else if (isBackspace) {
+      let targetIdx = selStart - 1;
+      if (targetIdx === 2) targetIdx = 1;
+      if (targetIdx >= 0) {
+        valArr[targetIdx] = ' ';
+        originalDescriptor.set.call(inputEl, valArr.join(''));
+        inputEl.setSelectionRange(targetIdx, targetIdx);
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    } else if (isDelete) {
+      let targetIdx = selStart;
+      if (targetIdx === 2) targetIdx = 3;
+      if (targetIdx < 5) {
+        valArr[targetIdx] = ' ';
+        originalDescriptor.set.call(inputEl, valArr.join(''));
+        inputEl.setSelectionRange(targetIdx, targetIdx);
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    } else if (isArrow) {
+      let nextSel = selStart;
+      if (e.key === 'ArrowLeft') {
+        nextSel = selStart - 1;
+        if (nextSel === 2) nextSel = 1;
+      } else {
+        nextSel = selStart + 1;
+        if (nextSel === 2) nextSel = 3;
+      }
+      if (nextSel >= 0 && nextSel <= 5) {
+        inputEl.setSelectionRange(nextSel, nextSel);
+      }
+    }
+  });
+
+  const adjustCursor = () => {
+    let val = originalDescriptor.get.call(inputEl) || '  :  ';
+    let firstEmpty = -1;
+    for (let i = 0; i < 5; i++) {
+      if (i !== 2 && val[i] === ' ') {
+        firstEmpty = i;
+        break;
+      }
+    }
+    if (firstEmpty !== -1) {
+      inputEl.setSelectionRange(firstEmpty, firstEmpty);
+    } else {
+      inputEl.setSelectionRange(5, 5);
+    }
+  };
+
+  inputEl.addEventListener('focus', () => {
+    setTimeout(adjustCursor, 10);
+  });
+
+  inputEl.addEventListener('click', (e) => {
+    e.preventDefault();
+    adjustCursor();
+  });
+  
+  inputEl.addEventListener('blur', () => {
+    let val = originalDescriptor.get.call(inputEl) || '';
+    if (!/^\d{2}:\d{2}$/.test(val)) {
+      originalDescriptor.set.call(inputEl, '  :  ');
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+}
+
 // --- Wire Up Event Listeners ---
 // Abre el modal de estadísticas y reinicia su estado. Reutilizado por el botón
 // de escritorio y por el ítem del menú de usuario (móvil).
@@ -8537,6 +8677,12 @@ function setupEventListeners() {
   // y se muestra la duración calculada en tiempo real.
   const taskStartInput = document.getElementById('task-input-start');
   const taskEndInput = document.getElementById('task-input-end');
+  
+  if (!isMobile()) {
+    setupTimeMaskInput(taskStartInput);
+    setupTimeMaskInput(taskEndInput);
+  }
+
   if (taskStartInput) {
     taskStartInput.addEventListener('input', () => {
       syncEndTimeEnabled();
@@ -8548,18 +8694,15 @@ function setupEventListeners() {
     taskEndInput.addEventListener('input', updateDurationDisplay);
   }
 
-  // Campos de hora: se puede ESCRIBIR con el teclado Y abrir el selector nativo.
-  // - Teclear los segmentos HH/MM funciona de forma nativa cuando el campo tiene
-  //   el foco (por eso NO hacemos preventDefault, que bloquearía el foco).
-  // - Un clic de ratón en el campo abre además el selector desplegable nativo.
-  // Las pulsaciones de teclado (Tab para enfocar, dígitos para escribir) NO
-  // abren el desplegable, así que ambas vías conviven.
+  // Campos de hora: se puede ESCRIBIR con el teclado Y abrir el selector nativo (solo móvil).
   [taskStartInput, taskEndInput].forEach(inp => {
     if (!inp) return;
     inp.addEventListener('click', () => {
       if (inp.disabled) return;
-      if (typeof inp.showPicker === 'function') {
-        try { inp.showPicker(); } catch (_) {}
+      if (isMobile()) {
+        if (typeof inp.showPicker === 'function') {
+          try { inp.showPicker(); } catch (_) {}
+        }
       }
     });
   });
@@ -8601,6 +8744,10 @@ function setupEventListeners() {
       e.stopPropagation();
       const target = document.getElementById(icon.dataset.target);
       if (!target || target.disabled) return;
+      if (!isMobile() && target.classList.contains('time-masked-input')) {
+        target.focus();
+        return;
+      }
       if (typeof target.showPicker === 'function') {
         try { target.showPicker(); } catch (_) { target.focus(); }
       } else {

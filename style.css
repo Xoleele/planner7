@@ -584,13 +584,13 @@ html:not(.mobile-mode) .app-container {
   display: flex;
   align-items: center;
 }
-.time-input-wrapper input[type="time"] {
+.time-input-wrapper input {
   flex: 1;
   /* Hueco a la izquierda para el reloj y a la derecha para la ✕. */
   padding-right: 30px;
   cursor: pointer;
 }
-.time-input-wrapper.has-clock input[type="time"] {
+.time-input-wrapper.has-clock input {
   padding-left: 30px;
 }
 /* Icono de reloj propio, a la izquierda del campo (reemplaza al nativo). */
@@ -606,14 +606,14 @@ html:not(.mobile-mode) .app-container {
 }
 /* Ocultar el indicador/icono nativo del selector de hora (lo sustituimos por el
    reloj a la izquierda). */
-.time-input-wrapper input[type="time"]::-webkit-calendar-picker-indicator {
+.time-input-wrapper input::-webkit-calendar-picker-indicator {
   display: none;
   -webkit-appearance: none;
 }
 
 /* Botón de campana (alarma) dentro del campo de hora de inicio, a la izquierda
    de la ✕. Cuando hay campana, el input reserva más hueco a la derecha. */
-.time-input-wrapper.has-bell input[type="time"] {
+.time-input-wrapper.has-bell input {
   padding-right: 54px;
 }
 .time-bell-btn {
@@ -703,7 +703,7 @@ html:not(.mobile-mode) .app-container {
   background-color: rgba(0, 0, 0, 0.06);
 }
 /* Si el campo está deshabilitado (fin sin inicio), ocultar su botón ✕. */
-.time-input-wrapper input[type="time"]:disabled + .time-clear-btn {
+.time-input-wrapper input:disabled + .time-clear-btn {
   display: none;
 }
 
