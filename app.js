@@ -2937,8 +2937,8 @@ function buildCronogramaHeader(date, dayNameUpper, isToday) {
   // en el planner. Su función futura se definirá; por ahora es solo el botón.
   const statsBtn = document.createElement('button');
   statsBtn.className = 'stats-day-btn';
-  statsBtn.title = 'Estadísticas';
-  statsBtn.innerHTML = '<img src="icons/pie-chart.svg" alt="Estadísticas" width="14" height="14">';
+  statsBtn.title = 'Actividad';
+  statsBtn.innerHTML = '<img src="icons/pie-chart.svg" alt="Actividad" width="14" height="14">';
   header.appendChild(statsBtn);
 
   const copyBtn = document.createElement('button');
@@ -6608,7 +6608,7 @@ function estadisticasDiarias(dateStr) {
   const formattedDate = formatToDDMMYYYY(dateStr);
   const titleEl = document.getElementById('daily-stats-title');
   if (titleEl) {
-    titleEl.textContent = `Estadísticas ${formattedDate}`;
+    titleEl.textContent = `Actividad ${formattedDate}`;
   }
   
   const prevDateStr = getRelativeDateString(dateStr, -1);
@@ -10132,8 +10132,8 @@ function makeMobileDayCard(date) {
   header.innerHTML = `
     <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
     <span class="day-number">${date.getDate()}</span>
-    <button class="stats-day-btn" title="Estadísticas">
-      <img src="icons/pie-chart.svg" alt="Estadísticas" width="14" height="14">
+    <button class="stats-day-btn" title="Actividad">
+      <img src="icons/pie-chart.svg" alt="Actividad" width="14" height="14">
     </button>
     <button class="copy-day-btn" title="Copiar tareas como texto">
       <img src="icons/copy.svg" alt="Copiar tareas" width="16" height="16">
