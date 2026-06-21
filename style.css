@@ -4174,10 +4174,18 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 /* ── Estadísticas Diarias ────────────────────────────────────────────────── */
 .daily-stats-w {
   width: 380px;
+  height: 590px;
+  display: flex;
+  flex-direction: column;
 }
 
 #daily-stats-modal .modal-header {
   padding-bottom: 10px;
+  flex-shrink: 0;
+}
+
+#daily-stats-modal .modal-footer {
+  flex-shrink: 0;
 }
 
 #daily-stats-modal .modal-body {
@@ -4187,6 +4195,9 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   gap: 8px;
   padding: 6px 16px 20px 16px;
   overflow-y: hidden;
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .pie-chart-container {
@@ -4196,6 +4207,7 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   width: 190px;
   height: 190px;
   position: relative;
+  flex-shrink: 0;
 }
 
 .pie-chart-container svg {
@@ -4210,6 +4222,8 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   gap: 12px;
   padding: 0;
   box-sizing: border-box;
+  flex: 1;
+  min-height: 0;
 }
 
 .daily-stats-subtitle {
@@ -4229,7 +4243,9 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 220px;
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 4px;
@@ -4341,14 +4357,21 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .daily-stats-viewport {
   width: 100%;
   overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 .daily-stats-slider {
   display: flex;
   width: 300%;
+  height: 100%;
 }
 .daily-stats-panel {
   width: 33.3333%;
   flex-shrink: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 

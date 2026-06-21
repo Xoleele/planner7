@@ -6474,15 +6474,7 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       tdName.appendChild(wrapper);
       tr.appendChild(tdName);
       
-      // 2. Celda de Porcentaje
-      const tdPercent = document.createElement('td');
-      tdPercent.style.textAlign = 'right';
-      tdPercent.style.width = '42px';
-      tdPercent.style.cursor = 'pointer';
-      tdPercent.textContent = percentStr;
-      tr.appendChild(tdPercent);
-      
-      // 3. Celda de Duración
+      // 2. Celda de Duración
       const tdDuration = document.createElement('td');
       tdDuration.style.textAlign = 'right';
       tdDuration.style.color = 'var(--text-main)';
@@ -6490,6 +6482,14 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       tdDuration.style.cursor = 'pointer';
       tdDuration.textContent = durationStr;
       tr.appendChild(tdDuration);
+      
+      // 3. Celda de Porcentaje
+      const tdPercent = document.createElement('td');
+      tdPercent.style.textAlign = 'right';
+      tdPercent.style.width = '42px';
+      tdPercent.style.cursor = 'pointer';
+      tdPercent.textContent = percentStr;
+      tr.appendChild(tdPercent);
       
       // Delegar click en muestra, nombre, duración o % para abrir edición
       const handleEditClick = (e) => {
@@ -6543,17 +6543,17 @@ function renderDailyStatsPanel(panelEl, dateStr) {
     tdTotalName.textContent = '';
     trTotal.appendChild(tdTotalName);
     
-    const tdTotalPercent = document.createElement('td');
-    tdTotalPercent.style.textAlign = 'right';
-    tdTotalPercent.style.width = '42px';
-    tdTotalPercent.textContent = '100%';
-    trTotal.appendChild(tdTotalPercent);
-    
     const tdTotalDuration = document.createElement('td');
     tdTotalDuration.style.textAlign = 'right';
     tdTotalDuration.style.width = '62px';
     tdTotalDuration.textContent = minutesToReadable(totalIncludedMins);
     trTotal.appendChild(tdTotalDuration);
+    
+    const tdTotalPercent = document.createElement('td');
+    tdTotalPercent.style.textAlign = 'right';
+    tdTotalPercent.style.width = '42px';
+    tdTotalPercent.textContent = '100%';
+    trTotal.appendChild(tdTotalPercent);
     
     const tdTotalAction = document.createElement('td');
     tdTotalAction.style.width = '30px';
