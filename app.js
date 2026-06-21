@@ -6220,6 +6220,329 @@ function applyCopyOptionsToModal() {
   });
 }
 
+// ─── Estadísticas Diarias ────────────────────────────────────────────────────
+let currentDailyStatsDate = null;
+let excludedStatsActivitiesMap = new Map();
+
+function getExcludedSetForDate(dateStr) {
+  if (!excludedStatsActivitiesMap.has(dateStr)) {
+    excludedStatsActivitiesMap.set(dateStr, new Set());
+  }
+  return excludedStatsActivitiesMap.get(dateStr);
+}
+
+function formatToDDMMYYYY(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+}
+
+function getRelativeDateString(dateStr, offsetDays) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + offsetDays);
+  return formatDate(d);
+}
+
+function renderPieChartSVG(includedGroups) {
+  if (includedGroups.length === 0) {
+    return `
+      <svg viewBox="-1.05 -1.05 2.1 2.1" style="width: 100%; height: 100%;">
+        <circle cx="0" cy="0" r="0.95" fill="none" stroke="var(--border-light, #e5e5ea)" stroke-width="0.1" />
+      </svg>
+    `;
+  }
+  
+  const totalMins = includedGroups.reduce((sum, g) => sum + g.minutes, 0);
+  if (totalMins === 0) {
+    return `
+      <svg viewBox="-1.05 -1.05 2.1 2.1" style="width: 100%; height: 100%;">
+        <circle cx="0" cy="0" r="0.95" fill="none" stroke="var(--border-light, #e5e5ea)" stroke-width="0.1" />
+      </svg>
+    `;
+  }
+  
+  if (includedGroups.length === 1) {
+    return `
+      <svg viewBox="-1.05 -1.05 2.1 2.1" style="width: 100%; height: 100%; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.06));">
+        <circle cx="0" cy="0" r="0.95" fill="${includedGroups[0].color.bg}" stroke="none" />
+      </svg>
+    `;
+  }
+  
+  let cumulativePercent = 0;
+  const paths = [];
+  
+  includedGroups.forEach(group => {
+    const percent = group.minutes / totalMins;
+    if (percent <= 0) return;
+    
+    if (percent >= 0.999) {
+      paths.push(`<circle cx="0" cy="0" r="0.95" fill="${group.color.bg}" stroke="none" />`);
+      return;
+    }
+    
+    const startAngle = cumulativePercent * 2 * Math.PI;
+    cumulativePercent += percent;
+    const endAngle = cumulativePercent * 2 * Math.PI;
+    
+    const startX = Math.cos(startAngle);
+    const startY = Math.sin(startAngle);
+    const endX = Math.cos(endAngle);
+    const endY = Math.sin(endAngle);
+    
+    const largeArcFlag = percent > 0.5 ? 1 : 0;
+    
+    const pathData = [
+      `M 0 0`,
+      `L ${startX} ${startY}`,
+      `A 1 1 0 ${largeArcFlag} 1 ${endX} ${endY}`,
+      `Z`
+    ].join(' ');
+    
+    paths.push(`<path d="${pathData}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.02" stroke-linejoin="round" />`);
+  });
+  
+  return `
+    <svg viewBox="-1.05 -1.05 2.1 2.1" style="width: 100%; height: 100%; transform: rotate(-90deg); filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.06));">
+      ${paths.join('')}
+    </svg>
+  `;
+}
+
+function renderDailyStatsPanel(panelEl, dateStr) {
+  const chartPlaceholder = panelEl.querySelector('.daily-stats-chart-placeholder');
+  const activityListEl = panelEl.querySelector('.activity-list');
+  if (!chartPlaceholder || !activityListEl) return;
+
+  const dateObj = new Date(dateStr + 'T12:00:00');
+  const dayTasks = tasks.filter(task => {
+    if (!checkTaskOccurrence(task, dateObj)) return false;
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    return tag ? tag.visible !== false : true;
+  });
+  
+  const tasksWithDuration = dayTasks.filter(task => {
+    const mins = getTaskDurationMinutes(task);
+    return mins !== null && mins > 0;
+  });
+  
+  // Agrupar actividades con el mismo nombre y sumar sus duraciones
+  const grouped = {};
+  tasksWithDuration.forEach(task => {
+    const name = task.title || '(Sin título)';
+    const mins = getTaskDurationMinutes(task);
+    if (!grouped[name]) {
+      grouped[name] = {
+        name,
+        minutes: 0,
+        tagId: task.tagId,
+        tasks: []
+      };
+    }
+    grouped[name].minutes += mins;
+    grouped[name].tasks.push(task);
+  });
+  
+  const groupedList = Object.values(grouped);
+  
+  // Asignar colores a los grupos
+  const usedColors = new Set();
+  groupedList.forEach((group, index) => {
+    const tag = tags.find(t => t.id === group.tagId) || tags.find(t => t.id === 'default');
+    let bg = tag && tag.color ? tag.color.bg : null;
+    let border = tag && tag.color ? tag.color.border : bg;
+    
+    if (!bg || group.tagId === 'default' || usedColors.has(bg.toLowerCase())) {
+      let found = false;
+      for (let i = 0; i < DEFAULT_COLORS.length; i++) {
+        const candidate = DEFAULT_COLORS[i];
+        if (!usedColors.has(candidate.bg.toLowerCase())) {
+          bg = candidate.bg;
+          border = candidate.border;
+          found = true;
+          break;
+        }
+      }
+      
+      if (!found) {
+        const hue = Math.floor((index * 137.5) % 360);
+        bg = `hsl(${hue}, 70%, 60%)`;
+        border = `hsl(${hue}, 70%, 50%)`;
+      }
+    }
+    
+    usedColors.add(bg.toLowerCase());
+    group.color = { bg, border };
+  });
+  
+  const excludedSet = getExcludedSetForDate(dateStr);
+  const includedGroups = groupedList.filter(g => !excludedSet.has(g.name));
+  const totalIncludedMins = includedGroups.reduce((sum, g) => sum + g.minutes, 0);
+  
+  // Renderizar gráfico
+  chartPlaceholder.innerHTML = renderPieChartSVG(includedGroups);
+  
+  // Renderizar tabla
+  activityListEl.innerHTML = '';
+  if (groupedList.length === 0) {
+    activityListEl.innerHTML = `<div class="daily-stats-empty">No hay actividades con duración para este día.</div>`;
+  } else {
+    const table = document.createElement('table');
+    table.className = 'daily-stats-table';
+    
+    const tbody = document.createElement('tbody');
+    
+    groupedList.forEach(group => {
+      const isExcluded = excludedSet.has(group.name);
+      const mins = group.minutes;
+      const percent = totalIncludedMins > 0 && !isExcluded ? (mins / totalIncludedMins * 100) : 0;
+      const percentStr = isExcluded ? '-' : `${percent.toFixed(0)}%`;
+      const durationStr = minutesToReadable(mins);
+      
+      const tr = document.createElement('tr');
+      tr.className = 'daily-stats-row';
+      
+      // 1. Celda de Actividad (Muestra de color cuadrada + nombre)
+      const tdName = document.createElement('td');
+      tdName.style.overflow = 'hidden';
+      
+      const wrapper = document.createElement('div');
+      wrapper.style.display = 'flex';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.gap = '10px';
+      wrapper.style.minWidth = '0';
+      wrapper.style.overflow = 'hidden';
+      
+      const colorBox = document.createElement('div');
+      colorBox.className = 'activity-color-box';
+      colorBox.style.backgroundColor = group.color.bg;
+      colorBox.style.borderColor = group.color.border;
+      
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'activity-name';
+      nameSpan.textContent = group.name;
+      
+      wrapper.appendChild(colorBox);
+      wrapper.appendChild(nameSpan);
+      tdName.appendChild(wrapper);
+      tr.appendChild(tdName);
+      
+      // 2. Celda de Porcentaje
+      const tdPercent = document.createElement('td');
+      tdPercent.style.textAlign = 'right';
+      tdPercent.style.fontWeight = '600';
+      tdPercent.style.width = '60px';
+      tdPercent.textContent = percentStr;
+      tr.appendChild(tdPercent);
+      
+      // 3. Celda de Duración
+      const tdDuration = document.createElement('td');
+      tdDuration.style.textAlign = 'right';
+      tdDuration.style.color = 'var(--text-main)';
+      tdDuration.style.fontWeight = '500';
+      tdDuration.style.width = '80px';
+      tdDuration.textContent = durationStr;
+      tr.appendChild(tdDuration);
+      
+      // 4. Botón de acción con icono '+' para excluir/incluir
+      const tdAction = document.createElement('td');
+      tdAction.style.textAlign = 'center';
+      tdAction.style.width = '40px';
+      
+      const btn = document.createElement('button');
+      btn.className = 'daily-stats-btn-exclude' + (isExcluded ? ' excluded' : '');
+      btn.title = isExcluded ? 'Incluir en el total' : 'Excluir del total';
+      btn.innerHTML = `
+        <svg width="14.4" height="14.4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="2" width="20" height="20" rx="5" fill="${isExcluded ? '#9a9a9a' : '#111111'}" />
+          <line x1="12" y1="7" x2="12" y2="17" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+          <line x1="7" y1="12" x2="17" y2="12" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+        </svg>
+      `;
+      
+      btn.addEventListener('click', () => {
+        if (isExcluded) {
+          excludedSet.delete(group.name);
+        } else {
+          excludedSet.add(group.name);
+        }
+        renderDailyStatsPanel(panelEl, dateStr);
+      });
+      
+      tdAction.appendChild(btn);
+      tr.appendChild(tdAction);
+      
+      tbody.appendChild(tr);
+    });
+    
+    // 5. Fila de Totales
+    const trTotal = document.createElement('tr');
+    trTotal.className = 'daily-stats-total-row';
+    trTotal.style.fontWeight = '700';
+    trTotal.style.borderTop = '1.5px solid var(--border-light)';
+    
+    const tdTotalName = document.createElement('td');
+    tdTotalName.textContent = '';
+    trTotal.appendChild(tdTotalName);
+    
+    const tdTotalPercent = document.createElement('td');
+    tdTotalPercent.style.textAlign = 'right';
+    tdTotalPercent.style.width = '60px';
+    tdTotalPercent.textContent = '100%';
+    trTotal.appendChild(tdTotalPercent);
+    
+    const tdTotalDuration = document.createElement('td');
+    tdTotalDuration.style.textAlign = 'right';
+    tdTotalDuration.style.width = '80px';
+    tdTotalDuration.textContent = minutesToReadable(totalIncludedMins);
+    trTotal.appendChild(tdTotalDuration);
+    
+    const tdTotalAction = document.createElement('td');
+    tdTotalAction.style.width = '40px';
+    trTotal.appendChild(tdTotalAction);
+    
+    tbody.appendChild(trTotal);
+    
+    table.appendChild(tbody);
+    activityListEl.appendChild(table);
+  }
+}
+
+function estadisticasDiarias(dateStr) {
+  currentDailyStatsDate = dateStr;
+  
+  const formattedDate = formatToDDMMYYYY(dateStr);
+  const titleEl = document.getElementById('daily-stats-title');
+  if (titleEl) {
+    titleEl.textContent = `Estadísticas ${formattedDate}`;
+  }
+  
+  const prevDateStr = getRelativeDateString(dateStr, -1);
+  const nextDateStr = getRelativeDateString(dateStr, 1);
+  
+  const panelPrev = document.getElementById('daily-stats-panel-prev');
+  const panelCurr = document.getElementById('daily-stats-panel-curr');
+  const panelNext = document.getElementById('daily-stats-panel-next');
+  
+  if (panelPrev) renderDailyStatsPanel(panelPrev, prevDateStr);
+  if (panelCurr) renderDailyStatsPanel(panelCurr, dateStr);
+  if (panelNext) renderDailyStatsPanel(panelNext, nextDateStr);
+  
+  const slider = document.getElementById('daily-stats-slider');
+  if (slider) {
+    slider.style.transition = 'none';
+    slider.style.transform = 'translateX(-33.3333%)';
+  }
+  
+  const modal = document.getElementById('daily-stats-modal');
+  if (modal) {
+    modal.classList.remove('hidden');
+  }
+}
+
 function openCopyTextModal(dateStr) {
   copyTextModalDate = dateStr;
   const modal = document.getElementById('copy-text-modal');
@@ -8690,6 +9013,109 @@ function setupEventListeners() {
       }
     }
   });
+
+  // Delegación de eventos para abrir estadísticas del día
+  document.addEventListener('click', (e) => {
+    const statsBtn = e.target.closest('.stats-day-btn');
+    if (statsBtn) {
+      e.stopPropagation();
+      const col = statsBtn.closest('.day-column, .cronograma-headers .day-header');
+      if (col) {
+        const dateStr = col.dataset.date;
+        if (dateStr) {
+          estadisticasDiarias(dateStr);
+        }
+      }
+    }
+  });
+
+  // Gestos de deslizamiento (swipe) en tiempo real para cambiar de día en el modal de estadísticas
+  const dailyStatsModal = document.getElementById('daily-stats-modal');
+  if (dailyStatsModal) {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isDragging = false;
+    let sliderWidth = 0;
+    const startTranslate = -33.3333; // Posición central en %
+    
+    const slider = document.getElementById('daily-stats-slider');
+    const viewport = dailyStatsModal.querySelector('.daily-stats-viewport');
+    
+    dailyStatsModal.addEventListener('touchstart', (e) => {
+      if (!currentDailyStatsDate) return;
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+      isDragging = true;
+      if (viewport) {
+        sliderWidth = viewport.clientWidth;
+      }
+      if (slider) {
+        slider.style.transition = 'none';
+      }
+    }, { passive: true });
+    
+    dailyStatsModal.addEventListener('touchmove', (e) => {
+      if (!isDragging || !slider || sliderWidth <= 0) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      
+      // Si el gesto es mayormente vertical, no arrastramos horizontalmente
+      if (Math.abs(dy) > Math.abs(dx)) {
+        return;
+      }
+      
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      
+      // Convertir el desplazamiento de pixeles a porcentaje (el slider mide 300% del viewport)
+      const offsetPercent = (dx / sliderWidth) * 33.3333;
+      let targetTranslate = startTranslate + offsetPercent;
+      
+      // Mantener dentro de los límites [día siguiente, día anterior] -> [-66.6666%, 0%]
+      targetTranslate = Math.max(-66.6666, Math.min(0, targetTranslate));
+      slider.style.transform = `translateX(${targetTranslate}%)`;
+    }, { passive: false });
+    
+    dailyStatsModal.addEventListener('touchend', (e) => {
+      if (!isDragging || !slider || sliderWidth <= 0) return;
+      isDragging = false;
+      
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      
+      slider.style.transition = 'transform 0.25s ease';
+      const threshold = 60; // umbral en pixeles para activar el cambio
+      
+      if (Math.abs(dx) > threshold && Math.abs(dy) < Math.abs(dx)) {
+        if (dx > 0) {
+          // Deslizar a la derecha -> Revelar día anterior
+          slider.style.transform = 'translateX(0%)';
+          setTimeout(() => {
+            const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
+            currentDate.setDate(currentDate.getDate() - 1);
+            estadisticasDiarias(formatDate(currentDate));
+          }, 250);
+        } else {
+          // Deslizar a la izquierda -> Revelar día siguiente
+          slider.style.transform = 'translateX(-66.6666%)';
+          setTimeout(() => {
+            const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
+            currentDate.setDate(currentDate.getDate() + 1);
+            estadisticasDiarias(formatDate(currentDate));
+          }, 250);
+        }
+      } else {
+        // Regresar al día actual
+        slider.style.transform = 'translateX(-33.3333%)';
+      }
+    }, { passive: true });
+  }
+
+
 
   // Botón "Copiar" del modal de copiar tareas como texto
   const copyTextBtn = document.getElementById('copy-text-btn');

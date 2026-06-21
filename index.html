@@ -717,6 +717,63 @@
     </div>
   </div>
 
+  <!-- MODAL: ESTADÍSTICAS DIARIAS -->
+  <div id="daily-stats-modal" class="modal-backdrop hidden">
+    <div class="modal-content daily-stats-w" style="overflow: hidden;">
+      <div class="modal-header">
+        <h2 id="daily-stats-title">Estadísticas 00/00/0000</h2>
+        <button class="close-modal-btn" data-modal="daily-stats-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      
+      <div class="daily-stats-viewport" style="overflow: hidden; width: 100%; position: relative;">
+        <div class="daily-stats-slider" id="daily-stats-slider" style="display: flex; width: 300%; transition: transform 0.25s ease; transform: translateX(-33.3333%);">
+          <!-- Panel Izquierdo (Día Anterior) -->
+          <div class="daily-stats-panel" id="daily-stats-panel-prev" style="width: 33.3333%; flex-shrink: 0; box-sizing: border-box;">
+            <div class="modal-body">
+              <div class="pie-chart-container">
+                <div class="daily-stats-chart-placeholder" style="width: 100%; height: 100%;"></div>
+              </div>
+              <div class="daily-stats-legend">
+                <div class="activity-list"></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Panel Central (Día Actual) -->
+          <div class="daily-stats-panel" id="daily-stats-panel-curr" style="width: 33.3333%; flex-shrink: 0; box-sizing: border-box;">
+            <div class="modal-body">
+              <div class="pie-chart-container">
+                <div class="daily-stats-chart-placeholder" style="width: 100%; height: 100%;"></div>
+              </div>
+              <div class="daily-stats-legend">
+                <div class="activity-list"></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Panel Derecho (Día Siguiente) -->
+          <div class="daily-stats-panel" id="daily-stats-panel-next" style="width: 33.3333%; flex-shrink: 0; box-sizing: border-box;">
+            <div class="modal-body">
+              <div class="pie-chart-container">
+                <div class="daily-stats-chart-placeholder" style="width: 100%; height: 100%;"></div>
+              </div>
+              <div class="daily-stats-legend">
+                <div class="activity-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer" style="display: flex; justify-content: center; background-color: transparent; border-top: none; padding-top: 8px;">
+        <button type="button" class="btn btn-secondary close-modal-btn" data-modal="daily-stats-modal" style="min-width: 120px;">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+
   <!-- MODAL: CRONÓMETRO DE TAREA -->
   <div id="timer-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w" style="max-width: 90vw;">
