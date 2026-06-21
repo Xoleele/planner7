@@ -4116,14 +4116,27 @@ function createTaskCard(task, occurrenceDate) {
     `;
   }
 
-  checkBtn.addEventListener('click', (e) => {
+  checkBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    
+
     // Disable interactions during transition to prevent double clicks
     card.style.pointerEvents = 'none';
-    
+
     const isCurrentlyCompleted = card.classList.contains('completed');
-    
+
+    // Si al completar hay conflicto de hora de fin (la tarea ya tiene una y la
+    // función auto está activa), mostramos el diálogo AL INSTANTE —antes de la
+    // animación— para que no aparezca con retraso. La decisión se pasa luego a
+    // toggleTaskCompletion para que no lo vuelva a abrir.
+    let endTimeChoice = null;
+    if (!isCurrentlyCompleted && AUTO_SET_END_TIME_ON_COMPLETE && task.endTime) {
+      endTimeChoice = await askEndTimeConflict(task.endTime, currentTimeHHMM());
+      if (endTimeChoice === 'cancel') {
+        card.style.pointerEvents = '';
+        return; // No se completa: no se toca la tarjeta ni se anima.
+      }
+    }
+
     if (!isCurrentlyCompleted) {
       card.classList.add('completed');
       checkBtn.innerHTML = `
@@ -4204,7 +4217,7 @@ function createTaskCard(task, occurrenceDate) {
             top: el.getBoundingClientRect().top
           })).filter(s => s.key !== null);
 
-          toggleTaskCompletion(task, occurrenceDate);
+          toggleTaskCompletion(task, occurrenceDate, endTimeChoice);
 
           requestAnimationFrame(() => {
             belowSnap.forEach(({ key, top }) => {
@@ -4232,7 +4245,7 @@ function createTaskCard(task, occurrenceDate) {
             animateMobileBelowDays();
           });
         } else {
-          toggleTaskCompletion(task, occurrenceDate);
+          toggleTaskCompletion(task, occurrenceDate, endTimeChoice);
         }
       } else {
         // FLIP inverso desmarcar: wrapper baja, tarea aparece desde arriba
@@ -4240,7 +4253,7 @@ function createTaskCard(task, occurrenceDate) {
           const completedWrapper = container.querySelector('.completed-tasks-wrapper');
           const wrapperTopBefore = completedWrapper ? completedWrapper.getBoundingClientRect().top : null;
 
-          toggleTaskCompletion(task, occurrenceDate);
+          toggleTaskCompletion(task, occurrenceDate, endTimeChoice);
 
           requestAnimationFrame(() => {
             // Animar completed-tasks-wrapper bajando
@@ -4263,7 +4276,7 @@ function createTaskCard(task, occurrenceDate) {
             animateMobileBelowDays();
           });
         } else {
-          toggleTaskCompletion(task, occurrenceDate);
+          toggleTaskCompletion(task, occurrenceDate, endTimeChoice);
         }
       }
     }, 350);
@@ -8481,8 +8494,8 @@ function askEndTimeConflict(originalEnd, currentEnd) {
     btnCancel.addEventListener('click', () => finish('cancel'));
 
     const btnKeep = document.createElement('button');
-    btnKeep.className = 'btn btn-secondary';
-    btnKeep.textContent = 'Mantener';
+    btnKeep.className = 'btn btn-primary';
+    btnKeep.textContent = 'Conservar';
     btnKeep.addEventListener('click', () => finish('keep'));
 
     const btnOverwrite = document.createElement('button');
@@ -8499,7 +8512,10 @@ function askEndTimeConflict(originalEnd, currentEnd) {
   });
 }
 
-async function toggleTaskCompletion(task, occurrenceDate) {
+// preResolvedEndTimeChoice (opcional): si el llamador ya mostró el diálogo de
+// conflicto de hora de fin y obtuvo la decisión del usuario, la pasa aquí para
+// no volver a abrirlo. Valores: 'keep' | 'overwrite' (o null si no aplica).
+async function toggleTaskCompletion(task, occurrenceDate, preResolvedEndTimeChoice = null) {
   pushToUndoStack();
 
   let nowCompleted;
@@ -8527,8 +8543,9 @@ async function toggleTaskCompletion(task, occurrenceDate) {
   if (AUTO_SET_END_TIME_ON_COMPLETE && nowCompleted) {
     const nowStr = currentTimeHHMM();
     if (task.endTime) {
-      // Ya hay hora de fin: preguntar (Cancelar / Mantener / Sobrescribir).
-      const choice = await askEndTimeConflict(task.endTime, nowStr);
+      // Ya hay hora de fin: usar la decisión que el llamador ya obtuvo del
+      // diálogo, o abrirlo aquí si no vino precomputada.
+      const choice = preResolvedEndTimeChoice || await askEndTimeConflict(task.endTime, nowStr);
       if (choice === 'cancel') {
         // Revertir la marca de completado y no tocar nada más.
         if (task.recurrence && task.recurrence.enabled) {
