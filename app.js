@@ -883,6 +883,10 @@ let redoStack = []; // Pila para CTRL+Y
 let selectedOccurrenceDate = null; // Fecha específica de la ocurrencia seleccionada
 let desktopGridHTML = null; // Caches the original desktop layout of .planner-grid
 let completedTasksExpanded = false;
+let statsCustomColors = {};
+let editingTaskOriginalName = '';
+let editingTaskColorIndex = 0; // -1 for custom HSL
+let editingTaskCustomColor = null; // { bg, text, border }
 try {
   completedTasksExpanded = window.localStorage.getItem('completedTasksExpanded') === 'true';
 } catch (e) {
@@ -1466,6 +1470,7 @@ async function startApp(user) {
       const parsedPrefs = JSON.parse(cachedPrefs);
       notes = parsedPrefs.notes || {};
       noteTemplate = parsedPrefs.noteTemplate || '';
+      statsCustomColors = parsedPrefs.statsCustomColors || {};
       if (parsedPrefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...parsedPrefs.copyOptions };
     }
   } catch (e) {
@@ -1477,6 +1482,7 @@ async function startApp(user) {
   if (prefs) {
     notes = prefs.notes || {};
     noteTemplate = prefs.noteTemplate || '';
+    statsCustomColors = prefs.statsCustomColors || {};
     if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
     activeTimerState = prefs.activeTimer || null;
     try {
@@ -6371,6 +6377,13 @@ function renderDailyStatsPanel(panelEl, dateStr) {
   // Asignar colores a los grupos
   const usedColors = new Set();
   groupedList.forEach((group, index) => {
+    // Si tiene un color personalizado asignado en estadísticas, usarlo
+    if (statsCustomColors[group.name]) {
+      group.color = statsCustomColors[group.name];
+      usedColors.add(group.color.bg.toLowerCase());
+      return;
+    }
+    
     const tag = tags.find(t => t.id === group.tagId) || tags.find(t => t.id === 'default');
     let bg = tag && tag.color ? tag.color.bg : null;
     let border = tag && tag.color ? tag.color.border : bg;
@@ -6438,6 +6451,7 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       // 1. Celda de Actividad (Muestra de color cuadrada + nombre)
       const tdName = document.createElement('td');
       tdName.style.overflow = 'hidden';
+      tdName.style.cursor = 'pointer';
       
       const wrapper = document.createElement('div');
       wrapper.style.display = 'flex';
@@ -6464,6 +6478,7 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       const tdPercent = document.createElement('td');
       tdPercent.style.textAlign = 'right';
       tdPercent.style.width = '42px';
+      tdPercent.style.cursor = 'pointer';
       tdPercent.textContent = percentStr;
       tr.appendChild(tdPercent);
       
@@ -6472,8 +6487,17 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       tdDuration.style.textAlign = 'right';
       tdDuration.style.color = 'var(--text-main)';
       tdDuration.style.width = '62px';
+      tdDuration.style.cursor = 'pointer';
       tdDuration.textContent = durationStr;
       tr.appendChild(tdDuration);
+      
+      // Delegar click en muestra, nombre, duración o % para abrir edición
+      const handleEditClick = (e) => {
+        openStatsTaskEditView(group);
+      };
+      tdName.addEventListener('click', handleEditClick);
+      tdPercent.addEventListener('click', handleEditClick);
+      tdDuration.addEventListener('click', handleEditClick);
       
       // 4. Botón de acción con icono '+' para excluir/incluir
       const tdAction = document.createElement('td');
@@ -6491,7 +6515,8 @@ function renderDailyStatsPanel(panelEl, dateStr) {
         </svg>
       `;
       
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         if (isExcluded) {
           excludedSet.delete(group.name);
         } else {
@@ -6575,7 +6600,201 @@ function estadisticasDiarias(dateStr) {
   const modal = document.getElementById('daily-stats-modal');
   if (modal) {
     modal.classList.remove('hidden');
+    // Asegurar que comience en la vista principal
+    const mainContent = document.getElementById('daily-stats-main-content');
+    const editContent = document.getElementById('daily-stats-edit-content');
+    if (mainContent) mainContent.classList.remove('hidden');
+    if (editContent) editContent.classList.add('hidden');
   }
+}
+
+// ─── Funciones de Edición de Tarea desde Estadísticas ────────────────────────
+function buildStatsEditColorPalette() {
+  const container = document.getElementById('stats-edit-color-palette');
+  if (!container) return;
+  container.innerHTML = '';
+
+  DEFAULT_COLORS.forEach((color, idx) => {
+    const circle = document.createElement('div');
+    circle.className = 'color-circle';
+    circle.style.backgroundColor = color.bg;
+    circle.style.borderColor = color.border;
+    circle.dataset.index = idx;
+
+    if (idx === editingTaskColorIndex && !editingTaskCustomColor) {
+      circle.classList.add('selected');
+    }
+
+    circle.addEventListener('click', () => {
+      container.querySelectorAll('.color-circle').forEach(c => c.classList.remove('selected'));
+      circle.classList.add('selected');
+      editingTaskColorIndex = idx;
+      editingTaskCustomColor = null;
+      hideStatsHslPicker();
+    });
+
+    container.appendChild(circle);
+  });
+
+  // Botón '+' (círculo negro) para definir un color personalizado HSL
+  const addBtn = document.createElement('div');
+  addBtn.className = 'color-circle color-circle-add';
+  addBtn.title = 'Color personalizado';
+  addBtn.innerHTML = '<span class="color-add-plus">+</span>';
+  if (editingTaskCustomColor) addBtn.classList.add('selected');
+  addBtn.addEventListener('click', () => {
+    container.querySelectorAll('.color-circle').forEach(c => c.classList.remove('selected'));
+    addBtn.classList.add('selected');
+    editingTaskColorIndex = -1;
+    showStatsHslPicker();
+  });
+  container.appendChild(addBtn);
+}
+
+function updateStatsHslPreview() {
+  const hEl = document.getElementById('stats-edit-hsl-h');
+  const sEl = document.getElementById('stats-edit-hsl-s');
+  const lEl = document.getElementById('stats-edit-hsl-l');
+  if (!hEl || !sEl || !lEl) return;
+  const h = +hEl.value;
+  const s = +sEl.value;
+  const l = +lEl.value;
+  const hex = hslToHex(h, s, l);
+  editingTaskCustomColor = { bg: hex, text: '#ffffff', border: hex };
+  const prev = document.getElementById('stats-edit-hsl-preview');
+  const val = document.getElementById('stats-edit-hsl-value');
+  if (prev) prev.style.backgroundColor = hex;
+  if (val) val.textContent = `${hex.toUpperCase()}  (H ${h}, S ${s}, L ${l})`;
+}
+
+function showStatsHslPicker() {
+  const picker = document.getElementById('stats-edit-hsl-picker');
+  if (picker) picker.classList.remove('hidden');
+  updateStatsHslPreview();
+}
+
+function hideStatsHslPicker() {
+  const picker = document.getElementById('stats-edit-hsl-picker');
+  if (picker) picker.classList.add('hidden');
+}
+
+function openStatsTaskEditView(group) {
+  const mainContent = document.getElementById('daily-stats-main-content');
+  const editContent = document.getElementById('daily-stats-edit-content');
+  if (!mainContent || !editContent) return;
+
+  mainContent.classList.add('hidden');
+  editContent.classList.remove('hidden');
+
+  editingTaskOriginalName = group.name;
+  const titleInput = document.getElementById('stats-edit-task-title');
+  if (titleInput) {
+    titleInput.value = group.name;
+    setTimeout(() => titleInput.focus(), 50);
+  }
+
+  // Cargar color
+  const colorIdx = DEFAULT_COLORS.findIndex(c => c.bg.toLowerCase() === group.color.bg.toLowerCase());
+  if (colorIdx !== -1) {
+    editingTaskColorIndex = colorIdx;
+    editingTaskCustomColor = null;
+    hideStatsHslPicker();
+  } else {
+    editingTaskColorIndex = -1;
+    editingTaskCustomColor = { bg: group.color.bg, text: '#ffffff', border: group.color.border || group.color.bg };
+    
+    const [h, s, l] = hexToHsl(group.color.bg);
+    const hEl = document.getElementById('stats-edit-hsl-h');
+    const sEl = document.getElementById('stats-edit-hsl-s');
+    const lEl = document.getElementById('stats-edit-hsl-l');
+    if (hEl) hEl.value = h;
+    if (sEl) sEl.value = s;
+    if (lEl) lEl.value = l;
+    
+    showStatsHslPicker();
+  }
+
+  buildStatsEditColorPalette();
+}
+
+function closeStatsTaskEditView() {
+  const mainContent = document.getElementById('daily-stats-main-content');
+  const editContent = document.getElementById('daily-stats-edit-content');
+  if (!mainContent || !editContent) return;
+
+  editContent.classList.add('hidden');
+  mainContent.classList.remove('hidden');
+
+  if (currentDailyStatsDate) {
+    estadisticasDiarias(currentDailyStatsDate);
+  }
+}
+
+async function saveStatsTaskEdit() {
+  const titleInput = document.getElementById('stats-edit-task-title');
+  if (!titleInput) return;
+  const newTitle = titleInput.value.trim();
+  if (!newTitle) return;
+
+  // 1. Obtener color seleccionado
+  let selectedColor = null;
+  if (editingTaskColorIndex !== -1) {
+    selectedColor = DEFAULT_COLORS[editingTaskColorIndex];
+  } else {
+    selectedColor = editingTaskCustomColor;
+  }
+
+  // 2. Si el título cambió, actualizar todas las tareas con ese título
+  let tasksChanged = false;
+  if (newTitle !== editingTaskOriginalName) {
+    tasks.forEach(task => {
+      if (task.title === editingTaskOriginalName) {
+        task.title = newTitle;
+        tasksChanged = true;
+      }
+    });
+    
+    // Mover color personalizado en estadísticas si existía
+    if (statsCustomColors[editingTaskOriginalName]) {
+      statsCustomColors[newTitle] = statsCustomColors[editingTaskOriginalName];
+      delete statsCustomColors[editingTaskOriginalName];
+    }
+  }
+
+  // 3. Guardar el color personalizado en estadísticas
+  if (selectedColor) {
+    statsCustomColors[newTitle] = {
+      bg: selectedColor.bg,
+      border: selectedColor.border || selectedColor.bg
+    };
+  }
+
+  // 4. Persistir preferencias
+  if (currentUser) {
+    const prefsCacheKey = 'prefs_cache_' + currentUser.id;
+    let prefs = {};
+    try {
+      const cached = localStorage.getItem(prefsCacheKey);
+      if (cached) prefs = JSON.parse(cached);
+    } catch(e) {}
+    
+    prefs.statsCustomColors = statsCustomColors;
+    
+    try {
+      localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
+    } catch(e) {}
+    
+    await savePreferences(prefs);
+  }
+
+  // 5. Si cambiaron las tareas, guardar e inyectar al calendario
+  if (tasksChanged) {
+    await saveTasksToStorage();
+    renderWeeklyCalendar();
+  }
+
+  // 6. Volver a la vista de estadísticas
+  closeStatsTaskEditView();
 }
 
 function openCopyTextModal(dateStr) {
@@ -8077,7 +8296,9 @@ function setupEventListeners() {
   document.addEventListener('keydown', (e) => {
     // Si el modal de estadísticas diarias está abierto, usar flechas para cambiar de día con animación de deslizamiento
     const dailyStatsModal = document.getElementById('daily-stats-modal');
-    if (dailyStatsModal && !dailyStatsModal.classList.contains('hidden') && currentDailyStatsDate) {
+    const editContent = document.getElementById('daily-stats-edit-content');
+    const isEditing = editContent && !editContent.classList.contains('hidden');
+    if (dailyStatsModal && !dailyStatsModal.classList.contains('hidden') && currentDailyStatsDate && !isEditing) {
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         const slider = document.getElementById('daily-stats-slider');
@@ -8809,6 +9030,22 @@ function setupEventListeners() {
     if (el) el.addEventListener('input', updateHslPreview);
   });
 
+  // Botones de la vista de edición de tarea en estadísticas
+  const statsEditCancelBtn = document.getElementById('stats-edit-cancel-btn');
+  if (statsEditCancelBtn) statsEditCancelBtn.addEventListener('click', closeStatsTaskEditView);
+
+  const statsEditSaveBtn = document.getElementById('stats-edit-save-btn');
+  if (statsEditSaveBtn) statsEditSaveBtn.addEventListener('click', saveStatsTaskEdit);
+
+  const statsEditCloseBtn = document.getElementById('stats-edit-close-btn');
+  if (statsEditCloseBtn) statsEditCloseBtn.addEventListener('click', closeStatsTaskEditView);
+
+  // Sliders del selector de color personalizado en estadísticas: actualizar en vivo
+  ['stats-edit-hsl-h', 'stats-edit-hsl-s', 'stats-edit-hsl-l'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateStatsHslPreview);
+  });
+
   // Submit Tag Form
   document.getElementById('tag-form').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -9109,6 +9346,8 @@ function setupEventListeners() {
     
     dailyStatsModal.addEventListener('touchstart', (e) => {
       if (!currentDailyStatsDate) return;
+      const editContent = document.getElementById('daily-stats-edit-content');
+      if (editContent && !editContent.classList.contains('hidden')) return;
       const touch = e.touches[0];
       touchStartX = touch.clientX;
       touchStartY = touch.clientY;

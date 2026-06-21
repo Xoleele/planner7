@@ -719,7 +719,8 @@
 
   <!-- MODAL: ESTADÍSTICAS DIARIAS -->
   <div id="daily-stats-modal" class="modal-backdrop hidden">
-    <div class="modal-content daily-stats-w" style="overflow: hidden;">
+    <!-- VISTA PRINCIPAL DE ESTADÍSTICAS -->
+    <div id="daily-stats-main-content" class="modal-content daily-stats-w" style="overflow: hidden;">
       <div class="modal-header">
         <h2 id="daily-stats-title">Estadísticas 00/00/0000</h2>
         <button class="close-modal-btn" data-modal="daily-stats-modal">
@@ -769,6 +770,53 @@
       
       <div class="modal-footer" style="display: flex; justify-content: center; background-color: transparent; border-top: none; padding-top: 8px;">
         <button type="button" class="btn btn-secondary close-modal-btn" data-modal="daily-stats-modal" style="min-width: 120px;">Cerrar</button>
+      </div>
+    </div>
+
+    <!-- VISTA DE EDICIÓN DE TAREA -->
+    <div id="daily-stats-edit-content" class="modal-content daily-stats-w hidden" style="overflow: hidden;">
+      <div class="modal-header">
+        <h2>Editar tarea</h2>
+        <button class="close-modal-btn" id="stats-edit-close-btn" type="button">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; text-align: left; box-sizing: border-box; width: 100%; align-items: stretch; overflow-y: auto;">
+        <div class="form-group">
+          <label for="stats-edit-task-title" class="sr-only">Título</label>
+          <input type="text" id="stats-edit-task-title" placeholder="Título de la tarea" required autocomplete="off">
+        </div>
+        
+        <div class="form-group">
+          <label style="font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display: block;">Color de estadísticas</label>
+          <div class="color-palette-grid" id="stats-edit-color-palette">
+            <!-- Círculos de color se generarán por JS -->
+          </div>
+          
+          <!-- Selector de color personalizado (HSL) -->
+          <div id="stats-edit-hsl-picker" class="hsl-picker hidden">
+            <div class="hsl-preview-row">
+              <span id="stats-edit-hsl-preview" class="hsl-preview"></span>
+              <span id="stats-edit-hsl-value" class="hsl-value"></span>
+            </div>
+            <div class="hsl-slider-row">
+              <label for="stats-edit-hsl-h">Tono</label>
+              <input type="range" id="stats-edit-hsl-h" min="0" max="360" value="210">
+            </div>
+            <div class="hsl-slider-row">
+              <label for="stats-edit-hsl-s">Saturación</label>
+              <input type="range" id="stats-edit-hsl-s" min="0" max="100" value="70">
+            </div>
+            <div class="hsl-slider-row">
+              <label for="stats-edit-hsl-l">Luminosidad</label>
+              <input type="range" id="stats-edit-hsl-l" min="0" max="100" value="55">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border-light); padding: 16px 24px; width: 100%; box-sizing: border-box;">
+        <button type="button" class="btn btn-secondary" id="stats-edit-cancel-btn" style="min-width: 100px;">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="stats-edit-save-btn" style="min-width: 100px;">Aceptar</button>
       </div>
     </div>
   </div>
