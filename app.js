@@ -6405,11 +6405,21 @@ function renderDailyStatsPanel(panelEl, dateStr) {
   // Renderizar gráfico
   chartPlaceholder.innerHTML = renderPieChartSVG(includedGroups);
   
+  let totalsWrapper = panelEl.querySelector('.daily-stats-totals-wrapper');
+  if (!totalsWrapper) {
+    totalsWrapper = document.createElement('div');
+    totalsWrapper.className = 'daily-stats-totals-wrapper';
+    activityListEl.parentNode.appendChild(totalsWrapper);
+  }
+  totalsWrapper.innerHTML = '';
+
   // Renderizar tabla
   activityListEl.innerHTML = '';
   if (groupedList.length === 0) {
     activityListEl.innerHTML = `<div class="daily-stats-empty">No hay actividades con duración para este día.</div>`;
+    totalsWrapper.style.display = 'none';
   } else {
+    totalsWrapper.style.display = 'block';
     const table = document.createElement('table');
     table.className = 'daily-stats-table';
     
@@ -6496,11 +6506,13 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       tbody.appendChild(tr);
     });
     
-    // 5. Fila de Totales
+    table.appendChild(tbody);
+    activityListEl.appendChild(table);
+    
+    // 5. Fila de Totales en su propia tabla estática
     const trTotal = document.createElement('tr');
     trTotal.className = 'daily-stats-total-row';
     trTotal.style.fontWeight = '700';
-    trTotal.style.borderTop = '1.5px solid var(--border-light)';
     
     const tdTotalName = document.createElement('td');
     tdTotalName.textContent = '';
@@ -6522,10 +6534,15 @@ function renderDailyStatsPanel(panelEl, dateStr) {
     tdTotalAction.style.width = '30px';
     trTotal.appendChild(tdTotalAction);
     
-    tbody.appendChild(trTotal);
+    const totalTable = document.createElement('table');
+    totalTable.className = 'daily-stats-table';
+    totalTable.style.marginTop = '0';
     
-    table.appendChild(tbody);
-    activityListEl.appendChild(table);
+    const totalTbody = document.createElement('tbody');
+    totalTbody.appendChild(trTotal);
+    totalTable.appendChild(totalTbody);
+    
+    totalsWrapper.appendChild(totalTable);
   }
 }
 

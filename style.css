@@ -4330,6 +4330,11 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   background-color: #fafafa;
 }
 
+.daily-stats-totals-wrapper {
+  margin-top: 4px;
+  border-top: 1.5px solid var(--border-light);
+}
+
 /* Carrusel de estadísticas diarias */
 .daily-stats-viewport {
   width: 100%;
