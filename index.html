@@ -588,7 +588,8 @@
         <form id="tag-form">
           <input type="hidden" id="tag-edit-id">
           <div class="form-group">
-            <input type="text" id="tag-input-name" placeholder="Nombre de etiqueta" required autocomplete="off">
+            <label for="tag-input-name">Nombre de actividad</label>
+            <input type="text" id="tag-input-name" placeholder="Nombre de actividad" required autocomplete="off">
           </div>
 
           <div class="form-group">
@@ -766,13 +767,22 @@
               <div class="pie-chart-container">
                 <div class="daily-stats-chart-placeholder" style="width: 100%; height: 100%;"></div>
               </div>
-              <div class="form-group" style="width: 100%; margin-bottom: 12px; flex-shrink: 0;">
-                <label for="daily-stats-status-select-prev">Estado</label>
-                <select id="daily-stats-status-select-prev" class="daily-stats-status-select" style="width: 100%; padding: 6px 10px;">
-                  <option value="completed" selected>Tareas completadas</option>
-                  <option value="uncompleted">Tareas no completadas</option>
-                  <option value="all">Todas las tareas</option>
-                </select>
+              <div class="daily-stats-filters-row" style="display: flex; gap: 12px; width: 100%; margin-bottom: 12px; flex-shrink: 0;">
+                <div class="form-group" style="flex: 1; min-width: 0; margin-bottom: 0;">
+                  <label for="daily-stats-groupby-select-prev">Filtrar por</label>
+                  <select id="daily-stats-groupby-select-prev" class="daily-stats-groupby-select" style="width: 100%; padding: 6px 10px;">
+                    <option value="title" selected>Por título de tarea</option>
+                    <option value="activity">Por actividad</option>
+                  </select>
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 0; margin-bottom: 0;">
+                  <label for="daily-stats-status-select-prev">Estado</label>
+                  <select id="daily-stats-status-select-prev" class="daily-stats-status-select" style="width: 100%; padding: 6px 10px;">
+                    <option value="completed" selected>Tareas completadas</option>
+                    <option value="uncompleted">Tareas no completadas</option>
+                    <option value="all">Todas las tareas</option>
+                  </select>
+                </div>
               </div>
               <div class="daily-stats-legend">
                 <div class="activity-list"></div>
@@ -786,13 +796,22 @@
               <div class="pie-chart-container">
                 <div class="daily-stats-chart-placeholder" style="width: 100%; height: 100%;"></div>
               </div>
-              <div class="form-group" style="width: 100%; margin-bottom: 12px; flex-shrink: 0;">
-                <label for="daily-stats-status-select-curr">Estado</label>
-                <select id="daily-stats-status-select-curr" class="daily-stats-status-select" style="width: 100%; padding: 6px 10px;">
-                  <option value="completed" selected>Tareas completadas</option>
-                  <option value="uncompleted">Tareas no completadas</option>
-                  <option value="all">Todas las tareas</option>
-                </select>
+              <div class="daily-stats-filters-row" style="display: flex; gap: 12px; width: 100%; margin-bottom: 12px; flex-shrink: 0;">
+                <div class="form-group" style="flex: 1; min-width: 0; margin-bottom: 0;">
+                  <label for="daily-stats-groupby-select-curr">Filtrar por</label>
+                  <select id="daily-stats-groupby-select-curr" class="daily-stats-groupby-select" style="width: 100%; padding: 6px 10px;">
+                    <option value="title" selected>Por título de tarea</option>
+                    <option value="activity">Por actividad</option>
+                  </select>
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 0; margin-bottom: 0;">
+                  <label for="daily-stats-status-select-curr">Estado</label>
+                  <select id="daily-stats-status-select-curr" class="daily-stats-status-select" style="width: 100%; padding: 6px 10px;">
+                    <option value="completed" selected>Tareas completadas</option>
+                    <option value="uncompleted">Tareas no completadas</option>
+                    <option value="all">Todas las tareas</option>
+                  </select>
+                </div>
               </div>
               <div class="daily-stats-legend">
                 <div class="activity-list"></div>
@@ -806,13 +825,22 @@
               <div class="pie-chart-container">
                 <div class="daily-stats-chart-placeholder" style="width: 100%; height: 100%;"></div>
               </div>
-              <div class="form-group" style="width: 100%; margin-bottom: 12px; flex-shrink: 0;">
-                <label for="daily-stats-status-select-next">Estado</label>
-                <select id="daily-stats-status-select-next" class="daily-stats-status-select" style="width: 100%; padding: 6px 10px;">
-                  <option value="completed" selected>Tareas completadas</option>
-                  <option value="uncompleted">Tareas no completadas</option>
-                  <option value="all">Todas las tareas</option>
-                </select>
+              <div class="daily-stats-filters-row" style="display: flex; gap: 12px; width: 100%; margin-bottom: 12px; flex-shrink: 0;">
+                <div class="form-group" style="flex: 1; min-width: 0; margin-bottom: 0;">
+                  <label for="daily-stats-groupby-select-next">Filtrar por</label>
+                  <select id="daily-stats-groupby-select-next" class="daily-stats-groupby-select" style="width: 100%; padding: 6px 10px;">
+                    <option value="title" selected>Por título de tarea</option>
+                    <option value="activity">Por actividad</option>
+                  </select>
+                </div>
+                <div class="form-group" style="flex: 1; min-width: 0; margin-bottom: 0;">
+                  <label for="daily-stats-status-select-next">Estado</label>
+                  <select id="daily-stats-status-select-next" class="daily-stats-status-select" style="width: 100%; padding: 6px 10px;">
+                    <option value="completed" selected>Tareas completadas</option>
+                    <option value="uncompleted">Tareas no completadas</option>
+                    <option value="all">Todas las tareas</option>
+                  </select>
+                </div>
               </div>
               <div class="daily-stats-legend">
                 <div class="activity-list"></div>

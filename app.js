@@ -888,6 +888,9 @@ let statsCustomNames = {};
 let statsMergedTasks = {};
 let statsMergeModeActive = false;
 let statsStatusFilter = 'all';
+// Modo de agrupación del panel de actividad: 'title' (por título de tarea, por
+// defecto) o 'activity' (por actividad/etiqueta).
+let statsGroupBy = 'title';
 let statsMergeFirstSelected = '';
 let statsMergeFirstColor = null;
 let editingTaskOriginalName = '';
@@ -6385,37 +6388,59 @@ function renderDailyStatsPanel(panelEl, dateStr) {
     return true;
   });
   
-  // Agrupar actividades con el mismo nombre y sumar sus duraciones (resolviendo combinaciones)
+  // Agrupar y sumar duraciones. Hay dos modos:
+  //   'title'    → agrupa por título de tarea (resolviendo combinaciones/fusión).
+  //   'activity' → agrupa por actividad (etiqueta/tag).
   const grouped = {};
-  tasksWithDuration.forEach(task => {
-    const originalName = task.title || '(Sin título)';
-    const mins = getTaskDurationMinutes(task);
-    
-    // Resolver nombre combinado recursivamente
-    let name = originalName;
-    const maxIterations = 10;
-    let iter = 0;
-    while (statsMergedTasks[`${dateStr}_${name}`] && iter < maxIterations) {
-      name = statsMergedTasks[`${dateStr}_${name}`];
-      iter++;
-    }
-    
-    if (!grouped[name]) {
-      // Buscar el tagId de la tarea destino para mantener su color original
-      const targetTask = tasksWithDuration.find(t => (t.title || '(Sin título)') === name);
-      const tagId = targetTask ? targetTask.tagId : task.tagId;
-      
-      grouped[name] = {
-        name,
-        displayName: statsCustomNames[`${dateStr}_${name}`] || name,
-        minutes: 0,
-        tagId: tagId,
-        tasks: []
-      };
-    }
-    grouped[name].minutes += mins;
-    grouped[name].tasks.push(task);
-  });
+  if (statsGroupBy === 'activity') {
+    tasksWithDuration.forEach(task => {
+      const mins = getTaskDurationMinutes(task);
+      const tagId = task.tagId || 'default';
+      const tag = tags.find(t => t.id === tagId) || tags.find(t => t.id === 'default');
+      const name = tag ? tag.name : 'Por defecto';
+      if (!grouped[tagId]) {
+        grouped[tagId] = {
+          name,
+          displayName: name,
+          minutes: 0,
+          tagId: tagId,
+          tasks: []
+        };
+      }
+      grouped[tagId].minutes += mins;
+      grouped[tagId].tasks.push(task);
+    });
+  } else {
+    tasksWithDuration.forEach(task => {
+      const originalName = task.title || '(Sin título)';
+      const mins = getTaskDurationMinutes(task);
+
+      // Resolver nombre combinado recursivamente
+      let name = originalName;
+      const maxIterations = 10;
+      let iter = 0;
+      while (statsMergedTasks[`${dateStr}_${name}`] && iter < maxIterations) {
+        name = statsMergedTasks[`${dateStr}_${name}`];
+        iter++;
+      }
+
+      if (!grouped[name]) {
+        // Buscar el tagId de la tarea destino para mantener su color original
+        const targetTask = tasksWithDuration.find(t => (t.title || '(Sin título)') === name);
+        const tagId = targetTask ? targetTask.tagId : task.tagId;
+
+        grouped[name] = {
+          name,
+          displayName: statsCustomNames[`${dateStr}_${name}`] || name,
+          minutes: 0,
+          tagId: tagId,
+          tasks: []
+        };
+      }
+      grouped[name].minutes += mins;
+      grouped[name].tasks.push(task);
+    });
+  }
   
   const groupedList = Object.values(grouped);
   
@@ -6629,16 +6654,31 @@ function renderDailyStatsPanel(panelEl, dateStr) {
 
 function handleStatsStatusFilterChange(newFilter) {
   statsStatusFilter = newFilter;
-  
+
   const selects = document.querySelectorAll('.daily-stats-status-select');
   selects.forEach(sel => {
     sel.value = newFilter;
   });
-  
+
+  rerenderDailyStatsPanels();
+}
+
+function handleStatsGroupByChange(newMode) {
+  statsGroupBy = newMode;
+
+  const selects = document.querySelectorAll('.daily-stats-groupby-select');
+  selects.forEach(sel => {
+    sel.value = newMode;
+  });
+
+  rerenderDailyStatsPanels();
+}
+
+function rerenderDailyStatsPanels() {
   const panelPrev = document.getElementById('daily-stats-panel-prev');
   const panelCurr = document.getElementById('daily-stats-panel-curr');
   const panelNext = document.getElementById('daily-stats-panel-next');
-  
+
   if (panelPrev) renderDailyStatsPanel(panelPrev, getRelativeDateString(currentDailyStatsDate, -1));
   if (panelCurr) renderDailyStatsPanel(panelCurr, currentDailyStatsDate);
   if (panelNext) renderDailyStatsPanel(panelNext, getRelativeDateString(currentDailyStatsDate, 1));
@@ -6652,10 +6692,15 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
   // edición) se conserva el filtro que el usuario tenga seleccionado.
   if (resetFilter) {
     statsStatusFilter = 'all';
+    statsGroupBy = 'title';
   }
   const selects = document.querySelectorAll('.daily-stats-status-select');
   selects.forEach(sel => {
     sel.value = statsStatusFilter;
+  });
+  const groupBySelects = document.querySelectorAll('.daily-stats-groupby-select');
+  groupBySelects.forEach(sel => {
+    sel.value = statsGroupBy;
   });
 
   const formattedDate = formatToDDMMYYYY(dateStr);
@@ -9735,6 +9780,16 @@ function setupEventListeners() {
     if (el) {
       el.addEventListener('change', (e) => {
         handleStatsStatusFilterChange(e.target.value);
+      });
+    }
+  });
+
+  // Selectores de "Filtrar por" (por título / por actividad) en el panel de actividad diaria
+  ['daily-stats-groupby-select-prev', 'daily-stats-groupby-select-curr', 'daily-stats-groupby-select-next'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', (e) => {
+        handleStatsGroupByChange(e.target.value);
       });
     }
   });
