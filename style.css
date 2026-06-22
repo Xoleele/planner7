@@ -1433,9 +1433,9 @@ input:checked + .slider:before {
 .tags-list-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
   margin-top: 12px;
-  max-height: 200px;
+  max-height: 260px;
   overflow-y: auto;
 }
 
@@ -1443,7 +1443,7 @@ input:checked + .slider:before {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 5px 12px;
   background-color: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -1493,7 +1493,7 @@ input:checked + .slider:before {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px;
+  padding: 3px;
   border-radius: 4px;
   color: var(--text-muted);
   display: flex;
