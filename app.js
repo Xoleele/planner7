@@ -7846,6 +7846,16 @@ function buildTagSelectorOptions() {
       e.stopPropagation();
       setSelectTagValue(tag.id);
       container.classList.add('hidden');
+
+      // Si el título está vacío, usar el nombre de la actividad seleccionada
+      // como título de la tarea. No se aplica con la etiqueta "Por defecto".
+      if (tag.id !== 'default') {
+        const titleEl = document.getElementById('task-input-title');
+        if (titleEl && !titleEl.value.trim()) {
+          titleEl.value = tag.name;
+          titleEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
     });
 
     container.appendChild(option);
