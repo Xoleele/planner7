@@ -2184,7 +2184,7 @@ body.not-logged-in .app-container {
 }
 
 .mobile-mode .calendar-icon img {
-  height: 22px;
+  height: 23.76px; /* +8% respecto a 22px */
 }
 
 .mobile-mode .header-right {
