@@ -886,6 +886,9 @@ let completedTasksExpanded = false;
 let statsCustomColors = {};
 let statsCustomNames = {};
 let statsMergedTasks = {};
+// Fusión de ACTIVIDADES (modo "Por actividad") por día: clave `${fecha}_${tagId}`
+// → tagId destino. Independiente de la fusión por título (statsMergedTasks).
+let statsMergedActivities = {};
 let statsMergeModeActive = false;
 let statsStatusFilter = 'all';
 // Modo de agrupación del panel de actividad: 'title' (por título de tarea, por
@@ -893,6 +896,7 @@ let statsStatusFilter = 'all';
 let statsGroupBy = 'title';
 let statsMergeFirstSelected = '';
 let statsMergeFirstColor = null;
+let statsMergeFirstName = '';
 let editingTaskOriginalName = '';
 // Orden de la lista de actividades en el gestor: false = orden personalizado del
 // usuario (por defecto), true = orden alfabético. Es solo una vista; no altera el
@@ -1486,6 +1490,7 @@ async function startApp(user) {
       statsCustomColors = parsedPrefs.statsCustomColors || {};
       statsCustomNames = parsedPrefs.statsCustomNames || {};
       statsMergedTasks = parsedPrefs.statsMergedTasks || {};
+      statsMergedActivities = parsedPrefs.statsMergedActivities || {};
       if (parsedPrefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...parsedPrefs.copyOptions };
     }
   } catch (e) {
@@ -1500,6 +1505,7 @@ async function startApp(user) {
     statsCustomColors = prefs.statsCustomColors || {};
     statsCustomNames = prefs.statsCustomNames || {};
     statsMergedTasks = prefs.statsMergedTasks || {};
+    statsMergedActivities = prefs.statsMergedActivities || {};
     if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
     activeTimerState = prefs.activeTimer || null;
     try {
@@ -6395,7 +6401,16 @@ function renderDailyStatsPanel(panelEl, dateStr) {
   if (statsGroupBy === 'activity') {
     tasksWithDuration.forEach(task => {
       const mins = getTaskDurationMinutes(task);
-      const tagId = task.tagId || 'default';
+      let tagId = task.tagId || 'default';
+
+      // Resolver fusión de actividades del día (recursiva): si esta actividad se
+      // combinó en otra, sumamos en la actividad destino.
+      let iter = 0;
+      while (statsMergedActivities[`${dateStr}_${tagId}`] && iter < 10) {
+        tagId = statsMergedActivities[`${dateStr}_${tagId}`];
+        iter++;
+      }
+
       const tag = tags.find(t => t.id === tagId) || tags.find(t => t.id === 'default');
       const name = tag ? tag.name : 'Por defecto';
       if (!grouped[tagId]) {
@@ -6738,6 +6753,7 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
     statsMergeModeActive = false;
     statsMergeFirstSelected = '';
     statsMergeFirstColor = null;
+    statsMergeFirstName = '';
     const mergeBtn = document.getElementById('daily-stats-merge-btn');
     if (mergeBtn) mergeBtn.classList.remove('active');
   }
@@ -6961,6 +6977,7 @@ function saveStatsMergePreferences() {
     } catch(e) {}
     
     prefs.statsMergedTasks = statsMergedTasks;
+    prefs.statsMergedActivities = statsMergedActivities;
     prefs.statsCustomColors = statsCustomColors;
 
     try {
@@ -6980,6 +6997,7 @@ function toggleStatsMergeMode() {
     statsMergeModeActive = false;
     statsMergeFirstSelected = '';
     statsMergeFirstColor = null;
+    statsMergeFirstName = '';
     mergeBtn.classList.remove('active');
     
     if (currentDailyStatsDate) {
@@ -6989,7 +7007,13 @@ function toggleStatsMergeMode() {
           delete statsMergedTasks[key];
         }
       });
-      
+      // También deshacer las fusiones de actividades de este día.
+      Object.keys(statsMergedActivities).forEach(key => {
+        if (key.startsWith(prefix)) {
+          delete statsMergedActivities[key];
+        }
+      });
+
       saveStatsMergePreferences();
       estadisticasDiarias(currentDailyStatsDate);
     }
@@ -6998,6 +7022,7 @@ function toggleStatsMergeMode() {
     statsMergeModeActive = true;
     statsMergeFirstSelected = '';
     statsMergeFirstColor = null;
+    statsMergeFirstName = '';
     mergeBtn.classList.add('active');
     
     // Quitar cualquier resaltado previo de fila
@@ -7008,30 +7033,43 @@ function toggleStatsMergeMode() {
 }
 
 function handleStatsMergeClick(group, tr) {
+  // En modo "Por actividad" la identidad del grupo es su tagId; en modo "Por
+  // título" es el nombre/título. Así la fusión funciona en ambos modos.
+  const byActivity = statsGroupBy === 'activity';
+  const groupKey = byActivity ? group.tagId : group.name;
+
   if (!statsMergeFirstSelected) {
-    statsMergeFirstSelected = group.name;
+    statsMergeFirstSelected = groupKey;
     // Guardar el color resuelto de la primera tarea seleccionada para que la
     // fusión conserve exactamente ese color, incluso si es un color por defecto.
     statsMergeFirstColor = group.color ? { bg: group.color.bg, border: group.color.border } : null;
+    // Nombre del primer grupo (para fijar el color personalizado por nombre).
+    statsMergeFirstName = group.name;
     tr.classList.add('merge-selected');
   } else {
-    // Si hace click en la misma tarea, deseleccionar
-    if (statsMergeFirstSelected === group.name) {
+    // Si hace click en la misma fila, deseleccionar
+    if (statsMergeFirstSelected === groupKey) {
       statsMergeFirstSelected = '';
       statsMergeFirstColor = null;
+      statsMergeFirstName = '';
       tr.classList.remove('merge-selected');
       return;
     }
 
-    // Fusionar la tarea actual (group.name) en la primera seleccionada (statsMergeFirstSelected)
-    // "sumando sus duraciones y manteniendo el nombre y el color de la primera tarea seleccionada."
-    statsMergedTasks[`${currentDailyStatsDate}_${group.name}`] = statsMergeFirstSelected;
+    // Fusionar el grupo actual en el primero seleccionado, sumando duraciones y
+    // manteniendo el nombre y el color del primero. Cada modo usa su propio mapa.
+    if (byActivity) {
+      statsMergedActivities[`${currentDailyStatsDate}_${groupKey}`] = statsMergeFirstSelected;
+    } else {
+      statsMergedTasks[`${currentDailyStatsDate}_${groupKey}`] = statsMergeFirstSelected;
+    }
 
-    // Fijar el color de la primera tarea seleccionada como color personalizado
-    // del grupo fusionado, para que no se reasigne un color aleatorio/distinto
-    // al recalcular (esto ocurría cuando ambas tenían colores por defecto).
-    if (statsMergeFirstColor && !statsCustomColors[`${currentDailyStatsDate}_${statsMergeFirstSelected}`]) {
-      statsCustomColors[`${currentDailyStatsDate}_${statsMergeFirstSelected}`] = {
+    // Fijar el color del primer grupo seleccionado como color personalizado del
+    // grupo fusionado (keyed por NOMBRE, que es como lo lee el render), para que
+    // no se reasigne un color aleatorio/distinto al recalcular.
+    const firstColorKey = `${currentDailyStatsDate}_${statsMergeFirstName}`;
+    if (statsMergeFirstColor && !statsCustomColors[firstColorKey]) {
+      statsCustomColors[firstColorKey] = {
         bg: statsMergeFirstColor.bg,
         text: '#ffffff',
         border: statsMergeFirstColor.border || statsMergeFirstColor.bg
@@ -7042,6 +7080,7 @@ function handleStatsMergeClick(group, tr) {
     statsMergeModeActive = false;
     statsMergeFirstSelected = '';
     statsMergeFirstColor = null;
+    statsMergeFirstName = '';
 
     const mergeBtn = document.getElementById('daily-stats-merge-btn');
     if (mergeBtn) mergeBtn.classList.remove('active');
