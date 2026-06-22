@@ -1757,6 +1757,7 @@ input:checked + .slider:before {
   z-index: 60;
   max-height: 200px;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   padding: 4px;
@@ -1772,6 +1773,14 @@ input:checked + .slider:before {
   font-size: 13px;
   transition: var(--transition-fast);
   user-select: none;
+  min-width: 0;
+}
+/* El nombre de la actividad no debe ensanchar el desplegable: se recorta con "…". */
+.custom-option > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .custom-option:hover {

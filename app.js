@@ -7664,7 +7664,12 @@ function hideHslPicker() {
 
 function startEditTag(tag) {
   document.getElementById('tag-edit-id').value = tag.id;
-  document.getElementById('tag-input-name').value = tag.name;
+  const nameInput = document.getElementById('tag-input-name');
+  nameInput.value = tag.name;
+  // La actividad "Por defecto" no permite cambiar su nombre.
+  const isDefault = tag.id === 'default';
+  nameInput.disabled = isDefault;
+  nameInput.title = isDefault ? 'El nombre de la actividad por defecto no se puede cambiar' : '';
   document.getElementById('tag-form-title').textContent = 'Editar actividad';
   document.getElementById('tag-submit-btn').textContent = 'Guardar';
 
@@ -7715,7 +7720,10 @@ function hexToHsl(hex) {
 
 function resetTagForm() {
   document.getElementById('tag-edit-id').value = '';
-  document.getElementById('tag-input-name').value = '';
+  const nameInput = document.getElementById('tag-input-name');
+  nameInput.value = '';
+  nameInput.disabled = false;
+  nameInput.title = '';
   document.getElementById('tag-form-title').textContent = 'Nueva actividad';
   document.getElementById('tag-submit-btn').textContent = 'Crear';
 
@@ -9744,7 +9752,9 @@ function setupEventListeners() {
       // Update Tag
       tags = tags.map(tag => {
         if (tag.id === editId) {
-          return { ...tag, name, color, colorIndex: selectedColorIndex };
+          // La actividad "Por defecto" conserva siempre su nombre original.
+          const finalName = tag.id === 'default' ? tag.name : name;
+          return { ...tag, name: finalName, color, colorIndex: selectedColorIndex };
         }
         return tag;
       });
