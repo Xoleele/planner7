@@ -169,19 +169,81 @@ html:not(.mobile-mode) .app-container {
 #today-btn {
   font-size: 12px;
   font-weight: 600;
-  padding: 4px 19px;
-  border-radius: 6px;
-  border: 2.5px solid var(--text-main);
-  background-color: var(--bg-card);
+  /* Sin recuadro. El texto "Hoy" se centra; la línea gris izquierda la dibuja un
+     pseudo-elemento que recorre todo el alto del navegador (incluido su padding
+     vertical), formando la separación tipo botón. */
+  position: relative;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
   color: var(--text-main);
   cursor: pointer;
   transition: var(--transition-fast);
-  margin-left: 4px;
+  margin: 0 0 0 8px;
+  /* Ancho FIJO: la distancia entre la línea gris (en left:0) y el borde derecho
+     del navegador queda constante (ancho + padding del navegador). */
+  width: 36px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Línea gris vertical a la izquierda del botón, extendida para cubrir el padding
+   vertical (6px arriba/abajo) del contenedor y llegar de borde a borde. */
+#today-btn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -6px;
+  bottom: -6px;
+  width: 1px;
+  background-color: #d1d1d6;
 }
 
 #today-btn:hover {
   background-color: #f2f2f7;
-  border-color: var(--text-main);
+}
+
+/* Botón izquierdo del navegador (alternar vista): espejo del de "Hoy", con la
+   línea gris a la DERECHA recorriendo todo el alto del navegador. */
+#nav-view-toggle-btn {
+  position: relative;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  margin: 0 8px 0 0;
+  /* Ancho FIJO: la distancia entre el borde izquierdo del navegador y la línea
+     gris (en right:0) queda constante. */
+  width: 32px;
+  box-sizing: border-box;
+  padding: 0 4px;
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Altura del icono: compactado 10% y luego +5% → factor 0.945 (mantiene ancho). */
+#nav-view-toggle-btn img {
+  transform: scaleY(0.945);
+}
+#nav-view-toggle-btn::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -6px;
+  bottom: -6px;
+  width: 1px;
+  background-color: #d1d1d6;
+}
+#nav-view-toggle-btn:hover {
+  background-color: #f2f2f7;
 }
 
 .header-right {
@@ -2169,15 +2231,32 @@ body.not-logged-in .app-container {
 .mobile-mode .week-navigator {
   order: 3;
   flex: 0 0 100%;
-  justify-content: center;
+  /* Sin justify-content: center, para que el contenedor CENTRAL crezca y absorba
+     el ancho extra (en vez de repartirlo como espacio a los lados). */
+  justify-content: flex-start;
   padding: 6px 10px;
-  gap: 6px;
+  gap: 4px;
+}
+
+/* Botones laterales y flechas: tamaño fijo (no crecen). */
+.mobile-mode .week-navigator #prev-week-btn,
+.mobile-mode .week-navigator #next-week-btn,
+.mobile-mode .week-navigator #nav-view-toggle-btn,
+.mobile-mode .week-navigator #today-btn {
+  flex: 0 0 auto;
+}
+
+/* El contenedor central (flechas + fecha) ABSORBE el espacio disponible. */
+.mobile-mode .week-navigator .week-display-container {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: center;
 }
 
 .mobile-mode #week-range-label {
   font-size: 13px;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto; /* la fecha ocupa todo el espacio dentro del contenedor central */
   text-align: center;
 }
 

@@ -2108,6 +2108,15 @@ function formatSingleDate(date) {
   return `${capitalize(dayName)} ${day}/${month}/${year}`;
 }
 
+// Solo la fecha en números (DD/MM/AAAA), sin el nombre del día. La usa el
+// navegador móvil para mostrar únicamente la fecha.
+function formatSingleDateNumeric(date) {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
 function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
@@ -2452,7 +2461,7 @@ function renderWeeklyCalendar(targetWrapper = document) {
     }
     // Actualizar label de semana
     const visibleDate = getMobileVisibleDate() || new Date();
-    document.getElementById('week-range-label').textContent = formatSingleDate(visibleDate);
+    document.getElementById('week-range-label').textContent = formatSingleDateNumeric(visibleDate);
     // Si el horario está activo, mantenerlo sincronizado también en móvil. Sin
     // esto, cuando las tareas llegan de la nube DESPUÉS del primer render del
     // cronograma (carga asíncrona), el horario móvil se quedaba vacío porque
@@ -2851,7 +2860,7 @@ function toggleCronograma() {
     // En móvil, mostrar la fecha de hoy en la etiqueta superior.
     if (isMobile()) {
       const label = document.getElementById('week-range-label');
-      if (label) label.textContent = formatSingleDate(new Date());
+      if (label) label.textContent = formatSingleDateNumeric(new Date());
     }
     // Colocar el scroll para que la línea de hora quede bajo las cabeceras.
     requestAnimationFrame(scrollHorarioToNowLine);
@@ -2874,10 +2883,10 @@ function toggleCronograma() {
   updateViewToggleMenuLabel();
 }
 
-// Actualiza el tooltip del botón de alternar vista del header para que refleje
-// la vista a la que cambiará al pulsarlo.
+// Actualiza el tooltip del botón de alternar vista (en el navegador) para que
+// refleje la vista a la que cambiará al pulsarlo.
 function updateViewToggleMenuLabel() {
-  const btn = document.getElementById('view-toggle-header-btn');
+  const btn = document.getElementById('nav-view-toggle-btn');
   if (btn) btn.title = cronogramaActive ? 'Vista Planner' : 'Vista Horario';
 }
 
@@ -2896,7 +2905,7 @@ function restoreSavedViewMode() {
   renderCronograma();
   if (isMobile()) {
     const label = document.getElementById('week-range-label');
-    if (label) label.textContent = formatSingleDate(new Date());
+    if (label) label.textContent = formatSingleDateNumeric(new Date());
   }
   requestAnimationFrame(scrollHorarioToNowLine);
 }
@@ -3669,7 +3678,7 @@ function goToCronogramaMobileDate(date) {
 // Actualiza la etiqueta de fecha de la barra superior (móvil).
 function updateCronogramaMobileLabel(date) {
   const label = document.getElementById('week-range-label');
-  if (label) label.textContent = formatSingleDate(date);
+  if (label) label.textContent = formatSingleDateNumeric(date);
 }
 
 // ─── Carrusel del horario MÓVIL: scroll nativo con snap ──────────────────────
@@ -8550,9 +8559,10 @@ function toggleCustomDatePicker() {
 
 function closeDatePickerOnOutsideClick(e) {
   const dropdown = document.getElementById('custom-calendar-dropdown');
-  const trigger = document.getElementById('datepicker-trigger');
+  const trigger = document.getElementById('datepicker-trigger'); // puede no existir
   const label = document.getElementById('week-range-label');
-  if (dropdown && !dropdown.contains(e.target) && trigger && !trigger.contains(e.target) && label && !label.contains(e.target)) {
+  const outsideTrigger = !trigger || !trigger.contains(e.target);
+  if (dropdown && !dropdown.contains(e.target) && outsideTrigger && label && !label.contains(e.target)) {
     dropdown.classList.add('hidden');
     document.removeEventListener('click', closeDatePickerOnOutsideClick);
   }
@@ -10278,10 +10288,10 @@ function setupEventListeners() {
     timerStopBtn.addEventListener('click', finishTimer);
   }
 
-  // ─── Alternar vista (Planner / Horario) desde el header ────────────────────
-  const viewToggleHeaderBtn = document.getElementById('view-toggle-header-btn');
-  if (viewToggleHeaderBtn) {
-    viewToggleHeaderBtn.addEventListener('click', toggleCronograma);
+  // ─── Alternar vista (Planner / Horario) desde el navegador ─────────────────
+  const navViewToggleBtn = document.getElementById('nav-view-toggle-btn');
+  if (navViewToggleBtn) {
+    navViewToggleBtn.addEventListener('click', toggleCronograma);
     updateViewToggleMenuLabel(); // tooltip inicial según la vista actual
   }
 
