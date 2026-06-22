@@ -151,7 +151,7 @@ html:not(.mobile-mode) .app-container {
   font-size: 14px;
   font-weight: 600;
   color: var(--text-main);
-  min-width: 160px;
+  min-width: 220px;
   text-align: center;
   user-select: none;
 }
