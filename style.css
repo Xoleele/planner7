@@ -2591,8 +2591,10 @@ body.not-logged-in .app-container {
    horario, escritorio y móvil. */
 .copy-day-btn { display: none !important; }
 
+/* Con el botón de "copiar como texto" oculto, el de limpiar sube al hueco
+   superior izquierdo para no dejar espacio vacío. */
 .clear-day-btn {
-  top: 46px;
+  top: 14px;
   right: auto;
   left: 15px;
 }
@@ -2686,7 +2688,7 @@ body.not-logged-in .app-container {
 .mobile-mode .duration-day-btn {
   display: none; /* oculto por defecto; se muestra solo con has-duration */
   position: absolute;
-  right: 108px;
+  right: 76px; /* ocupa el hueco que dejó el botón de copiar (oculto) */
   left: auto;
   top: 50%;
   transform: translateY(-50%);
@@ -2706,7 +2708,7 @@ body.not-logged-in .app-container {
   align-items: center;
   justify-content: center;
   position: absolute;
-  right: 108px;
+  right: 76px; /* ocupa el hueco que dejó el botón de copiar (oculto) */
   left: auto;
   top: 50%;
   transform: translateY(-50%);
