@@ -1007,6 +1007,14 @@ input[type="number"]:focus {
   min-width: 0;
 }
 
+/* Fila FECHA/INICIO/FIN: fecha un poco más ancha, horas un poco más angostas. */
+.task-date-group {
+  flex: 1.15;
+}
+.task-time-group {
+  flex: 0.92;
+}
+
 /* El selector de ACTIVIDAD no debe crecer si el texto es largo: se recorta con
    "…" y se mantiene en una sola línea. */
 .task-activity-group .custom-select-trigger {
