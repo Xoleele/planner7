@@ -7344,21 +7344,24 @@ function closeTagsModal() {
   document.getElementById('tags-modal').classList.add('hidden');
 }
 
+// Devuelve las etiquetas en el orden a MOSTRAR según el modo actual:
+//  - personalizado (por defecto): el orden real guardado por el usuario.
+//  - alfabético: una COPIA ordenada por nombre (no altera el orden guardado).
+// En ambos casos 'default' (Por defecto) queda primera.
+function getOrderedTagsForDisplay() {
+  if (!tagsSortAlphabetical) return tags;
+  return [...tags].sort((a, b) => {
+    if (a.id === 'default') return -1;
+    if (b.id === 'default') return 1;
+    return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+  });
+}
+
 function renderTagsList() {
   const container = document.getElementById('tags-list');
   container.innerHTML = '';
 
-  // Lista a MOSTRAR. En modo alfabético se ordena una COPIA por nombre (sin tocar
-  // el orden guardado); 'default' (Por defecto) siempre queda primera. En modo
-  // personalizado se usa el orden real del usuario.
-  let displayTags = tags;
-  if (tagsSortAlphabetical) {
-    displayTags = [...tags].sort((a, b) => {
-      if (a.id === 'default') return -1;
-      if (b.id === 'default') return 1;
-      return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
-    });
-  }
+  const displayTags = getOrderedTagsForDisplay();
 
   displayTags.forEach(tag => {
     const item = document.createElement('div');
@@ -7846,11 +7849,11 @@ function buildTagSelectorOptions() {
   if (!container) return;
   container.innerHTML = '';
 
-  tags.forEach(tag => {
+  getOrderedTagsForDisplay().forEach(tag => {
     const option = document.createElement('div');
     option.className = 'custom-option';
     option.dataset.value = tag.id;
-    
+
     const circle = document.createElement('span');
     circle.className = 'custom-select-color-circle';
     circle.style.backgroundColor = tag.color.bg;
@@ -8488,11 +8491,11 @@ function buildTimerTagSelectorOptions() {
   if (!container) return;
   container.innerHTML = '';
 
-  tags.forEach(tag => {
+  getOrderedTagsForDisplay().forEach(tag => {
     const option = document.createElement('div');
     option.className = 'custom-option';
     option.dataset.value = tag.id;
-    
+
     const circle = document.createElement('span');
     circle.className = 'custom-select-color-circle';
     circle.style.backgroundColor = tag.color.bg;
@@ -9681,6 +9684,9 @@ function setupEventListeners() {
       tagsSortAlphabetical = !tagsSortAlphabetical;
       refreshTagsSortBtn();
       renderTagsList();
+      // Reflejar el nuevo orden también en los selectores desplegables
+      // (creador/editor de tarea y cronómetro).
+      buildTagSelectorOptions();
     });
   }
 
