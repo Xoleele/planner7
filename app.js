@@ -8340,15 +8340,50 @@ function setSelectTagValue(tagId) {
   }
 }
 
+// Añade un campo de búsqueda al inicio del desplegable de etiquetas (solo
+// escritorio) que filtra las opciones en vivo al teclear. `optionsSelector`
+// apunta a las opciones (`.custom-option`) dentro del contenedor.
+function addTagSearchBox(container) {
+  if (isMobile()) return; // la búsqueda al teclear es solo de escritorio
+  const search = document.createElement('input');
+  search.type = 'text';
+  search.className = 'tag-search-input';
+  search.placeholder = 'Buscar etiqueta…';
+  search.autocomplete = 'off';
+  // Evitar que un clic en el campo cierre el desplegable o seleccione.
+  search.addEventListener('click', (e) => e.stopPropagation());
+  search.addEventListener('keydown', (e) => e.stopPropagation());
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    container.querySelectorAll('.custom-option').forEach(opt => {
+      const name = (opt.dataset.name || '').toLowerCase();
+      opt.style.display = (!q || name.includes(q)) ? '' : 'none';
+    });
+  });
+  container.appendChild(search);
+}
+
+// Al abrir el desplegable: limpiar el buscador, mostrar todas las opciones y
+// enfocar el campo para que el usuario pueda teclear de inmediato (escritorio).
+function resetTagSearch(container) {
+  const search = container.querySelector('.tag-search-input');
+  if (!search) return;
+  search.value = '';
+  container.querySelectorAll('.custom-option').forEach(opt => { opt.style.display = ''; });
+  setTimeout(() => search.focus(), 0);
+}
+
 function buildTagSelectorOptions() {
   const container = document.getElementById('tag-options-container');
   if (!container) return;
   container.innerHTML = '';
+  addTagSearchBox(container);
 
   getOrderedTagsForDisplay().forEach(tag => {
     const option = document.createElement('div');
     option.className = 'custom-option';
     option.dataset.value = tag.id;
+    option.dataset.name = tag.name;
 
     const circle = document.createElement('span');
     circle.className = 'custom-select-color-circle';
@@ -8986,11 +9021,13 @@ function buildTimerTagSelectorOptions() {
   const container = document.getElementById('timer-tag-options-container');
   if (!container) return;
   container.innerHTML = '';
+  addTagSearchBox(container);
 
   getOrderedTagsForDisplay().forEach(tag => {
     const option = document.createElement('div');
     option.className = 'custom-option';
     option.dataset.value = tag.id;
+    option.dataset.name = tag.name;
 
     const circle = document.createElement('span');
     circle.className = 'custom-select-color-circle';
@@ -10431,6 +10468,9 @@ function setupEventListeners() {
     tagSelectTrigger.addEventListener('click', (e) => {
       e.stopPropagation();
       tagOptionsContainer.classList.toggle('hidden');
+      if (!tagOptionsContainer.classList.contains('hidden')) {
+        resetTagSearch(tagOptionsContainer);
+      }
     });
 
     // Close options list when clicking outside
@@ -10449,6 +10489,9 @@ function setupEventListeners() {
     timerTagSelectTrigger.addEventListener('click', (e) => {
       e.stopPropagation();
       timerTagOptionsContainer.classList.toggle('hidden');
+      if (!timerTagOptionsContainer.classList.contains('hidden')) {
+        resetTagSearch(timerTagOptionsContainer);
+      }
     });
 
     // Close options list when clicking outside

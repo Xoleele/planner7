@@ -1771,6 +1771,22 @@ input:checked + .slider:before {
   padding: 4px;
 }
 
+/* Campo de búsqueda dentro del desplegable de etiquetas (escritorio). Queda fijo
+   arriba mientras se desplazan las opciones. */
+.tag-search-input {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  padding: 7px 10px !important;
+  font-size: 13px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background-color: var(--bg-card);
+}
+
 .custom-option {
   display: flex;
   align-items: center;
