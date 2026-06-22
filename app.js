@@ -887,6 +887,7 @@ let statsCustomColors = {};
 let statsCustomNames = {};
 let statsMergedTasks = {};
 let statsMergeModeActive = false;
+let statsStatusFilter = 'completed';
 let statsMergeFirstSelected = '';
 let editingTaskOriginalName = '';
 let editingTaskColorIndex = 0; // -1 for custom HSL
@@ -6357,7 +6358,16 @@ function renderDailyStatsPanel(panelEl, dateStr) {
   
   const tasksWithDuration = dayTasks.filter(task => {
     const mins = getTaskDurationMinutes(task);
-    return mins !== null && mins > 0;
+    if (mins === null || mins <= 0) return false;
+    
+    const isCompleted = task.isRecurrent
+      ? !!(task.completedOccurrences && task.completedOccurrences.includes(dateStr))
+      : !!task.completed;
+      
+    if (statsStatusFilter === 'completed' && !isCompleted) return false;
+    if (statsStatusFilter === 'uncompleted' && isCompleted) return false;
+    
+    return true;
   });
   
   // Agrupar actividades con el mismo nombre y sumar sus duraciones (resolviendo combinaciones)
@@ -6602,8 +6612,31 @@ function renderDailyStatsPanel(panelEl, dateStr) {
   }
 }
 
+function handleStatsStatusFilterChange(newFilter) {
+  statsStatusFilter = newFilter;
+  
+  const selects = document.querySelectorAll('.daily-stats-status-select');
+  selects.forEach(sel => {
+    sel.value = newFilter;
+  });
+  
+  const panelPrev = document.getElementById('daily-stats-panel-prev');
+  const panelCurr = document.getElementById('daily-stats-panel-curr');
+  const panelNext = document.getElementById('daily-stats-panel-next');
+  
+  if (panelPrev) renderDailyStatsPanel(panelPrev, getRelativeDateString(currentDailyStatsDate, -1));
+  if (panelCurr) renderDailyStatsPanel(panelCurr, currentDailyStatsDate);
+  if (panelNext) renderDailyStatsPanel(panelNext, getRelativeDateString(currentDailyStatsDate, 1));
+}
+
 function estadisticasDiarias(dateStr) {
   currentDailyStatsDate = dateStr;
+  
+  statsStatusFilter = 'completed';
+  const selects = document.querySelectorAll('.daily-stats-status-select');
+  selects.forEach(sel => {
+    sel.value = 'completed';
+  });
   
   const formattedDate = formatToDDMMYYYY(dateStr);
   const titleEl = document.getElementById('daily-stats-title');
@@ -7927,7 +7960,7 @@ function setupTimeMaskInput(inputEl) {
   const originalDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
   const currentVal = originalDescriptor.get.call(inputEl);
   if (!currentVal || currentVal.trim() === '') {
-    originalDescriptor.set.call(inputEl, '  :  ');
+    originalDescriptor.set.call(inputEl, '');
   }
   
   Object.defineProperty(inputEl, 'value', {
@@ -7939,123 +7972,342 @@ function setupTimeMaskInput(inputEl) {
       return '';
     },
     set(val) {
-      if (!val || val === '  :  ' || val.trim() === ':') {
-        originalDescriptor.set.call(this, '  :  ');
+      if (!val) {
+        originalDescriptor.set.call(this, '');
       } else {
         if (/^\d{2}:\d{2}$/.test(val)) {
           originalDescriptor.set.call(this, val);
         } else {
-          originalDescriptor.set.call(this, '  :  ');
+          originalDescriptor.set.call(this, '');
         }
       }
     },
     configurable: true
   });
   
+  // Limitar escritura y validar dígitos en vivo
+  inputEl.addEventListener('keypress', (e) => {
+    // Permitir sólo números
+    if (!/[0-9]/.test(e.key)) {
+      e.preventDefault();
+      return;
+    }
+    
+    const rawVal = originalDescriptor.get.call(inputEl) || '';
+    const selStart = inputEl.selectionStart;
+    const selEnd = inputEl.selectionEnd;
+    const colonIdx = rawVal.indexOf(':');
+
+    // Si la selección no está colapsada, dejamos que el navegador actúe de forma estándar (sobrescribiendo la selección)
+    if (selStart !== selEnd) {
+      return;
+    }
+
+    if (colonIdx === 2) {
+      e.preventDefault();
+      const digit = e.key;
+
+      if (selStart === 0) {
+        // Editar primer dígito de la hora
+        const newHour = digit + rawVal[1];
+        const hVal = parseInt(newHour, 10);
+        if (hVal >= 0 && hVal <= 23) {
+          const newVal = digit + rawVal.substring(1);
+          originalDescriptor.set.call(inputEl, newVal);
+          inputEl.setSelectionRange(1, 1);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      } else if (selStart === 1) {
+        // Editar segundo dígito de la hora
+        const newHour = rawVal[0] + digit;
+        const hVal = parseInt(newHour, 10);
+        if (hVal >= 0 && hVal <= 23) {
+          const newVal = rawVal[0] + digit + rawVal.substring(2);
+          originalDescriptor.set.call(inputEl, newVal);
+          inputEl.setSelectionRange(2, 2);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      } else if (selStart === 2 || selStart === 3) {
+        // Editar primer dígito de los minutos
+        if (rawVal.length === 5) {
+          const newMin = digit + rawVal[4];
+          const mVal = parseInt(newMin, 10);
+          if (mVal >= 0 && mVal <= 59) {
+            const newVal = rawVal.substring(0, 3) + digit + rawVal[4];
+            originalDescriptor.set.call(inputEl, newVal);
+            inputEl.setSelectionRange(4, 4);
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        } else if (rawVal.length === 4) {
+          // El valor actual es "HH:M" y queremos editar el dígito M (índice 3)
+          if (['6', '7', '8', '9'].includes(digit)) {
+            const newVal = rawVal.substring(0, 3) + '0' + digit;
+            originalDescriptor.set.call(inputEl, newVal);
+            inputEl.setSelectionRange(5, 5);
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          } else if (['0', '1', '2', '3', '4', '5'].includes(digit)) {
+            const newVal = rawVal.substring(0, 3) + digit;
+            originalDescriptor.set.call(inputEl, newVal);
+            inputEl.setSelectionRange(4, 4);
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        } else if (rawVal.length === 3) {
+          // El valor actual es "HH:" y queremos escribir el primer dígito del minuto
+          if (['6', '7', '8', '9'].includes(digit)) {
+            const newVal = rawVal + '0' + digit;
+            originalDescriptor.set.call(inputEl, newVal);
+            inputEl.setSelectionRange(5, 5);
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          } else if (['0', '1', '2', '3', '4', '5'].includes(digit)) {
+            const newVal = rawVal + digit;
+            originalDescriptor.set.call(inputEl, newVal);
+            inputEl.setSelectionRange(4, 4);
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }
+      } else if (selStart === 4) {
+        // Editar segundo dígito de los minutos
+        if (rawVal.length === 5) {
+          const newMin = rawVal[3] + digit;
+          const mVal = parseInt(newMin, 10);
+          if (mVal >= 0 && mVal <= 59) {
+            const newVal = rawVal.substring(0, 4) + digit;
+            originalDescriptor.set.call(inputEl, newVal);
+            inputEl.setSelectionRange(5, 5);
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        } else if (rawVal.length === 4) {
+          const newMin = rawVal[3] + digit;
+          const mVal = parseInt(newMin, 10);
+          if (mVal >= 0 && mVal <= 59) {
+            const newVal = rawVal + digit;
+            originalDescriptor.set.call(inputEl, newVal);
+            inputEl.setSelectionRange(5, 5);
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        }
+      }
+      return;
+    }
+
+    if (colonIdx === 1) {
+      e.preventDefault();
+      const digit = e.key;
+      if (selStart === 0) {
+        // Editar primer dígito de la hora (se convierte en d + d:)
+        const newHour = digit + rawVal[0];
+        const hVal = parseInt(newHour, 10);
+        if (hVal >= 0 && hVal <= 23) {
+          const newVal = digit + rawVal;
+          originalDescriptor.set.call(inputEl, newVal);
+          inputEl.setSelectionRange(2, 2);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      } else if (selStart === 1) {
+        // Añadir segundo dígito de la hora
+        const newHour = rawVal[0] + digit;
+        const hVal = parseInt(newHour, 10);
+        if (hVal >= 0 && hVal <= 23) {
+          const newVal = rawVal[0] + digit + ':';
+          originalDescriptor.set.call(inputEl, newVal);
+          inputEl.setSelectionRange(3, 3);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      } else if (selStart === 2) {
+        // Escribir primer dígito de los minutos (autocompletando 0 en las horas)
+        if (['6', '7', '8', '9'].includes(digit)) {
+          const newVal = '0' + rawVal[0] + ':0' + digit;
+          originalDescriptor.set.call(inputEl, newVal);
+          inputEl.setSelectionRange(5, 5);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        } else if (['0', '1', '2', '3', '4', '5'].includes(digit)) {
+          const newVal = '0' + rawVal[0] + ':' + digit;
+          originalDescriptor.set.call(inputEl, newVal);
+          inputEl.setSelectionRange(4, 4);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+      return;
+    }
+
+    if (colonIdx === 0) {
+      e.preventDefault();
+      const digit = e.key;
+      if (selStart === 0) {
+        // Escribir primer dígito de la hora
+        if (['3', '4', '5', '6', '7', '8', '9'].includes(digit)) {
+          const newVal = '0' + digit + ':';
+          originalDescriptor.set.call(inputEl, newVal);
+          inputEl.setSelectionRange(3, 3);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        } else if (['0', '1', '2'].includes(digit)) {
+          const newVal = digit + ':';
+          originalDescriptor.set.call(inputEl, newVal);
+          inputEl.setSelectionRange(1, 1);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      } else if (selStart === 1) {
+        // Escribir primer dígito de los minutos
+        if (['6', '7', '8', '9'].includes(digit)) {
+          const newVal = '00:0' + digit;
+          originalDescriptor.set.call(inputEl, newVal);
+          inputEl.setSelectionRange(5, 5);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        } else if (['0', '1', '2', '3', '4', '5'].includes(digit)) {
+          const newVal = '00:' + digit;
+          originalDescriptor.set.call(inputEl, newVal);
+          inputEl.setSelectionRange(4, 4);
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+      return;
+    }
+
+    // No permitir más de 5 caracteres
+    if (rawVal.length >= 5) {
+      e.preventDefault();
+      return;
+    }
+    
+    // Validar formato de hora en tiempo real
+    if (rawVal.length === 0) {
+      // Si el usuario empieza escribiendo un número del 3 al 9, se asume que hay un 0 al principio
+      if (['3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
+        e.preventDefault();
+        originalDescriptor.set.call(inputEl, '0' + e.key + ':');
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      } else if (!['0', '1', '2'].includes(e.key)) {
+        e.preventDefault();
+        return;
+      }
+    } else if (rawVal.length === 1) {
+      // Segundo dígito
+      const h1 = rawVal[0];
+      if (h1 === '2' && !['0', '1', '2', '3'].includes(e.key)) {
+        e.preventDefault();
+        return;
+      }
+    } else if (rawVal.length === 2) {
+      // Si el usuario escribe el tercer carácter directamente (los minutos)
+      e.preventDefault();
+      if (['6', '7', '8', '9'].includes(e.key)) {
+        originalDescriptor.set.call(inputEl, rawVal + ':0' + e.key);
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+      if (!['0', '1', '2', '3', '4', '5'].includes(e.key)) {
+        return;
+      }
+      originalDescriptor.set.call(inputEl, rawVal + ':' + e.key);
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    } else if (rawVal.length === 3 && rawVal.endsWith(':')) {
+      // Primer dígito del minuto
+      if (['6', '7', '8', '9'].includes(e.key)) {
+        e.preventDefault();
+        originalDescriptor.set.call(inputEl, rawVal + '0' + e.key);
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+      if (!['0', '1', '2', '3', '4', '5'].includes(e.key)) {
+        e.preventDefault();
+        return;
+      }
+    }
+  });
+
   inputEl.addEventListener('keydown', (e) => {
     const isDigit = /^[0-9]$/.test(e.key);
     const isBackspace = e.key === 'Backspace';
     const isDelete = e.key === 'Delete';
-    const isArrow = ['ArrowLeft', 'ArrowRight'].includes(e.key);
     const isTab = e.key === 'Tab';
     const isEnter = e.key === 'Enter';
     
-    if (isTab || isEnter || e.ctrlKey || e.metaKey) {
-      return;
-    }
-    
-    e.preventDefault();
-    
-    let selStart = inputEl.selectionStart;
-    let val = originalDescriptor.get.call(inputEl) || '  :  ';
-    let valArr = val.split('');
+    const rawVal = originalDescriptor.get.call(inputEl) || '';
+    const selStart = inputEl.selectionStart;
+    const selEnd = inputEl.selectionEnd;
+    const colonIdx = rawVal.indexOf(':');
     
     if (isDigit) {
-      if (selStart === 2) {
-        selStart = 3;
+      // Si la hora ya está completamente escrita y el cursor está al final o todo seleccionado, se borra y escribe desde cero
+      if (rawVal.length === 5 && /^\d{2}:\d{2}$/.test(rawVal) && (selStart === 5 || (selStart === 0 && selEnd === 5))) {
+        originalDescriptor.set.call(inputEl, '');
+        // El dígito presionado se insertará nativamente en la primera posición limpia
       }
-      if (selStart < 5) {
-        let valid = true;
-        if (selStart === 0 && !['0', '1', '2'].includes(e.key)) valid = false;
-        if (selStart === 1) {
-          const h1 = valArr[0];
-          if (h1 === '2' && !['0', '1', '2', '3'].includes(e.key)) valid = false;
-        }
-        if (selStart === 3 && !['0', '1', '2', '3', '4', '5'].includes(e.key)) valid = false;
-        
-        if (valid) {
-          valArr[selStart] = e.key;
-          originalDescriptor.set.call(inputEl, valArr.join(''));
-          let nextSel = selStart + 1;
-          if (nextSel === 2) nextSel = 3;
-          inputEl.setSelectionRange(nextSel, nextSel);
-          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    } else if (isBackspace || isDelete) {
+      if (colonIdx >= 0) {
+        if (selStart !== selEnd) {
+          // Si la selección contiene al menos parte del colon, lo preservamos
+          if (colonIdx >= selStart && colonIdx < selEnd) {
+            e.preventDefault();
+            const before = rawVal.substring(0, selStart);
+            const after = rawVal.substring(selEnd);
+            const newVal = before + ':' + after;
+            originalDescriptor.set.call(inputEl, newVal);
+            const newColonIdx = newVal.indexOf(':');
+            inputEl.setSelectionRange(newColonIdx, newColonIdx);
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        } else {
+          // Selección vacía (cursor simple)
+          if (isBackspace && selStart - 1 === colonIdx) {
+            e.preventDefault();
+            inputEl.setSelectionRange(colonIdx, colonIdx);
+          } else if (isDelete && selStart === colonIdx) {
+            e.preventDefault();
+            inputEl.setSelectionRange(colonIdx + 1, colonIdx + 1);
+          }
         }
       }
-    } else if (isBackspace) {
-      let targetIdx = selStart - 1;
-      if (targetIdx === 2) targetIdx = 1;
-      if (targetIdx >= 0) {
-        valArr[targetIdx] = ' ';
-        originalDescriptor.set.call(inputEl, valArr.join(''));
-        inputEl.setSelectionRange(targetIdx, targetIdx);
+    } else if (isTab || isEnter) {
+      // Autocompletar hora al confirmar o cambiar de campo o vaciar si es inválido
+      let newVal = '';
+      if (rawVal.length === 1 && /[0-9]/.test(rawVal)) {
+        newVal = '0' + rawVal + ':00';
+      } else if (rawVal.length === 2 && /^\d{2}$/.test(rawVal)) {
+        newVal = rawVal + ':00';
+      } else if (rawVal.length === 3 && /^\d{2}:$/.test(rawVal)) {
+        newVal = rawVal + '00';
+      } else if (rawVal.length === 4 && /^\d{2}:\d$/.test(rawVal)) {
+        newVal = rawVal + '0';
+      } else if (/^\d{2}:\d{2}$/.test(rawVal)) {
+        newVal = rawVal;
+      }
+      
+      if (newVal !== rawVal) {
+        originalDescriptor.set.call(inputEl, newVal);
         inputEl.dispatchEvent(new Event('input', { bubbles: true }));
       }
-    } else if (isDelete) {
-      let targetIdx = selStart;
-      if (targetIdx === 2) targetIdx = 3;
-      if (targetIdx < 5) {
-        valArr[targetIdx] = ' ';
-        originalDescriptor.set.call(inputEl, valArr.join(''));
-        inputEl.setSelectionRange(targetIdx, targetIdx);
-        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    } else if (isArrow) {
-      let nextSel = selStart;
-      if (e.key === 'ArrowLeft') {
-        nextSel = selStart - 1;
-        if (nextSel === 2) nextSel = 1;
-      } else {
-        nextSel = selStart + 1;
-        if (nextSel === 2) nextSel = 3;
-      }
-      if (nextSel >= 0 && nextSel <= 5) {
-        inputEl.setSelectionRange(nextSel, nextSel);
-      }
     }
   });
 
-  const adjustCursor = () => {
-    let val = originalDescriptor.get.call(inputEl) || '  :  ';
-    let firstEmpty = -1;
-    for (let i = 0; i < 5; i++) {
-      if (i !== 2 && val[i] === ' ') {
-        firstEmpty = i;
-        break;
-      }
+  // Agregar el colon ":" de forma automática tras escribir los 2 primeros dígitos de la hora
+  inputEl.addEventListener('input', () => {
+    const rawVal = originalDescriptor.get.call(inputEl) || '';
+    if (rawVal.length === 2 && !rawVal.includes(':')) {
+      originalDescriptor.set.call(inputEl, rawVal + ':');
     }
-    if (firstEmpty !== -1) {
-      inputEl.setSelectionRange(firstEmpty, firstEmpty);
-    } else {
-      inputEl.setSelectionRange(5, 5);
-    }
-  };
-
-  inputEl.addEventListener('focus', () => {
-    setTimeout(adjustCursor, 10);
   });
 
-  inputEl.addEventListener('click', (e) => {
-    e.preventDefault();
-    adjustCursor();
-  });
-  
   inputEl.addEventListener('blur', () => {
-    let val = originalDescriptor.get.call(inputEl) || '';
-    if (!/^\d{2}:\d{2}$/.test(val)) {
-      originalDescriptor.set.call(inputEl, '  :  ');
-      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+    const rawVal = originalDescriptor.get.call(inputEl) || '';
+    let newVal = '';
+    
+    if (rawVal.length === 1 && /[0-9]/.test(rawVal)) {
+      newVal = '0' + rawVal + ':00';
+    } else if (rawVal.length === 2 && /^\d{2}$/.test(rawVal)) {
+      newVal = rawVal + ':00';
+    } else if (rawVal.length === 3 && /^\d{2}:$/.test(rawVal)) {
+      newVal = rawVal + '00';
+    } else if (rawVal.length === 4 && /^\d{2}:\d$/.test(rawVal)) {
+      newVal = rawVal + '0';
+    } else if (/^\d{2}:\d{2}$/.test(rawVal)) {
+      newVal = rawVal;
     }
+    
+    originalDescriptor.set.call(inputEl, newVal);
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
   });
 }
 
@@ -9339,6 +9591,16 @@ function setupEventListeners() {
   ['stats-edit-hsl-h', 'stats-edit-hsl-s', 'stats-edit-hsl-l'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', updateStatsHslPreview);
+  });
+
+  // Selectores de estado en el panel de actividad diaria
+  ['daily-stats-status-select-prev', 'daily-stats-status-select-curr', 'daily-stats-status-select-next'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', (e) => {
+        handleStatsStatusFilterChange(e.target.value);
+      });
+    }
   });
 
   // Submit Tag Form
