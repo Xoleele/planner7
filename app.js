@@ -2974,7 +2974,8 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   //   < 25 min            → el bloque NO se muestra en absoluto (return null).
   //   25–39 min           → solo el color (sin texto y sin checkbox).
   //   40–59 min           → título + checkbox, centrados verticalmente.
-  //   >= 60 min           → título + descripción.
+  //   60–74 min           → título + hora (sin descripción).
+  //   >= 75 min           → título + hora + descripción (los 3 juntos).
   const durationMin = bottomMin - topMin;
   if (durationMin < 25) return null;
 
@@ -3097,7 +3098,7 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
       block.appendChild(timeBlock);
     }
 
-    if (crHasDesc) {
+    if (crHasDesc && durationMin >= 75) {
       const descEl = document.createElement('div');
       descEl.className = 'cr-task-desc';
       descEl.textContent = descText;
