@@ -883,6 +883,9 @@ let statsStatusFilter = 'all';
 // Modo de agrupación del panel de actividad: 'title' (por título de tarea, por
 // defecto) o 'activity' (por actividad/etiqueta).
 let statsGroupBy = 'title';
+// Modo de color del panel de actividad: 'auto' (asignación automática, por
+// defecto) o 'tag' (usa el color definido por el usuario para cada etiqueta).
+let statsColorMode = 'auto';
 let statsMergeFirstSelected = '';
 let statsMergeFirstColor = null;
 let statsMergeFirstName = '';
@@ -6820,11 +6823,23 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       usedColors.add(group.color.bg.toLowerCase());
       return;
     }
-    
+
+    // Modo "Por etiqueta": usar SIEMPRE el color definido por el usuario para la
+    // etiqueta de la tarea (incluida la etiqueta "Por defecto"), sin rotación ni
+    // colores aleatorios. Si varias etiquetas comparten color, se repite.
+    if (statsColorMode === 'tag') {
+      const tagC = tags.find(t => t.id === group.tagId) || tags.find(t => t.id === 'default');
+      if (tagC && tagC.color) {
+        group.color = { bg: tagC.color.bg, border: tagC.color.border || tagC.color.bg };
+        usedColors.add(group.color.bg.toLowerCase());
+        return;
+      }
+    }
+
     const tag = tags.find(t => t.id === group.tagId) || tags.find(t => t.id === 'default');
     let bg = tag && tag.color ? tag.color.bg : null;
     let border = tag && tag.color ? tag.color.border : bg;
-    
+
     if (!bg || group.tagId === 'default' || usedColors.has(bg.toLowerCase())) {
       let found = false;
       for (let i = 0; i < DEFAULT_COLORS.length; i++) {
@@ -7037,6 +7052,41 @@ function handleStatsGroupByChange(newMode) {
   rerenderDailyStatsPanels();
 }
 
+function handleStatsColorModeChange(newMode) {
+  statsColorMode = newMode;
+
+  const selects = document.querySelectorAll('.daily-stats-color-select');
+  selects.forEach(sel => {
+    sel.value = newMode;
+  });
+
+  rerenderDailyStatsPanels();
+}
+
+// Abre la vista de Ajustes del panel de actividad (oculta la vista principal).
+function openDailyStatsSettings() {
+  const main = document.getElementById('daily-stats-main-content');
+  const settings = document.getElementById('daily-stats-settings-content');
+  if (!main || !settings) return;
+  // Sincronizar los selects con el estado actual.
+  const g = document.getElementById('daily-stats-groupby-select');
+  const s = document.getElementById('daily-stats-status-select');
+  const c = document.getElementById('daily-stats-color-select');
+  if (g) g.value = statsGroupBy;
+  if (s) s.value = statsStatusFilter;
+  if (c) c.value = statsColorMode;
+  main.classList.add('hidden');
+  settings.classList.remove('hidden');
+}
+
+// Cierra la vista de Ajustes y vuelve a la vista principal del panel.
+function closeDailyStatsSettings() {
+  const main = document.getElementById('daily-stats-main-content');
+  const settings = document.getElementById('daily-stats-settings-content');
+  if (settings) settings.classList.add('hidden');
+  if (main) main.classList.remove('hidden');
+}
+
 function rerenderDailyStatsPanels() {
   const panelPrev = document.getElementById('daily-stats-panel-prev');
   const panelCurr = document.getElementById('daily-stats-panel-curr');
@@ -7056,6 +7106,7 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
   if (resetFilter) {
     statsStatusFilter = 'all';
     statsGroupBy = 'title';
+    statsColorMode = 'auto';
   }
   const selects = document.querySelectorAll('.daily-stats-status-select');
   selects.forEach(sel => {
@@ -7064,6 +7115,10 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
   const groupBySelects = document.querySelectorAll('.daily-stats-groupby-select');
   groupBySelects.forEach(sel => {
     sel.value = statsGroupBy;
+  });
+  const colorSelects = document.querySelectorAll('.daily-stats-color-select');
+  colorSelects.forEach(sel => {
+    sel.value = statsColorMode;
   });
 
   const formattedDate = formatToDDMMYYYY(dateStr);
@@ -7095,8 +7150,10 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
     // Asegurar que comience en la vista principal y con la fusión desactivada
     const mainContent = document.getElementById('daily-stats-main-content');
     const editContent = document.getElementById('daily-stats-edit-content');
+    const settingsContent = document.getElementById('daily-stats-settings-content');
     if (mainContent) mainContent.classList.remove('hidden');
     if (editContent) editContent.classList.add('hidden');
+    if (settingsContent) settingsContent.classList.add('hidden');
     
     statsMergeModeActive = false;
     statsMergeFirstSelected = '';
@@ -8102,7 +8159,7 @@ function startEditTag(tag) {
   const isDefault = tag.id === 'default';
   nameInput.disabled = isDefault;
   nameInput.title = isDefault ? 'El nombre de la actividad por defecto no se puede cambiar' : '';
-  document.getElementById('tag-form-title').textContent = 'Editar actividad';
+  document.getElementById('tag-form-title').textContent = 'Editar etiqueta';
   document.getElementById('tag-submit-btn').textContent = 'Guardar';
 
   // Seleccionar el color: de la paleta, o personalizado (HSL)
@@ -8156,7 +8213,7 @@ function resetTagForm() {
   nameInput.value = '';
   nameInput.disabled = false;
   nameInput.title = '';
-  document.getElementById('tag-form-title').textContent = 'Nueva actividad';
+  document.getElementById('tag-form-title').textContent = 'Nueva etiqueta';
   document.getElementById('tag-submit-btn').textContent = 'Crear';
 
   selectedColorIndex = 0;
@@ -9338,7 +9395,9 @@ function setupEventListeners() {
     // Si el modal de estadísticas diarias está abierto, usar flechas para cambiar de día con animación de deslizamiento
     const dailyStatsModal = document.getElementById('daily-stats-modal');
     const editContent = document.getElementById('daily-stats-edit-content');
-    const isEditing = editContent && !editContent.classList.contains('hidden');
+    const settingsContent = document.getElementById('daily-stats-settings-content');
+    const isEditing = (editContent && !editContent.classList.contains('hidden'))
+      || (settingsContent && !settingsContent.classList.contains('hidden'));
     if (dailyStatsModal && !dailyStatsModal.classList.contains('hidden') && currentDailyStatsDate && !isEditing) {
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
@@ -10169,25 +10228,28 @@ function setupEventListeners() {
     if (el) el.addEventListener('input', updateStatsHslPreview);
   });
 
-  // Selectores de estado en el panel de actividad diaria
-  ['daily-stats-status-select-prev', 'daily-stats-status-select-curr', 'daily-stats-status-select-next'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener('change', (e) => {
-        handleStatsStatusFilterChange(e.target.value);
-      });
-    }
-  });
+  // Selectores de la ventana de Ajustes del panel de actividad (Estado, Filtrar
+  // por, Colores). Ahora viven en su propia ventana, no en cada panel.
+  const statusSelect = document.getElementById('daily-stats-status-select');
+  if (statusSelect) {
+    statusSelect.addEventListener('change', (e) => handleStatsStatusFilterChange(e.target.value));
+  }
+  const groupbySelect = document.getElementById('daily-stats-groupby-select');
+  if (groupbySelect) {
+    groupbySelect.addEventListener('change', (e) => handleStatsGroupByChange(e.target.value));
+  }
+  const colorSelect = document.getElementById('daily-stats-color-select');
+  if (colorSelect) {
+    colorSelect.addEventListener('change', (e) => handleStatsColorModeChange(e.target.value));
+  }
 
-  // Selectores de "Filtrar por" (por título / por actividad) en el panel de actividad diaria
-  ['daily-stats-groupby-select-prev', 'daily-stats-groupby-select-curr', 'daily-stats-groupby-select-next'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener('change', (e) => {
-        handleStatsGroupByChange(e.target.value);
-      });
-    }
-  });
+  // Botón de Ajustes (engranaje) en la cabecera del panel de actividad.
+  const statsSettingsBtn = document.getElementById('daily-stats-settings-btn');
+  if (statsSettingsBtn) statsSettingsBtn.addEventListener('click', openDailyStatsSettings);
+  const statsSettingsClose = document.getElementById('daily-stats-settings-close-btn');
+  if (statsSettingsClose) statsSettingsClose.addEventListener('click', closeDailyStatsSettings);
+  const statsSettingsDone = document.getElementById('daily-stats-settings-done-btn');
+  if (statsSettingsDone) statsSettingsDone.addEventListener('click', closeDailyStatsSettings);
 
   // Submit Tag Form
   document.getElementById('tag-form').addEventListener('submit', (e) => {
@@ -10493,6 +10555,8 @@ function setupEventListeners() {
       if (!currentDailyStatsDate) return;
       const editContent = document.getElementById('daily-stats-edit-content');
       if (editContent && !editContent.classList.contains('hidden')) return;
+      const settingsContent = document.getElementById('daily-stats-settings-content');
+      if (settingsContent && !settingsContent.classList.contains('hidden')) return;
       const touch = e.touches[0];
       touchStartX = touch.clientX;
       touchStartY = touch.clientY;
