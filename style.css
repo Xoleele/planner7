@@ -1388,14 +1388,6 @@ input:checked + .slider:before {
   margin-bottom: 20px;
 }
 
-#tag-form-title {
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 12px;
-}
-
 .tag-form-actions {
   display: flex;
   justify-content: flex-end;
