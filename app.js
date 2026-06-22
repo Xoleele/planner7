@@ -891,6 +891,10 @@ let statsStatusFilter = 'all';
 let statsMergeFirstSelected = '';
 let statsMergeFirstColor = null;
 let editingTaskOriginalName = '';
+// Orden de la lista de actividades en el gestor: false = orden personalizado del
+// usuario (por defecto), true = orden alfabético. Es solo una vista; no altera el
+// orden guardado por el usuario.
+let tagsSortAlphabetical = false;
 let editingTaskColorIndex = 0; // -1 for custom HSL
 let editingTaskCustomColor = null; // { bg, text, border }
 try {
@@ -7344,14 +7348,27 @@ function renderTagsList() {
   const container = document.getElementById('tags-list');
   container.innerHTML = '';
 
-  tags.forEach(tag => {
+  // Lista a MOSTRAR. En modo alfabético se ordena una COPIA por nombre (sin tocar
+  // el orden guardado); 'default' (Por defecto) siempre queda primera. En modo
+  // personalizado se usa el orden real del usuario.
+  let displayTags = tags;
+  if (tagsSortAlphabetical) {
+    displayTags = [...tags].sort((a, b) => {
+      if (a.id === 'default') return -1;
+      if (b.id === 'default') return 1;
+      return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+    });
+  }
+
+  displayTags.forEach(tag => {
     const item = document.createElement('div');
     item.className = 'tag-item';
     item.dataset.tagId = tag.id;
 
     // Handle de arrastre para reordenar (raton + tactil).
     // La etiqueta 'default' (Por defecto) queda fija arriba: sin handle, no se arrastra.
-    if (tag.id !== 'default') {
+    // En modo alfabético no se permite arrastrar (la vista no es el orden real).
+    if (tag.id !== 'default' && !tagsSortAlphabetical) {
       const grip = document.createElement('button');
       grip.className = 'tag-drag-handle';
       grip.title = 'Arrastrar para reordenar';
@@ -7449,7 +7466,10 @@ function renderTagsList() {
     container.appendChild(item);
   });
 
-  setupTagDragAndDrop(container);
+  // El arrastre para reordenar solo aplica en el orden personalizado.
+  if (!tagsSortAlphabetical) {
+    setupTagDragAndDrop(container);
+  }
 }
 
 // ─── Reordenar etiquetas: arrastrar y soltar (raton + tactil) ────────────────
@@ -9643,6 +9663,26 @@ function setupEventListeners() {
 
   // Tag Form Cancel Edit
   document.getElementById('tag-cancel-btn').addEventListener('click', resetTagForm);
+
+  // Botón de ORDENAR del gestor de actividades: alterna entre el orden
+  // personalizado del usuario y el orden alfabético (solo cambia la vista).
+  const tagsSortBtn = document.getElementById('tags-sort-btn');
+  if (tagsSortBtn) {
+    const refreshTagsSortBtn = () => {
+      tagsSortBtn.classList.toggle('active', tagsSortAlphabetical);
+      tagsSortBtn.title = tagsSortAlphabetical
+        ? 'Orden alfabético (clic para volver a tu orden)'
+        : 'Tu orden personalizado (clic para ordenar A–Z)';
+    };
+    refreshTagsSortBtn();
+    tagsSortBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      tagsSortAlphabetical = !tagsSortAlphabetical;
+      refreshTagsSortBtn();
+      renderTagsList();
+    });
+  }
 
   // Sliders del selector de color personalizado (HSL): actualizar en vivo
   ['hsl-h', 'hsl-s', 'hsl-l'].forEach(id => {

@@ -215,6 +215,14 @@ html:not(.mobile-mode) .app-container {
   background-color: rgba(0, 0, 0, 0.05);
 }
 
+/* Botón de ordenar activado (orden alfabético): círculo igual, icono resaltado. */
+#tags-sort-btn.active {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+#tags-sort-btn.active img {
+  filter: brightness(0);
+}
+
 /* Cronómetro activo: el botón se muestra en rojo y parpadeando mientras hay un
    cronómetro corriendo (incluso reanudado tras cerrar la app). */
 #timer-btn.timer-active img {
