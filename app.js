@@ -887,8 +887,9 @@ let statsCustomColors = {};
 let statsCustomNames = {};
 let statsMergedTasks = {};
 let statsMergeModeActive = false;
-let statsStatusFilter = 'completed';
+let statsStatusFilter = 'all';
 let statsMergeFirstSelected = '';
+let statsMergeFirstColor = null;
 let editingTaskOriginalName = '';
 let editingTaskColorIndex = 0; // -1 for custom HSL
 let editingTaskCustomColor = null; // { bg, text, border }
@@ -5936,8 +5937,17 @@ function closeEditRecurringModal() {
  *                        dejando la serie original intacta en los demas dias.
  */
 function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
-  const { title, description, tagId, isBriefcase, date,
+  let { title, description, tagId, isBriefcase, date,
           startTime, endTime, duration, recurrence, alarm } = formData;
+
+  // Si la tarea se guarda sin título, asignar uno automático. Esto cubre todos
+  // los flujos de creación/edición (modo horario y modo planner, escritorio y
+  // móvil), ya que todos pasan por aquí.
+  if (!title || !title.trim()) {
+    title = 'Tarea sin título';
+  } else {
+    title = title.trim();
+  }
 
   pushToUndoStack();
 
@@ -6629,15 +6639,20 @@ function handleStatsStatusFilterChange(newFilter) {
   if (panelNext) renderDailyStatsPanel(panelNext, getRelativeDateString(currentDailyStatsDate, 1));
 }
 
-function estadisticasDiarias(dateStr) {
+function estadisticasDiarias(dateStr, resetFilter = false) {
   currentDailyStatsDate = dateStr;
-  
-  statsStatusFilter = 'completed';
+
+  // Solo restablecer el filtro de estado a "todas las tareas" cuando se abre el
+  // modal desde cero. En re-renderizados (fusión, deslizamiento entre días,
+  // edición) se conserva el filtro que el usuario tenga seleccionado.
+  if (resetFilter) {
+    statsStatusFilter = 'all';
+  }
   const selects = document.querySelectorAll('.daily-stats-status-select');
   selects.forEach(sel => {
-    sel.value = 'completed';
+    sel.value = statsStatusFilter;
   });
-  
+
   const formattedDate = formatToDDMMYYYY(dateStr);
   const titleEl = document.getElementById('daily-stats-title');
   if (titleEl) {
@@ -6672,6 +6687,7 @@ function estadisticasDiarias(dateStr) {
     
     statsMergeModeActive = false;
     statsMergeFirstSelected = '';
+    statsMergeFirstColor = null;
     const mergeBtn = document.getElementById('daily-stats-merge-btn');
     if (mergeBtn) mergeBtn.classList.remove('active');
   }
@@ -6895,11 +6911,12 @@ function saveStatsMergePreferences() {
     } catch(e) {}
     
     prefs.statsMergedTasks = statsMergedTasks;
-    
+    prefs.statsCustomColors = statsCustomColors;
+
     try {
       localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
     } catch(e) {}
-    
+
     savePreferences(prefs);
   }
 }
@@ -6912,6 +6929,7 @@ function toggleStatsMergeMode() {
     // Desactivar y RESTABLECER combinaciones para el día actual
     statsMergeModeActive = false;
     statsMergeFirstSelected = '';
+    statsMergeFirstColor = null;
     mergeBtn.classList.remove('active');
     
     if (currentDailyStatsDate) {
@@ -6929,6 +6947,7 @@ function toggleStatsMergeMode() {
     // Activar modo combinación
     statsMergeModeActive = true;
     statsMergeFirstSelected = '';
+    statsMergeFirstColor = null;
     mergeBtn.classList.add('active');
     
     // Quitar cualquier resaltado previo de fila
@@ -6941,26 +6960,42 @@ function toggleStatsMergeMode() {
 function handleStatsMergeClick(group, tr) {
   if (!statsMergeFirstSelected) {
     statsMergeFirstSelected = group.name;
+    // Guardar el color resuelto de la primera tarea seleccionada para que la
+    // fusión conserve exactamente ese color, incluso si es un color por defecto.
+    statsMergeFirstColor = group.color ? { bg: group.color.bg, border: group.color.border } : null;
     tr.classList.add('merge-selected');
   } else {
     // Si hace click en la misma tarea, deseleccionar
     if (statsMergeFirstSelected === group.name) {
       statsMergeFirstSelected = '';
+      statsMergeFirstColor = null;
       tr.classList.remove('merge-selected');
       return;
     }
-    
+
     // Fusionar la tarea actual (group.name) en la primera seleccionada (statsMergeFirstSelected)
     // "sumando sus duraciones y manteniendo el nombre y el color de la primera tarea seleccionada."
     statsMergedTasks[`${currentDailyStatsDate}_${group.name}`] = statsMergeFirstSelected;
-    
+
+    // Fijar el color de la primera tarea seleccionada como color personalizado
+    // del grupo fusionado, para que no se reasigne un color aleatorio/distinto
+    // al recalcular (esto ocurría cuando ambas tenían colores por defecto).
+    if (statsMergeFirstColor && !statsCustomColors[`${currentDailyStatsDate}_${statsMergeFirstSelected}`]) {
+      statsCustomColors[`${currentDailyStatsDate}_${statsMergeFirstSelected}`] = {
+        bg: statsMergeFirstColor.bg,
+        text: '#ffffff',
+        border: statsMergeFirstColor.border || statsMergeFirstColor.bg
+      };
+    }
+
     // Desactivar modo de fusión
     statsMergeModeActive = false;
     statsMergeFirstSelected = '';
-    
+    statsMergeFirstColor = null;
+
     const mergeBtn = document.getElementById('daily-stats-merge-btn');
     if (mergeBtn) mergeBtn.classList.remove('active');
-    
+
     // Guardar
     saveStatsMergePreferences();
     
@@ -9883,7 +9918,7 @@ function setupEventListeners() {
       if (col) {
         const dateStr = col.dataset.date;
         if (dateStr) {
-          estadisticasDiarias(dateStr);
+          estadisticasDiarias(dateStr, true);
         }
       }
     }
