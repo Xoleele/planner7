@@ -8340,11 +8340,9 @@ function setSelectTagValue(tagId) {
   }
 }
 
-// Añade un campo de búsqueda al inicio del desplegable de etiquetas (solo
-// escritorio) que filtra las opciones en vivo al teclear. `optionsSelector`
-// apunta a las opciones (`.custom-option`) dentro del contenedor.
+// Añade un campo de búsqueda al inicio del desplegable de etiquetas (escritorio
+// y móvil) que filtra las opciones en vivo al teclear.
 function addTagSearchBox(container) {
-  if (isMobile()) return; // la búsqueda al teclear es solo de escritorio
   const search = document.createElement('input');
   search.type = 'text';
   search.className = 'tag-search-input';
@@ -8370,7 +8368,11 @@ function resetTagSearch(container) {
   if (!search) return;
   search.value = '';
   container.querySelectorAll('.custom-option').forEach(opt => { opt.style.display = ''; });
-  setTimeout(() => search.focus(), 0);
+  // En escritorio enfocamos el campo para teclear de inmediato. En móvil no
+  // forzamos el foco (evita abrir el teclado sin que el usuario lo pida).
+  if (!isMobile()) {
+    setTimeout(() => search.focus(), 0);
+  }
 }
 
 function buildTagSelectorOptions() {
