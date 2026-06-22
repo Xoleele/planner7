@@ -506,11 +506,10 @@ function setupUserMenu() {
         <img src="icons/calendar.svg" alt="" width="14" height="14">
         <span id="view-toggle-menu-label">Vista Horario</span>
       </button>
-      ${isMobile() ? `
       <button id="stats-menu-btn" class="user-dropdown-item">
         <img src="icons/bar-chart.svg" alt="" width="14" height="14">
         Estadísticas
-      </button>` : ''}
+      </button>
       <button id="advanced-options-btn" class="user-dropdown-item" style="display: none;">
         <img src="icons/settings.svg" alt="" width="14" height="14">
         Opciones avanzadas
@@ -4676,18 +4675,50 @@ function crSlideMobileDay(dir) {
 // arrastrado va flotando para no desaparecer.
 function crChangeWeekDuringDrag(dir) {
   if (!crDrag) return;
+  crPinFloatingBlock(); // mantener el bloque visible durante la animación
+  crAnimateWeekSlide(dir, {
+    rerender: () => {
+      currentWeekStart = addDays(currentWeekStart, dir * 7);
+      crRerenderDuringDrag(null);
+    },
+    fallback: () => {
+      currentWeekStart = addDays(currentWeekStart, dir * 7);
+      crRerenderDuringDrag(null);
+    },
+    onSettle: () => crRebindAfterHorizontalChange()
+  });
+}
 
+// Cambia de semana en el HORARIO (escritorio) con la misma animación de
+// deslizamiento, SIN depender de un arrastre. Lo usan las flechas del teclado.
+function crSlideWeek(dir) {
+  if (crHorizAnimating) return;
+  crAnimateWeekSlide(dir, {
+    rerender: () => {
+      currentWeekStart = addDays(currentWeekStart, dir * 7);
+      renderCronograma();
+    },
+    fallback: () => {
+      currentWeekStart = addDays(currentWeekStart, dir * 7);
+      renderCronograma();
+    },
+    onSettle: null
+  });
+}
+
+// Núcleo de la animación de deslizamiento de semana del horario (reveal estilo
+// planner). `opts.rerender` cambia la semana y reconstruye el grid real;
+// `opts.fallback` se usa si no hay contenedores; `opts.onSettle` corre al final.
+function crAnimateWeekSlide(dir, opts) {
+  opts = opts || {};
   const scrollEl = document.querySelector('.cronograma-scroll');
   const headersHost = document.getElementById('cronograma-headers');
   const oldGrid = document.getElementById('cronograma-grid');
 
-  // Fijar el bloque flotando antes de animar/reconstruir.
-  crPinFloatingBlock();
-
-  // Sin contenedor de scroll → cambio instantáneo (fallback).
+  // Sin contenedores → cambio instantáneo (fallback).
   if (!scrollEl || !oldGrid || !headersHost) {
-    currentWeekStart = addDays(currentWeekStart, dir * 7);
-    crRerenderDuringDrag(null);
+    if (typeof opts.fallback === 'function') opts.fallback();
+    if (typeof opts.onSettle === 'function') opts.onSettle();
     return;
   }
 
@@ -4698,18 +4729,15 @@ function crChangeWeekDuringDrag(dir) {
   const outHeader = headersHost.cloneNode(true);
   outGrid.removeAttribute('id');
   outHeader.removeAttribute('id');
-  // Quitar de la foto cualquier bloque arrastrado/flotante residual.
   outGrid.querySelectorAll('.cr-dragging, .cr-floating').forEach(el => el.remove());
 
-  // 2) Cambiar de semana y reconstruir el grid/headers REALES (ya muestran la
-  //    semana nueva). renderCronograma reutiliza los MISMOS nodos por id.
-  currentWeekStart = addDays(currentWeekStart, dir * 7);
-  crRerenderDuringDrag(null);
+  // 2) Cambiar de semana y reconstruir el grid/headers REALES (semana nueva).
+  if (typeof opts.rerender === 'function') opts.rerender();
   const realGrid = document.getElementById('cronograma-grid');
   const realHeader = document.getElementById('cronograma-headers');
   if (!realGrid || !realHeader) {
     crHorizAnimating = false;
-    crRebindAfterHorizontalChange();
+    if (typeof opts.onSettle === 'function') opts.onSettle();
     return;
   }
 
@@ -4720,8 +4748,7 @@ function crChangeWeekDuringDrag(dir) {
   inHeader.removeAttribute('id');
   inGrid.querySelectorAll('.cr-dragging, .cr-floating').forEach(el => el.remove());
 
-  // Ocultar los nodos reales mientras dura la animación (mostramos los clones en
-  // el slider). Así no se ve nada en blanco y ambas semanas conviven.
+  // Ocultar los nodos reales durante la animación (mostramos los clones).
   realGrid.style.visibility = 'hidden';
   realHeader.style.visibility = 'hidden';
 
@@ -4772,7 +4799,7 @@ function crChangeWeekDuringDrag(dir) {
     realGrid.style.visibility = '';
     realHeader.style.visibility = '';
     crHorizAnimating = false;
-    crRebindAfterHorizontalChange();
+    if (typeof opts.onSettle === 'function') opts.onSettle();
   }, 470);
 }
 
@@ -9361,10 +9388,12 @@ function setupEventListeners() {
 
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      navigateToWeek(-1);
+      if (cronogramaActive) crSlideWeek(-1);
+      else navigateToWeek(-1);
     } else if (e.key === 'ArrowRight') {
       e.preventDefault();
-      navigateToWeek(1);
+      if (cronogramaActive) crSlideWeek(1);
+      else navigateToWeek(1);
     } else if (e.key === 'k' || e.key === 'K') {
       // Alternar entre Planner y Horario, solo si no hay ninguna ventana abierta.
       if (isAnyOverlayOpen()) return;

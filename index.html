@@ -112,8 +112,10 @@
           <button id="timer-btn" title="Cronómetro" class="icon-button">
             <img src="icons/timer.svg" alt="Cronómetro" width="20" height="20">
           </button>
-          <!-- Botón Estadísticas (solo escritorio) -->
-          <button id="stats-btn" title="Estadísticas" class="icon-button desktop-only">
+          <!-- Botón Estadísticas: oculto en el header; ahora vive en las opciones
+               de usuario (menú del avatar). Se conserva el elemento por si se
+               quiere volver a mostrar. -->
+          <button id="stats-btn" title="Estadísticas" class="icon-button desktop-only" style="display: none;">
             <img src="icons/bar-chart.svg" alt="Estadísticas" width="20" height="20">
           </button>
           <!-- El botón de Etiquetas se movió al menú del usuario (avatar):

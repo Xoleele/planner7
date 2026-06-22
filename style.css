@@ -2578,6 +2578,11 @@ body.not-logged-in .app-container {
   left: 15px;
 }
 
+/* Función "Copiar tareas como texto" OCULTA por ahora (se conserva el botón y su
+   lógica para poder rehabilitarla quitando esta regla). Aplica en planner y
+   horario, escritorio y móvil. */
+.copy-day-btn { display: none !important; }
+
 .clear-day-btn {
   top: 46px;
   right: auto;
