@@ -1087,12 +1087,12 @@ input[type="number"]:focus {
   min-width: 0;
 }
 
-/* Fila FECHA/INICIO/FIN: fecha un poco más ancha, horas un poco más angostas. */
+/* Filas de fecha y horas separadas: cada campo se expande para ocupar su fila/columna. */
 .task-date-group {
-  flex: 1.15;
+  flex: 1;
 }
 .task-time-group {
-  flex: 0.92;
+  flex: 1;
 }
 
 /* El selector de ACTIVIDAD no debe crecer si el texto es largo: se recorta con

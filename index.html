@@ -424,9 +424,7 @@
           <textarea id="task-input-description" placeholder="Añade una descripción (opcional)" rows="3"></textarea>
         </div>
 
-        <!-- Fila: FECHA, INICIO y FIN (en ese orden).
-             Las horas son opcionales; el botón ✕ deja el campo sin hora; un clic
-             en el icono de reloj coloca la hora actual. -->
+        <!-- Filas separadas de Fecha y Horas para evitar compresión en móvil. -->
         <div class="form-row">
           <!-- Fecha Base. La ✕ quita la fecha → la tarea queda archivada.
                (Se conserva el checkbox de archivar oculto para no romper el JS;
@@ -447,6 +445,9 @@
             <input type="checkbox" id="task-alarm-checkbox" style="display:none;">
             <span id="task-alarm-label" style="display:none;"></span>
           </div>
+        </div>
+
+        <div class="form-row">
           <div class="form-group flex-1 task-time-group">
             <label for="task-input-start">Inicio</label>
             <div class="time-input-wrapper has-clock has-bell">
