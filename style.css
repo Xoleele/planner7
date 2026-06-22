@@ -179,12 +179,13 @@ html:not(.mobile-mode) .app-container {
   color: var(--text-main);
   cursor: pointer;
   transition: var(--transition-fast);
-  margin: 0 0 0 8px;
-  /* Ancho FIJO: la distancia entre la línea gris (en left:0) y el borde derecho
-     del navegador queda constante (ancho + padding del navegador). */
-  width: 36px;
+  /* Se extiende hasta el borde derecho del navegador (margin negativo = padding
+     derecho del contenedor) para que "Hoy" quede centrado en TODA la zona entre
+     la línea gris y el borde, no solo dentro del ancho nominal. */
+  margin: 0 -12px 0 8px;
+  width: 48px;
   box-sizing: border-box;
-  padding: 0 4px;
+  padding: 0;
   flex: 0 0 auto;
   align-self: stretch;
   display: flex;
@@ -217,12 +218,13 @@ html:not(.mobile-mode) .app-container {
   background-color: transparent;
   cursor: pointer;
   transition: var(--transition-fast);
-  margin: 0 8px 0 0;
-  /* Ancho FIJO: la distancia entre el borde izquierdo del navegador y la línea
-     gris (en right:0) queda constante. */
-  width: 32px;
+  /* Se extiende hasta el borde izquierdo del navegador (margin negativo = padding
+     izquierdo del contenedor) para que el icono quede centrado en TODA la zona
+     entre el borde y la línea gris. */
+  margin: 0 8px 0 -12px;
+  width: 44px;
   box-sizing: border-box;
-  padding: 0 4px;
+  padding: 0;
   flex: 0 0 auto;
   align-self: stretch;
   display: flex;
@@ -2244,6 +2246,14 @@ body.not-logged-in .app-container {
 .mobile-mode .week-navigator #nav-view-toggle-btn,
 .mobile-mode .week-navigator #today-btn {
   flex: 0 0 auto;
+}
+/* En móvil el padding lateral del navegador es 10px: ajustar el margin negativo
+   para que los botones lleguen justo al borde (no 12px). */
+.mobile-mode .week-navigator #nav-view-toggle-btn {
+  margin-left: -10px;
+}
+.mobile-mode .week-navigator #today-btn {
+  margin-right: -10px;
 }
 
 /* El contenedor central (flechas + fecha) ABSORBE el espacio disponible. */
