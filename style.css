@@ -958,6 +958,49 @@ input[type="number"]:focus {
   box-shadow: none;
 }
 
+/* El campo "TÍTULO" del creador/editor de tarea usa el mismo estilo gráfico que
+   la DESCRIPCIÓN: rectángulo de bordes redondeados, misma tipografía y tamaño de
+   fuente que el resto de campos. Sobrescribe el estilo de subrayado anterior. */
+#task-input-title {
+  font-size: 13.5px;
+  font-weight: 400;
+  padding: 10px 14px;
+  border: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  margin-bottom: 0;
+  background-color: var(--bg-card);
+  color: var(--text-main);
+}
+
+#task-input-title:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Fila 1 del editor: TÍTULO ocupa ~2/3 y ACTIVIDAD ~1/3. */
+.task-title-group {
+  flex: 5;
+  min-width: 0;
+}
+
+.task-activity-group {
+  flex: 3;
+  min-width: 0;
+}
+
+/* El selector de ACTIVIDAD no debe crecer si el texto es largo: se recorta con
+   "…" y se mantiene en una sola línea. */
+.task-activity-group .custom-select-trigger {
+  min-width: 0;
+}
+.task-activity-group .custom-select-trigger-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 textarea {
   resize: vertical;
 }
@@ -1206,6 +1249,16 @@ input:checked + .slider:before {
 }
 #task-modal .form-row {
   margin-bottom: 10px;
+  gap: 12px;
+}
+/* Las columnas (incluida la fila FECHA/INICIO/FIN) deben poder encogerse para
+   caber en el ancho del modal, también en móvil. */
+#task-modal .form-row .form-group {
+  min-width: 0;
+}
+/* Móvil: gap algo menor para que FECHA, INICIO y FIN entren cómodos. */
+.mobile-mode #task-modal .form-row {
+  gap: 8px;
 }
 /* Sección "¿Se repite?" sin las líneas horizontales arriba/abajo y más compacta. */
 #task-modal .recurrence-section {
