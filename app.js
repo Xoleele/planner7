@@ -498,10 +498,6 @@ function setupUserMenu() {
         <img src="icons/edit.svg" alt="" width="13.3" height="13.3">
         Plantilla de notas
       </button>
-      <button id="view-toggle-btn" class="user-dropdown-item">
-        <img src="icons/calendar.svg" alt="" width="14" height="14">
-        <span id="view-toggle-menu-label">Vista Horario</span>
-      </button>
       <button id="stats-menu-btn" class="user-dropdown-item">
         <img src="icons/bar-chart.svg" alt="" width="14" height="14">
         Estadísticas
@@ -525,8 +521,7 @@ function setupUserMenu() {
       </button>
     `;
     avatar.appendChild(dropdown);
-    updateViewToggleMenuLabel();
-    
+
     document.getElementById('change-password-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       dropdown.remove();
@@ -543,12 +538,6 @@ function setupUserMenu() {
       e.stopPropagation();
       dropdown.remove();
       openNoteTemplateModal();
-    });
-
-    document.getElementById('view-toggle-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.remove();
-      toggleCronograma();
     });
 
     const statsMenuBtn = document.getElementById('stats-menu-btn');
@@ -2885,11 +2874,11 @@ function toggleCronograma() {
   updateViewToggleMenuLabel();
 }
 
-// Actualiza la etiqueta del ítem "Planner / Cronograma" del menú de usuario
-// para que refleje la vista a la que cambiará al pulsarlo.
+// Actualiza el tooltip del botón de alternar vista del header para que refleje
+// la vista a la que cambiará al pulsarlo.
 function updateViewToggleMenuLabel() {
-  const label = document.getElementById('view-toggle-menu-label');
-  if (label) label.textContent = cronogramaActive ? 'Vista Planner' : 'Vista Horario';
+  const btn = document.getElementById('view-toggle-header-btn');
+  if (btn) btn.title = cronogramaActive ? 'Vista Planner' : 'Vista Horario';
 }
 
 // Aplica al iniciar la vista guardada en localStorage. Si el usuario dejó la
@@ -3050,6 +3039,24 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
         toggleTaskCompletion(task, occurrenceDate || task.date);
       });
       block.appendChild(checkBtn);
+
+      // Icono de cronómetro: debajo del checkbox; si el bloque es bajo (poca
+      // altura = durationMin px) o está en modo compacto, se coloca a la
+      // izquierda del checkbox.
+      const crTimerBtn = document.createElement('button');
+      crTimerBtn.className = 'task-timer-btn';
+      crTimerBtn.title = 'Cronometrar esta tarea';
+      crTimerBtn.setAttribute('aria-label', 'Cronometrar esta tarea');
+      crTimerBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 14.5 14.5"/><line x1="9" y1="2" x2="15" y2="2"/></svg>';
+      crTimerBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const ok = await askStartTimerForTask(task);
+        if (ok) startTimerForTask(task);
+      });
+      // Bloques de menos de ~52 min (o compactos) no tienen alto para el icono
+      // debajo: va a la izquierda del checkbox.
+      if (durationMin < 52) block.classList.add('has-timer-left');
+      block.appendChild(crTimerBtn);
     }
   }
 
@@ -5255,7 +5262,103 @@ function createTaskCard(task, occurrenceDate) {
 
   card.appendChild(checkBtn);
 
+  // Icono de cronómetro: debajo del checkbox. Si la tarjeta no tiene altura
+  // suficiente, se coloca a la IZQUIERDA del checkbox (lo que reduce el espacio
+  // del título mediante la clase .has-timer-left). La decisión se toma tras el
+  // layout (rAF), midiendo la altura real de la tarjeta.
+  const timerBtn = document.createElement('button');
+  timerBtn.className = 'task-timer-btn';
+  timerBtn.title = 'Cronometrar esta tarea';
+  timerBtn.setAttribute('aria-label', 'Cronometrar esta tarea');
+  timerBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 14.5 14.5"/><line x1="9" y1="2" x2="15" y2="2"/></svg>';
+  timerBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const ok = await askStartTimerForTask(task);
+    if (ok) startTimerForTask(task);
+  });
+  card.appendChild(timerBtn);
+
+  // Tras el layout, decidir si el cronómetro cabe debajo del checkbox o debe ir
+  // a su izquierda (tarjeta baja). Umbral: el checkbox ocupa hasta ~26px; para
+  // poner el cronómetro debajo hace falta algo más de alto.
+  requestAnimationFrame(() => {
+    const h = card.getBoundingClientRect().height;
+    if (h && h < 48) {
+      card.classList.add('has-timer-left');
+    } else {
+      card.classList.remove('has-timer-left');
+    }
+  });
+
   return card;
+}
+
+// Diálogo de confirmación antes de cronometrar una tarea desde su tarjeta.
+function askStartTimerForTask(task) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'endtime-conflict-overlay';
+    const box = document.createElement('div');
+    box.className = 'endtime-conflict-box';
+
+    const h = document.createElement('h3');
+    h.className = 'endtime-conflict-title';
+    h.textContent = 'Cronometrar tarea';
+
+    const p = document.createElement('p');
+    p.className = 'endtime-conflict-desc';
+    p.textContent = `Se iniciará el cronómetro para "${task.title || 'Tarea sin título'}" usando la hora actual como inicio. ¿Continuar?`;
+
+    const actions = document.createElement('div');
+    actions.className = 'endtime-conflict-actions';
+
+    const finish = (value) => {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+      resolve(value);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') finish(false); };
+    document.addEventListener('keydown', onKey);
+
+    const btnCancel = document.createElement('button');
+    btnCancel.className = 'btn btn-secondary';
+    btnCancel.textContent = 'Cancelar';
+    btnCancel.addEventListener('click', () => finish(false));
+
+    const btnOk = document.createElement('button');
+    btnOk.className = 'btn btn-primary';
+    btnOk.textContent = 'Iniciar';
+    btnOk.addEventListener('click', () => finish(true));
+
+    actions.append(btnCancel, btnOk);
+    box.append(h, p, actions);
+    overlay.appendChild(box);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) finish(false); });
+    document.body.appendChild(overlay);
+  });
+}
+
+// Inicia el cronómetro precargando el título y la etiqueta de la tarea, con la
+// hora actual como inicio (independientemente de la hora que tenga la tarea).
+function startTimerForTask(task) {
+  const titleInput = document.getElementById('timer-input-title');
+  const descInput = document.getElementById('timer-input-description');
+  const startInput = document.getElementById('timer-input-start');
+  if (titleInput) titleInput.value = task.title || '';
+  if (descInput) descInput.value = '';
+  if (startInput) startInput.value = ''; // openTimerModal la rellena con la hora real
+  setTimerSelectTagValue(task.tagId || 'default');
+
+  timerSeconds = 0;
+  timerStartEdited = false;
+  const timerDisplayEl = document.getElementById('timer-display');
+  if (timerDisplayEl) timerDisplayEl.textContent = '00:00:00';
+
+  timerStartTime = new Date(); // hora actual como inicio
+
+  setTimerButtonActive(true);
+  openTimerModal();
+  saveActiveTimerState();
 }
 
 // --- Drag and Drop Handlers ---
@@ -10165,6 +10268,13 @@ function setupEventListeners() {
   const timerStopBtn = document.getElementById('timer-stop-btn');
   if (timerStopBtn) {
     timerStopBtn.addEventListener('click', finishTimer);
+  }
+
+  // ─── Alternar vista (Planner / Horario) desde el header ────────────────────
+  const viewToggleHeaderBtn = document.getElementById('view-toggle-header-btn');
+  if (viewToggleHeaderBtn) {
+    viewToggleHeaderBtn.addEventListener('click', toggleCronograma);
+    updateViewToggleMenuLabel(); // tooltip inicial según la vista actual
   }
 
   // ─── Etiquetas (gestor de actividades) ─────────────────────────────────────
