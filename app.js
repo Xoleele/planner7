@@ -9023,9 +9023,29 @@ function setupEventListeners() {
     });
   }
 
-  // Iconos de reloj y de calendario (a la izquierda del campo) → abren el
-  // selector nativo del campo correspondiente.
-  document.querySelectorAll('.time-clock-icon, .date-calendar-icon').forEach(icon => {
+  // Icono de reloj (hora de inicio / fin) → coloca la hora actual en el campo.
+  document.querySelectorAll('.time-clock-icon').forEach(icon => {
+    icon.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const target = document.getElementById(icon.dataset.target);
+      if (!target || target.disabled) return;
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      target.value = `${hh}:${mm}`;
+      // Disparar la misma lógica que al editar el campo manualmente.
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+      syncEndTimeEnabled();
+      updateDurationDisplay();
+      syncAlarmCheckboxState();
+    });
+  });
+
+  // Icono de calendario (a la izquierda del campo de fecha) → abre el selector
+  // nativo del campo correspondiente.
+  document.querySelectorAll('.date-calendar-icon').forEach(icon => {
     icon.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
