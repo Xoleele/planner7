@@ -3993,6 +3993,7 @@ function cancelCronogramaDrag() {
   window.removeEventListener('keydown', onCronogramaDragKey);
   window.removeEventListener('keyup', onCronogramaDragKey);
   stopCronogramaEdgeScroll();
+  clearCronogramaHorizontalEdge();
 
   if (drag.ghost) drag.ghost.remove();
   if (drag.floating && drag.block.parentElement === document.body) {
@@ -4020,6 +4021,10 @@ function onCronogramaDragMove(e) {
   // soltarlo a mitad del arrastre).
   crDrag.copy = !!(e.ctrlKey || e.metaKey);
   syncCronogramaCopyGhost();
+  // Recordar siempre la última posición del puntero (la usan el auto-scroll y el
+  // re-vinculado tras cambiar de semana/día).
+  crEdgeScroll.lastX = e.clientX;
+  crEdgeScroll.lastY = e.clientY;
   applyCronogramaDragMove(e.clientX, e.clientY);
   // Auto-scroll de borde también con ratón: si el cursor se acerca al borde
   // superior/inferior del horario, desplazar la vista automáticamente (mismo
@@ -4126,6 +4131,10 @@ function applyCronogramaDragMove(clientX, clientY) {
   // Si venía flotando y vuelve al horario, restaurar el posicionamiento normal.
   if (crDrag.floating) exitCronogramaFloat();
 
+  // 0c) Borde lateral → cambiar de semana (escritorio) o deslizar al día vecino
+  // cruzando semanas (móvil), para poder soltar en días no visibles.
+  updateCronogramaHorizontalEdge(clientX, clientY);
+
   // 1) Columna destino: la .cr-day-col bajo el cursor (por X).
   let targetCol = crDrag.targetColEl;
   for (const col of crDrag.cols) {
@@ -4195,6 +4204,7 @@ function onCronogramaDragEnd(e) {
   window.removeEventListener('keydown', onCronogramaDragKey);
   window.removeEventListener('keyup', onCronogramaDragKey);
   stopCronogramaEdgeScroll();
+  clearCronogramaHorizontalEdge();
 
   if (drag.ghost) drag.ghost.remove();
   // Si el bloque quedó flotando (sobre el body), quitarlo: renderCronograma lo
@@ -4424,6 +4434,8 @@ function onCronogramaTouchMove(e) {
   if (crDrag) {
     if (e.cancelable) e.preventDefault();
     const t = e.touches[0];
+    crEdgeScroll.lastX = t.clientX;
+    crEdgeScroll.lastY = t.clientY;
     applyCronogramaDragMove(t.clientX, t.clientY);
     // Auto-scroll de borde, salvo si el bloque flota sobre el header
     // (papelera/archivado): ahí no se scrollea.
@@ -4458,6 +4470,17 @@ const CR_EDGE_ZONE = 70;       // px desde el borde donde empieza el auto-scroll
 const CR_EDGE_MAX_SPEED = 14;  // px por frame en el borde mismo
 
 let crEdgeScroll = { rafId: null, dir: 0, speed: 0, lastX: 0, lastY: 0, container: null };
+
+// ── Arrastre horizontal a días/semanas no visibles (mismo concepto que el
+// planner). Al acercar el puntero/dedo al borde lateral durante el arrastre del
+// horario, se cambia de semana (escritorio) o se desliza al día vecino cruzando
+// semanas (móvil). Indicador visual + háptico reutilizados del planner.
+const CR_HORIZ_EDGE_ZONE = 80;     // px desde el borde lateral que activa el cambio
+const CR_HORIZ_DELAY = 300;        // ms en la zona antes de disparar
+const CR_HORIZ_COOLDOWN = 600;     // ms entre cambios sucesivos
+let crHorizEdgeTimeout = null;
+let crHorizEdgeDir = 0;
+let crHorizEdgeCooldown = false;
 
 // Decide si hay que auto-scrollear según la cercanía del dedo a los bordes.
 function updateCronogramaEdgeScroll(clientY) {
@@ -4522,6 +4545,156 @@ function stopCronogramaEdgeScroll() {
   crEdgeScroll.speed = 0;
 }
 
+// ── Borde lateral durante el arrastre del horario ────────────────────────────
+// Detecta si el puntero/dedo está en la franja lateral de la ventana y, tras un
+// breve retardo, dispara el cambio de día/semana. Mantiene el mismo indicador
+// visual y háptico del planner.
+function updateCronogramaHorizontalEdge(clientX, clientY) {
+  if (!crDrag) { clearCronogramaHorizontalEdge(); return; }
+
+  const w = window.innerWidth;
+  const dir = clientX < CR_HORIZ_EDGE_ZONE ? -1
+            : clientX > w - CR_HORIZ_EDGE_ZONE ? 1
+            : 0;
+
+  if (dir === 0 || crHorizEdgeCooldown) {
+    clearCronogramaHorizontalEdge();
+    return;
+  }
+
+  // En zona de borde: mostrar indicador y armar el timer si cambió la dirección.
+  showEdgeIndicator(dir);
+  if (crHorizEdgeDir !== dir) {
+    if (crHorizEdgeTimeout) clearTimeout(crHorizEdgeTimeout);
+    crHorizEdgeDir = dir;
+    crHorizEdgeTimeout = setTimeout(() => {
+      triggerCronogramaHorizontalChange(dir);
+    }, CR_HORIZ_DELAY);
+  }
+}
+
+function clearCronogramaHorizontalEdge() {
+  if (crHorizEdgeTimeout) {
+    clearTimeout(crHorizEdgeTimeout);
+    crHorizEdgeTimeout = null;
+  }
+  crHorizEdgeDir = 0;
+  hideEdgeIndicator();
+}
+
+// Dispara el cambio horizontal: en móvil avanza un día (cruzando semanas); en
+// escritorio cambia de semana completa. Tras ello, re-vincula el arrastre al
+// nuevo DOM para poder continuar sin soltar.
+function triggerCronogramaHorizontalChange(dir) {
+  if (crHorizEdgeTimeout) { clearTimeout(crHorizEdgeTimeout); crHorizEdgeTimeout = null; }
+  crHorizEdgeDir = 0;
+  hideEdgeIndicator();
+  if (!crDrag) return;
+
+  crHorizEdgeCooldown = true;
+  setTimeout(() => { crHorizEdgeCooldown = false; }, CR_HORIZ_COOLDOWN);
+
+  if (navigator.vibrate) navigator.vibrate(30);
+
+  if (isMobile()) {
+    crSlideMobileDay(dir);
+  } else {
+    crChangeWeekDuringDrag(dir);
+  }
+}
+
+// MÓVIL: el carrusel del horario precarga ±CR_MOBILE_PRELOAD días alrededor del
+// centro, así que los días vecinos (incluso de otra semana) ya están en el DOM.
+// Avanzamos el día central un paso y deslizamos el carrusel hasta esa columna.
+function crSlideMobileDay(dir) {
+  if (!crDrag) return;
+  const base = cronogramaMobileDate ? new Date(cronogramaMobileDate) : new Date();
+  const targetDate = addDays(base, dir);
+  const targetStr = formatDate(targetDate);
+
+  cronogramaMobileDate = new Date(targetDate);
+  currentWeekStart = getMondayOf(cronogramaMobileDate);
+  if (typeof updateCronogramaMobileLabel === 'function') updateCronogramaMobileLabel(cronogramaMobileDate);
+
+  // Si el día destino ya está precargado en el track, basta con deslizar.
+  const track = document.getElementById('cr-mobile-track');
+  const existing = track ? track.querySelector(`.cr-mobile-day[data-date="${targetStr}"]`) : null;
+  if (existing && track) {
+    track.scrollTo({ left: existing.offsetLeft, behavior: 'smooth' });
+    syncNowLineVisibilityMobile(formatDate(new Date()));
+    // Recolocar la columna destino bajo el dedo tras el desplazamiento.
+    setTimeout(() => {
+      if (crDrag) applyCronogramaDragMove(crEdgeScroll.lastX || 0, crEdgeScroll.lastY || 0);
+    }, 360);
+    return;
+  }
+
+  // Fuera del rango precargado: reconstruir el horario centrado en el nuevo día.
+  crRerenderDuringDrag(() => {
+    scrollCronogramaTrackToDate(targetStr, false);
+  });
+}
+
+// ESCRITORIO: cambia la semana visible (±7 días) y reconstruye el horario,
+// re-vinculando el arrastre al nuevo DOM.
+function crChangeWeekDuringDrag(dir) {
+  if (!crDrag) return;
+  currentWeekStart = addDays(currentWeekStart, dir * 7);
+  crRerenderDuringDrag(null);
+}
+
+// Reconstruye el horario SIN cancelar el arrastre: saca el bloque arrastrado del
+// DOM (lo guarda), fuerza el render (que normalmente se bloquea si hay crDrag),
+// y vuelve a enganchar el bloque + las columnas al nuevo DOM.
+function crRerenderDuringDrag(afterRenderFn) {
+  if (!crDrag) return;
+  const drag = crDrag;
+  const block = drag.block;
+
+  // Sacar el bloque del DOM para que el render no lo destruya. Lo reinsertamos
+  // luego en la columna destino correcta.
+  if (block && block.parentElement) block.parentElement.removeChild(block);
+
+  // Forzar el render aunque haya un arrastre activo: anulamos crDrag
+  // temporalmente para saltar el guard de renderCronograma y lo restauramos.
+  const saved = crDrag;
+  crDrag = null;
+  renderCronograma();
+  crDrag = saved;
+
+  if (typeof afterRenderFn === 'function') afterRenderFn();
+
+  // Re-vincular las columnas del nuevo DOM.
+  const grid = document.getElementById('cronograma-grid');
+  if (grid) drag.grid = grid;
+  drag.cols = grid ? [...grid.querySelectorAll('.cr-day-col')] : [];
+
+  // Elegir columna destino: la que esté bajo el puntero por X; si no, la primera.
+  const cx = crEdgeScroll.lastX;
+  let targetCol = null;
+  for (const col of drag.cols) {
+    const r = col.getBoundingClientRect();
+    if (cx >= r.left && cx < r.right) { targetCol = col; break; }
+  }
+  if (!targetCol) targetCol = drag.cols[0] || null;
+
+  drag.targetColEl = targetCol;
+  drag.startColEl = targetCol;
+  drag.originColEl = targetCol;
+
+  // Reinsertar el bloque arrastrado en la columna destino y reposicionarlo.
+  if (targetCol && block) {
+    targetCol.appendChild(block);
+    targetCol.classList.add('cr-drag-over');
+  }
+
+  // Reaplicar el movimiento con la última posición conocida para que el bloque
+  // quede bajo el puntero respetando el mismo agarre (grip) y la hora por delta.
+  if (crEdgeScroll.lastX || crEdgeScroll.lastY) {
+    applyCronogramaDragMove(crEdgeScroll.lastX, crEdgeScroll.lastY);
+  }
+}
+
 function onCronogramaTouchEnd() {
   const wasDragging = !!crDrag;
   const drag = crDrag;
@@ -4534,6 +4707,7 @@ function onCronogramaTouchEnd() {
   document.body.classList.remove('dragging-active');
   clearCronogramaHeaderTargets();
   stopCronogramaEdgeScroll();
+  clearCronogramaHorizontalEdge();
   clearCronogramaDragOver();
 
   if (wasDragging && drag) {
