@@ -7326,18 +7326,26 @@ function exportUserDataToCSV() {
 
 function openTagsModal() {
   const modal = document.getElementById('tags-modal');
-  resetTagForm();
-  
-  // Hide form and separator by default when opening
-  document.getElementById('tag-form').classList.add('hidden');
-  const separator = document.querySelector('.separator-line');
-  if (separator) separator.classList.add('hidden');
-  
-  // Show "+ Nueva etiqueta" trigger button
-  document.getElementById('add-tag-trigger-btn').classList.remove('hidden');
-
   renderTagsList();
   modal.classList.remove('hidden');
+}
+
+// Abre la ventana aparte de crear/editar actividad y cierra el gestor de actividades.
+function openTagEditModal() {
+  const tagsModal = document.getElementById('tags-modal');
+  if (tagsModal) tagsModal.classList.add('hidden');
+  const editModal = document.getElementById('tag-edit-modal');
+  if (editModal) editModal.classList.remove('hidden');
+  const nameInput = document.getElementById('tag-input-name');
+  if (nameInput) setTimeout(() => nameInput.focus(), 50);
+}
+
+// Cierra la ventana de crear/editar actividad y vuelve al gestor de actividades.
+function closeTagEditModal(reopenList = true) {
+  const editModal = document.getElementById('tag-edit-modal');
+  if (editModal) editModal.classList.add('hidden');
+  resetTagForm();
+  if (reopenList) openTagsModal();
 }
 
 function closeTagsModal() {
@@ -7657,14 +7665,8 @@ function hideHslPicker() {
 function startEditTag(tag) {
   document.getElementById('tag-edit-id').value = tag.id;
   document.getElementById('tag-input-name').value = tag.name;
-  document.getElementById('tag-form-title').textContent = 'Editar etiqueta';
+  document.getElementById('tag-form-title').textContent = 'Editar actividad';
   document.getElementById('tag-submit-btn').textContent = 'Guardar';
-
-  // Show form and separator, hide trigger button
-  document.getElementById('tag-form').classList.remove('hidden');
-  const separator = document.querySelector('.separator-line');
-  if (separator) separator.classList.remove('hidden');
-  document.getElementById('add-tag-trigger-btn').classList.add('hidden');
 
   // Seleccionar el color: de la paleta, o personalizado (HSL)
   const colorIdx = DEFAULT_COLORS.findIndex(c => c.bg === tag.color.bg);
@@ -7685,6 +7687,9 @@ function startEditTag(tag) {
     if (lEl) lEl.value = l;
     showHslPicker();
   }
+
+  // Editar en su ventana aparte: cerrar el gestor y abrir el editor.
+  openTagEditModal();
 }
 
 // Convierte un hex (#rrggbb) a [H, S, L] enteros
@@ -7711,14 +7716,8 @@ function hexToHsl(hex) {
 function resetTagForm() {
   document.getElementById('tag-edit-id').value = '';
   document.getElementById('tag-input-name').value = '';
-  document.getElementById('tag-form-title').textContent = 'Nueva etiqueta';
+  document.getElementById('tag-form-title').textContent = 'Nueva actividad';
   document.getElementById('tag-submit-btn').textContent = 'Crear';
-  
-  // Hide form and separator, show trigger button
-  document.getElementById('tag-form').classList.add('hidden');
-  const separator = document.querySelector('.separator-line');
-  if (separator) separator.classList.add('hidden');
-  document.getElementById('add-tag-trigger-btn').classList.remove('hidden');
 
   selectedColorIndex = 0;
   customColor = null;
@@ -9655,17 +9654,20 @@ function setupEventListeners() {
     statsAcceptBtn.addEventListener('click', runStatsCalculation);
   }
 
-  // Trigger Nueva Etiqueta Button
+  // Trigger Nueva Etiqueta Button: abre la ventana aparte para crear actividad.
   document.getElementById('add-tag-trigger-btn').addEventListener('click', () => {
-    document.getElementById('tag-form').classList.remove('hidden');
-    const separator = document.querySelector('.separator-line');
-    if (separator) separator.classList.remove('hidden');
-    document.getElementById('add-tag-trigger-btn').classList.add('hidden');
-    document.getElementById('tag-input-name').focus();
+    resetTagForm();
+    openTagEditModal();
   });
 
-  // Tag Form Cancel Edit
-  document.getElementById('tag-cancel-btn').addEventListener('click', resetTagForm);
+  // Tag Form Cancel Edit: vuelve al gestor de actividades.
+  document.getElementById('tag-cancel-btn').addEventListener('click', () => closeTagEditModal());
+
+  // X de la ventana de crear/editar actividad: también vuelve al gestor.
+  const tagEditClose = document.querySelector('#tag-edit-modal .close-modal-btn');
+  if (tagEditClose) {
+    tagEditClose.addEventListener('click', () => openTagsModal());
+  }
 
   // Botón de ORDENAR del gestor de actividades: alterna entre el orden
   // personalizado del usuario y el orden alfabético (solo cambia la vista).
@@ -9758,10 +9760,10 @@ function setupEventListeners() {
     }
 
     saveTagsToStorage();
-    resetTagForm();
-    renderTagsList();
     buildTagSelectorOptions();
     renderWeeklyCalendar();
+    // Cerrar la ventana de edición y volver al gestor de actividades.
+    closeTagEditModal();
   });
 
   // Change Password Form Cancel
