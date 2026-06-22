@@ -563,6 +563,14 @@ html:not(.mobile-mode) .app-container {
   line-height: 1.4;
   opacity: 0.85;
   white-space: pre-wrap;
+  /* Máximo 3 líneas visibles; el resto se recorta con "…". Aplica en planner
+     (escritorio y móvil). */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Hora de la tarjeta: misma tipografía que la descripción, con icono de reloj

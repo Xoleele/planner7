@@ -498,10 +498,6 @@ function setupUserMenu() {
         <img src="icons/edit.svg" alt="" width="13.3" height="13.3">
         Plantilla de notas
       </button>
-      <button id="manage-tags-btn" class="user-dropdown-item">
-        <img src="icons/tag.svg" alt="" width="14" height="14">
-        Gestionar etiquetas
-      </button>
       <button id="view-toggle-btn" class="user-dropdown-item">
         <img src="icons/calendar.svg" alt="" width="14" height="14">
         <span id="view-toggle-menu-label">Vista Horario</span>
@@ -547,12 +543,6 @@ function setupUserMenu() {
       e.stopPropagation();
       dropdown.remove();
       openNoteTemplateModal();
-    });
-
-    document.getElementById('manage-tags-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.remove();
-      openTagsModal();
     });
 
     document.getElementById('view-toggle-btn').addEventListener('click', (e) => {
@@ -10077,6 +10067,12 @@ function setupEventListeners() {
   const timerStopBtn = document.getElementById('timer-stop-btn');
   if (timerStopBtn) {
     timerStopBtn.addEventListener('click', finishTimer);
+  }
+
+  // ─── Etiquetas (gestor de actividades) ─────────────────────────────────────
+  const tagsBtn = document.getElementById('tags-btn');
+  if (tagsBtn) {
+    tagsBtn.addEventListener('click', openTagsModal);
   }
 
   // ─── Estadísticas ──────────────────────────────────────────────────────────
