@@ -537,39 +537,6 @@ html:not(.mobile-mode) .app-container {
   opacity: 0.95;
 }
 
-/* Icono de cronómetro de la tarjeta: por defecto DEBAJO del checkbox. */
-.task-timer-btn {
-  position: absolute;
-  top: 30px;
-  right: 10px;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: inherit;
-  opacity: 0.55;
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
-  border-radius: 50%;
-  z-index: 2;
-}
-.task-card:hover .task-timer-btn { opacity: 0.85; }
-.task-timer-btn:hover { opacity: 1 !important; transform: scale(1.1); }
-
-/* Tarjeta baja: el cronómetro va a la IZQUIERDA del checkbox (misma fila) y el
-   título reserva más espacio a la derecha para no solaparse con ambos. */
-.task-card.has-timer-left .task-timer-btn {
-  top: 10px;
-  right: 32px;
-}
-.task-card.has-timer-left .task-card-title {
-  padding-right: 22px;
-}
-
 /* Completed task card state styles */
 .task-card.completed {
   opacity: 0.40;
@@ -4004,34 +3971,6 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .cr-task-block:hover .task-check-btn { opacity: 0.8; }
 .cr-task-block .task-check-btn:hover { opacity: 1 !important; transform: scale(1.1); }
 .cr-task-block.completed .task-check-btn { opacity: 0.95; }
-
-/* Icono de cronómetro en los bloques del horario: debajo del checkbox; a la
-   izquierda si el bloque es bajo (.has-timer-left). */
-.cr-task-block .task-timer-btn {
-  position: absolute;
-  top: 30px;
-  right: 10px;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: inherit;
-  opacity: 0.55;
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-  cursor: pointer;
-  background: none;
-  border: none;
-  padding: 0;
-  border-radius: 50%;
-  z-index: 2;
-}
-.cr-task-block:hover .task-timer-btn { opacity: 0.8; }
-.cr-task-block .task-timer-btn:hover { opacity: 1 !important; transform: scale(1.1); }
-.cr-task-block.has-timer-left .task-timer-btn { top: 10px; right: 32px; }
-/* En bloques compactos el checkbox se centra; el cronómetro va a su izquierda. */
-.cr-task-block.cr-block-compact .task-timer-btn { top: 50%; transform: translateY(-50%); right: 32px; }
-.cr-task-block.cr-block-compact .task-timer-btn:hover { transform: translateY(-50%) scale(1.1); }
 
 /* Horario (escritorio y móvil) — bloques "compactos" (40–59 min): el título y el
    checkbox se centran en el eje horizontal que pasa por la mitad del bloque. */

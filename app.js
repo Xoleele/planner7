@@ -3038,25 +3038,9 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
         e.stopPropagation();
         toggleTaskCompletion(task, occurrenceDate || task.date);
       });
+      // Mantener presionado el checkbox 1.5s inicia el cronómetro de la tarea.
+      attachCheckboxLongPressTimer(checkBtn, task, occurrenceDate || task.date);
       block.appendChild(checkBtn);
-
-      // Icono de cronómetro: debajo del checkbox; si el bloque es bajo (poca
-      // altura = durationMin px) o está en modo compacto, se coloca a la
-      // izquierda del checkbox.
-      const crTimerBtn = document.createElement('button');
-      crTimerBtn.className = 'task-timer-btn';
-      crTimerBtn.title = 'Cronometrar esta tarea';
-      crTimerBtn.setAttribute('aria-label', 'Cronometrar esta tarea');
-      crTimerBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 14.5 14.5"/><line x1="9" y1="2" x2="15" y2="2"/></svg>';
-      crTimerBtn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const ok = await askStartTimerForTask(task);
-        if (ok) startTimerForTask(task);
-      });
-      // Bloques de menos de ~52 min (o compactos) no tienen alto para el icono
-      // debajo: va a la izquierda del checkbox.
-      if (durationMin < 52) block.classList.add('has-timer-left');
-      block.appendChild(crTimerBtn);
     }
   }
 
@@ -5260,37 +5244,61 @@ function createTaskCard(task, occurrenceDate) {
     }, 350);
   });
 
+  // Mantener presionado el checkbox 1.5s inicia el cronómetro para esta tarea
+  // (con confirmación). Un toque/clic normal sigue marcando completada.
+  attachCheckboxLongPressTimer(checkBtn, task, occurrenceDate);
+
   card.appendChild(checkBtn);
 
-  // Icono de cronómetro: debajo del checkbox. Si la tarjeta no tiene altura
-  // suficiente, se coloca a la IZQUIERDA del checkbox (lo que reduce el espacio
-  // del título mediante la clase .has-timer-left). La decisión se toma tras el
-  // layout (rAF), midiendo la altura real de la tarjeta.
-  const timerBtn = document.createElement('button');
-  timerBtn.className = 'task-timer-btn';
-  timerBtn.title = 'Cronometrar esta tarea';
-  timerBtn.setAttribute('aria-label', 'Cronometrar esta tarea');
-  timerBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><polyline points="12 9 12 13 14.5 14.5"/><line x1="9" y1="2" x2="15" y2="2"/></svg>';
-  timerBtn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    const ok = await askStartTimerForTask(task);
-    if (ok) startTimerForTask(task);
-  });
-  card.appendChild(timerBtn);
-
-  // Tras el layout, decidir si el cronómetro cabe debajo del checkbox o debe ir
-  // a su izquierda (tarjeta baja). Umbral: el checkbox ocupa hasta ~26px; para
-  // poner el cronómetro debajo hace falta algo más de alto.
-  requestAnimationFrame(() => {
-    const h = card.getBoundingClientRect().height;
-    if (h && h < 48) {
-      card.classList.add('has-timer-left');
-    } else {
-      card.classList.remove('has-timer-left');
-    }
-  });
-
   return card;
+}
+
+// Añade a un checkbox de tarea el gesto de "mantener presionado 1.5s" para
+// iniciar el cronómetro de esa tarea (tras confirmación). Funciona con ratón y
+// táctil. Si se dispara el long-press, se anula el click de completar que vendría
+// después. Reutilizable por las tarjetas del planner y los bloques del horario.
+const CHECKBOX_TIMER_LONGPRESS_MS = 1500;
+function attachCheckboxLongPressTimer(checkBtn, task, occurrenceDate) {
+  let pressTimer = null;
+  let longPressed = false;
+
+  const start = () => {
+    longPressed = false;
+    pressTimer = setTimeout(async () => {
+      longPressed = true;
+      pressTimer = null;
+      if (navigator.vibrate) navigator.vibrate(40);
+      const ok = await askStartTimerForTask(task);
+      if (ok) startTimerForTask(task);
+    }, CHECKBOX_TIMER_LONGPRESS_MS);
+  };
+  const cancel = () => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+  };
+
+  // Ratón (escritorio)
+  checkBtn.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') return; // el táctil se maneja abajo
+    if (e.button !== 0) return;
+    start();
+  });
+  checkBtn.addEventListener('pointerup', cancel);
+  checkBtn.addEventListener('pointerleave', cancel);
+
+  // Táctil (móvil)
+  checkBtn.addEventListener('touchstart', () => start(), { passive: true });
+  checkBtn.addEventListener('touchend', cancel);
+  checkBtn.addEventListener('touchcancel', cancel);
+  checkBtn.addEventListener('touchmove', cancel);
+
+  // Si hubo long-press, evitar que el click posterior marque la tarea.
+  checkBtn.addEventListener('click', (e) => {
+    if (longPressed) {
+      e.stopPropagation();
+      e.preventDefault();
+      longPressed = false;
+    }
+  }, true); // captura: corre antes que el listener de completar
 }
 
 // Diálogo de confirmación antes de cronometrar una tarea desde su tarjeta.
