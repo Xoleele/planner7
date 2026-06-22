@@ -9020,6 +9020,20 @@ function setupEventListeners() {
     });
   });
 
+  // Botón ✕ del campo de TÍTULO: borra todo lo escrito y deja el foco en el campo.
+  const titleClearBtn = document.getElementById('task-title-clear');
+  if (titleClearBtn) {
+    titleClearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const titleEl = document.getElementById('task-input-title');
+      if (!titleEl) return;
+      titleEl.value = '';
+      titleEl.dispatchEvent(new Event('input', { bubbles: true }));
+      titleEl.focus();
+    });
+  }
+
   // Icono de campana → activa/desactiva la alarma (solo si hay hora de inicio).
   const alarmBell = document.getElementById('task-alarm-bell');
   if (alarmBell) {

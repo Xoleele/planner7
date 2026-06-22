@@ -387,7 +387,12 @@
         <div class="form-row">
           <div class="form-group task-title-group">
             <label for="task-input-title">Título</label>
-            <input type="text" id="task-input-title" placeholder="Título de la tarea" autocomplete="off">
+            <div class="title-input-wrapper">
+              <input type="text" id="task-input-title" placeholder="Título de la tarea" autocomplete="off">
+              <button type="button" class="time-clear-btn" id="task-title-clear" title="Borrar título" aria-label="Borrar título">
+                <img src="icons/close.svg" alt="Quitar" width="14" height="14">
+              </button>
+            </div>
           </div>
           <!-- Antiguo selector de etiquetas, ahora "ACTIVIDAD". -->
           <div class="form-group task-activity-group">

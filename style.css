@@ -978,6 +978,24 @@ input[type="number"]:focus {
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
 }
 
+/* Campo de TÍTULO con botón ✕ a la derecha para borrar el contenido. */
+.title-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.title-input-wrapper {
+  width: 100%;
+}
+.title-input-wrapper #task-input-title {
+  flex: 1;
+  padding-right: 32px;
+}
+/* Ocultar la ✕ cuando el campo está vacío (no hay nada que borrar). */
+.title-input-wrapper input:placeholder-shown + .time-clear-btn {
+  display: none;
+}
+
 /* Fila 1 del editor: TÍTULO ocupa ~2/3 y ACTIVIDAD ~1/3. */
 .task-title-group {
   flex: 5;
