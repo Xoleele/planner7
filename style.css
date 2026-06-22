@@ -3634,6 +3634,7 @@ body.cronograma-active .planner-grid { display: none; }
   box-shadow: var(--shadow-md);
   overflow: hidden;
   min-height: 0;
+  position: relative; /* ancla el slider de cabeceras durante la transición */
 }
 
 .cronograma.hidden { display: none; }
@@ -3713,6 +3714,7 @@ body.cronograma-active .planner-grid { display: none; }
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0; /* permite que el scroll funcione dentro del flex column */
+  position: relative; /* ancla los sliders de transición de semana */
   /* Reservar siempre el hueco de la scrollbar para que el ancho de la rejilla
      no cambie y siga alineado con el encabezado (que reserva el mismo hueco). */
   scrollbar-gutter: stable;
@@ -3725,6 +3727,39 @@ body.cronograma-active .planner-grid { display: none; }
   height: calc(var(--hour-height) * 24);
   display: grid;
   grid-template-columns: var(--cr-time-col) repeat(7, 1fr);
+}
+
+/* ── Deslizamiento de semana en el Horario (escritorio), igual que el planner.
+   Un slider de 200% con dos "páginas" (semana saliente + entrante) que se
+   desplaza para revelar la nueva semana, sin parpadeos en blanco. ──────────── */
+.cr-week-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: calc(var(--hour-height, 60px) * 24);
+  display: flex;
+  will-change: transform;
+  z-index: 3;
+  background-color: var(--bg-card);
+}
+.cr-week-slider-headers {
+  top: 0;
+  left: 0;
+  height: auto;
+  z-index: 6;
+  background-color: var(--bg-card);
+}
+.cr-week-page {
+  width: 50%;
+  flex-shrink: 0;
+  position: relative;
+  height: 100%;
+}
+/* La rejilla/cabecera clonada dentro de una página ocupa todo el ancho. */
+.cr-week-page > .cronograma-grid,
+.cr-week-page > .cronograma-headers {
+  width: 100%;
 }
 
 /* Etiqueta de hora en la columna fija de la izquierda. */

@@ -4670,20 +4670,22 @@ function crSlideMobileDay(dir) {
   });
 }
 
-// ESCRITORIO: anima un deslizamiento lateral (como el planner) del horario al
-// cambiar de semana, manteniendo el bloque flotando para que siga visible.
+// ESCRITORIO: deslizamiento lateral IGUAL que el planner. Mantenemos AMBAS
+// semanas presentes a la vez (la nueva "oculta" al lado) dentro de un slider, y
+// lo desplazamos para revelarla — sin ningún parpadeo en blanco. El bloque
+// arrastrado va flotando para no desaparecer.
 function crChangeWeekDuringDrag(dir) {
   if (!crDrag) return;
 
   const scrollEl = document.querySelector('.cronograma-scroll');
-  const grid = document.getElementById('cronograma-grid');
-  const headers = document.getElementById('cronograma-headers');
+  const headersHost = document.getElementById('cronograma-headers');
+  const oldGrid = document.getElementById('cronograma-grid');
 
   // Fijar el bloque flotando antes de animar/reconstruir.
   crPinFloatingBlock();
 
   // Sin contenedor de scroll → cambio instantáneo (fallback).
-  if (!scrollEl || !grid) {
+  if (!scrollEl || !oldGrid || !headersHost) {
     currentWeekStart = addDays(currentWeekStart, dir * 7);
     crRerenderDuringDrag(null);
     return;
@@ -4691,51 +4693,87 @@ function crChangeWeekDuringDrag(dir) {
 
   crHorizAnimating = true;
 
-  // 1) Animar la salida del contenido actual hacia el lado correspondiente.
-  const outX = dir === 1 ? -100 : 100; // se va hacia la izquierda al avanzar
-  grid.style.transition = 'transform 0.22s ease';
-  if (headers) headers.style.transition = 'transform 0.22s ease';
-  grid.style.transform = `translateX(${outX}%)`;
-  if (headers) headers.style.transform = `translateX(${outX}%)`;
+  // 1) CLON SALIENTE = foto del estado actual (semana actual) antes del render.
+  const outGrid = oldGrid.cloneNode(true);
+  const outHeader = headersHost.cloneNode(true);
+  outGrid.removeAttribute('id');
+  outHeader.removeAttribute('id');
+  // Quitar de la foto cualquier bloque arrastrado/flotante residual.
+  outGrid.querySelectorAll('.cr-dragging, .cr-floating').forEach(el => el.remove());
 
+  // 2) Cambiar de semana y reconstruir el grid/headers REALES (ya muestran la
+  //    semana nueva). renderCronograma reutiliza los MISMOS nodos por id.
+  currentWeekStart = addDays(currentWeekStart, dir * 7);
+  crRerenderDuringDrag(null);
+  const realGrid = document.getElementById('cronograma-grid');
+  const realHeader = document.getElementById('cronograma-headers');
+  if (!realGrid || !realHeader) {
+    crHorizAnimating = false;
+    crRebindAfterHorizontalChange();
+    return;
+  }
+
+  // 3) CLON ENTRANTE = foto de la semana nueva ya renderizada.
+  const inGrid = realGrid.cloneNode(true);
+  const inHeader = realHeader.cloneNode(true);
+  inGrid.removeAttribute('id');
+  inHeader.removeAttribute('id');
+  inGrid.querySelectorAll('.cr-dragging, .cr-floating').forEach(el => el.remove());
+
+  // Ocultar los nodos reales mientras dura la animación (mostramos los clones en
+  // el slider). Así no se ve nada en blanco y ambas semanas conviven.
+  realGrid.style.visibility = 'hidden';
+  realHeader.style.visibility = 'hidden';
+
+  // 4) Slider de 200% con ambas páginas (grid y headers), igual que el planner.
+  const wrap = (el) => {
+    const page = document.createElement('div');
+    page.className = 'cr-week-page';
+    page.appendChild(el);
+    return page;
+  };
+  const gridSlider = document.createElement('div');
+  gridSlider.className = 'cr-week-slider';
+  const headerSlider = document.createElement('div');
+  headerSlider.className = 'cr-week-slider cr-week-slider-headers';
+
+  if (dir === 1) {
+    gridSlider.appendChild(wrap(outGrid));
+    gridSlider.appendChild(wrap(inGrid));
+    headerSlider.appendChild(wrap(outHeader));
+    headerSlider.appendChild(wrap(inHeader));
+  } else {
+    gridSlider.appendChild(wrap(inGrid));
+    gridSlider.appendChild(wrap(outGrid));
+    headerSlider.appendChild(wrap(inHeader));
+    headerSlider.appendChild(wrap(outHeader));
+  }
+
+  scrollEl.appendChild(gridSlider);
+  realHeader.parentElement.insertBefore(headerSlider, realHeader);
+
+  // Posición inicial → final (revela la semana nueva que estaba "oculta").
+  const startX = dir === 1 ? 0 : -50;
+  const endX = dir === 1 ? -50 : 0;
+  gridSlider.style.transform = `translateX(${startX}%)`;
+  headerSlider.style.transform = `translateX(${startX}%)`;
+  void gridSlider.offsetHeight; // reflow
+  requestAnimationFrame(() => {
+    gridSlider.style.transition = 'transform 0.45s cubic-bezier(0.25, 1, 0.5, 1)';
+    headerSlider.style.transition = 'transform 0.45s cubic-bezier(0.25, 1, 0.5, 1)';
+    gridSlider.style.transform = `translateX(${endX}%)`;
+    headerSlider.style.transform = `translateX(${endX}%)`;
+  });
+
+  // 5) Al terminar: quitar los sliders (clones) y mostrar los nodos reales.
   setTimeout(() => {
-    // 2) Cambiar de semana y reconstruir (el bloque sigue flotando aparte).
-    currentWeekStart = addDays(currentWeekStart, dir * 7);
-    crRerenderDuringDrag(null);
-
-    // 3) Colocar el contenido nuevo en el lado opuesto y animarlo a su sitio.
-    const g2 = document.getElementById('cronograma-grid');
-    const h2 = document.getElementById('cronograma-headers');
-    const inX = dir === 1 ? 100 : -100;
-    if (g2) {
-      g2.style.transition = 'none';
-      g2.style.transform = `translateX(${inX}%)`;
-    }
-    if (h2) {
-      h2.style.transition = 'none';
-      h2.style.transform = `translateX(${inX}%)`;
-    }
-    // Forzar reflow y animar a 0.
-    if (g2) void g2.offsetHeight;
-    requestAnimationFrame(() => {
-      if (g2) {
-        g2.style.transition = 'transform 0.22s ease';
-        g2.style.transform = 'translateX(0)';
-      }
-      if (h2) {
-        h2.style.transition = 'transform 0.22s ease';
-        h2.style.transform = 'translateX(0)';
-      }
-    });
-
-    // 4) Al terminar, limpiar estilos de transición y soltar el flotado.
-    setTimeout(() => {
-      if (g2) { g2.style.transition = ''; g2.style.transform = ''; }
-      if (h2) { h2.style.transition = ''; h2.style.transform = ''; }
-      crHorizAnimating = false;
-      crRebindAfterHorizontalChange();
-    }, 240);
-  }, 220);
+    if (gridSlider.parentElement) gridSlider.parentElement.removeChild(gridSlider);
+    if (headerSlider.parentElement) headerSlider.parentElement.removeChild(headerSlider);
+    realGrid.style.visibility = '';
+    realHeader.style.visibility = '';
+    crHorizAnimating = false;
+    crRebindAfterHorizontalChange();
+  }, 470);
 }
 
 // Reconstruye el horario SIN cancelar el arrastre: el bloque ya está flotando, lo
