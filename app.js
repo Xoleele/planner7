@@ -7647,10 +7647,10 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   const yTip = y_top - 5;   // extremo superior del eje Y
   svgParts.push(`<line x1="${x_left}" y1="${y_bottom}" x2="${xTip}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
   svgParts.push(`<line x1="${x_left}" y1="${yTip}" x2="${x_left}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
-  // Flechitas en los extremos de los ejes.
-  const a = 2.2; // tamaño de la flecha
-  svgParts.push(`<polygon points="${xTip + a},${y_bottom} ${xTip - a},${y_bottom - a} ${xTip - a},${y_bottom + a}" fill="#111111" />`);
-  svgParts.push(`<polygon points="${x_left},${yTip - a} ${x_left - a},${yTip + a} ${x_left + a},${yTip + a}" fill="#111111" />`);
+  // Flechitas de punta abierta (V) en los extremos de los ejes.
+  const a = 2.4; // tamaño de la flecha
+  svgParts.push(`<path d="M${xTip - a},${y_bottom - a} L${xTip},${y_bottom} L${xTip - a},${y_bottom + a}" fill="none" stroke="#111111" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" />`);
+  svgParts.push(`<path d="M${x_left - a},${yTip + a} L${x_left},${yTip} L${x_left + a},${yTip + a}" fill="none" stroke="#111111" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" />`);
 
   svgParts.push(`</svg>`);
   return svgParts.join('\n');
