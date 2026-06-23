@@ -7577,11 +7577,17 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
     const pathD = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
     svgParts.push(`<path d="${pathD}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />`);
 
-    points.forEach(p => {
+    points.forEach((p, idx) => {
       // Punto visual muy sutil para que la línea parezca continua
       svgParts.push(`<circle cx="${p.x}" cy="${p.y}" r="0.8" fill="${color}" />`);
-      // Área de hover invisible más grande con clase y atributo data-tooltip
-      svgParts.push(`<circle class="chart-hover-circle" cx="${p.x}" cy="${p.y}" r="6" fill="transparent" style="cursor: pointer;" data-tooltip="${group.displayName || tagName}: ${p.hours.toFixed(1)}h"></circle>`);
+      // Fecha del eje x (ej. "23 jun") + etiqueta y horas del eje y, sintetizado
+      const dObj = new Date(dates[idx] + 'T12:00:00');
+      const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+      const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
+      const tipText = `${dLabel} · ${group.displayName || tagName}: ${p.hours.toFixed(1)}h`;
+      // Área de hover invisible más grande con clase y atributo data-tooltip.
+      // El <title> vacío evita el tooltip nativo heredado ("Planner7").
+      svgParts.push(`<circle class="chart-hover-circle" cx="${p.x}" cy="${p.y}" r="6" fill="transparent" style="cursor: pointer;" data-tooltip="${tipText}"><title></title></circle>`);
     });
   });
 
