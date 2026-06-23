@@ -9875,7 +9875,8 @@ function setupEventListeners() {
       const visibleDate = getMobileVisibleDate() || new Date();
       jumpMobileFeedToDate(addDays(visibleDate, -1));
     } else {
-      navigateToWeek(-1);
+      if (cronogramaActive) crSlideWeek(-1);
+      else navigateToWeek(-1);
     }
   });
 
@@ -9885,7 +9886,8 @@ function setupEventListeners() {
       const visibleDate = getMobileVisibleDate() || new Date();
       jumpMobileFeedToDate(addDays(visibleDate, 1));
     } else {
-      navigateToWeek(1);
+      if (cronogramaActive) crSlideWeek(1);
+      else navigateToWeek(1);
     }
   });
 
