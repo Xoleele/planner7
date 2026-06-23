@@ -7368,31 +7368,45 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
   const x_left = 12;
   const x_right = 188;
   const plotWidth = x_right - x_left;
-  const N = dates.length;
   
-  const dailyTotals = {};
-  const dailyBreakdown = {};
-  let maxDayMinutes = 0;
+  const periodSelect = document.getElementById('general-stats-period-select');
+  const periodVal = periodSelect ? periodSelect.value : 'semanal';
   
-  dates.forEach(dStr => {
-    dailyTotals[dStr] = 0;
-    dailyBreakdown[dStr] = {};
-  });
+  let unit = 'dias';
+  let qty = dates.length;
+  if (periodVal === 'personalizado' && generalStatsDateRange) {
+    unit = generalStatsDateRange.unit || 'dias';
+    qty = generalStatsDateRange.qty || dates.length;
+  } else if (periodVal === 'semanal' || periodVal === '7dias') {
+    unit = 'dias';
+    qty = 7;
+  }
+
+  const daysPerBar = (unit === 'semanas' ? 7 : unit === 'meses' ? 30 : 1);
+  const N = qty;
+  
+  const barTotals = Array(N).fill(0);
+  const barBreakdown = Array(N).fill(null).map(() => ({}));
+  let maxBarMinutes = 0;
   
   groupedList.forEach(group => {
     if (excludedSet.has(group.name)) return;
     group.occurrences.forEach(occ => {
       const dStr = occ.dateStr;
-      if (dailyTotals[dStr] !== undefined) {
-        dailyBreakdown[dStr][group.name] = (dailyBreakdown[dStr][group.name] || 0) + occ.mins;
-        dailyTotals[dStr] += occ.mins;
+      const dateIdx = dates.indexOf(dStr);
+      if (dateIdx !== -1) {
+        const barIdx = Math.floor(dateIdx / daysPerBar);
+        if (barIdx >= 0 && barIdx < N) {
+          barBreakdown[barIdx][group.name] = (barBreakdown[barIdx][group.name] || 0) + occ.mins;
+          barTotals[barIdx] += occ.mins;
+        }
       }
     });
   });
   
-  dates.forEach(dStr => {
-    if (dailyTotals[dStr] > maxDayMinutes) {
-      maxDayMinutes = dailyTotals[dStr];
+  barTotals.forEach(total => {
+    if (total > maxBarMinutes) {
+      maxBarMinutes = total;
     }
   });
 
@@ -7410,30 +7424,38 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
   svgParts.push(`<line x1="${x_left - 2}" y1="${y_bottom}" x2="${x_right + 2}" y2="${y_bottom}" stroke="var(--border-light, #e5e5ea)" stroke-width="0.5" />`);
 
   const fontSize = N > 9 ? 5.5 : 6.5;
-
-  const periodSelect = document.getElementById('general-stats-period-select');
-  const isSemanal = periodSelect && periodSelect.value === 'semanal';
   const weeklyLabels = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
-  dates.forEach((dStr, idx) => {
+  for (let idx = 0; idx < N; idx++) {
     const x = x_left + idx * (barWidth + gap);
     const x_center = x + barWidth / 2;
     
-    const dateObj = new Date(dStr + 'T12:00:00');
-    const dayNum = dateObj.getDate();
-    const labelText = isSemanal ? (weeklyLabels[idx] || '') : dayNum;
+    let labelText = '';
+    if (periodVal === 'semanal') {
+      labelText = weeklyLabels[idx] || '';
+    } else if (unit === 'semanas') {
+      labelText = `Sem ${idx + 1}`;
+    } else if (unit === 'meses') {
+      labelText = `Mes ${idx + 1}`;
+    } else {
+      const targetDateStr = dates[idx * daysPerBar];
+      if (targetDateStr) {
+        const dateObj = new Date(targetDateStr + 'T12:00:00');
+        labelText = dateObj.getDate();
+      }
+    }
     svgParts.push(`<text x="${x_center}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="${fontSize}" font-weight="600" text-anchor="middle">${labelText}</text>`);
 
-    if (maxDayMinutes > 0 && dailyTotals[dStr] > 0) {
+    if (maxBarMinutes > 0 && barTotals[idx] > 0) {
       let currentY = y_bottom;
       
       svgParts.push(`<rect x="${x}" y="${y_top}" width="${barWidth}" height="${plotHeight}" fill="var(--border-light, #f2f2f7)" opacity="0.15" rx="0.5" />`);
 
       groupedList.forEach(group => {
         if (excludedSet.has(group.name)) return;
-        const mins = dailyBreakdown[dStr][group.name] || 0;
+        const mins = barBreakdown[idx][group.name] || 0;
         if (mins > 0) {
-          const segHeight = (mins / maxDayMinutes) * plotHeight;
+          const segHeight = (mins / maxBarMinutes) * plotHeight;
           const y = currentY - segHeight;
           
           svgParts.push(`<rect x="${x}" y="${y}" width="${barWidth}" height="${segHeight}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.25" rx="0.3" />`);
@@ -7444,7 +7466,7 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
     } else {
       svgParts.push(`<rect x="${x}" y="${y_bottom - 1.5}" width="${barWidth}" height="1.5" fill="var(--border-light, #e5e5ea)" rx="0.3" />`);
     }
-  });
+  }
 
   svgParts.push(`</svg>`);
   return svgParts.join('\n');
@@ -8164,48 +8186,70 @@ function openGeneralStatsCustomRangeModal() {
   const modal = document.getElementById('general-stats-custom-range-modal');
   if (!modal) return;
   
+  const durationRow = document.getElementById('general-stats-custom-range-duration-row');
+  const barrasRow = document.getElementById('general-stats-custom-range-barras-row');
+  
   const fromInput = document.getElementById('general-stats-custom-range-start');
   const toInput = document.getElementById('general-stats-custom-range-end');
   const durationInput = document.getElementById('general-stats-custom-range-duration');
   
-  if (durationInput) {
-    if (generalStatsChartType === 'barras-apiladas') {
-      durationInput.min = 2;
-      durationInput.max = 12;
-    } else {
-      durationInput.min = 1;
-      durationInput.removeAttribute('max');
-    }
+  const unitSelect = document.getElementById('general-stats-custom-range-unit');
+  const qtySelect = document.getElementById('general-stats-custom-range-qty');
+  
+  if (generalStatsChartType === 'barras-apiladas') {
+    if (durationRow) durationRow.classList.add('hidden');
+    if (barrasRow) barrasRow.classList.remove('hidden');
+  } else {
+    if (durationRow) durationRow.classList.remove('hidden');
+    if (barrasRow) barrasRow.classList.add('hidden');
   }
 
-  if (fromInput && toInput && durationInput) {
+  if (fromInput && toInput) {
     if (generalStatsDateRange) {
       fromInput.value = generalStatsDateRange.from;
       toInput.value = generalStatsDateRange.to;
       let days = countDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
       if (days !== null) {
         if (generalStatsChartType === 'barras-apiladas') {
-          if (days < 2) days = 2;
-          if (days > 12) days = 12;
+          let unit = generalStatsDateRange.unit || 'dias';
+          let qty = generalStatsDateRange.qty || 7;
+          if (!generalStatsDateRange.unit) {
+            if (days % 30 === 0 && days >= 120 && days <= 360) {
+              unit = 'meses';
+              qty = days / 30;
+            } else if (days % 7 === 0 && days >= 28 && days <= 84) {
+              unit = 'semanas';
+              qty = days / 7;
+            } else {
+              unit = 'dias';
+              qty = Math.max(4, Math.min(12, days));
+            }
+          }
+          if (unitSelect) unitSelect.value = unit;
+          if (qtySelect) qtySelect.value = qty;
+          
+          const factor = (unit === 'semanas' ? 7 : unit === 'meses' ? 30 : 1);
+          days = qty * factor;
+          
           const startDate = new Date(generalStatsDateRange.from + 'T12:00:00');
           startDate.setDate(startDate.getDate() + days - 1);
           toInput.value = formatDate(startDate);
+        } else {
+          if (durationInput) durationInput.value = days;
         }
-        durationInput.value = days;
-      } else {
-        durationInput.value = (generalStatsChartType === 'barras-apiladas') ? 2 : 1;
       }
     } else {
       const todayStr = formatDate(new Date());
       fromInput.value = todayStr;
       if (generalStatsChartType === 'barras-apiladas') {
+        if (unitSelect) unitSelect.value = 'dias';
+        if (qtySelect) qtySelect.value = '7';
         const endDate = new Date();
-        endDate.setDate(endDate.getDate() + 1);
+        endDate.setDate(endDate.getDate() + 6);
         toInput.value = formatDate(endDate);
-        durationInput.value = 2;
       } else {
         toInput.value = todayStr;
-        durationInput.value = 1;
+        if (durationInput) durationInput.value = 1;
       }
     }
   }
@@ -8240,18 +8284,24 @@ function recordCustomRangeChange(field) {
   const endInput = document.getElementById('general-stats-custom-range-end');
   const durationInput = document.getElementById('general-stats-custom-range-duration');
   
-  if (!startInput || !endInput || !durationInput) return;
+  const unitSelect = document.getElementById('general-stats-custom-range-unit');
+  const qtySelect = document.getElementById('general-stats-custom-range-qty');
+  
+  if (!startInput || !endInput) return;
   
   let startVal = startInput.value;
   let endVal = endInput.value;
   
-  let minD = (generalStatsChartType === 'barras-apiladas') ? 2 : 1;
-  let maxD = (generalStatsChartType === 'barras-apiladas') ? 12 : Infinity;
-  
-  let durationVal = parseInt(durationInput.value, 10) || minD;
-  if (durationVal < minD) durationVal = minD;
-  if (durationVal > maxD) durationVal = maxD;
-  durationInput.value = durationVal;
+  let durationVal = 1;
+  if (generalStatsChartType === 'barras-apiladas') {
+    const unit = unitSelect ? unitSelect.value : 'dias';
+    const qty = qtySelect ? parseInt(qtySelect.value, 10) : 7;
+    durationVal = qty * (unit === 'semanas' ? 7 : unit === 'meses' ? 30 : 1);
+  } else {
+    durationVal = durationInput ? (parseInt(durationInput.value, 10) || 1) : 1;
+    if (durationVal < 1) durationVal = 1;
+    if (durationInput) durationInput.value = durationVal;
+  }
   
   if (adjustedField === 'start') {
     if (endVal) {
@@ -8269,16 +8319,40 @@ function recordCustomRangeChange(field) {
     if (startVal && endVal) {
       const days = countDaysInRange(startVal, endVal);
       if (days !== null) {
-        let finalDays = Math.max(minD, Math.min(maxD, days));
-        durationInput.value = finalDays;
-        if (finalDays !== days) {
-          const startDate = new Date(startVal + 'T12:00:00');
-          startDate.setDate(startDate.getDate() + finalDays - 1);
-          endInput.value = formatDate(startDate);
+        if (generalStatsChartType === 'barras-apiladas') {
+          let unit = 'dias';
+          let qty = 7;
+          if (days % 30 === 0 && days >= 120 && days <= 360) {
+            unit = 'meses';
+            qty = days / 30;
+          } else if (days % 7 === 0 && days >= 28 && days <= 84) {
+            unit = 'semanas';
+            qty = days / 7;
+          } else {
+            unit = 'dias';
+            qty = Math.max(4, Math.min(12, days));
+          }
+          if (unitSelect) unitSelect.value = unit;
+          if (qtySelect) qtySelect.value = qty;
+          
+          const factor = (unit === 'semanas' ? 7 : unit === 'meses' ? 30 : 1);
+          const finalDays = qty * factor;
+          if (finalDays !== days) {
+            const startDate = new Date(startVal + 'T12:00:00');
+            startDate.setDate(startDate.getDate() + finalDays - 1);
+            endInput.value = formatDate(startDate);
+          }
+        } else {
+          if (durationInput) durationInput.value = Math.max(1, days);
         }
       } else {
         endInput.value = startVal;
-        durationInput.value = minD;
+        if (generalStatsChartType === 'barras-apiladas') {
+          if (unitSelect) unitSelect.value = 'dias';
+          if (qtySelect) qtySelect.value = '7';
+        } else {
+          if (durationInput) durationInput.value = 1;
+        }
       }
     }
   }
@@ -8289,12 +8363,22 @@ function shiftCustomRange(direction) {
   const endInput = document.getElementById('general-stats-custom-range-end');
   const durationInput = document.getElementById('general-stats-custom-range-duration');
   
-  if (!startInput || !endInput || !durationInput) return;
+  const unitSelect = document.getElementById('general-stats-custom-range-unit');
+  const qtySelect = document.getElementById('general-stats-custom-range-qty');
+  
+  if (!startInput || !endInput) return;
   
   let startVal = startInput.value;
-  let durationVal = parseInt(durationInput.value, 10) || 1;
-  
   if (!startVal) return;
+  
+  let durationVal = 1;
+  if (generalStatsChartType === 'barras-apiladas') {
+    const unit = unitSelect ? unitSelect.value : 'dias';
+    const qty = qtySelect ? parseInt(qtySelect.value, 10) : 7;
+    durationVal = qty * (unit === 'semanas' ? 7 : unit === 'meses' ? 30 : 1);
+  } else {
+    durationVal = durationInput ? (parseInt(durationInput.value, 10) || 1) : 1;
+  }
   
   const startDate = new Date(startVal + 'T12:00:00');
   const offset = direction === 'next' ? durationVal : -durationVal;
@@ -8325,17 +8409,27 @@ function handleGeneralStatsCustomRangeAccept() {
     return;
   }
   
-  const days = countDaysInRange(fromVal, toVal);
+  let unit = 'dias';
+  let qty = 7;
   if (generalStatsChartType === 'barras-apiladas') {
-    if (days < 2 || days > 12) {
-      alert('Para el gráfico de barras apiladas, el periodo debe ser de entre 2 y 12 días.');
+    const unitSelect = document.getElementById('general-stats-custom-range-unit');
+    const qtySelect = document.getElementById('general-stats-custom-range-qty');
+    unit = unitSelect ? unitSelect.value : 'dias';
+    qty = qtySelect ? parseInt(qtySelect.value, 10) : 7;
+    
+    const days = countDaysInRange(fromVal, toVal);
+    const expectedDays = qty * (unit === 'semanas' ? 7 : unit === 'meses' ? 30 : 1);
+    if (days !== expectedDays) {
+      alert('La duración de las fechas seleccionadas no coincide con la cantidad configurada.');
       return;
     }
   }
   
   generalStatsDateRange = {
     from: fromVal,
-    to: toVal
+    to: toVal,
+    unit: unit,
+    qty: qty
   };
   
   previousPeriodValue = 'personalizado';
@@ -8548,6 +8642,14 @@ function initStatsEvents(prefix) {
         durationInput.value = val;
         recordCustomRangeChange('duration');
       });
+    }
+    const unitSelect = document.getElementById('general-stats-custom-range-unit');
+    if (unitSelect) {
+      unitSelect.addEventListener('change', () => recordCustomRangeChange('duration'));
+    }
+    const qtySelect = document.getElementById('general-stats-custom-range-qty');
+    if (qtySelect) {
+      qtySelect.addEventListener('change', () => recordCustomRangeChange('duration'));
     }
     
     // Botones del modal personalizado

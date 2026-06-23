@@ -812,13 +812,37 @@
         </button>
       </div>
       <div class="modal-body" style="padding: 12px 20px; display: flex; flex-direction: column; gap: 8px;">
-        <!-- Fila 1: Cantidad de días -->
-        <div class="form-row" style="margin-bottom: 0; gap: 10px;">
+        <!-- Fila 1: Cantidad de días / Mostrar y Cantidad -->
+        <div class="form-row" id="general-stats-custom-range-duration-row" style="margin-bottom: 0; gap: 10px;">
           <div class="form-group flex-1" style="margin-bottom: 0;">
             <label for="general-stats-custom-range-duration" style="margin-bottom: 3px; display: block;">Cantidad de días</label>
             <input type="number" id="general-stats-custom-range-duration" min="1" value="1" step="1" autocomplete="off" style="height: 34px; padding: 6px 12px;">
           </div>
           <div class="form-group flex-1" style="margin-bottom: 0;"></div>
+        </div>
+        <div class="form-row hidden" id="general-stats-custom-range-barras-row" style="margin-bottom: 0; gap: 10px;">
+          <div class="form-group flex-1" style="margin-bottom: 0;">
+            <label for="general-stats-custom-range-unit" style="margin-bottom: 3px; display: block; font-weight: bold;">MOSTRAR</label>
+            <select id="general-stats-custom-range-unit" style="height: 34px; padding: 6px 12px; width: 100%; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
+              <option value="dias" selected>días</option>
+              <option value="semanas">semanas</option>
+              <option value="meses">meses</option>
+            </select>
+          </div>
+          <div class="form-group flex-1" style="margin-bottom: 0;">
+            <label for="general-stats-custom-range-qty" style="margin-bottom: 3px; display: block; font-weight: bold;">Cantidad</label>
+            <select id="general-stats-custom-range-qty" style="height: 34px; padding: 6px 12px; width: 100%; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7" selected>7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+              <option value="11">11</option>
+              <option value="12">12</option>
+            </select>
+          </div>
         </div>
         <!-- Fila 2: Día de inicio - Día de término -->
         <div class="form-row" style="margin-bottom: 0; gap: 10px;">
