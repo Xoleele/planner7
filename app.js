@@ -8126,17 +8126,36 @@ function renderGeneralStatsForRange() {
   
   const panelPrev = document.getElementById('general-stats-panel-prev');
   const panelNext = document.getElementById('general-stats-panel-next');
-  if (panelPrev) {
-    const chart = panelPrev.querySelector('.daily-stats-chart-placeholder');
-    const list = panelPrev.querySelector('.activity-list');
-    if (chart) chart.innerHTML = '';
-    if (list) list.innerHTML = '';
-  }
-  if (panelNext) {
-    const chart = panelNext.querySelector('.daily-stats-chart-placeholder');
-    const list = panelNext.querySelector('.activity-list');
-    if (chart) chart.innerHTML = '';
-    if (list) list.innerHTML = '';
+  
+  const days = countDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
+  if (days !== null) {
+    if (panelPrev) {
+      const prevFrom = new Date(generalStatsDateRange.from + 'T12:00:00');
+      prevFrom.setDate(prevFrom.getDate() - days);
+      const prevTo = new Date(generalStatsDateRange.to + 'T12:00:00');
+      prevTo.setDate(prevTo.getDate() - days);
+      renderDailyStatsPanel(panelPrev, { from: formatDate(prevFrom), to: formatDate(prevTo) });
+    }
+    if (panelNext) {
+      const nextFrom = new Date(generalStatsDateRange.from + 'T12:00:00');
+      nextFrom.setDate(nextFrom.getDate() + days);
+      const nextTo = new Date(generalStatsDateRange.to + 'T12:00:00');
+      nextTo.setDate(nextTo.getDate() + days);
+      renderDailyStatsPanel(panelNext, { from: formatDate(nextFrom), to: formatDate(nextTo) });
+    }
+  } else {
+    if (panelPrev) {
+      const chart = panelPrev.querySelector('.daily-stats-chart-placeholder');
+      const list = panelPrev.querySelector('.activity-list');
+      if (chart) chart.innerHTML = '';
+      if (list) list.innerHTML = '';
+    }
+    if (panelNext) {
+      const chart = panelNext.querySelector('.daily-stats-chart-placeholder');
+      const list = panelNext.querySelector('.activity-list');
+      if (chart) chart.innerHTML = '';
+      if (list) list.innerHTML = '';
+    }
   }
   
   const slider = document.getElementById('general-stats-slider');
@@ -8144,6 +8163,36 @@ function renderGeneralStatsForRange() {
     slider.style.transition = 'none';
     slider.style.transform = 'translateX(-33.3333%)';
   }
+}
+
+function shiftGeneralStatsRange(direction) {
+  // direction is -1 for previous period, 1 for next period
+  const periodSelect = document.getElementById('general-stats-period-select');
+  if (!periodSelect) return;
+  
+  const val = periodSelect.value;
+  if (val === 'hoy' || !generalStatsDateRange) {
+    const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
+    currentDate.setDate(currentDate.getDate() + direction);
+    estadisticasDiarias(formatDate(currentDate));
+    return;
+  }
+  
+  const days = countDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
+  if (days === null) return;
+  
+  const fromDate = new Date(generalStatsDateRange.from + 'T12:00:00');
+  const toDate = new Date(generalStatsDateRange.to + 'T12:00:00');
+  
+  fromDate.setDate(fromDate.getDate() + direction * days);
+  toDate.setDate(toDate.getDate() + direction * days);
+  
+  generalStatsDateRange = {
+    from: formatDate(fromDate),
+    to: formatDate(toDate)
+  };
+  
+  renderGeneralStatsForRange();
 }
 
 function initStatsModals() {
@@ -10656,13 +10705,14 @@ function setupEventListeners() {
 
   // Navegación con flechas del teclado (solo escritorio)
   document.addEventListener('keydown', (e) => {
-    // Si el modal de estadísticas diarias está abierto, usar flechas para cambiar de día con animación de deslizamiento
+    // Si el modal de estadísticas diarias/generales está abierto, usar flechas para cambiar con animación de deslizamiento
     const activeModal = document.getElementById(activeStatsPrefix + '-modal');
     const editContent = document.getElementById(activeStatsPrefix + '-edit-content');
     const settingsContent = document.getElementById(activeStatsPrefix + '-settings-content');
     const isEditing = (editContent && !editContent.classList.contains('hidden'))
       || (settingsContent && !settingsContent.classList.contains('hidden'));
     if (activeModal && !activeModal.classList.contains('hidden') && currentDailyStatsDate && !isEditing) {
+      const isGeneralRange = (activeStatsPrefix === 'general-stats' && generalStatsDateRange);
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         const slider = document.getElementById(activeStatsPrefix + '-slider');
@@ -10670,9 +10720,13 @@ function setupEventListeners() {
           slider.style.transition = 'transform 0.25s ease';
           slider.style.transform = 'translateX(0%)';
           setTimeout(() => {
-            const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
-            currentDate.setDate(currentDate.getDate() - 1);
-            estadisticasDiarias(formatDate(currentDate));
+            if (isGeneralRange) {
+              shiftGeneralStatsRange(-1);
+            } else {
+              const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
+              currentDate.setDate(currentDate.getDate() - 1);
+              estadisticasDiarias(formatDate(currentDate));
+            }
           }, 250);
         }
       } else if (e.key === 'ArrowRight') {
@@ -10682,9 +10736,13 @@ function setupEventListeners() {
           slider.style.transition = 'transform 0.25s ease';
           slider.style.transform = 'translateX(-66.6666%)';
           setTimeout(() => {
-            const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
-            currentDate.setDate(currentDate.getDate() + 1);
-            estadisticasDiarias(formatDate(currentDate));
+            if (isGeneralRange) {
+              shiftGeneralStatsRange(1);
+            } else {
+              const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
+              currentDate.setDate(currentDate.getDate() + 1);
+              estadisticasDiarias(formatDate(currentDate));
+            }
           }, 250);
         }
       }
@@ -11908,7 +11966,7 @@ function setupEventListeners() {
       if (!currentDailyStatsDate) return;
       if (prefix === 'general-stats') {
         const periodSelect = document.getElementById('general-stats-period-select');
-        if (periodSelect && periodSelect.value !== 'hoy') return;
+        if (periodSelect && periodSelect.value !== 'hoy' && !generalStatsDateRange) return;
       }
       const editContent = document.getElementById(prefix + '-edit-content');
       if (editContent && !editContent.classList.contains('hidden')) return;
@@ -11962,25 +12020,34 @@ function setupEventListeners() {
       const threshold = 60; // umbral en pixeles para activar el cambio
       
       if (Math.abs(dx) > threshold && Math.abs(dy) < Math.abs(dx)) {
+        const isGeneralRange = (prefix === 'general-stats' && generalStatsDateRange);
         if (dx > 0) {
-          // Deslizar a la derecha -> Revelar día anterior
+          // Deslizar a la derecha -> Revelar período/día anterior
           slider.style.transform = 'translateX(0%)';
           setTimeout(() => {
-            const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
-            currentDate.setDate(currentDate.getDate() - 1);
-            estadisticasDiarias(formatDate(currentDate));
+            if (isGeneralRange) {
+              shiftGeneralStatsRange(-1);
+            } else {
+              const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
+              currentDate.setDate(currentDate.getDate() - 1);
+              estadisticasDiarias(formatDate(currentDate));
+            }
           }, 250);
         } else {
-          // Deslizar a la izquierda -> Revelar día siguiente
+          // Deslizar a la izquierda -> Revelar período/día siguiente
           slider.style.transform = 'translateX(-66.6666%)';
           setTimeout(() => {
-            const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
-            currentDate.setDate(currentDate.getDate() + 1);
-            estadisticasDiarias(formatDate(currentDate));
+            if (isGeneralRange) {
+              shiftGeneralStatsRange(1);
+            } else {
+              const currentDate = new Date(currentDailyStatsDate + 'T12:00:00');
+              currentDate.setDate(currentDate.getDate() + 1);
+              estadisticasDiarias(formatDate(currentDate));
+            }
           }, 250);
         }
       } else {
-        // Regresar al día actual
+        // Regresar al período/día actual
         slider.style.transform = 'translateX(-33.3333%)';
       }
     }, { passive: true });
