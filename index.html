@@ -802,6 +802,56 @@
   <!-- MODAL: ESTADÍSTICAS GENERALES -->
   <div id="general-stats-modal" class="modal-backdrop hidden"></div>
 
+  <!-- MODAL: PERIODO PERSONALIZADO DE ESTADÍSTICAS -->
+  <div id="general-stats-custom-range-modal" class="modal-backdrop hidden">
+    <div class="modal-content task-modal-w">
+      <div class="modal-header">
+        <h2>Periodo personalizado</h2>
+        <button class="close-modal-btn" data-modal="general-stats-custom-range-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px;">
+        <!-- Fila 1: Cantidad de días -->
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="general-stats-custom-range-duration">Cantidad de días</label>
+            <input type="number" id="general-stats-custom-range-duration" min="1" value="1" step="1" autocomplete="off">
+          </div>
+        </div>
+        <!-- Fila 2: Día de inicio - Día de término -->
+        <div class="form-row">
+          <div class="form-group flex-1">
+            <label for="general-stats-custom-range-start">Día de inicio</label>
+            <input type="date" id="general-stats-custom-range-start">
+          </div>
+          <div class="form-group flex-1">
+            <label for="general-stats-custom-range-end">Día de término</label>
+            <input type="date" id="general-stats-custom-range-end">
+          </div>
+        </div>
+        <!-- Fila 3: Subtítulo DESFASAR -->
+        <div class="form-row" style="margin-bottom: 8px;">
+          <div class="form-group flex-1" style="margin-bottom: 0;">
+            <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block;">Desfasar</label>
+          </div>
+        </div>
+        <!-- Fila 4: Botones anterior y siguiente -->
+        <div class="form-row">
+          <div class="form-group flex-1" style="margin-bottom: 0; display: flex; gap: 12px;">
+            <button type="button" class="btn btn-secondary flex-1" id="general-stats-custom-range-prev-btn" style="height: 38px; font-weight: 600;">Periodo Anterior</button>
+            <button type="button" class="btn btn-secondary flex-1" id="general-stats-custom-range-next-btn" style="height: 38px; font-weight: 600;">Periodo Siguiente</button>
+          </div>
+        </div>
+      </div>
+      <!-- Fila 5: Botones Cancelar y Aplicar -->
+      <div class="modal-footer" style="padding: 16px 24px; border-top: 1px solid var(--border-light); background: none; display: flex; justify-content: flex-end; gap: 12px; margin-top: 0;">
+        <button type="button" class="btn btn-secondary" id="general-stats-custom-range-cancel-btn" style="min-width: 100px;">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="general-stats-custom-range-accept-btn" style="min-width: 100px;">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
 
 
   <!-- MODAL: CRONÓMETRO DE TAREA -->

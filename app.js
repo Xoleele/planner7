@@ -7111,6 +7111,7 @@ function getStatsModalHTML(prefix) {
             <option value="hoy" selected>Hoy</option>
             <option value="7dias">Últimos 7 días</option>
             <option value="30dias">Últimos 30 días</option>
+            <option value="personalizado">Personalizado</option>
           </select>
         </div>
       </div>
@@ -7956,7 +7957,155 @@ function handleGeneralStatsPeriodChange() {
       to: formatDate(today)
     };
     renderGeneralStatsForRange();
+  } else if (val === 'personalizado') {
+    openGeneralStatsCustomRangeModal();
   }
+}
+
+let previousPeriodValue = 'hoy';
+let customRangeQueue = ['start', 'duration']; // cola de edición para sincronización
+
+function openGeneralStatsCustomRangeModal() {
+  const mainModal = document.getElementById('general-stats-modal');
+  if (mainModal) mainModal.classList.add('hidden');
+  
+  const modal = document.getElementById('general-stats-custom-range-modal');
+  if (!modal) return;
+  
+  const fromInput = document.getElementById('general-stats-custom-range-start');
+  const toInput = document.getElementById('general-stats-custom-range-end');
+  const durationInput = document.getElementById('general-stats-custom-range-duration');
+  
+  if (fromInput && toInput && durationInput) {
+    if (generalStatsDateRange) {
+      fromInput.value = generalStatsDateRange.from;
+      toInput.value = generalStatsDateRange.to;
+      const days = countDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
+      durationInput.value = days !== null ? days : 1;
+    } else {
+      const todayStr = formatDate(new Date());
+      fromInput.value = todayStr;
+      toInput.value = todayStr;
+      durationInput.value = 1;
+    }
+  }
+  
+  customRangeQueue = ['start', 'duration']; // reiniciar cola de seguimiento
+  modal.classList.remove('hidden');
+}
+
+function closeGeneralStatsCustomRangeModal(applied = false) {
+  const modal = document.getElementById('general-stats-custom-range-modal');
+  if (modal) modal.classList.add('hidden');
+  
+  const mainModal = document.getElementById('general-stats-modal');
+  if (mainModal) mainModal.classList.remove('hidden');
+  
+  if (!applied) {
+    const periodSelect = document.getElementById('general-stats-period-select');
+    if (periodSelect) {
+      periodSelect.value = previousPeriodValue;
+    }
+  }
+}
+
+function recordCustomRangeChange(field) {
+  customRangeQueue = customRangeQueue.filter(f => f !== field);
+  customRangeQueue.push(field);
+  
+  const allFields = ['start', 'end', 'duration'];
+  const adjustedField = allFields.find(f => !customRangeQueue.includes(f));
+  
+  const startInput = document.getElementById('general-stats-custom-range-start');
+  const endInput = document.getElementById('general-stats-custom-range-end');
+  const durationInput = document.getElementById('general-stats-custom-range-duration');
+  
+  if (!startInput || !endInput || !durationInput) return;
+  
+  let startVal = startInput.value;
+  let endVal = endInput.value;
+  let durationVal = parseInt(durationInput.value, 10) || 1;
+  
+  if (adjustedField === 'start') {
+    if (endVal) {
+      const endDate = new Date(endVal + 'T12:00:00');
+      endDate.setDate(endDate.getDate() - durationVal + 1);
+      startInput.value = formatDate(endDate);
+    }
+  } else if (adjustedField === 'end') {
+    if (startVal) {
+      const startDate = new Date(startVal + 'T12:00:00');
+      startDate.setDate(startDate.getDate() + durationVal - 1);
+      endInput.value = formatDate(startDate);
+    }
+  } else if (adjustedField === 'duration') {
+    if (startVal && endVal) {
+      const days = countDaysInRange(startVal, endVal);
+      if (days !== null) {
+        durationInput.value = Math.max(1, days);
+      } else {
+        endInput.value = startVal;
+        durationInput.value = 1;
+      }
+    }
+  }
+}
+
+function shiftCustomRange(direction) {
+  const startInput = document.getElementById('general-stats-custom-range-start');
+  const endInput = document.getElementById('general-stats-custom-range-end');
+  const durationInput = document.getElementById('general-stats-custom-range-duration');
+  
+  if (!startInput || !endInput || !durationInput) return;
+  
+  let startVal = startInput.value;
+  let durationVal = parseInt(durationInput.value, 10) || 1;
+  
+  if (!startVal) return;
+  
+  const startDate = new Date(startVal + 'T12:00:00');
+  const offset = direction === 'next' ? durationVal : -durationVal;
+  
+  startDate.setDate(startDate.getDate() + offset);
+  startInput.value = formatDate(startDate);
+  
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + durationVal - 1);
+  endInput.value = formatDate(endDate);
+}
+
+function handleGeneralStatsCustomRangeAccept() {
+  const startInput = document.getElementById('general-stats-custom-range-start');
+  const endInput = document.getElementById('general-stats-custom-range-end');
+  if (!startInput || !endInput) return;
+  
+  const fromVal = startInput.value;
+  const toVal = endInput.value;
+  
+  if (!fromVal || !toVal) {
+    alert('Por favor selecciona las fechas de inicio y término.');
+    return;
+  }
+  
+  if (fromVal > toVal) {
+    alert('La fecha de inicio no puede ser posterior a la fecha de término.');
+    return;
+  }
+  
+  generalStatsDateRange = {
+    from: fromVal,
+    to: toVal
+  };
+  
+  previousPeriodValue = 'personalizado';
+  closeGeneralStatsCustomRangeModal(true);
+  
+  const periodSelect = document.getElementById('general-stats-period-select');
+  if (periodSelect) {
+    periodSelect.value = 'personalizado';
+  }
+  
+  renderGeneralStatsForRange();
 }
 
 function renderGeneralStatsForRange() {
@@ -8074,7 +8223,57 @@ function initStatsEvents(prefix) {
   if (prefix === 'general-stats') {
     const periodSelect = document.getElementById('general-stats-period-select');
     if (periodSelect) {
+      periodSelect.addEventListener('focus', () => {
+        previousPeriodValue = periodSelect.value;
+      });
       periodSelect.addEventListener('change', handleGeneralStatsPeriodChange);
+    }
+    
+    // Inputs del modal personalizado
+    const startInput = document.getElementById('general-stats-custom-range-start');
+    if (startInput) {
+      startInput.addEventListener('change', () => recordCustomRangeChange('start'));
+    }
+    const endInput = document.getElementById('general-stats-custom-range-end');
+    if (endInput) {
+      endInput.addEventListener('change', () => recordCustomRangeChange('end'));
+    }
+    const durationInput = document.getElementById('general-stats-custom-range-duration');
+    if (durationInput) {
+      durationInput.addEventListener('input', () => {
+        let val = parseInt(durationInput.value, 10);
+        if (isNaN(val) || val < 1) val = 1;
+        durationInput.value = val;
+        recordCustomRangeChange('duration');
+      });
+    }
+    
+    // Botones del modal personalizado
+    const prevBtn = document.getElementById('general-stats-custom-range-prev-btn');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => shiftCustomRange('prev'));
+    }
+    const nextBtn = document.getElementById('general-stats-custom-range-next-btn');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => shiftCustomRange('next'));
+    }
+    
+    const cancelBtn = document.getElementById('general-stats-custom-range-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => closeGeneralStatsCustomRangeModal(false));
+    }
+    const acceptBtn = document.getElementById('general-stats-custom-range-accept-btn');
+    if (acceptBtn) {
+      acceptBtn.addEventListener('click', handleGeneralStatsCustomRangeAccept);
+    }
+    
+    const closeBtn = document.querySelector('#general-stats-custom-range-modal .close-modal-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeGeneralStatsCustomRangeModal(false);
+      });
     }
   }
 }
