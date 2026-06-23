@@ -10801,7 +10801,7 @@ function setupEventListeners() {
     const clearBtn = e.target.closest('.clear-day-btn');
     if (clearBtn) {
       e.stopPropagation();
-      const col = clearBtn.closest('.day-column, .cronograma-headers .day-header');
+      const col = clearBtn.closest('.day-column, .day-header[data-date]');
       if (col) {
         const dateStr = col.dataset.date;
         if (dateStr) {
@@ -10816,7 +10816,7 @@ function setupEventListeners() {
     const dialogueBtn = e.target.closest('.dialogue-day-btn');
     if (dialogueBtn) {
       e.stopPropagation();
-      const col = dialogueBtn.closest('.day-column, .cronograma-headers .day-header');
+      const col = dialogueBtn.closest('.day-column, .day-header[data-date]');
       if (col) {
         const dateStr = col.dataset.date;
         if (dateStr) {
@@ -10831,7 +10831,7 @@ function setupEventListeners() {
     const copyBtn = e.target.closest('.copy-day-btn');
     if (copyBtn) {
       e.stopPropagation();
-      const col = copyBtn.closest('.day-column, .cronograma-headers .day-header');
+      const col = copyBtn.closest('.day-column, .day-header[data-date]');
       if (col) {
         const dateStr = col.dataset.date;
         if (dateStr) {
@@ -10846,7 +10846,7 @@ function setupEventListeners() {
     const statsBtn = e.target.closest('.stats-day-btn');
     if (statsBtn) {
       e.stopPropagation();
-      const col = statsBtn.closest('.day-column, .cronograma-headers .day-header');
+      const col = statsBtn.closest('.day-column, .day-header[data-date]');
       if (col) {
         const dateStr = col.dataset.date;
         if (dateStr) {
