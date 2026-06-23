@@ -875,6 +875,8 @@ let statsGroupBy = 'title';
 // Modo de color del panel de actividad: 'auto' (asignación automática, por
 // defecto) o 'tag' (usa el color definido por el usuario para cada etiqueta).
 let statsColorMode = 'auto';
+// Estado guardado al abrir Ajustes de estadísticas, para restaurar si se cancela.
+let statsSettingsSnapshot = null;
 let statsMergeFirstSelected = '';
 let statsMergeFirstColor = null;
 let statsMergeFirstName = '';
@@ -7211,8 +7213,24 @@ function openDailyStatsSettings() {
   if (g) g.value = statsGroupBy;
   if (s) s.value = statsStatusFilter;
   if (c) c.value = statsColorMode;
+  // Guardar el estado actual para poder restaurarlo si el usuario cancela.
+  statsSettingsSnapshot = {
+    groupBy: statsGroupBy,
+    status: statsStatusFilter,
+    color: statsColorMode,
+  };
   main.classList.add('hidden');
   settings.classList.remove('hidden');
+}
+
+// Cancela los Ajustes: revierte a los valores que había al abrir y vuelve.
+function cancelDailyStatsSettings() {
+  if (statsSettingsSnapshot) {
+    handleStatsGroupByChange(statsSettingsSnapshot.groupBy);
+    handleStatsStatusFilterChange(statsSettingsSnapshot.status);
+    handleStatsColorModeChange(statsSettingsSnapshot.color);
+  }
+  closeDailyStatsSettings();
 }
 
 // Cierra la vista de Ajustes y vuelve a la vista principal del panel.
@@ -10459,7 +10477,9 @@ function setupEventListeners() {
   const statsSettingsBtn = document.getElementById('daily-stats-settings-btn');
   if (statsSettingsBtn) statsSettingsBtn.addEventListener('click', openDailyStatsSettings);
   const statsSettingsClose = document.getElementById('daily-stats-settings-close-btn');
-  if (statsSettingsClose) statsSettingsClose.addEventListener('click', closeDailyStatsSettings);
+  if (statsSettingsClose) statsSettingsClose.addEventListener('click', cancelDailyStatsSettings);
+  const statsSettingsCancel = document.getElementById('daily-stats-settings-cancel-btn');
+  if (statsSettingsCancel) statsSettingsCancel.addEventListener('click', cancelDailyStatsSettings);
   const statsSettingsDone = document.getElementById('daily-stats-settings-done-btn');
   if (statsSettingsDone) statsSettingsDone.addEventListener('click', closeDailyStatsSettings);
 

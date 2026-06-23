@@ -4414,6 +4414,13 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   flex-direction: column;
 }
 
+/* La ventana de AJUSTES de estadísticas solo tiene tres desplegables: no necesita
+   la altura fija de la vista de gráfico. Se compacta a su contenido y se estrecha. */
+#daily-stats-settings-content.daily-stats-w {
+  height: auto;
+  width: 300px;
+}
+
 #daily-stats-modal .modal-header {
   padding-bottom: 10px;
   flex-shrink: 0;
