@@ -4674,5 +4674,34 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   background-color: rgba(255, 59, 48, 0.06);
 }
 
+/* Toast para alternar entre modos (Planner / Horario) */
+.mode-toast {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translate(-50%, 15px);
+  background-color: hsl(0, 0%, 15%); /* Gris oscuro (15% luminosidad, 5% más claro) */
+  color: #ffffff; /* Letras blancas */
+  padding: 8px 16px;
+  border-radius: 9999px; /* Extremos completamente redondeados */
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 200000; /* Por encima de todo, incluidos modales */
+  pointer-events: none;
+  width: 130px; /* Ancho del contenedor igual para ambos mensajes (más pequeño) */
+  text-align: center;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.mode-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+
 
 

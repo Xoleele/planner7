@@ -2847,6 +2847,35 @@ function isAnyOverlayOpen() {
   return false;
 }
 
+function showModeToast(message) {
+  const existingToast = document.getElementById('mode-toast');
+  if (existingToast) {
+    existingToast.remove();
+  }
+
+  const toast = document.createElement('div');
+  toast.id = 'mode-toast';
+  toast.className = 'mode-toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  // Forzar reflujo
+  toast.offsetHeight;
+
+  toast.classList.add('show');
+
+  // El mensaje debe durar 1.5s en total.
+  // A los 1.2s se remueve la clase 'show' para iniciar el desvanecimiento de 0.3s.
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, 1200);
+
+  // A los 1.5s se remueve completamente el elemento del DOM.
+  setTimeout(() => {
+    toast.remove();
+  }, 1500);
+}
+
 function toggleCronograma() {
   // Capturar el día visible ANTES de cambiar de estado u ocultar nada (si se lee
   // después, el grid ya está display:none y getBoundingClientRect devuelve 0,
@@ -2860,6 +2889,7 @@ function toggleCronograma() {
 
   cronogramaActive = !cronogramaActive;
   document.body.classList.toggle('cronograma-active', cronogramaActive);
+  showModeToast(cronogramaActive ? 'Modo Horario' : 'Modo Planner');
 
   // Recordar la vista elegida para la próxima vez que se abra la app.
   try {
