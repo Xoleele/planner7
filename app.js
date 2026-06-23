@@ -7144,8 +7144,8 @@ function getStatsModalHTML(prefix) {
         </div>
       </div>
       <!-- Selector de etiqueta para el modo Hábitos (oculto en otros modos). -->
-      <div id="general-stats-habit-tag-row" class="general-stats-filters" style="display: none; padding: 8px 24px 0 24px;">
-        <div class="form-group flex-1" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+      <div id="general-stats-habit-tag-row" class="general-stats-filters" style="display: none; padding: 8px 24px 0 24px; align-items: flex-end;">
+        <div class="form-group" style="flex: 2; margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
           <label for="habit-tag-select-input" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Etiqueta</label>
           <div class="custom-select-wrapper">
             <input type="hidden" id="habit-select-tag" value="default">
@@ -7161,6 +7161,10 @@ function getStatsModalHTML(prefix) {
             </div>
             <div class="custom-options-container hidden" id="habit-tag-options-container"></div>
           </div>
+        </div>
+        <div class="form-group" style="flex: 1; margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+          <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Constancia</label>
+          <div id="habit-streak-count" style="height: 38px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: var(--text-main); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card);">0/0</div>
         </div>
       </div>
       ` : ''}
@@ -7639,11 +7643,54 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   });
 
   // Ejes al final para que queden visualmente por encima de las líneas de datos.
-  svgParts.push(`<line x1="${x_left}" y1="${y_bottom}" x2="${x_right + 5}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
-  svgParts.push(`<line x1="${x_left}" y1="${y_top - 5}" x2="${x_left}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
+  const xTip = x_right + 5; // extremo derecho del eje X
+  const yTip = y_top - 5;   // extremo superior del eje Y
+  svgParts.push(`<line x1="${x_left}" y1="${y_bottom}" x2="${xTip}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
+  svgParts.push(`<line x1="${x_left}" y1="${yTip}" x2="${x_left}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
+  // Flechitas en los extremos de los ejes.
+  const a = 2.2; // tamaño de la flecha
+  svgParts.push(`<polygon points="${xTip + a},${y_bottom} ${xTip - a},${y_bottom - a} ${xTip - a},${y_bottom + a}" fill="#111111" />`);
+  svgParts.push(`<polygon points="${x_left},${yTip - a} ${x_left - a},${yTip + a} ${x_left + a},${yTip + a}" fill="#111111" />`);
 
   svgParts.push(`</svg>`);
   return svgParts.join('\n');
+}
+
+// ¿Hubo al menos una tarea de la etiqueta seleccionada completada ese día?
+function habitDoneOnDate(dStr) {
+  const dateObj = new Date(dStr + 'T12:00:00');
+  return tasks.some(task => {
+    if ((task.tagId || 'default') !== generalStatsHabitTag) return false;
+    if (!checkTaskOccurrence(task, dateObj)) return false;
+    return task.isRecurrent
+      ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
+      : !!task.completed;
+  });
+}
+
+// Actualiza el contador "completados / días transcurridos desde el primer
+// completado" basándose en los días del rango filtrado. El denominador va desde
+// el primer día completado (dentro del rango) hasta hoy, inclusivo.
+function updateHabitStreakCount(dates) {
+  const el = document.getElementById('habit-streak-count');
+  if (!el) return;
+  const todayStr = formatDate(new Date());
+  let done = 0;
+  let firstDone = null;
+  dates.forEach(dStr => {
+    if (dStr > todayStr) return; // no contar días futuros
+    if (habitDoneOnDate(dStr)) {
+      done++;
+      if (!firstDone) firstDone = dStr; // dates viene en orden ascendente
+    }
+  });
+  let total = 0;
+  if (firstDone) {
+    const a = new Date(firstDone + 'T12:00:00');
+    const b = new Date(todayStr + 'T12:00:00');
+    total = Math.round((b - a) / 86400000) + 1; // inclusivo
+  }
+  el.textContent = `${done}/${total}`;
 }
 
 // Habit tracker estilo GitHub: un cuadrito por día. Se pinta del color de la
@@ -7655,25 +7702,13 @@ function renderHabitTrackerHTML(dates) {
   const EMPTY = '#e9e9ec';
   const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
-  // ¿Hubo al menos una tarea completada de la etiqueta seleccionada ese día?
-  const isDoneOnDate = (dStr) => {
-    const dateObj = new Date(dStr + 'T12:00:00');
-    return tasks.some(task => {
-      if ((task.tagId || 'default') !== generalStatsHabitTag) return false;
-      if (!checkTaskOccurrence(task, dateObj)) return false;
-      return task.isRecurrent
-        ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
-        : !!task.completed;
-    });
-  };
-
   // Orden: el día más reciente en la esquina superior izquierda; se rellena de
   // izquierda a derecha y luego hacia abajo (flujo por filas). `dates` viene en
   // orden ascendente, así que lo invertimos.
   const COLS = 10;
   const ordered = dates.slice().reverse();
   const cells = ordered.map(dStr => {
-    const done = isDoneOnDate(dStr);
+    const done = habitDoneOnDate(dStr);
     const dObj = new Date(dStr + 'T12:00:00');
     const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
     const tip = `${dLabel}: ${done ? 'completado' : 'sin completar'}`;
@@ -7745,6 +7780,33 @@ function renderHeatmapRow(dStr, hue, sat) {
     row += `<div class="heatmap-cell" data-tooltip="${tip}" style="background:${bg};"></div>`;
   }
   return row;
+}
+
+// Devuelve el id de la etiqueta con más días completados (≥1 tarea de esa
+// etiqueta completada ese día) en el rango [fromStr, toStr], o null si ninguna.
+function topTagByCompletedDaysInRange(fromStr, toStr) {
+  const dates = getDatesInRange(fromStr, toStr);
+  const todayStr = formatDate(new Date());
+  const counts = {}; // tagId -> días con al menos un completado
+  dates.forEach(dStr => {
+    if (dStr > todayStr) return;
+    const dateObj = new Date(dStr + 'T12:00:00');
+    const tagsDone = new Set();
+    tasks.forEach(task => {
+      const done = task.isRecurrent
+        ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
+        : !!task.completed;
+      if (!done) return;
+      if (!checkTaskOccurrence(task, dateObj)) return;
+      tagsDone.add(task.tagId || 'default');
+    });
+    tagsDone.forEach(id => { counts[id] = (counts[id] || 0) + 1; });
+  });
+  let best = null, bestN = 0;
+  Object.keys(counts).forEach(id => {
+    if (counts[id] > bestN) { bestN = counts[id]; best = id; }
+  });
+  return best;
 }
 
 // Devuelve el id de la etiqueta con mayor duración acumulada (tareas con
@@ -8112,6 +8174,11 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     setupHeatmapInfiniteScroll(scrollEl);
   } else if (prefix === 'general-stats' && generalStatsChartType === 'habitos') {
     chartPlaceholder.innerHTML = renderHabitTrackerHTML(dates);
+    // El contador de constancia es único (en la cabecera): solo lo actualiza el
+    // panel central, no los paneles laterales (prev/next) del slider.
+    if (panelEl.id && panelEl.id.endsWith('-panel-curr')) {
+      updateHabitStreakCount(dates);
+    }
     // Tooltip por cuadrito (fecha + estado).
     const cells = chartPlaceholder.querySelectorAll('.habit-cell');
     cells.forEach(cell => {
@@ -8572,15 +8639,9 @@ function updatePeriodSelectOptions() {
     }
   } else if (generalStatsChartType === 'habitos') {
     periodSelect.innerHTML = `
-      <option value="30dias">Últimos 30 días</option>
-      <option value="50dias">Últimos 50 días</option>
       <option value="100dias">Últimos 100 días</option>
     `;
-    if (currentVal === '30dias' || currentVal === '50dias' || currentVal === '100dias') {
-      periodSelect.value = currentVal;
-    } else {
-      periodSelect.value = '30dias';
-    }
+    periodSelect.value = '100dias';
   } else if (generalStatsChartType === 'heatmap') {
     periodSelect.innerHTML = `
       <option value="12dias">Últimos 12 días</option>
@@ -8643,16 +8704,20 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
       lineStatsActiveTags = [];
       lineStatsNeedsAutoSelect = true;
     } else if (generalStatsChartType === 'habitos') {
-      periodSelect.value = '30dias';
+      periodSelect.value = '100dias';
 
       const endDate = new Date(dateStr + 'T12:00:00');
       const startDate = new Date(endDate);
-      startDate.setDate(startDate.getDate() - 29);
+      startDate.setDate(startDate.getDate() - 99);
 
       generalStatsDateRange = {
         from: formatDate(startDate),
         to: formatDate(endDate)
       };
+
+      // Etiqueta por defecto: la que más se repite (más días completados) en el rango.
+      const topTag = topTagByCompletedDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
+      if (topTag) generalStatsHabitTag = topTag;
     } else if (generalStatsChartType === 'heatmap') {
       periodSelect.value = '12dias';
 
