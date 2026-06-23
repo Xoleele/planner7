@@ -12086,6 +12086,8 @@ async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null)
         if (insertIndex === -1) insertIndex = briefcaseTasks.length;
       }
 
+      briefcaseTasks.splice(insertIndex, 0, task);
+
       briefcaseTasks.forEach((t, idx) => {
         t.position = idx * 10;
       });
