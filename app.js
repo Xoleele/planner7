@@ -3533,23 +3533,21 @@ function renderCronograma() {
   grid.appendChild(endLabel);
 
   if (mobile) {
-    // ── MÓVIL: carrusel horizontal de columnas-día con snap nativo ──────────
+    // ── MÓVIL: carrusel de TARJETAS-DÍA completas con snap nativo ───────────
+    // Cada día es una tarjeta autónoma que incluye su PROPIO header, su columna
+    // de horas, sus líneas y sus tareas; el carrusel ocupa TODO el ancho. Así,
+    // al deslizar, se mueve todo el cuerpo del día como una unidad (idéntico al
+    // planner). Solo quedan fijos el header de la app y la barra de navegación.
     const centerDate = cronogramaMobileDate ? new Date(cronogramaMobileDate) : new Date(today);
 
-    // Track de CABECERAS: un encabezado por día precargado, alineado 1:1 con el
-    // carrusel de tareas. Se desliza en vivo (vía transform) junto con el track
-    // de días, igual que el planner móvil (donde header y tareas viven en la
-    // misma tarjeta). Sustituye al antiguo encabezado único y fijo.
-    const headerTrack = document.createElement('div');
-    headerTrack.className = 'cr-mobile-header-track';
-    headerTrack.id = 'cr-mobile-header-track';
-    headersEl.appendChild(headerTrack);
+    // En móvil NO usamos cabecera global ni columna de horas de fondo: cada
+    // tarjeta-día las lleva embebidas. Vaciamos el encabezado global (que en
+    // móvil queda oculto por CSS) y limpiamos las horas/líneas globales que el
+    // bloque común añadió al grid (solo aplican al escritorio).
+    headersEl.innerHTML = '';
+    grid.querySelectorAll('.cr-hour-label, .cr-hour-line').forEach(el => el.remove());
 
-    for (let i = -CR_MOBILE_PRELOAD; i <= CR_MOBILE_PRELOAD; i++) {
-      headerTrack.appendChild(buildCronogramaMobileHeaderCell(addDays(centerDate, i), todayStr));
-    }
-
-    // Pista deslizable que contiene los días precargados.
+    // Pista deslizable que contiene los días precargados (ancho completo).
     const track = document.createElement('div');
     track.className = 'cr-mobile-track';
     track.id = 'cr-mobile-track';
@@ -3571,12 +3569,10 @@ function renderCronograma() {
       requestAnimationFrame(() => {
         scrollCronogramaTrackToDate(formatDate(centerDate), false);
         setupCronogramaTrackScroll();
-        // Alinear el track de cabeceras con la posición inicial del carrusel.
-        syncCronogramaHeaderTrack();
       });
     });
 
-    // Línea de hora actual: se coloca dentro de la columna de HOY (si está).
+    // Línea de hora actual: se coloca dentro de la tarjeta de HOY (si está).
     updateNowLineForMobile(todayStr);
   } else {
     // ── ESCRITORIO: 7 columnas-día en el grid (sin carrusel) ────────────────
@@ -3636,59 +3632,104 @@ function renderCronograma() {
   }
 }
 
-// Construye una columna-día para el carrusel móvil del horario.
+// Construye una TARJETA-DÍA completa para el carrusel móvil del horario.
+// Estructura (todo se desliza junto, como en el planner):
+//   .cr-mobile-day                     ← tarjeta a ancho completo (snap)
+//     .day-header                      ← encabezado del día (con sus iconos)
+//     .cr-mobile-day-body              ← cuerpo desplazable verticalmente
+//       .cr-mobile-hours               ← columna de horas + líneas (propias)
+//       .cr-day-col (.cr-mobile-grid)  ← zona de tareas (bloques absolutos)
+// La zona de tareas conserva la clase .cr-day-col para que el arrastre, la
+// delegación de clics y el posicionamiento de bloques (1px=1min) funcionen igual.
 function buildCronogramaMobileDayCol(date, todayStr) {
+  const isToday = formatDate(date) === todayStr;
+
+  const card = document.createElement('div');
+  card.className = 'cr-mobile-day' + (isToday ? ' today' : '');
+  card.dataset.date = formatDate(date);
+
+  // 1) Header del día (mismo componente que el resto de la app → mismos iconos).
+  const dayNameUpper = CRONOGRAMA_DAY_NAMES[getAppDayIndex(date) - 1];
+  card.appendChild(buildCronogramaHeader(date, dayNameUpper, isToday));
+
+  // 2) Cuerpo: columna de horas embebida + zona de tareas.
+  const body = document.createElement('div');
+  body.className = 'cr-mobile-day-body';
+
+  // 2a) Columna de horas propia de este día (etiquetas + líneas de fondo).
+  body.appendChild(buildCronogramaMobileHours());
+
+  // 2b) Zona de tareas. Conserva .cr-day-col para reusar toda la lógica.
   const colEl = document.createElement('div');
-  colEl.className = 'cr-day-col cr-mobile-day' + (formatDate(date) === todayStr ? ' today' : '');
+  colEl.className = 'cr-day-col cr-mobile-grid' + (isToday ? ' today' : '');
   colEl.dataset.date = formatDate(date);
   renderCronogramaDayBlocks(colEl, date);
-  // El clic en espacio vacío se gestiona por DELEGACIÓN en el grid.
-  return colEl;
+  body.appendChild(colEl);
+
+  card.appendChild(body);
+  return card;
 }
 
-// Construye una celda de CABECERA para el track de cabeceras del horario móvil.
-// Cada celda ocupa el 100% del ancho (igual que su columna-día homóloga) y
-// contiene el mismo .day-header que el resto de la app, de modo que el
-// encabezado se desliza junto con su día. dataset.date permite re-alinearlas.
-function buildCronogramaMobileHeaderCell(date, todayStr) {
-  const cell = document.createElement('div');
-  cell.className = 'cr-mobile-header-cell';
-  cell.dataset.date = formatDate(date);
-  const dayNameUpper = CRONOGRAMA_DAY_NAMES[getAppDayIndex(date) - 1];
-  cell.appendChild(buildCronogramaHeader(date, dayNameUpper, formatDate(date) === todayStr));
-  return cell;
+// Genera la columna de horas (etiquetas 00:00..00:00 + líneas horizontales) que
+// va embebida en cada tarjeta-día del horario móvil. 1px = 1min, HOUR_HEIGHT=60.
+function buildCronogramaMobileHours() {
+  const HOUR_HEIGHT = 60;
+  const hours = document.createElement('div');
+  hours.className = 'cr-mobile-hours';
+  for (let h = 0; h < 24; h++) {
+    const label = document.createElement('span');
+    label.className = 'cr-hour-label' + (h === 0 ? ' cr-hour-label-first' : '');
+    label.style.top = (h * HOUR_HEIGHT) + 'px';
+    label.textContent = String(h).padStart(2, '0') + ':00';
+    hours.appendChild(label);
+
+    const line = document.createElement('div');
+    line.className = 'cr-hour-line';
+    line.style.top = (h * HOUR_HEIGHT) + 'px';
+    hours.appendChild(line);
+  }
+  const lastLine = document.createElement('div');
+  lastLine.className = 'cr-hour-line cr-hour-line-last';
+  lastLine.style.top = (24 * HOUR_HEIGHT) + 'px';
+  hours.appendChild(lastLine);
+
+  const endLabel = document.createElement('span');
+  endLabel.className = 'cr-hour-label cr-hour-label-last';
+  endLabel.style.top = (24 * HOUR_HEIGHT) + 'px';
+  endLabel.textContent = '00:00';
+  hours.appendChild(endLabel);
+
+  return hours;
 }
 
-// Coloca la línea de hora actual en el horario móvil. Se monta a nivel del GRID
-// (capa fija, por encima de la columna de horas, no dentro del carrusel), de modo
-// que su marca no queda tapada por las etiquetas de hora. Solo es visible cuando
-// el día centrado del carrusel es HOY (se controla con sync...VisibilityMobile).
+// Coloca la línea de hora actual en el horario móvil. Ahora se monta DENTRO de
+// la tarjeta de HOY (en su zona de tareas), de modo que se desliza junto con el
+// día como todo lo demás. Si la tarjeta de hoy no está precargada, no se monta.
 function updateNowLineForMobile(todayStr) {
-  const grid = document.getElementById('cronograma-grid');
-  if (!grid) { stopNowLineClock(); return; }
+  const ts = todayStr || formatDate(new Date());
+  const track = document.getElementById('cr-mobile-track');
   // Quitar cualquier línea previa.
   const prev = document.getElementById('cr-now-line');
   if (prev) prev.remove();
+  if (!track) { stopNowLineClock(); return; }
+
+  // Buscar la zona de tareas de la tarjeta de HOY.
+  const todayCard = track.querySelector(`.cr-mobile-day[data-date="${ts}"]`);
+  const host = todayCard ? todayCard.querySelector('.cr-mobile-grid') : null;
+  if (!host) { stopNowLineClock(); return; }
 
   const nowLine = document.createElement('div');
   nowLine.className = 'cr-now-line cr-now-line-mobile';
   nowLine.id = 'cr-now-line';
-  grid.appendChild(nowLine);
+  host.appendChild(nowLine);
   updateNowLinePosition();
   startNowLineClock();
-
-  // Mostrarla solo si el día centrado es hoy.
-  syncNowLineVisibilityMobile(todayStr);
 }
 
-// Muestra u oculta la línea de "ahora" del horario móvil según el día centrado.
-function syncNowLineVisibilityMobile(todayStr) {
-  const nowLine = document.getElementById('cr-now-line');
-  if (!nowLine) return;
-  const ts = todayStr || formatDate(new Date());
-  const centerStr = cronogramaMobileDate ? formatDate(cronogramaMobileDate) : ts;
-  nowLine.style.display = (centerStr === ts) ? '' : 'none';
-}
+// La línea de "ahora" vive dentro de la tarjeta de hoy, así que ya solo se ve
+// cuando hoy está en pantalla. Se conserva como no-op por compatibilidad con las
+// llamadas existentes (al deslizar/cambiar de día).
+function syncNowLineVisibilityMobile() {}
 
 // Desplaza el carrusel para centrar (alinear al inicio) la columna del día dado.
 function scrollCronogramaTrackToDate(dateStr, smooth) {
@@ -3697,9 +3738,6 @@ function scrollCronogramaTrackToDate(dateStr, smooth) {
   const col = track.querySelector(`.cr-mobile-day[data-date="${dateStr}"]`);
   if (!col) return;
   track.scrollTo({ left: col.offsetLeft, behavior: smooth ? 'smooth' : 'auto' });
-  // Mantener el track de cabeceras alineado (el evento scroll lo refinará, pero
-  // para saltos sin animación conviene fijarlo de inmediato).
-  if (!smooth) syncCronogramaHeaderTrack(track);
 }
 
 // Cambia el día central del horario móvil deslizando el carrusel a esa columna.
@@ -3745,10 +3783,6 @@ function setupCronogramaTrackScroll() {
 
   track.addEventListener('scroll', () => {
     if (crTrackScrollTimer) clearTimeout(crTrackScrollTimer);
-    // Deslizar el track de CABECERAS en vivo, en sincronía exacta con el track
-    // de días: así el encabezado acompaña a su columna (swipe y arrastre), igual
-    // que el planner móvil.
-    syncCronogramaHeaderTrack(track);
     // Mover la etiqueta de la barra superior en vivo mientras se desliza.
     const centered = getCenteredCronogramaCol(track);
     if (centered && centered.dataset.date) {
@@ -3777,49 +3811,26 @@ function getCenteredCronogramaCol(track) {
   return best;
 }
 
-// Desliza el track de cabeceras en sincronía con el carrusel de días. El track
-// de cabeceras se mueve con translateX(-scrollLeft) para reflejar exactamente la
-// misma posición horizontal que las columnas de tareas, de modo que cada
-// encabezado quede siempre pegado a su día durante el swipe y el arrastre.
-function syncCronogramaHeaderTrack(track) {
-  track = track || document.getElementById('cr-mobile-track');
-  if (!track) return;
-  const headerTrack = document.getElementById('cr-mobile-header-track');
-  if (!headerTrack) return;
-  headerTrack.style.transform = `translateX(${-track.scrollLeft}px)`;
-}
-
 // Añade más días a los lados cuando el usuario se acerca a un borde del carrusel,
 // preservando la posición de scroll (efecto "infinito").
 function expandCronogramaTrackIfNeeded(track) {
   const cols = [...track.querySelectorAll('.cr-mobile-day')];
   if (cols.length === 0) return;
   const todayStr = formatDate(new Date());
-  const headerTrack = document.getElementById('cr-mobile-header-track');
 
   // Cerca del borde izquierdo → añadir días antes.
   if (track.scrollLeft < track.clientWidth * 1.5) {
     const first = cols[0];
     const firstDate = new Date(first.dataset.date + 'T00:00:00');
     const frag = document.createDocumentFragment();
-    const headerFrag = document.createDocumentFragment();
     for (let i = CR_MOBILE_PRELOAD; i >= 1; i--) {
       frag.appendChild(buildCronogramaMobileDayCol(addDays(firstDate, -i), todayStr));
-      headerFrag.appendChild(buildCronogramaMobileHeaderCell(addDays(firstDate, -i), todayStr));
     }
     const prevLeft = first.offsetLeft;
     track.insertBefore(frag, first);
-    // Insertar las cabeceras homólogas al inicio del header-track (mismo orden).
-    if (headerTrack && headerTrack.firstChild) {
-      headerTrack.insertBefore(headerFrag, headerTrack.firstChild);
-    } else if (headerTrack) {
-      headerTrack.appendChild(headerFrag);
-    }
     // Mantener la posición visual tras insertar al inicio.
     track.scrollLeft += (first.offsetLeft - prevLeft);
     applyDayIsolation();
-    // Re-alinear el header-track con el nuevo scrollLeft.
-    syncCronogramaHeaderTrack(track);
   }
 
   // Cerca del borde derecho → añadir días después.
@@ -3827,15 +3838,11 @@ function expandCronogramaTrackIfNeeded(track) {
     const last = cols[cols.length - 1];
     const lastDate = new Date(last.dataset.date + 'T00:00:00');
     const frag = document.createDocumentFragment();
-    const headerFrag = document.createDocumentFragment();
     for (let i = 1; i <= CR_MOBILE_PRELOAD; i++) {
       frag.appendChild(buildCronogramaMobileDayCol(addDays(lastDate, i), todayStr));
-      headerFrag.appendChild(buildCronogramaMobileHeaderCell(addDays(lastDate, i), todayStr));
     }
     track.appendChild(frag);
-    if (headerTrack) headerTrack.appendChild(headerFrag);
     applyDayIsolation();
-    syncCronogramaHeaderTrack(track);
   }
 }
 
@@ -12180,4 +12187,3 @@ window.recuperarHoras = async function (aplicar = false) {
   return { ok, fail };
 };
 // EOF
-

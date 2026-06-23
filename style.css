@@ -4176,79 +4176,134 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 
 /* Movil: una sola columna (hoy). Se colapsa a 1 columna de dia. */
 
-/* Mismo radio de contenedor que la tarjeta de día del planner (--radius-md),
-   para que al alternar Planner ↔ Horario el contorno redondeado no cambie. */
+/* En móvil el marco redondeado NO va en el contenedor (eso lo dejaba fijo
+   mientras el contenido se deslizaba por dentro). Cada tarjeta-día lleva su
+   propio marco, igual que el planner; el contenedor queda sin borde/sombra. */
 .mobile-mode .cronograma {
-  border-radius: var(--radius-md);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
 }
 
+/* En móvil, el horario es un carrusel de TARJETAS-DÍA completas (cada una con su
+   header, su columna de horas y sus tareas). Por eso el encabezado global y la
+   columna de horas fija de fondo NO se usan: cada tarjeta los lleva embebidos. */
 .mobile-mode .cronograma-headers {
-  grid-template-columns: var(--cr-time-col) 1fr;
-  /* En móvil el carrusel de tareas oculta su scrollbar; anulamos el hueco de
-     scrollbar reservado por el encabezado para que la zona de día del header
-     mida EXACTAMENTE lo mismo que la de la rejilla y el header-track quede
-     alineado al píxel con el carrusel. */
-  scrollbar-gutter: auto;
+  display: none;
 }
 .mobile-mode .cronograma-grid {
-  grid-template-columns: var(--cr-time-col) 1fr;
+  /* Una sola pista a todo el ancho: el carrusel ocupa todo. */
+  grid-template-columns: 1fr;
+  /* La altura la marca el contenido (header + cuerpo de 24h por tarjeta), no el
+     valor fijo de 24h del escritorio. Así el scroll vertical abarca todo. */
+  height: auto;
 }
-.mobile-mode .cr-day-col[data-col="1"] { grid-column: 2; }
 
-/* ── Carrusel horizontal de días en el horario MÓVIL ───────────────────────
-   La columna de horas y las líneas quedan FIJAS de fondo (absolutas en el
-   grid). El track ocupa la 2ª pista del grid (a la derecha de las horas) y se
-   desliza horizontalmente con snap nativo, revelando los días vecinos. */
+/* ── Carrusel horizontal de TARJETAS-DÍA en el horario MÓVIL ─────────────────
+   El track ocupa TODO el ancho y se desliza horizontalmente con snap nativo,
+   revelando los días vecinos. Cada tarjeta lleva header + horas + tareas, así
+   que al deslizar se mueve todo el cuerpo del día como una unidad. */
 .mobile-mode .cr-mobile-track {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 1;
   position: relative;
-  height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: row;
+  /* Separación entre tarjetas-día, igual que el planner (.planner-grid gap). */
+  gap: 12px;
   overflow-x: scroll;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  /* El carrusel queda por encima de las líneas de fondo. */
   z-index: 2;
 }
 .mobile-mode .cr-mobile-track::-webkit-scrollbar { display: none; }
 
-/* Cada día del carrusel ocupa todo el ancho de la zona de día. */
+/* Cada tarjeta-día ocupa todo el ancho del horario y se apila en columna:
+   header arriba, cuerpo (horas + tareas) debajo. Lleva su PROPIO marco (borde
+   gris redondeado + sombra suave), idéntico a la tarjeta del planner, de modo
+   que el marco se desliza junto con el día. overflow:hidden recorta el contenido
+   a las esquinas redondeadas. */
 .mobile-mode .cr-mobile-day {
   position: relative;
   flex: 0 0 100%;
   width: 100%;
   min-width: 100%;
-  height: 100%;
   scroll-snap-align: start;
-  border-right: none;
-  border-left: none;
-  /* Fondo transparente para dejar ver las líneas de hora de fondo. */
-  background: transparent;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 0.8px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 3px 0 rgba(0,0,0,0.02), 0 1px 2px 0 rgba(0,0,0,0.04);
+  overflow: hidden;
 }
 
-/* Línea de "ahora" del horario MÓVIL. Va a nivel del grid (capa fija) con z-index
-   alto para que quede por encima de las etiquetas de hora. Empieza en el borde
-   izquierdo de la columna de DÍAS (var(--cr-time-col)) y se extiende a la derecha;
-   NO se prolonga sobre la columna de horas. */
-.cr-now-line-mobile {
+/* Header del día dentro de la tarjeta. Sticky arriba para que el nombre del día y
+   sus iconos sigan visibles al hacer scroll vertical, igual que el planner. NO se
+   redefine el fondo: hereda la barra oscura (#333) de .mobile-mode .day-header,
+   idéntico al header del planner. */
+.mobile-mode .cr-mobile-day > .day-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex: 0 0 auto;
+}
+
+/* Cuerpo de la tarjeta: alto de 24h (1px = 1min). Contiene la columna de horas
+   (capa absoluta izquierda) y la zona de tareas (con sangría para las horas). */
+.mobile-mode .cr-mobile-day-body {
+  position: relative;
+  height: calc(60px * 24);
+  width: 100%;
+}
+
+/* Columna de horas embebida en cada tarjeta (capa de fondo a la izquierda). */
+.mobile-mode .cr-mobile-hours {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Zona de tareas de la tarjeta: ocupa todo el cuerpo, con sangría izquierda igual
+   al ancho de la columna de horas para no solapar las etiquetas. Los bloques se
+   posicionan en absoluto (1px = 1min) dentro de esta zona. */
+.mobile-mode .cr-mobile-grid {
+  position: absolute;
   left: var(--cr-time-col);
+  right: 0;
+  top: 0;
+  height: 100%;
+  z-index: 2;
+}
+
+/* En el horario móvil, las etiquetas de hora se centran en su columna y quedan
+   por debajo de la línea de "ahora". */
+.mobile-mode .cr-hour-label {
+  width: var(--cr-time-col);
+  text-align: center;
+  z-index: 1;
+}
+
+/* Línea de "ahora" del horario MÓVIL. Vive dentro de la zona de tareas de la
+   tarjeta de hoy, así que ya empieza en el borde de las tareas; se extiende a la
+   derecha y queda por encima de las etiquetas de hora. */
+.cr-now-line-mobile {
+  left: 0;
   right: 0;
   z-index: 30;
 }
-/* La marca (círculo) queda CENTRADA justo en el borde izquierdo de la columna de
-   días (inicio de la línea), no desplazada hacia la columna de horas. */
 .cr-now-line-mobile::before {
   left: 0;
   transform: translate(-50%, -50%);
   z-index: 31;
-}
-/* En el horario móvil, las etiquetas de hora quedan por debajo de la línea. */
-.mobile-mode .cr-hour-label {
-  z-index: 1;
 }
 
 /* Durante el arrastre de un bloque, congelar el scroll del carrusel para que el
@@ -4258,73 +4313,8 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   touch-action: none !important;
 }
 
-/* Columna de horas un poco más estrecha solo en móvil (56px → 44px) para dar
-   más espacio a los bloques de tareas. La variable la usan el grid de cabeceras,
-   el de la rejilla y el posicionamiento de las líneas, así que con cambiarla
-   aquí todo queda alineado. */
+/* Columna de horas estrecha solo en móvil para dar más espacio a los bloques. */
 .mobile-mode .cronograma { --cr-time-col: 50px; }
-
-/* Centrar las etiquetas de hora dentro de la columna de horas en el horario
-   móvil (en escritorio van alineadas a la derecha, pegadas a la rejilla). Usamos
-   el ancho completo de la columna y centramos el texto. */
-.mobile-mode .cr-hour-label {
-  width: var(--cr-time-col);
-  text-align: center;
-}
-
-/* La barra oscura del encabezado (JUEVES 18 + botones) abarca ambas columnas:
-   el .day-header se extiende sobre la columna de horas, así que la esquina
-   .cr-corner ya no se ve y se oculta para no interferir. */
-.mobile-mode .cronograma-headers .cr-corner {
-  display: none;
-}
-
-/* ── Track de CABECERAS del horario móvil ───────────────────────────────────
-   Un carril horizontal de cabeceras (una por día) que se desliza en SINCRONÍA
-   con el carrusel de tareas mediante translateX (lo aplica el JS). Así el
-   encabezado acompaña a su columna durante el swipe y el arrastre, idéntico al
-   planner móvil (donde header y tareas viven en la misma tarjeta).
-   Ocupa AMBAS columnas del grid; el overflow oculto recorta los días vecinos. */
-.mobile-mode .cronograma-headers .cr-mobile-header-track {
-  /* Ocupa SOLO la zona de día (columna 2), igual que el carrusel de tareas
-     (.cr-mobile-track), de modo que su scroll horizontal en píxeles coincide 1:1
-     con el del carrusel y la sincronía por translateX queda exacta. */
-  grid-column: 2;
-  grid-row: 1;
-  display: flex;
-  flex-direction: row;
-  /* El overflow lo recorta el contenedor .cronograma-headers (overflow:hidden).
-     Aquí dejamos que las celdas vecinas sobresalgan; el JS las traslada. */
-  overflow: visible;
-  /* La traslación horizontal la fija el JS (syncCronogramaHeaderTrack). */
-  will-change: transform;
-}
-
-/* Cada celda ocupa el 100% de la ZONA DE DÍA, igual que su columna-día homóloga
-   (.cr-mobile-day = flex 0 0 100% del track de días), para quedar alineada con
-   ella píxel a píxel. */
-.mobile-mode .cronograma-headers .cr-mobile-header-cell {
-  flex: 0 0 100%;
-  width: 100%;
-  min-width: 100%;
-}
-
-.mobile-mode .cronograma-headers .cr-mobile-header-cell .day-header {
-  /* El header del día se extiende a la IZQUIERDA sobre la columna de horas
-     (margen negativo = ancho de la columna de horas) para que su texto empiece
-     al borde izquierdo del todo, exactamente como antes. */
-  margin-left: calc(-1 * var(--cr-time-col));
-  /* Igualar EXACTAMENTE el encabezado de la tarjeta de día del planner
-     (.mobile-mode .mobile-feed-day .day-header): mismo padding (8px 16px),
-     mismo radio (--radius-md) y mismo margen negativo que lo monta sobre el
-     borde del contenedor por arriba y los lados. */
-  padding: 8px 16px;
-  margin-top: -1px;
-  margin-right: -1px;
-  border-top-left-radius: var(--radius-md);
-  border-top-right-radius: var(--radius-md);
-  border-right: none;
-}
 
 /* ── Medidas durante el arrastre de un bloque en el horario (móvil) ─────────
    Mientras se arrastra (la marca body.cr-dragging-active se pone en JS al
