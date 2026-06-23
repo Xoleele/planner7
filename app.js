@@ -7365,8 +7365,8 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
   const y_bottom = 80;
   const y_top = 8;
   const plotHeight = y_bottom - y_top;
-  const x_left = 10;
-  const x_right = 94;
+  const x_left = 12;
+  const x_right = 188;
   const plotWidth = x_right - x_left;
   const N = dates.length;
   
@@ -7396,11 +7396,11 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
     }
   });
 
-  const gap = N > 8 ? 2 : 3;
+  const gap = N > 8 ? 4 : 6;
   const barWidth = (plotWidth - (N - 1) * gap) / N;
 
   const svgParts = [];
-  svgParts.push(`<svg viewBox="0 0 100 100" style="width: 100%; height: 100%;">`);
+  svgParts.push(`<svg viewBox="0 0 200 100" style="width: 100%; height: 100%;">`);
   
   const gridLinesY = [y_top + plotHeight * 0.25, y_top + plotHeight * 0.5, y_top + plotHeight * 0.75];
   gridLinesY.forEach(yVal => {
@@ -7409,7 +7409,11 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
 
   svgParts.push(`<line x1="${x_left - 2}" y1="${y_bottom}" x2="${x_right + 2}" y2="${y_bottom}" stroke="var(--border-light, #e5e5ea)" stroke-width="0.5" />`);
 
-  const fontSize = N > 9 ? 4.5 : 5.5;
+  const fontSize = N > 9 ? 5.5 : 6.5;
+
+  const periodSelect = document.getElementById('general-stats-period-select');
+  const isSemanal = periodSelect && periodSelect.value === 'semanal';
+  const weeklyLabels = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
   dates.forEach((dStr, idx) => {
     const x = x_left + idx * (barWidth + gap);
@@ -7417,7 +7421,8 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
     
     const dateObj = new Date(dStr + 'T12:00:00');
     const dayNum = dateObj.getDate();
-    svgParts.push(`<text x="${x_center}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="${fontSize}" font-weight="600" text-anchor="middle">${dayNum}</text>`);
+    const labelText = isSemanal ? (weeklyLabels[idx] || '') : dayNum;
+    svgParts.push(`<text x="${x_center}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="${fontSize}" font-weight="600" text-anchor="middle">${labelText}</text>`);
 
     if (maxDayMinutes > 0 && dailyTotals[dStr] > 0) {
       let currentY = y_bottom;
@@ -7651,6 +7656,19 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   const totalIncludedMins = includedGroups.reduce((sum, g) => sum + g.minutes, 0);
   
   // Renderizar gráfico
+  const chartContainer = chartPlaceholder.parentElement;
+  if (chartContainer) {
+    if (prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas') {
+      chartContainer.style.width = '100%';
+      chartContainer.style.maxWidth = '340px';
+      chartContainer.style.height = '160px';
+    } else {
+      chartContainer.style.width = '175px';
+      chartContainer.style.height = '175px';
+      chartContainer.style.maxWidth = '';
+    }
+  }
+
   if (prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas') {
     chartPlaceholder.innerHTML = renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet);
   } else {
@@ -8011,6 +8029,38 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
   }
 }
 
+function updatePeriodSelectOptions() {
+  const periodSelect = document.getElementById('general-stats-period-select');
+  if (!periodSelect) return;
+
+  const currentVal = periodSelect.value;
+  
+  if (generalStatsChartType === 'barras-apiladas') {
+    periodSelect.innerHTML = `
+      <option value="semanal">Semanal</option>
+      <option value="7dias">Últimos 7 días</option>
+      <option value="personalizado">Personalizado</option>
+    `;
+    if (currentVal === '7dias' || currentVal === 'personalizado') {
+      periodSelect.value = currentVal;
+    } else {
+      periodSelect.value = 'semanal';
+    }
+  } else {
+    periodSelect.innerHTML = `
+      <option value="hoy">Hoy</option>
+      <option value="7dias">Últimos 7 días</option>
+      <option value="30dias">Últimos 30 días</option>
+      <option value="personalizado">Personalizado</option>
+    `;
+    if (currentVal === 'hoy' || currentVal === '7dias' || currentVal === '30dias' || currentVal === 'personalizado') {
+      periodSelect.value = currentVal;
+    } else {
+      periodSelect.value = 'hoy';
+    }
+  }
+}
+
 function estadisticasGenerales(dateStr, resetFilter = false) {
   activeStatsPrefix = 'general-stats';
   
@@ -8019,29 +8069,25 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
     chartTypeSelect.value = generalStatsChartType;
   }
   
+  updatePeriodSelectOptions();
+  
   const periodSelect = document.getElementById('general-stats-period-select');
   if (periodSelect) {
     if (generalStatsChartType === 'barras-apiladas') {
-      const optionHoy = periodSelect.querySelector('option[value="hoy"]');
-      const option30 = periodSelect.querySelector('option[value="30dias"]');
-      if (optionHoy) optionHoy.disabled = true;
-      if (option30) option30.disabled = true;
+      periodSelect.value = 'semanal';
       
-      periodSelect.value = '7dias';
-      const today = new Date();
-      today.setHours(12, 0, 0, 0);
-      const from = new Date(today);
-      from.setDate(from.getDate() - 6);
+      const curr = new Date(dateStr + 'T12:00:00');
+      const day = curr.getDay();
+      const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(curr.setDate(diff));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      
       generalStatsDateRange = {
-        from: formatDate(from),
-        to: formatDate(today)
+        from: formatDate(monday),
+        to: formatDate(sunday)
       };
     } else {
-      const optionHoy = periodSelect.querySelector('option[value="hoy"]');
-      const option30 = periodSelect.querySelector('option[value="30dias"]');
-      if (optionHoy) optionHoy.disabled = false;
-      if (option30) option30.disabled = false;
-      
       periodSelect.value = 'hoy';
       generalStatsDateRange = null;
     }
@@ -8057,43 +8103,8 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
 }
 
 function handleGeneralStatsChartTypeChange() {
-  const periodSelect = document.getElementById('general-stats-period-select');
-  if (!periodSelect) return;
-
-  if (generalStatsChartType === 'barras-apiladas') {
-    const optionHoy = periodSelect.querySelector('option[value="hoy"]');
-    const option30 = periodSelect.querySelector('option[value="30dias"]');
-    if (optionHoy) optionHoy.disabled = true;
-    if (option30) option30.disabled = true;
-
-    const val = periodSelect.value;
-    if (val === 'hoy' || val === '30dias') {
-      periodSelect.value = '7dias';
-      handleGeneralStatsPeriodChange();
-      return;
-    }
-
-    if (val === 'personalizado' && generalStatsDateRange) {
-      const days = countDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
-      if (days === null || days < 2 || days > 12) {
-        const today = new Date();
-        today.setHours(12, 0, 0, 0);
-        const from = new Date(today);
-        from.setDate(from.getDate() - 6);
-        generalStatsDateRange = {
-          from: formatDate(from),
-          to: formatDate(today)
-        };
-      }
-    }
-  } else {
-    const optionHoy = periodSelect.querySelector('option[value="hoy"]');
-    const option30 = periodSelect.querySelector('option[value="30dias"]');
-    if (optionHoy) optionHoy.disabled = false;
-    if (option30) option30.disabled = false;
-  }
-
-  rerenderDailyStatsPanels();
+  updatePeriodSelectOptions();
+  handleGeneralStatsPeriodChange();
 }
 
 function handleGeneralStatsPeriodChange() {
@@ -8104,6 +8115,20 @@ function handleGeneralStatsPeriodChange() {
   if (val === 'hoy') {
     generalStatsDateRange = null;
     estadisticasGenerales(formatDate(new Date()));
+  } else if (val === 'semanal') {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const curr = currentDailyStatsDate ? new Date(currentDailyStatsDate + 'T12:00:00') : today;
+    const day = curr.getDay();
+    const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(curr.setDate(diff));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    generalStatsDateRange = {
+      from: formatDate(monday),
+      to: formatDate(sunday)
+    };
+    renderGeneralStatsForRange();
   } else if (val === '7dias') {
     const today = new Date();
     today.setHours(12, 0, 0, 0);
