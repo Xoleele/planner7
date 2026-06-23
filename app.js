@@ -7661,7 +7661,7 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     if (prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas') {
       chartContainer.style.width = '100%';
       chartContainer.style.maxWidth = '340px';
-      chartContainer.style.height = '160px';
+      chartContainer.style.height = '175px';
     } else {
       chartContainer.style.width = '175px';
       chartContainer.style.height = '175px';
