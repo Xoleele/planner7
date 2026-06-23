@@ -7066,6 +7066,7 @@ function applyCopyOptionsToModal() {
 let currentDailyStatsDate = null;
 let excludedStatsActivitiesMap = new Map();
 let activeStatsPrefix = 'daily-stats';
+let generalStatsDateRange = null;
 
 function getStatsEl(baseId) {
   let id = baseId;
@@ -7095,6 +7096,25 @@ function getStatsModalHTML(prefix) {
           </button>
         </div>
       </div>
+      
+      ${prefix === 'general-stats' ? `
+      <div class="general-stats-filters" style="display: flex; gap: 12px; padding: 12px 24px 0 24px;">
+        <div class="form-group flex-1" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+          <label for="general-stats-chart-type-select" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Tipo de Gráfico</label>
+          <select id="general-stats-chart-type-select" style="width: 100%; padding: 6px 10px; font-size: 13px; height: 36px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
+            <option value="circular" selected>Circular</option>
+          </select>
+        </div>
+        <div class="form-group flex-1" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+          <label for="general-stats-period-select" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Periodo</label>
+          <select id="general-stats-period-select" style="width: 100%; padding: 6px 10px; font-size: 13px; height: 36px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
+            <option value="hoy" selected>Hoy</option>
+            <option value="7dias">Últimos 7 días</option>
+            <option value="30dias">Últimos 30 días</option>
+          </select>
+        </div>
+      </div>
+      ` : ''}
       
       <div class="daily-stats-viewport" style="overflow: hidden; width: 100%; position: relative;">
         <div class="daily-stats-slider" id="${prefix}-slider" style="display: flex; width: 300%; transition: transform 0.25s ease; transform: translateX(-33.3333%);">
@@ -7336,46 +7356,74 @@ function renderPieChartSVG(includedGroups) {
   `;
 }
 
-function renderDailyStatsPanel(panelEl, dateStr) {
+function getDatesInRange(fromStr, toStr) {
+  const dates = [];
+  const start = new Date(fromStr + 'T12:00:00');
+  const end = new Date(toStr + 'T12:00:00');
+  let current = new Date(start);
+  while (current <= end) {
+    dates.push(formatDate(current));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
+
+function renderDailyStatsPanel(panelEl, dateParam) {
   const chartPlaceholder = panelEl.querySelector('.daily-stats-chart-placeholder');
   const activityListEl = panelEl.querySelector('.activity-list');
   if (!chartPlaceholder || !activityListEl) return;
 
-  const dateObj = new Date(dateStr + 'T12:00:00');
-  const dayTasks = tasks.filter(task => {
-    if (!checkTaskOccurrence(task, dateObj)) return false;
-    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
-    return tag ? tag.visible !== false : true;
-  });
-  
-  const tasksWithDuration = dayTasks.filter(task => {
-    const mins = getTaskDurationMinutes(task);
-    if (mins === null || mins <= 0) return false;
+  let dates = [];
+  if (typeof dateParam === 'string') {
+    dates = [dateParam];
+  } else if (dateParam && dateParam.from && dateParam.to) {
+    dates = getDatesInRange(dateParam.from, dateParam.to);
+  }
+
+  const occurrences = [];
+  dates.forEach(dStr => {
+    const dateObj = new Date(dStr + 'T12:00:00');
+    const dayTasks = tasks.filter(task => {
+      if (!checkTaskOccurrence(task, dateObj)) return false;
+      const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+      return tag ? tag.visible !== false : true;
+    });
     
-    const isCompleted = task.isRecurrent
-      ? !!(task.completedOccurrences && task.completedOccurrences.includes(dateStr))
-      : !!task.completed;
+    dayTasks.forEach(task => {
+      const mins = getTaskDurationMinutes(task);
+      if (mins === null || mins <= 0) return;
       
-    if (statsStatusFilter === 'completed' && !isCompleted) return false;
-    if (statsStatusFilter === 'uncompleted' && isCompleted) return false;
-    
-    return true;
+      const isCompleted = task.isRecurrent
+        ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
+        : !!task.completed;
+        
+      if (statsStatusFilter === 'completed' && !isCompleted) return;
+      if (statsStatusFilter === 'uncompleted' && isCompleted) return;
+      
+      occurrences.push({
+        task,
+        dateStr: dStr,
+        mins
+      });
+    });
   });
-  
+
   // Agrupar y sumar duraciones. Hay dos modos:
   //   'title'    → agrupa por título de tarea (resolviendo combinaciones/fusión).
   //   'activity' → agrupa por actividad (etiqueta/tag).
   const grouped = {};
   if (statsGroupBy === 'activity') {
-    tasksWithDuration.forEach(task => {
-      const mins = getTaskDurationMinutes(task);
+    occurrences.forEach(occ => {
+      const task = occ.task;
+      const dStr = occ.dateStr;
+      const mins = occ.mins;
       let tagId = task.tagId || 'default';
 
       // Resolver fusión de actividades del día (recursiva): si esta actividad se
       // combinó en otra, sumamos en la actividad destino.
       let iter = 0;
-      while (statsMergedActivities[`${dateStr}_${tagId}`] && iter < 10) {
-        tagId = statsMergedActivities[`${dateStr}_${tagId}`];
+      while (statsMergedActivities[`${dStr}_${tagId}`] && iter < 10) {
+        tagId = statsMergedActivities[`${dStr}_${tagId}`];
         iter++;
       }
 
@@ -7387,41 +7435,52 @@ function renderDailyStatsPanel(panelEl, dateStr) {
           displayName: name,
           minutes: 0,
           tagId: tagId,
-          tasks: []
+          tasks: [],
+          occurrences: []
         };
       }
       grouped[tagId].minutes += mins;
       grouped[tagId].tasks.push(task);
+      grouped[tagId].occurrences.push(occ);
     });
   } else {
-    tasksWithDuration.forEach(task => {
+    occurrences.forEach(occ => {
+      const task = occ.task;
+      const dStr = occ.dateStr;
+      const mins = occ.mins;
       const originalName = task.title || '(Sin título)';
-      const mins = getTaskDurationMinutes(task);
 
       // Resolver nombre combinado recursivamente
       let name = originalName;
       const maxIterations = 10;
       let iter = 0;
-      while (statsMergedTasks[`${dateStr}_${name}`] && iter < maxIterations) {
-        name = statsMergedTasks[`${dateStr}_${name}`];
+      while (statsMergedTasks[`${dStr}_${name}`] && iter < maxIterations) {
+        name = statsMergedTasks[`${dStr}_${name}`];
         iter++;
       }
 
       if (!grouped[name]) {
         // Buscar el tagId de la tarea destino para mantener su color original
-        const targetTask = tasksWithDuration.find(t => (t.title || '(Sin título)') === name);
+        const targetTask = occurrences.find(o => o.dateStr === dStr && (o.task.title || '(Sin título)') === name)?.task ||
+                           tasks.find(t => (t.title || '(Sin título)') === name);
         const tagId = targetTask ? targetTask.tagId : task.tagId;
 
         grouped[name] = {
           name,
-          displayName: statsCustomNames[`${dateStr}_${name}`] || name,
+          displayName: statsCustomNames[`${dStr}_${name}`] || name,
           minutes: 0,
           tagId: tagId,
-          tasks: []
+          tasks: [],
+          occurrences: []
         };
       }
       grouped[name].minutes += mins;
       grouped[name].tasks.push(task);
+      grouped[name].occurrences.push(occ);
+
+      if (statsCustomNames[`${dStr}_${name}`]) {
+        grouped[name].displayName = statsCustomNames[`${dStr}_${name}`];
+      }
     });
   }
   
@@ -7433,10 +7492,25 @@ function renderDailyStatsPanel(panelEl, dateStr) {
   // Asignar colores a los grupos
   const usedColors = new Set();
   groupedList.forEach((group, index) => {
-    // Si tiene un color personalizado asignado en estadísticas para este día específico, usarlo
-    const customColorKey = `${dateStr}_${group.name}`;
-    if (statsCustomColors[customColorKey]) {
-      group.color = statsCustomColors[customColorKey];
+    // Si tiene un color personalizado asignado en estadísticas para alguno de los días, usarlo
+    let customColor = null;
+    if (typeof dateParam === 'string') {
+      const customColorKey = `${dateParam}_${group.name}`;
+      if (statsCustomColors[customColorKey]) {
+        customColor = statsCustomColors[customColorKey];
+      }
+    } else {
+      for (let occ of group.occurrences) {
+        const customColorKey = `${occ.dateStr}_${group.name}`;
+        if (statsCustomColors[customColorKey]) {
+          customColor = statsCustomColors[customColorKey];
+          break;
+        }
+      }
+    }
+
+    if (customColor) {
+      group.color = customColor;
       usedColors.add(group.color.bg.toLowerCase());
       return;
     }
@@ -7480,7 +7554,8 @@ function renderDailyStatsPanel(panelEl, dateStr) {
     group.color = { bg, border };
   });
   
-  const excludedSet = getExcludedSetForDate(dateStr);
+  const rangeKey = typeof dateParam === 'string' ? dateParam : `range_${dateParam.from}_${dateParam.to}`;
+  const excludedSet = getExcludedSetForDate(rangeKey);
   const includedGroups = groupedList.filter(g => !excludedSet.has(g.name));
   const totalIncludedMins = includedGroups.reduce((sum, g) => sum + g.minutes, 0);
   
@@ -7494,6 +7569,17 @@ function renderDailyStatsPanel(panelEl, dateStr) {
     activityListEl.parentNode.appendChild(totalsWrapper);
   }
   totalsWrapper.innerHTML = '';
+
+  // Ocultar/mostrar el botón de combinar si es un rango
+  const prefix = panelEl.id.startsWith('general-stats-') ? 'general-stats' : 'daily-stats';
+  const mergeBtn = document.getElementById(prefix + '-merge-btn');
+  if (mergeBtn) {
+    if (dates.length > 1) {
+      mergeBtn.style.display = 'none';
+    } else {
+      mergeBtn.style.display = '';
+    }
+  }
 
   // Renderizar tabla
   activityListEl.innerHTML = '';
@@ -7523,7 +7609,6 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       // 1. Celda de Actividad (Muestra de color cuadrada + nombre)
       const tdName = document.createElement('td');
       tdName.style.overflow = 'hidden';
-      tdName.style.cursor = 'pointer';
       
       const wrapper = document.createElement('div');
       wrapper.style.display = 'flex';
@@ -7551,7 +7636,6 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       tdDuration.style.textAlign = 'right';
       tdDuration.style.color = 'var(--text-main)';
       tdDuration.style.width = '62px';
-      tdDuration.style.cursor = 'pointer';
       tdDuration.textContent = durationStr;
       tr.appendChild(tdDuration);
       
@@ -7559,21 +7643,30 @@ function renderDailyStatsPanel(panelEl, dateStr) {
       const tdPercent = document.createElement('td');
       tdPercent.style.textAlign = 'right';
       tdPercent.style.width = '42px';
-      tdPercent.style.cursor = 'pointer';
       tdPercent.textContent = percentStr;
       tr.appendChild(tdPercent);
       
-      // Delegar click en muestra, nombre, duración o % para abrir edición o combinar
-      const handleEditClick = (e) => {
-        if (statsMergeModeActive) {
-          handleStatsMergeClick(group, tr);
-        } else {
-          openStatsTaskEditView(group);
-        }
-      };
-      tdName.addEventListener('click', handleEditClick);
-      tdPercent.addEventListener('click', handleEditClick);
-      tdDuration.addEventListener('click', handleEditClick);
+      // Delegar click si no es un rango
+      const isRange = dates.length > 1;
+      if (!isRange) {
+        const handleEditClick = (e) => {
+          if (statsMergeModeActive) {
+            handleStatsMergeClick(group, tr);
+          } else {
+            openStatsTaskEditView(group);
+          }
+        };
+        tdName.addEventListener('click', handleEditClick);
+        tdPercent.addEventListener('click', handleEditClick);
+        tdDuration.addEventListener('click', handleEditClick);
+        tdName.style.cursor = 'pointer';
+        tdPercent.style.cursor = 'pointer';
+        tdDuration.style.cursor = 'pointer';
+      } else {
+        tdName.style.cursor = 'default';
+        tdPercent.style.cursor = 'default';
+        tdDuration.style.cursor = 'default';
+      }
       
       // 4. Botón de acción con icono '+' para excluir/incluir
       const tdAction = document.createElement('td');
@@ -7598,7 +7691,7 @@ function renderDailyStatsPanel(panelEl, dateStr) {
         } else {
           excludedSet.add(group.name);
         }
-        renderDailyStatsPanel(panelEl, dateStr);
+        renderDailyStatsPanel(panelEl, dateParam);
       });
       
       tdAction.appendChild(btn);
@@ -7746,6 +7839,11 @@ function closeDailyStatsSettings() {
 }
 
 function rerenderDailyStatsPanels() {
+  if (activeStatsPrefix === 'general-stats' && generalStatsDateRange) {
+    renderGeneralStatsForRange();
+    return;
+  }
+
   const panelPrev = getStatsEl('daily-stats-panel-prev');
   const panelCurr = getStatsEl('daily-stats-panel-curr');
   const panelNext = getStatsEl('daily-stats-panel-next');
@@ -7820,7 +7918,82 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
 
 function estadisticasGenerales(dateStr, resetFilter = false) {
   activeStatsPrefix = 'general-stats';
+  
+  const periodSelect = document.getElementById('general-stats-period-select');
+  if (periodSelect) {
+    periodSelect.value = 'hoy';
+  }
+  generalStatsDateRange = null;
+  
   estadisticasDiarias(dateStr, resetFilter);
+}
+
+function handleGeneralStatsPeriodChange() {
+  const periodSelect = document.getElementById('general-stats-period-select');
+  if (!periodSelect) return;
+  
+  const val = periodSelect.value;
+  if (val === 'hoy') {
+    generalStatsDateRange = null;
+    estadisticasGenerales(formatDate(new Date()));
+  } else if (val === '7dias') {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const from = new Date(today);
+    from.setDate(from.getDate() - 6);
+    generalStatsDateRange = {
+      from: formatDate(from),
+      to: formatDate(today)
+    };
+    renderGeneralStatsForRange();
+  } else if (val === '30dias') {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const from = new Date(today);
+    from.setDate(from.getDate() - 29);
+    generalStatsDateRange = {
+      from: formatDate(from),
+      to: formatDate(today)
+    };
+    renderGeneralStatsForRange();
+  }
+}
+
+function renderGeneralStatsForRange() {
+  if (!generalStatsDateRange) return;
+  
+  const titleEl = document.getElementById('general-stats-title');
+  if (titleEl) {
+    const fromFormatted = formatToDDMMYYYY(generalStatsDateRange.from);
+    const toFormatted = formatToDDMMYYYY(generalStatsDateRange.to);
+    titleEl.textContent = `Actividad ${fromFormatted} - ${toFormatted}`;
+  }
+  
+  const panelCurr = document.getElementById('general-stats-panel-curr');
+  if (panelCurr) {
+    renderDailyStatsPanel(panelCurr, generalStatsDateRange);
+  }
+  
+  const panelPrev = document.getElementById('general-stats-panel-prev');
+  const panelNext = document.getElementById('general-stats-panel-next');
+  if (panelPrev) {
+    const chart = panelPrev.querySelector('.daily-stats-chart-placeholder');
+    const list = panelPrev.querySelector('.activity-list');
+    if (chart) chart.innerHTML = '';
+    if (list) list.innerHTML = '';
+  }
+  if (panelNext) {
+    const chart = panelNext.querySelector('.daily-stats-chart-placeholder');
+    const list = panelNext.querySelector('.activity-list');
+    if (chart) chart.innerHTML = '';
+    if (list) list.innerHTML = '';
+  }
+  
+  const slider = document.getElementById('general-stats-slider');
+  if (slider) {
+    slider.style.transition = 'none';
+    slider.style.transform = 'translateX(-33.3333%)';
+  }
 }
 
 function initStatsModals() {
@@ -7897,6 +8070,13 @@ function initStatsEvents(prefix) {
       document.getElementById(prefix + '-modal').classList.add('hidden');
     });
   });
+
+  if (prefix === 'general-stats') {
+    const periodSelect = document.getElementById('general-stats-period-select');
+    if (periodSelect) {
+      periodSelect.addEventListener('change', handleGeneralStatsPeriodChange);
+    }
+  }
 }
 
 // ─── Funciones de Edición de Tarea desde Estadísticas ────────────────────────
@@ -11526,6 +11706,10 @@ function setupEventListeners() {
     
     modal.addEventListener('touchstart', (e) => {
       if (!currentDailyStatsDate) return;
+      if (prefix === 'general-stats') {
+        const periodSelect = document.getElementById('general-stats-period-select');
+        if (periodSelect && periodSelect.value !== 'hoy') return;
+      }
       const editContent = document.getElementById(prefix + '-edit-content');
       if (editContent && !editContent.classList.contains('hidden')) return;
       const settingsContent = document.getElementById(prefix + '-settings-content');
