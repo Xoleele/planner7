@@ -7133,7 +7133,7 @@ function getStatsModalHTML(prefix) {
             <option value="heatmap">Mapa de calor</option>
           </select>
         </div>
-        <div class="form-group flex-1" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+        <div class="form-group flex-1" id="general-stats-period-group" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
           <label for="general-stats-period-select" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Periodo</label>
           <select id="general-stats-period-select" style="width: 100%; padding: 6px 10px; font-size: 13px; height: 36px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
             <option value="hoy" selected>Hoy</option>
@@ -7698,72 +7698,148 @@ function getHueSatFromColor(color) {
 // seleccionada que caen en esa hora de ese día (solo tareas con hora inicio/fin).
 // La intensidad usa 4 luminosidades del color de la etiqueta; el rango se divide
 // entre el mínimo y el máximo del periodo.
+// Escala fija: 0 min = tono más claro, 60 min (o más) = tono más oscuro.
+const HEATMAP_LUM = [92, 82, 72, 60, 48, 38, 28];
+function heatmapTier(minutes) {
+  // 60 min repartidos en 7 tonos; valores >60 caen en el más oscuro.
+  const frac = Math.max(0, Math.min(1, minutes / 60));
+  const idx = minutes <= 0 ? 0 : Math.ceil(frac * 7) - 1;
+  return Math.max(0, Math.min(6, idx));
+}
+
+// Minutos por hora (array de 24) de la etiqueta seleccionada en un día dado.
+function heatmapDayMinutes(dStr) {
+  const dateObj = new Date(dStr + 'T12:00:00');
+  const hours = new Array(24).fill(0);
+  tasks.forEach(task => {
+    if ((task.tagId || 'default') !== generalStatsHabitTag) return;
+    if (!checkTaskOccurrence(task, dateObj)) return;
+    const r = getTaskTimeRange(task); // requiere startTime + endTime
+    if (!r) return;
+    const end = r.crossesMidnight ? 24 * 60 : r.rawEndMin;
+    for (let m = r.startMin; m < end; m++) {
+      const hour = Math.floor(m / 60);
+      if (hour >= 0 && hour < 24) hours[hour] += 1;
+    }
+  });
+  return hours;
+}
+
+// Genera el HTML de UNA fila de día (etiqueta + 24 celdas) para el mapa de calor.
+function renderHeatmapRow(dStr, hue, sat) {
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const dObj = new Date(dStr + 'T12:00:00');
+  const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
+  const mins = heatmapDayMinutes(dStr);
+  let row = `<div class="heatmap-dlabel">${dObj.getDate()}/${dObj.getMonth() + 1}</div>`;
+  for (let h = 0; h < 24; h++) {
+    const v = mins[h];
+    const bg = `hsl(${hue}, ${sat}%, ${HEATMAP_LUM[heatmapTier(v)]}%)`;
+    const tip = `${dLabel} ${String(h).padStart(2,'0')}:00 · ${v} min`;
+    row += `<div class="heatmap-cell" data-tooltip="${tip}" style="background:${bg};"></div>`;
+  }
+  return row;
+}
+
+// Fecha (YYYY-MM-DD) de la tarea más antigua con la etiqueta seleccionada, o null.
+function heatmapOldestDate() {
+  let oldest = null;
+  tasks.forEach(task => {
+    if ((task.tagId || 'default') !== generalStatsHabitTag) return;
+    if (!getTaskTimeRange(task)) return; // solo tareas con horario cuentan
+    const d = task.date || (task.completedOccurrences && task.completedOccurrences[0]);
+    if (d && (!oldest || d < oldest)) oldest = d;
+  });
+  return oldest;
+}
+
+// Mapa de calor con scroll infinito vertical: el día más reciente arriba; al
+// desplazarse hacia abajo se cargan días anteriores hasta la tarea más antigua
+// de la etiqueta. La escala de color es fija (0–60 min). El parámetro `dates`
+// (rango del periodo) solo se usa para fijar el día más reciente.
 function renderHeatmapHTML(dates) {
   const tag = tags.find(t => t.id === generalStatsHabitTag) || tags.find(t => t.id === 'default');
   const [hue, sat] = getHueSatFromColor(tag && tag.color ? tag.color.bg : '#50a9ed');
-  // 7 luminosidades, de más claro (valor bajo) a más oscuro (valor alto).
-  const LUM = [92, 82, 72, 60, 48, 38, 28];
-  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
-  // Matriz [día][hora] = minutos. Reparte la duración de cada tarea por hora.
-  const grid = dates.map(() => new Array(24).fill(0));
-  dates.forEach((dStr, di) => {
-    const dateObj = new Date(dStr + 'T12:00:00');
-    tasks.forEach(task => {
-      if ((task.tagId || 'default') !== generalStatsHabitTag) return;
-      if (!checkTaskOccurrence(task, dateObj)) return;
-      const r = getTaskTimeRange(task); // requiere startTime + endTime
-      if (!r) return;
-      // Repartir [startMin, endMin) por hora; si cruza medianoche, recortar a las 24h del día.
-      const end = r.crossesMidnight ? 24 * 60 : r.rawEndMin;
-      for (let m = r.startMin; m < end; m++) {
-        const hour = Math.floor(m / 60);
-        if (hour >= 0 && hour < 24) grid[di][hour] += 1;
-      }
-    });
-  });
+  // Día más reciente = último del rango (o hoy si no hay rango).
+  const newest = (dates && dates.length) ? dates[dates.length - 1] : formatDate(new Date());
 
-  // Mínimo y máximo (sobre todas las celdas) del periodo.
-  let maxVal = 0;
-  grid.forEach(row => row.forEach(v => { if (v > maxVal) maxVal = v; }));
-
-  // Asigna un índice de tono (0–6) a un valor según el rango [0, maxVal].
-  const tierFor = (v) => {
-    if (maxVal <= 0) return 0;
-    const frac = v / maxVal;             // 0..1
-    const idx = Math.ceil(frac * 7) - 1; // 0..6
-    return Math.max(0, Math.min(6, idx));
-  };
-
-  // Fila superior de horas: celda vacía (esquina) + 24 etiquetas. Para no saturar
-  // se muestra el número solo cada 3 horas (0, 3, 6 … 21).
+  // Cargar los primeros 12 días (más reciente arriba, hacia atrás).
+  const INITIAL = 12;
   let html = '<div class="heatmap-corner"></div>';
   for (let h = 0; h < 24; h++) {
     html += `<div class="heatmap-hlabel">${h % 3 === 0 ? h : ''}</div>`;
   }
+  let cursor = new Date(newest + 'T12:00:00');
+  for (let i = 0; i < INITIAL; i++) {
+    html += renderHeatmapRow(formatDate(cursor), hue, sat);
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  // `data-oldest-loaded` guarda el día más antiguo ya pintado para seguir desde ahí.
+  const oldestLoaded = formatDate(cursor); // primer día aún NO cargado (siguiente a pintar)
 
-  // Filas: etiqueta de día (día/mes) + 24 celdas.
-  dates.forEach((dStr, di) => {
-    const dObj = new Date(dStr + 'T12:00:00');
-    const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
-    html += `<div class="heatmap-dlabel">${dObj.getDate()}/${dObj.getMonth() + 1}</div>`;
-    for (let h = 0; h < 24; h++) {
-      const v = grid[di][h];
-      const lum = LUM[tierFor(v)];
-      const bg = `hsl(${hue}, ${sat}%, ${lum}%)`;
-      const tip = `${dLabel} ${String(h).padStart(2,'0')}:00 · ${v} min`;
-      html += `<div class="heatmap-cell" data-tooltip="${tip}" style="background:${bg};"></div>`;
-    }
-  });
-
-  // Celdas de tamaño fijo (más grandes) y scroll horizontal: la primera columna
-  // (auto) es para las etiquetas de día, y 24 columnas de 22px para las horas.
   return `
-    <div class="heatmap-scroll" style="overflow-x: auto; max-width: 100%; padding-bottom: 4px;">
+    <div class="heatmap-scroll" data-hue="${hue}" data-sat="${sat}" data-next="${oldestLoaded}"
+         style="overflow: auto; max-width: 100%; max-height: 320px; padding-bottom: 4px;">
       <div class="heatmap-grid" style="display:grid; grid-template-columns: auto repeat(24, 22px); gap: 3px; padding: 6px 0; width: max-content; align-items: center;">
         ${html}
       </div>
     </div>`;
+}
+
+// Engancha el tooltip de cada celda del heatmap (solo las que aún no lo tienen).
+function bindHeatmapCellTooltips(scrollEl) {
+  if (!scrollEl) return;
+  scrollEl.querySelectorAll('.heatmap-cell').forEach(cell => {
+    if (cell._tipWired) return;
+    cell._tipWired = true;
+    cell.addEventListener('mouseenter', () => {
+      const text = cell.getAttribute('data-tooltip');
+      if (!text) return;
+      const tooltip = getOrCreateChartTooltip();
+      tooltip.textContent = text;
+      tooltip.classList.add('visible');
+      const rect = cell.getBoundingClientRect();
+      tooltip.style.left = `${rect.left + window.scrollX + rect.width / 2}px`;
+      tooltip.style.top = `${rect.top + window.scrollY - 25}px`;
+      tooltip.style.transform = 'translateX(-50%)';
+    });
+    cell.addEventListener('mouseleave', () => {
+      getOrCreateChartTooltip().classList.remove('visible');
+    });
+  });
+}
+
+// Añade más filas de días anteriores cuando el usuario se acerca al fondo del
+// scroll, hasta llegar a la tarea más antigua de la etiqueta seleccionada.
+function setupHeatmapInfiniteScroll(scrollEl) {
+  if (!scrollEl || scrollEl._infiniteWired) return;
+  scrollEl._infiniteWired = true;
+  const grid = scrollEl.querySelector('.heatmap-grid');
+  const hue = parseInt(scrollEl.dataset.hue, 10);
+  const sat = parseInt(scrollEl.dataset.sat, 10);
+
+  scrollEl.addEventListener('scroll', () => {
+    const nearBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 40;
+    if (!nearBottom) return;
+    const oldest = heatmapOldestDate();
+    let next = scrollEl.dataset.next;
+    if (oldest && next < oldest) return; // ya llegamos al límite
+
+    // Cargar un bloque de días más antiguos.
+    const BLOCK = 12;
+    let cursor = new Date(next + 'T12:00:00');
+    let added = 0;
+    for (let i = 0; i < BLOCK; i++) {
+      const dStr = formatDate(cursor);
+      grid.insertAdjacentHTML('beforeend', renderHeatmapRow(dStr, hue, sat));
+      added++;
+      cursor.setDate(cursor.getDate() - 1);
+      if (oldest && dStr <= oldest) break; // no pasar de la tarea más antigua
+    }
+    scrollEl.dataset.next = formatDate(cursor);
+    if (added > 0) bindHeatmapCellTooltips(scrollEl);
+  });
 }
 
 function getDatesInRange(fromStr, toStr) {
@@ -8003,24 +8079,9 @@ function renderDailyStatsPanel(panelEl, dateParam) {
 
   if (prefix === 'general-stats' && generalStatsChartType === 'heatmap') {
     chartPlaceholder.innerHTML = renderHeatmapHTML(dates);
-    // Tooltip por cuadrito (día/hora + duración).
-    const hcells = chartPlaceholder.querySelectorAll('.heatmap-cell');
-    hcells.forEach(cell => {
-      cell.addEventListener('mouseenter', () => {
-        const text = cell.getAttribute('data-tooltip');
-        if (!text) return;
-        const tooltip = getOrCreateChartTooltip();
-        tooltip.textContent = text;
-        tooltip.classList.add('visible');
-        const rect = cell.getBoundingClientRect();
-        tooltip.style.left = `${rect.left + window.scrollX + rect.width / 2}px`;
-        tooltip.style.top = `${rect.top + window.scrollY - 25}px`;
-        tooltip.style.transform = 'translateX(-50%)';
-      });
-      cell.addEventListener('mouseleave', () => {
-        getOrCreateChartTooltip().classList.remove('visible');
-      });
-    });
+    const scrollEl = chartPlaceholder.querySelector('.heatmap-scroll');
+    bindHeatmapCellTooltips(scrollEl);
+    setupHeatmapInfiniteScroll(scrollEl);
   } else if (prefix === 'general-stats' && generalStatsChartType === 'habitos') {
     chartPlaceholder.innerHTML = renderHabitTrackerHTML(dates);
     // Tooltip por cuadrito (fecha + estado).
@@ -10603,6 +10664,9 @@ function updateHabitTagRowVisibility() {
   if (!row) return;
   const visible = (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap');
   row.style.display = visible ? 'flex' : 'none';
+  // El selector de periodo no aplica al mapa de calor (scroll infinito propio).
+  const periodGroup = document.getElementById('general-stats-period-group');
+  if (periodGroup) periodGroup.style.display = (generalStatsChartType === 'heatmap') ? 'none' : '';
   if (visible) {
     buildHabitTagSelectorOptions();
     setHabitSelectTagValue(generalStatsHabitTag);
