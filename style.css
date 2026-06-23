@@ -3650,6 +3650,26 @@ body.not-logged-in .app-container {
 #save-status.saved  { background: #000000; }
 #save-status.offline { background: #d97706; }
 
+/* --- Toast centrado inferior (mismo estilo que el indicador de guardado) --- */
+#center-toast {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translate(-50%, 8px);
+  z-index: 9999;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: #000000;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+}
+#center-toast.visible { opacity: 1; transform: translateX(-50%); }
+
 /* --- Reordenar etiquetas: handle de arrastre --- */
 .tag-drag-handle {
   display: flex;
@@ -4804,6 +4824,25 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   opacity: 1;
   visibility: visible;
   transform: translate(-50%, 0);
+}
+
+/* Tooltip instantáneo para gráficos */
+.stats-chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.85);
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  z-index: 10000;
+  opacity: 0;
+  transition: opacity 0.05s ease;
+  white-space: nowrap;
+}
+.stats-chart-tooltip.visible {
+  opacity: 1;
 }
 
 

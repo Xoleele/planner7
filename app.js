@@ -1838,6 +1838,21 @@ function setSaveStatus(state) {
   }
 }
 
+// Muestra un mensaje breve centrado en la parte inferior, con el mismo estilo
+// que el indicador "Guardado".
+function showCenterToast(message) {
+  let el = document.getElementById('center-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'center-toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = message;
+  el.classList.add('visible');
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(() => el.classList.remove('visible'), 1500);
+}
+
 async function saveTasksToStorage() {
   if (!currentUser) return;
   const pendingSyncKey = 'tasks_pending_sync_' + currentUser.id;
@@ -7474,6 +7489,17 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
   return svgParts.join('\n');
 }
 
+function getOrCreateChartTooltip() {
+  let el = document.getElementById('stats-chart-tooltip');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'stats-chart-tooltip';
+    el.className = 'stats-chart-tooltip';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
 function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   const y_bottom = 80;
   const y_top = 10;
@@ -7525,9 +7551,9 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   svgParts.push(`<line x1="${x_left}" y1="${y_bottom}" x2="${x_right + 5}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
   svgParts.push(`<line x1="${x_left}" y1="${y_top - 5}" x2="${x_left}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
 
-  const step = N > 15 ? 5 : 2;
+  const step = Math.ceil(N / 10);
   dates.forEach((dStr, idx) => {
-    if (idx % step === 0 || idx === N - 1) {
+    if (idx % step === 0) {
       const x = x_left + (idx / denom) * plotWidth;
       const dateObj = new Date(dStr + 'T12:00:00');
       const dayNum = dateObj.getDate();
@@ -7552,7 +7578,10 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
     svgParts.push(`<path d="${pathD}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />`);
 
     points.forEach(p => {
-      svgParts.push(`<circle cx="${p.x}" cy="${p.y}" r="2" fill="${color}" stroke="var(--bg-card, #ffffff)" stroke-width="0.5" />`);
+      // Punto visual muy sutil para que la línea parezca continua
+      svgParts.push(`<circle cx="${p.x}" cy="${p.y}" r="0.8" fill="${color}" />`);
+      // Área de hover invisible más grande con clase y atributo data-tooltip
+      svgParts.push(`<circle class="chart-hover-circle" cx="${p.x}" cy="${p.y}" r="6" fill="transparent" style="cursor: pointer;" data-tooltip="${group.displayName || tagName}: ${p.hours.toFixed(1)}h"></circle>`);
     });
   });
 
@@ -7790,6 +7819,26 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     chartPlaceholder.innerHTML = renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet);
   } else if (prefix === 'general-stats' && generalStatsChartType === 'lineal') {
     chartPlaceholder.innerHTML = renderLineChartSVG(occurrences, dates, groupedList, lineStatsActiveTags);
+    
+    // Enlazar eventos de hover para el tooltip instantáneo
+    const hoverCircles = chartPlaceholder.querySelectorAll('.chart-hover-circle');
+    hoverCircles.forEach(circle => {
+      circle.addEventListener('mouseenter', () => {
+        const text = circle.getAttribute('data-tooltip');
+        const tooltip = getOrCreateChartTooltip();
+        tooltip.textContent = text;
+        tooltip.classList.add('visible');
+        
+        const rect = circle.getBoundingClientRect();
+        tooltip.style.left = `${rect.left + window.scrollX + rect.width / 2}px`;
+        tooltip.style.top = `${rect.top + window.scrollY - 25}px`;
+        tooltip.style.transform = 'translateX(-50%)';
+      });
+      circle.addEventListener('mouseleave', () => {
+        const tooltip = getOrCreateChartTooltip();
+        tooltip.classList.remove('visible');
+      });
+    });
   } else {
     chartPlaceholder.innerHTML = renderPieChartSVG(includedGroups);
   }
@@ -7936,7 +7985,7 @@ function renderDailyStatsPanel(panelEl, dateParam) {
             }
           } else {
             if (lineStatsActiveTags.length >= 3) {
-              alert('Puedes seleccionar un máximo de 3 etiquetas.');
+              showCenterToast('Puedes seleccionar un máximo de 3 etiquetas.');
             } else {
               lineStatsActiveTags.push(group.name);
               renderDailyStatsPanel(panelEl, dateParam);
