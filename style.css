@@ -1009,6 +1009,15 @@ input[type="number"] {
   outline: none;
 }
 
+input[type="text"],
+input[type="password"],
+select,
+input[type="date"],
+input[type="time"],
+input[type="number"] {
+  height: 38px;
+}
+
 input[type="text"]:focus,
 input[type="password"]:focus,
 textarea:focus,
@@ -1778,8 +1787,9 @@ input:checked + .slider:before {
 .custom-select-trigger {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 0 10px;
+  height: 38px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   background-color: var(--bg-card);
@@ -1804,6 +1814,7 @@ input:checked + .slider:before {
 .custom-select-trigger-input {
   flex: 1;
   min-width: 0;
+  height: 100% !important;
   border: none !important;
   outline: none !important;
   box-shadow: none !important;

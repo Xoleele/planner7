@@ -8833,7 +8833,7 @@ function filterTagOptions(container, query) {
   let first = null;
   container.querySelectorAll('.custom-option').forEach(opt => {
     const name = (opt.dataset.name || '').toLowerCase();
-    const match = (!q || name.includes(q));
+    const match = (!q || name.startsWith(q));
     opt.style.display = match ? '' : 'none';
     if (match && !first) first = opt;
   });
