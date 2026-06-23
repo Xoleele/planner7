@@ -3689,12 +3689,19 @@ body.not-logged-in .app-container {
   transition: transform 0.1s ease;
 }
 .heatmap-cell:hover { transform: scale(1.2); }
+/* Fila de horas: fija arriba al hacer scroll vertical. */
 .heatmap-hlabel {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-muted, #8e8e93);
   text-align: center;
   line-height: 1;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-card, #fff);
+  padding: 2px 0;
 }
+/* Columna de fechas: fija a la izquierda al hacer scroll horizontal. */
 .heatmap-dlabel {
   font-size: 10px;
   color: var(--text-muted, #8e8e93);
@@ -3702,8 +3709,29 @@ body.not-logged-in .app-container {
   padding-right: 6px;
   white-space: nowrap;
   line-height: 1;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-card, #fff);
 }
-.heatmap-corner { width: 100%; }
+/* Esquina superior izquierda: fija en ambas direcciones, por encima de todo. */
+.heatmap-corner {
+  width: 100%;
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  background: var(--bg-card, #fff);
+}
+
+/* Botón ✕ del selector de etiqueta del mapa de calor (copiado del editor de
+   tareas). Se posiciona a la izquierda de la flecha y se oculta si está vacío. */
+#habit-tag-select-trigger { position: relative; }
+#habit-tag-select-trigger .custom-select-trigger-input { padding-right: 40px; }
+#habit-tag-clear { right: 22px; }
+#habit-tag-select-trigger .custom-select-trigger-input:placeholder-shown ~ #habit-tag-clear {
+  display: none;
+}
 
 /* --- Reordenar etiquetas: handle de arrastre --- */
 .tag-drag-handle {

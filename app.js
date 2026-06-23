@@ -7152,6 +7152,9 @@ function getStatsModalHTML(prefix) {
             <div class="custom-select-trigger" id="habit-tag-select-trigger">
               <span class="custom-select-color-circle" id="habit-tag-select-circle" style="background-color: #50a9ed;"></span>
               <input type="text" class="custom-select-trigger-input" id="habit-tag-select-input" placeholder="Buscar etiqueta…" autocomplete="off">
+              <button type="button" class="time-clear-btn" id="habit-tag-clear" title="Borrar" aria-label="Borrar texto">
+                <img src="icons/close.svg" alt="Quitar" width="14" height="14">
+              </button>
               <span class="custom-select-arrow">
                 <img src="icons/chevron-down.svg" alt="Abrir" width="10" height="10">
               </span>
@@ -7768,7 +7771,7 @@ function renderHeatmapHTML(dates) {
   const INITIAL = 12;
   let html = '<div class="heatmap-corner"></div>';
   for (let h = 0; h < 24; h++) {
-    html += `<div class="heatmap-hlabel">${h % 3 === 0 ? h : ''}</div>`;
+    html += `<div class="heatmap-hlabel">${h}</div>`;
   }
   let cursor = new Date(newest + 'T12:00:00');
   for (let i = 0; i < INITIAL; i++) {
@@ -10678,6 +10681,19 @@ function updateHabitTagRowVisibility() {
         'habit-select-tag',
         (tagId) => { setHabitSelectTagValue(tagId); renderGeneralStatsForRange(); }
       );
+      // Botón ✕: borra lo escrito y deja el campo listo para escribir desde 0.
+      const clearBtn = document.getElementById('habit-tag-clear');
+      const input = document.getElementById('habit-tag-select-input');
+      if (clearBtn && input) {
+        clearBtn.addEventListener('mousedown', (e) => {
+          // mousedown (antes que el blur del input) para no perder el foco.
+          e.preventDefault();
+          e.stopPropagation();
+          input.value = '';
+          input.focus();
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+      }
       habitTagSelectWired = true;
     }
   }
