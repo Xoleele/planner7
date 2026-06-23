@@ -3703,19 +3703,24 @@ body.not-logged-in .app-container {
   padding: 2px 0;
   box-shadow: 0 3px 0 0 #fff, 0 -6px 0 0 #fff;
 }
-/* Columna de fechas: fija a la izquierda al hacer scroll horizontal. */
+/* Columna de fechas: fija a la izquierda al hacer scroll horizontal. Se estira a
+   toda la altura de la fila y el box-shadow cubre los gaps (3px) en todas las
+   direcciones, de modo que el blanco tape por completo las celdas que pasan. */
 .heatmap-dlabel {
   font-size: 10px;
   color: var(--text-muted, #8e8e93);
-  text-align: right;
-  padding-right: 6px;
   white-space: nowrap;
   line-height: 1;
   position: sticky;
   left: 0;
   z-index: 2;
   background: #fff;
-  box-shadow: 3px 0 0 0 #fff;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+  box-shadow: 3px 0 0 0 #fff, 0 3px 0 0 #fff, 0 -3px 0 0 #fff, 3px 3px 0 0 #fff, 3px -3px 0 0 #fff;
 }
 /* Esquina superior izquierda: fija en ambas direcciones, por encima de todo. */
 .heatmap-corner {
