@@ -1474,6 +1474,9 @@ async function startApp(user) {
       statsCustomNames = parsedPrefs.statsCustomNames || {};
       statsMergedTasks = parsedPrefs.statsMergedTasks || {};
       statsMergedActivities = parsedPrefs.statsMergedActivities || {};
+      if (parsedPrefs.statsGroupBy) statsGroupBy = parsedPrefs.statsGroupBy;
+      if (parsedPrefs.statsStatusFilter) statsStatusFilter = parsedPrefs.statsStatusFilter;
+      if (parsedPrefs.statsColorMode) statsColorMode = parsedPrefs.statsColorMode;
       if (parsedPrefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...parsedPrefs.copyOptions };
     }
   } catch (e) {
@@ -1489,6 +1492,9 @@ async function startApp(user) {
     statsCustomNames = prefs.statsCustomNames || {};
     statsMergedTasks = prefs.statsMergedTasks || {};
     statsMergedActivities = prefs.statsMergedActivities || {};
+    if (prefs.statsGroupBy) statsGroupBy = prefs.statsGroupBy;
+    if (prefs.statsStatusFilter) statsStatusFilter = prefs.statsStatusFilter;
+    if (prefs.statsColorMode) statsColorMode = prefs.statsColorMode;
     if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
     activeTimerState = prefs.activeTimer || null;
     try {
@@ -7177,6 +7183,7 @@ function handleStatsStatusFilterChange(newFilter) {
   });
 
   rerenderDailyStatsPanels();
+  saveStatsSettings();
 }
 
 function handleStatsGroupByChange(newMode) {
@@ -7188,6 +7195,7 @@ function handleStatsGroupByChange(newMode) {
   });
 
   rerenderDailyStatsPanels();
+  saveStatsSettings();
 }
 
 function handleStatsColorModeChange(newMode) {
@@ -7199,6 +7207,29 @@ function handleStatsColorModeChange(newMode) {
   });
 
   rerenderDailyStatsPanels();
+  saveStatsSettings();
+}
+
+// Persiste los ajustes globales de estadísticas (agrupación, estado, color) en
+// el caché local y en Supabase. Estos ajustes aplican a TODOS los días.
+function saveStatsSettings() {
+  if (!currentUser) return;
+  const prefsCacheKey = 'prefs_cache_' + currentUser.id;
+  let prefs = {};
+  try {
+    const cached = localStorage.getItem(prefsCacheKey);
+    if (cached) prefs = JSON.parse(cached);
+  } catch (e) {}
+
+  prefs.statsGroupBy = statsGroupBy;
+  prefs.statsStatusFilter = statsStatusFilter;
+  prefs.statsColorMode = statsColorMode;
+
+  try {
+    localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
+  } catch (e) {}
+
+  savePreferences(prefs);
 }
 
 // Abre la vista de Ajustes del panel de actividad (oculta la vista principal).
@@ -11144,8 +11175,7 @@ function normalizeForSearch(str) {
 
 // Devuelve el rango [from, to] (YYYY-MM-DD inclusive) según el periodo.
 // Para 'custom' lee los inputs de fecha. Si un extremo falta, queda como null.
-function getStatsDateRange(period) {
-  const today = new Date();
+function getStatsDateRange(period) {  const today = new Date();
   today.setHours(12, 0, 0, 0);
   const toStr = formatDate(today);
 
@@ -12109,3 +12139,4 @@ window.recuperarHoras = async function (aplicar = false) {
   return { ok, fail };
 };
 // EOF
+
