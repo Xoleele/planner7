@@ -897,6 +897,8 @@ let lineStatsActiveTags = [];
 // Indica que se debe auto-seleccionar la etiqueta principal al entrar al modo
 // lineal. Una vez que el usuario interactúa, puede dejar 0 etiquetas.
 let lineStatsNeedsAutoSelect = true;
+// Etiqueta seleccionada para el modo "Hábitos" (una a la vez).
+let generalStatsHabitTag = 'default';
 // Estado guardado al abrir Ajustes de estadísticas, para restaurar si se cancela.
 let statsSettingsSnapshot = null;
 let statsMergeFirstSelected = '';
@@ -7127,6 +7129,7 @@ function getStatsModalHTML(prefix) {
             <option value="circular" selected>Circular</option>
             <option value="barras-apiladas">Barras apiladas</option>
             <option value="lineal">Lineal</option>
+            <option value="habitos">Hábitos</option>
           </select>
         </div>
         <div class="form-group flex-1" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
@@ -7137,6 +7140,23 @@ function getStatsModalHTML(prefix) {
             <option value="30dias">Últimos 30 días</option>
             <option value="personalizado">Personalizado</option>
           </select>
+        </div>
+      </div>
+      <!-- Selector de etiqueta para el modo Hábitos (oculto en otros modos). -->
+      <div id="general-stats-habit-tag-row" class="general-stats-filters" style="display: none; padding: 8px 24px 0 24px;">
+        <div class="form-group flex-1" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+          <label for="habit-tag-select-input" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Etiqueta</label>
+          <div class="custom-select-wrapper">
+            <input type="hidden" id="habit-select-tag" value="default">
+            <div class="custom-select-trigger" id="habit-tag-select-trigger">
+              <span class="custom-select-color-circle" id="habit-tag-select-circle" style="background-color: #50a9ed;"></span>
+              <input type="text" class="custom-select-trigger-input" id="habit-tag-select-input" placeholder="Buscar etiqueta…" autocomplete="off">
+              <span class="custom-select-arrow">
+                <img src="icons/chevron-down.svg" alt="Abrir" width="10" height="10">
+              </span>
+            </div>
+            <div class="custom-options-container hidden" id="habit-tag-options-container"></div>
+          </div>
         </div>
       </div>
       ` : ''}
@@ -7622,6 +7642,44 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   return svgParts.join('\n');
 }
 
+// Habit tracker estilo GitHub: un cuadrito por día. Se pinta del color de la
+// etiqueta seleccionada si ese día hubo ≥1 tarea de esa etiqueta completada;
+// si no, queda en gris claro.
+function renderHabitTrackerHTML(dates) {
+  const tag = tags.find(t => t.id === generalStatsHabitTag) || tags.find(t => t.id === 'default');
+  const fillColor = tag && tag.color ? tag.color.bg : '#50a9ed';
+  const EMPTY = '#e9e9ec';
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+  // ¿Hubo al menos una tarea completada de la etiqueta seleccionada ese día?
+  const isDoneOnDate = (dStr) => {
+    const dateObj = new Date(dStr + 'T12:00:00');
+    return tasks.some(task => {
+      if ((task.tagId || 'default') !== generalStatsHabitTag) return false;
+      if (!checkTaskOccurrence(task, dateObj)) return false;
+      return task.isRecurrent
+        ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
+        : !!task.completed;
+    });
+  };
+
+  // Grilla en columnas verticales (estilo GitHub): 7 filas por columna (semanas),
+  // las columnas avanzan en el tiempo de izquierda a derecha.
+  const cells = dates.map(dStr => {
+    const done = isDoneOnDate(dStr);
+    const dObj = new Date(dStr + 'T12:00:00');
+    const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
+    const tip = `${dLabel}: ${done ? (tag ? tag.name : 'completado') : 'sin completar'}`;
+    const bg = done ? fillColor : EMPTY;
+    return `<div class="habit-cell" data-tooltip="${tip}" style="background:${bg};"></div>`;
+  }).join('');
+
+  return `
+    <div class="habit-grid" style="display:grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; padding: 6px 0; width: 100%;">
+      ${cells}
+    </div>`;
+}
+
 function getDatesInRange(fromStr, toStr) {
   const dates = [];
   const start = new Date(fromStr + 'T12:00:00');
@@ -7842,7 +7900,11 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   // Renderizar gráfico
   const chartContainer = chartPlaceholder.parentElement;
   if (chartContainer) {
-    if (prefix === 'general-stats' && (generalStatsChartType === 'barras-apiladas' || generalStatsChartType === 'lineal')) {
+    if (prefix === 'general-stats' && generalStatsChartType === 'habitos') {
+      chartContainer.style.width = '100%';
+      chartContainer.style.maxWidth = '340px';
+      chartContainer.style.height = 'auto';
+    } else if (prefix === 'general-stats' && (generalStatsChartType === 'barras-apiladas' || generalStatsChartType === 'lineal')) {
       chartContainer.style.width = '100%';
       chartContainer.style.maxWidth = '340px';
       chartContainer.style.height = '175px';
@@ -7853,7 +7915,27 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     }
   }
 
-  if (prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas') {
+  if (prefix === 'general-stats' && generalStatsChartType === 'habitos') {
+    chartPlaceholder.innerHTML = renderHabitTrackerHTML(dates);
+    // Tooltip por cuadrito (fecha + estado).
+    const cells = chartPlaceholder.querySelectorAll('.habit-cell');
+    cells.forEach(cell => {
+      cell.addEventListener('mouseenter', () => {
+        const text = cell.getAttribute('data-tooltip');
+        if (!text) return;
+        const tooltip = getOrCreateChartTooltip();
+        tooltip.textContent = text;
+        tooltip.classList.add('visible');
+        const rect = cell.getBoundingClientRect();
+        tooltip.style.left = `${rect.left + window.scrollX + rect.width / 2}px`;
+        tooltip.style.top = `${rect.top + window.scrollY - 25}px`;
+        tooltip.style.transform = 'translateX(-50%)';
+      });
+      cell.addEventListener('mouseleave', () => {
+        getOrCreateChartTooltip().classList.remove('visible');
+      });
+    });
+  } else if (prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas') {
     chartPlaceholder.innerHTML = renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet);
   } else if (prefix === 'general-stats' && generalStatsChartType === 'lineal') {
     chartPlaceholder.innerHTML = renderLineChartSVG(occurrences, dates, groupedList, lineStatsActiveTags);
@@ -7880,7 +7962,15 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   } else {
     chartPlaceholder.innerHTML = renderPieChartSVG(includedGroups);
   }
-  
+
+  // El modo hábitos no usa la tabla de actividades ni los totales.
+  if (prefix === 'general-stats' && generalStatsChartType === 'habitos') {
+    activityListEl.innerHTML = '';
+    const tw = panelEl.querySelector('.daily-stats-totals-wrapper');
+    if (tw) tw.style.display = 'none';
+    return;
+  }
+
   let totalsWrapper = panelEl.querySelector('.daily-stats-totals-wrapper');
   if (!totalsWrapper) {
     totalsWrapper = document.createElement('div');
@@ -8285,6 +8375,17 @@ function updatePeriodSelectOptions() {
     } else {
       periodSelect.value = '10dias';
     }
+  } else if (generalStatsChartType === 'habitos') {
+    periodSelect.innerHTML = `
+      <option value="30dias">Últimos 30 días</option>
+      <option value="50dias">Últimos 50 días</option>
+      <option value="100dias">Últimos 100 días</option>
+    `;
+    if (currentVal === '30dias' || currentVal === '50dias' || currentVal === '100dias') {
+      periodSelect.value = currentVal;
+    } else {
+      periodSelect.value = '30dias';
+    }
   } else {
     periodSelect.innerHTML = `
       <option value="hoy">Hoy</option>
@@ -8341,6 +8442,17 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
       // Reset active tags to let renderDailyStatsPanel select the top one dynamically
       lineStatsActiveTags = [];
       lineStatsNeedsAutoSelect = true;
+    } else if (generalStatsChartType === 'habitos') {
+      periodSelect.value = '30dias';
+
+      const endDate = new Date(dateStr + 'T12:00:00');
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 29);
+
+      generalStatsDateRange = {
+        from: formatDate(startDate),
+        to: formatDate(endDate)
+      };
     } else {
       periodSelect.value = 'hoy';
       generalStatsDateRange = null;
@@ -8403,11 +8515,12 @@ function handleGeneralStatsPeriodChange() {
       to: formatDate(today)
     };
     renderGeneralStatsForRange();
-  } else if (val === '30dias') {
+  } else if (val === '30dias' || val === '50dias' || val === '100dias') {
+    const days = val === '50dias' ? 50 : (val === '100dias' ? 100 : 30);
     const today = new Date();
     today.setHours(12, 0, 0, 0);
     const from = new Date(today);
-    from.setDate(from.getDate() - 29);
+    from.setDate(from.getDate() - (days - 1));
     generalStatsDateRange = {
       from: formatDate(from),
       to: formatDate(today)
@@ -8854,9 +8967,16 @@ function initStatsEvents(prefix) {
       chartTypeSelect.addEventListener('change', (e) => {
         generalStatsChartType = e.target.value;
         saveStatsSettings();
+        updateHabitTagRowVisibility();
         handleGeneralStatsChartTypeChange();
       });
     }
+
+    // Selector de etiqueta del modo Hábitos.
+    buildHabitTagSelectorOptions();
+    setHabitSelectTagValue(generalStatsHabitTag);
+    updateHabitTagRowVisibility();
+    setupHabitTagSelect();
 
     const periodSelect = document.getElementById('general-stats-period-select');
     if (periodSelect) {
@@ -10301,6 +10421,112 @@ function buildTagSelectorOptions() {
     container.appendChild(option);
   });
   buildTimerTagSelectorOptions();
+}
+
+// Opciones del selector de etiqueta del modo "Hábitos" (estadísticas generales).
+function buildHabitTagSelectorOptions() {
+  const container = document.getElementById('habit-tag-options-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  getOrderedTagsForDisplay().forEach(tag => {
+    const option = document.createElement('div');
+    option.className = 'custom-option';
+    option.dataset.value = tag.id;
+    option.dataset.name = tag.name;
+
+    const circle = document.createElement('span');
+    circle.className = 'custom-select-color-circle';
+    circle.style.backgroundColor = tag.color.bg;
+    circle.style.borderColor = tag.color.border;
+
+    const label = document.createElement('span');
+    label.textContent = tag.name;
+
+    option.appendChild(circle);
+    option.appendChild(label);
+
+    option.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setHabitSelectTagValue(tag.id);
+      container.classList.add('hidden');
+      renderGeneralStatsForRange();
+    });
+
+    container.appendChild(option);
+  });
+}
+
+// Establece la etiqueta seleccionada del modo hábitos y refleja nombre/color.
+function setHabitSelectTagValue(tagId) {
+  const tag = tags.find(t => t.id === tagId) || tags.find(t => t.id === 'default');
+  if (!tag) return;
+  generalStatsHabitTag = tag.id;
+  const hidden = document.getElementById('habit-select-tag');
+  if (hidden) hidden.value = tag.id;
+  const input = document.getElementById('habit-tag-select-input');
+  if (input) input.value = tag.name;
+  const circle = document.getElementById('habit-tag-select-circle');
+  if (circle) {
+    circle.style.backgroundColor = tag.color.bg;
+    circle.style.borderColor = tag.color.border;
+  }
+}
+
+// Muestra u oculta la fila del selector de etiqueta según el tipo de gráfico.
+function updateHabitTagRowVisibility() {
+  const row = document.getElementById('general-stats-habit-tag-row');
+  if (row) row.style.display = (generalStatsChartType === 'habitos') ? 'flex' : 'none';
+}
+
+// Configura el campo de búsqueda de etiqueta del modo hábitos (mismo patrón que
+// el selector del creador de tareas).
+function setupHabitTagSelect() {
+  const trigger = document.getElementById('habit-tag-select-trigger');
+  const input = document.getElementById('habit-tag-select-input');
+  const container = document.getElementById('habit-tag-options-container');
+  if (!trigger || !input || !container) return;
+
+  const restoreSelected = () => {
+    const tag = tags.find(t => t.id === generalStatsHabitTag) || tags.find(t => t.id === 'default');
+    if (tag) input.value = tag.name;
+  };
+
+  input.addEventListener('focus', () => {
+    filterTagOptions(container, input.value);
+    container.classList.remove('hidden');
+    input.select();
+  });
+  input.addEventListener('input', () => {
+    filterTagOptions(container, input.value);
+    container.classList.remove('hidden');
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const first = filterTagOptions(container, input.value.trim());
+      if (first) { first.click(); input.blur(); }
+    } else if (e.key === 'Escape') {
+      restoreSelected();
+      container.classList.add('hidden');
+      input.blur();
+    }
+  });
+  input.addEventListener('blur', () => {
+    setTimeout(() => { showAllTagOptions(container); restoreSelected(); }, 150);
+  });
+  trigger.addEventListener('click', (e) => {
+    if (e.target === input) return;
+    e.stopPropagation();
+    if (container.classList.contains('hidden')) input.focus();
+    else container.classList.add('hidden');
+  });
+  document.addEventListener('click', (e) => {
+    if (!trigger.contains(e.target) && !container.contains(e.target)) {
+      container.classList.add('hidden');
+      showAllTagOptions(container);
+    }
+  });
 }
 
 // --- Custom Date Picker Dropdown ---

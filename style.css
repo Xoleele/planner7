@@ -3670,6 +3670,16 @@ body.not-logged-in .app-container {
 }
 #center-toast.visible { opacity: 1; transform: translateX(-50%); }
 
+/* --- Habit tracker (cuadritos estilo GitHub) --- */
+.habit-cell {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 3px;
+  cursor: default;
+  transition: transform 0.1s ease;
+}
+.habit-cell:hover { transform: scale(1.12); }
+
 /* --- Reordenar etiquetas: handle de arrastre --- */
 .tag-drag-handle {
   display: flex;
