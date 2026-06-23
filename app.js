@@ -8957,7 +8957,9 @@ function renderCustomDatePicker() {
   const totalDays = new Date(year, month + 1, 0).getDate();
   const prevMonthTotalDays = new Date(year, month, 0).getDate();
 
-  const mobileVisibleDate = isMobile() ? (getMobileVisibleDate() || new Date()) : null;
+  const mobileVisibleDate = isMobile()
+    ? (cronogramaActive ? (cronogramaMobileDate || new Date()) : (getMobileVisibleDate() || new Date()))
+    : null;
 
   // Prev month padding
   for (let i = startDay - 1; i >= 0; i--) {
@@ -9015,7 +9017,11 @@ function createDatePickerDayElement(dayNum, dateObj, isOtherMonth, mobileVisible
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (isMobile()) {
-      jumpMobileFeedToDate(dateObj);
+      if (cronogramaActive) {
+        goToCronogramaMobileDate(dateObj);
+      } else {
+        jumpMobileFeedToDate(dateObj);
+      }
     } else {
       currentWeekStart = getMondayOf(dateObj);
       renderWeeklyCalendar();
