@@ -8246,6 +8246,21 @@ function buildColorPalette() {
   addBtn.innerHTML = '<span class="color-add-plus">+</span>';
   if (customColor) addBtn.classList.add('selected');
   addBtn.addEventListener('click', () => {
+    // Punto de partida del color personalizado: el último color que estaba
+    // seleccionado antes de presionar este botón (paleta o personalizado previo).
+    let startBg = null;
+    if (customColor) {
+      startBg = customColor.bg;
+    } else if (selectedColorIndex >= 0 && DEFAULT_COLORS[selectedColorIndex]) {
+      startBg = DEFAULT_COLORS[selectedColorIndex].bg;
+    }
+    if (startBg) {
+      const [h, s, l] = hexToHsl(startBg);
+      const hEl = document.getElementById('hsl-h'), sEl = document.getElementById('hsl-s'), lEl = document.getElementById('hsl-l');
+      if (hEl) hEl.value = h;
+      if (sEl) sEl.value = s;
+      if (lEl) lEl.value = l;
+    }
     document.querySelectorAll('.color-circle').forEach(c => c.classList.remove('selected'));
     addBtn.classList.add('selected');
     selectedColorIndex = -1;
