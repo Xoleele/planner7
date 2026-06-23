@@ -3740,7 +3740,11 @@ function renderCronograma() {
     for (let i = 0; i < 7; i++) dayDates.push(addDays(currentWeekStart, i));
 
     dayDates.forEach((date, idx) => {
-      headersEl.appendChild(buildCronogramaHeader(date, CRONOGRAMA_DAY_NAMES[idx], formatDate(date) === todayStr));
+      const hdr = buildCronogramaHeader(date, CRONOGRAMA_DAY_NAMES[idx], formatDate(date) === todayStr);
+      headersEl.appendChild(hdr);
+      // Visibilidad de iconos según el estado del día (basurero con tareas,
+      // estadísticas con duración). Igual que el planner y el horario móvil.
+      updateDayHeaderButtonsVisibility(hdr, formatDate(date));
     });
 
     dayDates.forEach((date, idx) => {
@@ -3834,6 +3838,11 @@ function buildCronogramaMobileDayCol(date, todayStr) {
 
   body.appendChild(canvas);
   card.appendChild(body);
+
+  // Visibilidad de los iconos del header según el estado del día (basurero solo
+  // con tareas, estadísticas solo con duración). Igual que el planner.
+  updateDayHeaderButtonsVisibility(card, formatDate(date));
+
   return card;
 }
 
@@ -5213,14 +5222,21 @@ function dayHasAnyTask(dateStr) {
   return tasks.some(task => checkTaskOccurrence(task, dateObj));
 }
 
-// Muestra u oculta los botones de copiar/limpiar de la cabecera de un día según
-// si ese día tiene al menos una tarea.
+// Muestra u oculta los botones de la cabecera de un día según su estado:
+//   • copiar y basurero (limpiar): visibles solo si el día tiene alguna tarea.
+//   • estadísticas: visible solo si el día tiene tareas CON duración establecida.
+// Aplica igual en planner y horario, escritorio y móvil.
 function updateDayHeaderButtonsVisibility(colElement, dateStr) {
   const hasTasks = dayHasAnyTask(dateStr);
+  // ¿Hay al menos un minuto de duración (pendiente o completada) ese día?
+  const hasDuration = (getDurationForDay(dateStr, false) + getDurationForDay(dateStr, true)) > 0;
+
   const copyBtn = colElement.querySelector('.copy-day-btn');
   const clearBtn = colElement.querySelector('.clear-day-btn');
+  const statsBtn = colElement.querySelector('.stats-day-btn');
   if (copyBtn) copyBtn.classList.toggle('day-btn-hidden', !hasTasks);
   if (clearBtn) clearBtn.classList.toggle('day-btn-hidden', !hasTasks);
+  if (statsBtn) statsBtn.classList.toggle('day-btn-hidden', !hasDuration);
 }
 
 // Calcula la duración entre una hora de inicio y de fin ("HH:MM") y la devuelve
