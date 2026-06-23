@@ -558,7 +558,7 @@ function setupUserMenu() {
       statsMenuBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         dropdown.remove();
-        // Por ahora sin función
+        estadisticasGenerales(formatDate(new Date()));
       });
     }
 
@@ -1788,6 +1788,7 @@ function resetApp(clearCache = false) {
 }
 
 function initApp() {
+  initStatsModals();
   initAuth();
 }
 
@@ -7064,6 +7065,171 @@ function applyCopyOptionsToModal() {
 // ─── Estadísticas Diarias ────────────────────────────────────────────────────
 let currentDailyStatsDate = null;
 let excludedStatsActivitiesMap = new Map();
+let activeStatsPrefix = 'daily-stats';
+
+function getStatsEl(baseId) {
+  let id = baseId;
+  if (baseId.startsWith('stats-edit-')) {
+    id = activeStatsPrefix + '-edit-' + baseId.substring(11);
+  } else if (baseId.startsWith('daily-stats-')) {
+    id = activeStatsPrefix + '-' + baseId.substring(12);
+  }
+  return document.getElementById(id);
+}
+
+function getStatsModalHTML(prefix) {
+  return `
+    <!-- VISTA PRINCIPAL DE ACTIVIDAD -->
+    <div id="${prefix}-main-content" class="modal-content daily-stats-w" style="overflow: hidden;">
+      <div class="modal-header">
+        <h2 id="${prefix}-title">Actividad 00/00/0000</h2>
+        <div class="modal-header-actions">
+          <button id="${prefix}-settings-btn" title="Ajustes" class="close-modal-btn" type="button">
+            <img src="icons/settings.svg" alt="Ajustes" width="16" height="16">
+          </button>
+          <button id="${prefix}-merge-btn" title="Combinar tareas" class="close-modal-btn" type="button">
+            <img src="icons/merge.svg" alt="Combinar tareas" width="20" height="20">
+          </button>
+          <button class="close-modal-btn" data-modal="${prefix}-modal">
+            <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+          </button>
+        </div>
+      </div>
+      
+      <div class="daily-stats-viewport" style="overflow: hidden; width: 100%; position: relative;">
+        <div class="daily-stats-slider" id="${prefix}-slider" style="display: flex; width: 300%; transition: transform 0.25s ease; transform: translateX(-33.3333%);">
+          <!-- Panel Izquierdo (Día Anterior) -->
+          <div class="daily-stats-panel" id="${prefix}-panel-prev" style="width: 33.3333%; flex-shrink: 0; box-sizing: border-box;">
+            <div class="modal-body">
+              <div class="pie-chart-container">
+                <div class="daily-stats-chart-placeholder" style="width: 100%; height: 100%;"></div>
+              </div>
+              <div class="daily-stats-legend">
+                <div class="activity-list"></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Panel Central (Día Actual) -->
+          <div class="daily-stats-panel" id="${prefix}-panel-curr" style="width: 33.3333%; flex-shrink: 0; box-sizing: border-box;">
+            <div class="modal-body">
+              <div class="pie-chart-container">
+                <div class="daily-stats-chart-placeholder" style="width: 100%; height: 100%;"></div>
+              </div>
+              <div class="daily-stats-legend">
+                <div class="activity-list"></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Panel Derecho (Día Siguiente) -->
+          <div class="daily-stats-panel" id="${prefix}-panel-next" style="width: 33.3333%; flex-shrink: 0; box-sizing: border-box;">
+            <div class="modal-body">
+              <div class="pie-chart-container">
+                <div class="daily-stats-chart-placeholder" style="width: 100%; height: 100%;"></div>
+              </div>
+              <div class="daily-stats-legend">
+                <div class="activity-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer" style="display: flex; justify-content: center; background-color: transparent; border-top: none; padding-top: 8px;">
+        <button type="button" class="btn btn-secondary close-modal-btn" data-modal="${prefix}-modal" style="min-width: 120px;">Cerrar</button>
+      </div>
+    </div>
+
+    <!-- VISTA DE EDICIÓN DE TAREA -->
+    <div id="${prefix}-edit-content" class="modal-content daily-stats-w hidden" style="overflow: hidden;">
+      <div class="modal-header">
+        <h2>Editar tarea</h2>
+        <button class="close-modal-btn" id="${prefix}-edit-close-btn" type="button">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; text-align: left; box-sizing: border-box; width: 100%; align-items: stretch; overflow-y: auto; flex: 1; min-height: 0;">
+        <div class="form-group">
+          <label for="${prefix}-edit-task-title" class="sr-only">Título</label>
+          <input type="text" id="${prefix}-edit-task-title" placeholder="Título de la tarea" required autocomplete="off">
+        </div>
+        
+        <div class="form-group">
+          <label style="font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; display: block;">Color de actividad</label>
+          <div class="color-palette-grid" id="${prefix}-edit-color-palette">
+            <!-- Círculos de color se generarán por JS -->
+          </div>
+          
+          <!-- Selector de color personalizado (HSL) -->
+          <div id="${prefix}-edit-hsl-picker" class="hsl-picker hidden">
+            <div class="hsl-preview-row">
+              <span id="${prefix}-edit-hsl-preview" class="hsl-preview"></span>
+              <span id="${prefix}-edit-hsl-value" class="hsl-value"></span>
+            </div>
+            <div class="hsl-slider-row">
+              <label for="${prefix}-edit-hsl-h">Tono</label>
+              <input type="range" id="${prefix}-edit-hsl-h" min="0" max="360" value="210">
+            </div>
+            <div class="hsl-slider-row">
+              <label for="${prefix}-edit-hsl-s">Saturación</label>
+              <input type="range" id="${prefix}-edit-hsl-s" min="0" max="100" value="70">
+            </div>
+            <div class="hsl-slider-row">
+              <label for="${prefix}-edit-hsl-l">Luminosidad</label>
+              <input type="range" id="${prefix}-edit-hsl-l" min="0" max="100" value="55">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--border-light); padding: 16px 24px; width: 100%; box-sizing: border-box;">
+        <button type="button" class="btn btn-secondary" id="${prefix}-edit-cancel-btn" style="min-width: 100px;">Cancelar</button>
+        <div style="display: flex; gap: 12px;">
+          <button type="button" class="btn btn-secondary" id="${prefix}-edit-reset-btn" style="color: #000000; min-width: 100px;">Restablecer</button>
+          <button type="button" class="btn btn-primary" id="${prefix}-edit-save-btn" style="min-width: 100px;">Aceptar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VISTA DE AJUSTES (filtros y colores del panel de actividad) -->
+    <div id="${prefix}-settings-content" class="modal-content daily-stats-w hidden" style="overflow: hidden;">
+      <div class="modal-header">
+        <h2>Ajustes</h2>
+        <button class="close-modal-btn" id="${prefix}-settings-close-btn" type="button">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; text-align: left; box-sizing: border-box; width: 100%;">
+        <div class="form-group" style="margin-bottom: 0; width: 100%;">
+          <label for="${prefix}-groupby-select">Filtrar por</label>
+          <select id="${prefix}-groupby-select" class="${prefix}-groupby-select" style="width: 100%; padding: 8px 10px; box-sizing: border-box;">
+            <option value="title" selected>Por título de tarea</option>
+            <option value="activity">Por etiqueta</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0; width: 100%;">
+          <label for="${prefix}-status-select">Estado</label>
+          <select id="${prefix}-status-select" class="${prefix}-status-select" style="width: 100%; padding: 8px 10px; box-sizing: border-box;">
+            <option value="completed">Tareas completadas</option>
+            <option value="uncompleted">Tareas no completadas</option>
+            <option value="all" selected>Todas las tareas</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0; width: 100%;">
+          <label for="${prefix}-color-select">Colores</label>
+          <select id="${prefix}-color-select" class="${prefix}-color-select" style="width: 100%; padding: 8px 10px; box-sizing: border-box;">
+            <option value="auto" selected>Automático</option>
+            <option value="tag">Por etiqueta</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 12px; background-color: transparent; border-top: none; padding: 14px 24px;">
+        <button type="button" class="btn btn-secondary" id="${prefix}-settings-cancel-btn" style="min-width: 100px;">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="${prefix}-settings-done-btn" style="min-width: 100px;">Aplicar</button>
+      </div>
+    </div>
+  `;
+}
 
 function getExcludedSetForDate(dateStr) {
   if (!excludedStatsActivitiesMap.has(dateStr)) {
@@ -7541,13 +7707,13 @@ function saveStatsSettings() {
 
 // Abre la vista de Ajustes del panel de actividad (oculta la vista principal).
 function openDailyStatsSettings() {
-  const main = document.getElementById('daily-stats-main-content');
-  const settings = document.getElementById('daily-stats-settings-content');
+  const main = getStatsEl('daily-stats-main-content');
+  const settings = getStatsEl('daily-stats-settings-content');
   if (!main || !settings) return;
   // Sincronizar los selects con el estado actual.
-  const g = document.getElementById('daily-stats-groupby-select');
-  const s = document.getElementById('daily-stats-status-select');
-  const c = document.getElementById('daily-stats-color-select');
+  const g = getStatsEl('daily-stats-groupby-select');
+  const s = getStatsEl('daily-stats-status-select');
+  const c = getStatsEl('daily-stats-color-select');
   if (g) g.value = statsGroupBy;
   if (s) s.value = statsStatusFilter;
   if (c) c.value = statsColorMode;
@@ -7573,16 +7739,16 @@ function cancelDailyStatsSettings() {
 
 // Cierra la vista de Ajustes y vuelve a la vista principal del panel.
 function closeDailyStatsSettings() {
-  const main = document.getElementById('daily-stats-main-content');
-  const settings = document.getElementById('daily-stats-settings-content');
+  const main = getStatsEl('daily-stats-main-content');
+  const settings = getStatsEl('daily-stats-settings-content');
   if (settings) settings.classList.add('hidden');
   if (main) main.classList.remove('hidden');
 }
 
 function rerenderDailyStatsPanels() {
-  const panelPrev = document.getElementById('daily-stats-panel-prev');
-  const panelCurr = document.getElementById('daily-stats-panel-curr');
-  const panelNext = document.getElementById('daily-stats-panel-next');
+  const panelPrev = getStatsEl('daily-stats-panel-prev');
+  const panelCurr = getStatsEl('daily-stats-panel-curr');
+  const panelNext = getStatsEl('daily-stats-panel-next');
 
   if (panelPrev) renderDailyStatsPanel(panelPrev, getRelativeDateString(currentDailyStatsDate, -1));
   if (panelCurr) renderDailyStatsPanel(panelCurr, currentDailyStatsDate);
@@ -7596,21 +7762,21 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
   // persistentes (se guardan en Supabase), por lo que se conservan al abrir el
   // modal, al cerrarlo y entre sesiones. Ya no se restablecen por defecto.
   // (Se mantiene el parámetro resetFilter por compatibilidad, sin efecto.)
-  const selects = document.querySelectorAll('.daily-stats-status-select');
+  const selects = document.querySelectorAll('.' + activeStatsPrefix + '-status-select');
   selects.forEach(sel => {
     sel.value = statsStatusFilter;
   });
-  const groupBySelects = document.querySelectorAll('.daily-stats-groupby-select');
+  const groupBySelects = document.querySelectorAll('.' + activeStatsPrefix + '-groupby-select');
   groupBySelects.forEach(sel => {
     sel.value = statsGroupBy;
   });
-  const colorSelects = document.querySelectorAll('.daily-stats-color-select');
+  const colorSelects = document.querySelectorAll('.' + activeStatsPrefix + '-color-select');
   colorSelects.forEach(sel => {
     sel.value = statsColorMode;
   });
 
   const formattedDate = formatToDDMMYYYY(dateStr);
-  const titleEl = document.getElementById('daily-stats-title');
+  const titleEl = getStatsEl('daily-stats-title');
   if (titleEl) {
     titleEl.textContent = `Actividad ${formattedDate}`;
   }
@@ -7618,27 +7784,27 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
   const prevDateStr = getRelativeDateString(dateStr, -1);
   const nextDateStr = getRelativeDateString(dateStr, 1);
   
-  const panelPrev = document.getElementById('daily-stats-panel-prev');
-  const panelCurr = document.getElementById('daily-stats-panel-curr');
-  const panelNext = document.getElementById('daily-stats-panel-next');
+  const panelPrev = getStatsEl('daily-stats-panel-prev');
+  const panelCurr = getStatsEl('daily-stats-panel-curr');
+  const panelNext = getStatsEl('daily-stats-panel-next');
   
   if (panelPrev) renderDailyStatsPanel(panelPrev, prevDateStr);
   if (panelCurr) renderDailyStatsPanel(panelCurr, dateStr);
   if (panelNext) renderDailyStatsPanel(panelNext, nextDateStr);
   
-  const slider = document.getElementById('daily-stats-slider');
+  const slider = getStatsEl('daily-stats-slider');
   if (slider) {
     slider.style.transition = 'none';
     slider.style.transform = 'translateX(-33.3333%)';
   }
   
-  const modal = document.getElementById('daily-stats-modal');
+  const modal = getStatsEl('daily-stats-modal');
   if (modal) {
     modal.classList.remove('hidden');
     // Asegurar que comience en la vista principal y con la fusión desactivada
-    const mainContent = document.getElementById('daily-stats-main-content');
-    const editContent = document.getElementById('daily-stats-edit-content');
-    const settingsContent = document.getElementById('daily-stats-settings-content');
+    const mainContent = getStatsEl('daily-stats-main-content');
+    const editContent = getStatsEl('daily-stats-edit-content');
+    const settingsContent = getStatsEl('daily-stats-settings-content');
     if (mainContent) mainContent.classList.remove('hidden');
     if (editContent) editContent.classList.add('hidden');
     if (settingsContent) settingsContent.classList.add('hidden');
@@ -7647,14 +7813,95 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
     statsMergeFirstSelected = '';
     statsMergeFirstColor = null;
     statsMergeFirstName = '';
-    const mergeBtn = document.getElementById('daily-stats-merge-btn');
+    const mergeBtn = getStatsEl('daily-stats-merge-btn');
     if (mergeBtn) mergeBtn.classList.remove('active');
   }
 }
 
+function estadisticasGenerales(dateStr, resetFilter = false) {
+  activeStatsPrefix = 'general-stats';
+  estadisticasDiarias(dateStr, resetFilter);
+}
+
+function initStatsModals() {
+  const dailyContainer = document.getElementById('daily-stats-modal');
+  if (dailyContainer) {
+    dailyContainer.innerHTML = getStatsModalHTML('daily-stats');
+  }
+  const generalContainer = document.getElementById('general-stats-modal');
+  if (generalContainer) {
+    generalContainer.innerHTML = getStatsModalHTML('general-stats');
+  }
+
+  initStatsEvents('daily-stats');
+  initStatsEvents('general-stats');
+}
+
+function initStatsEvents(prefix) {
+  const getEl = (baseId) => {
+    let id = baseId;
+    if (baseId.startsWith('stats-edit-')) {
+      id = prefix + '-edit-' + baseId.substring(11);
+    } else if (baseId.startsWith('daily-stats-')) {
+      id = prefix + '-' + baseId.substring(12);
+    }
+    return document.getElementById(id);
+  };
+
+  const statsEditCancelBtn = getEl('stats-edit-cancel-btn');
+  if (statsEditCancelBtn) statsEditCancelBtn.addEventListener('click', closeStatsTaskEditView);
+
+  const statsEditSaveBtn = getEl('stats-edit-save-btn');
+  if (statsEditSaveBtn) statsEditSaveBtn.addEventListener('click', saveStatsTaskEdit);
+
+  const statsEditResetBtn = getEl('stats-edit-reset-btn');
+  if (statsEditResetBtn) statsEditResetBtn.addEventListener('click', resetStatsTaskEdit);
+
+  const statsEditCloseBtn = getEl('stats-edit-close-btn');
+  if (statsEditCloseBtn) statsEditCloseBtn.addEventListener('click', closeStatsTaskEditView);
+
+  const statsMergeBtn = getEl('daily-stats-merge-btn');
+  if (statsMergeBtn) statsMergeBtn.addEventListener('click', toggleStatsMergeMode);
+
+  ['stats-edit-hsl-h', 'stats-edit-hsl-s', 'stats-edit-hsl-l'].forEach(id => {
+    const el = getEl(id);
+    if (el) el.addEventListener('input', updateStatsHslPreview);
+  });
+
+  const statusSelect = getEl('daily-stats-status-select');
+  if (statusSelect) {
+    statusSelect.addEventListener('change', (e) => handleStatsStatusFilterChange(e.target.value));
+  }
+  const groupbySelect = getEl('daily-stats-groupby-select');
+  if (groupbySelect) {
+    groupbySelect.addEventListener('change', (e) => handleStatsGroupByChange(e.target.value));
+  }
+  const colorSelect = getEl('daily-stats-color-select');
+  if (colorSelect) {
+    colorSelect.addEventListener('change', (e) => handleStatsColorModeChange(e.target.value));
+  }
+
+  const statsSettingsBtn = getEl('daily-stats-settings-btn');
+  if (statsSettingsBtn) statsSettingsBtn.addEventListener('click', openDailyStatsSettings);
+  const statsSettingsClose = getEl('daily-stats-settings-close-btn');
+  if (statsSettingsClose) statsSettingsClose.addEventListener('click', cancelDailyStatsSettings);
+  const statsSettingsCancel = getEl('daily-stats-settings-cancel-btn');
+  if (statsSettingsCancel) statsSettingsCancel.addEventListener('click', cancelDailyStatsSettings);
+  const statsSettingsDone = getEl('daily-stats-settings-done-btn');
+  if (statsSettingsDone) statsSettingsDone.addEventListener('click', closeDailyStatsSettings);
+
+  // Close close-modal-btn for this prefix modal
+  const modalCloseBtns = document.getElementById(prefix + '-modal').querySelectorAll('.close-modal-btn[data-modal]');
+  modalCloseBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById(prefix + '-modal').classList.add('hidden');
+    });
+  });
+}
+
 // ─── Funciones de Edición de Tarea desde Estadísticas ────────────────────────
 function buildStatsEditColorPalette() {
-  const container = document.getElementById('stats-edit-color-palette');
+  const container = getStatsEl('stats-edit-color-palette');
   if (!container) return;
   container.innerHTML = '';
 
@@ -7696,42 +7943,42 @@ function buildStatsEditColorPalette() {
 }
 
 function updateStatsHslPreview() {
-  const hEl = document.getElementById('stats-edit-hsl-h');
-  const sEl = document.getElementById('stats-edit-hsl-s');
-  const lEl = document.getElementById('stats-edit-hsl-l');
+  const hEl = getStatsEl('stats-edit-hsl-h');
+  const sEl = getStatsEl('stats-edit-hsl-s');
+  const lEl = getStatsEl('stats-edit-hsl-l');
   if (!hEl || !sEl || !lEl) return;
   const h = +hEl.value;
   const s = +sEl.value;
   const l = +lEl.value;
   const hex = hslToHex(h, s, l);
   editingTaskCustomColor = { bg: hex, text: '#ffffff', border: hex };
-  const prev = document.getElementById('stats-edit-hsl-preview');
-  const val = document.getElementById('stats-edit-hsl-value');
+  const prev = getStatsEl('stats-edit-hsl-preview');
+  const val = getStatsEl('stats-edit-hsl-value');
   if (prev) prev.style.backgroundColor = hex;
   if (val) val.textContent = `${hex.toUpperCase()}  (H ${h}, S ${s}, L ${l})`;
 }
 
 function showStatsHslPicker() {
-  const picker = document.getElementById('stats-edit-hsl-picker');
+  const picker = getStatsEl('stats-edit-hsl-picker');
   if (picker) picker.classList.remove('hidden');
   updateStatsHslPreview();
 }
 
 function hideStatsHslPicker() {
-  const picker = document.getElementById('stats-edit-hsl-picker');
+  const picker = getStatsEl('stats-edit-hsl-picker');
   if (picker) picker.classList.add('hidden');
 }
 
 function openStatsTaskEditView(group) {
-  const mainContent = document.getElementById('daily-stats-main-content');
-  const editContent = document.getElementById('daily-stats-edit-content');
+  const mainContent = getStatsEl('daily-stats-main-content');
+  const editContent = getStatsEl('daily-stats-edit-content');
   if (!mainContent || !editContent) return;
 
   mainContent.classList.add('hidden');
   editContent.classList.remove('hidden');
 
   editingTaskOriginalName = group.name;
-  const titleInput = document.getElementById('stats-edit-task-title');
+  const titleInput = getStatsEl('stats-edit-task-title');
   if (titleInput) {
     titleInput.value = group.displayName || group.name;
     setTimeout(() => titleInput.focus(), 50);
@@ -7748,9 +7995,9 @@ function openStatsTaskEditView(group) {
     editingTaskCustomColor = { bg: group.color.bg, text: '#ffffff', border: group.color.border || group.color.bg };
     
     const [h, s, l] = hexToHsl(group.color.bg);
-    const hEl = document.getElementById('stats-edit-hsl-h');
-    const sEl = document.getElementById('stats-edit-hsl-s');
-    const lEl = document.getElementById('stats-edit-hsl-l');
+    const hEl = getStatsEl('stats-edit-hsl-h');
+    const sEl = getStatsEl('stats-edit-hsl-s');
+    const lEl = getStatsEl('stats-edit-hsl-l');
     if (hEl) hEl.value = h;
     if (sEl) sEl.value = s;
     if (lEl) lEl.value = l;
@@ -7762,8 +8009,8 @@ function openStatsTaskEditView(group) {
 }
 
 function closeStatsTaskEditView() {
-  const mainContent = document.getElementById('daily-stats-main-content');
-  const editContent = document.getElementById('daily-stats-edit-content');
+  const mainContent = getStatsEl('daily-stats-main-content');
+  const editContent = getStatsEl('daily-stats-edit-content');
   if (!mainContent || !editContent) return;
 
   editContent.classList.add('hidden');
@@ -7775,7 +8022,7 @@ function closeStatsTaskEditView() {
 }
 
 async function saveStatsTaskEdit() {
-  const titleInput = document.getElementById('stats-edit-task-title');
+  const titleInput = getStatsEl('stats-edit-task-title');
   if (!titleInput) return;
   const newTitle = titleInput.value.trim();
   if (!newTitle) return;
@@ -7882,7 +8129,7 @@ function saveStatsMergePreferences() {
 }
 
 function toggleStatsMergeMode() {
-  const mergeBtn = document.getElementById('daily-stats-merge-btn');
+  const mergeBtn = getStatsEl('daily-stats-merge-btn');
   if (!mergeBtn) return;
   
   if (statsMergeModeActive) {
@@ -7919,7 +8166,7 @@ function toggleStatsMergeMode() {
     mergeBtn.classList.add('active');
     
     // Quitar cualquier resaltado previo de fila
-    document.querySelectorAll('.daily-stats-row').forEach(row => {
+    getStatsEl('daily-stats-modal').querySelectorAll('.daily-stats-row').forEach(row => {
       row.classList.remove('merge-selected');
     });
   }
@@ -7975,7 +8222,7 @@ function handleStatsMergeClick(group, tr) {
     statsMergeFirstColor = null;
     statsMergeFirstName = '';
 
-    const mergeBtn = document.getElementById('daily-stats-merge-btn');
+    const mergeBtn = getStatsEl('daily-stats-merge-btn');
     if (mergeBtn) mergeBtn.classList.remove('active');
 
     // Guardar
@@ -10030,15 +10277,15 @@ function setupEventListeners() {
   // Navegación con flechas del teclado (solo escritorio)
   document.addEventListener('keydown', (e) => {
     // Si el modal de estadísticas diarias está abierto, usar flechas para cambiar de día con animación de deslizamiento
-    const dailyStatsModal = document.getElementById('daily-stats-modal');
-    const editContent = document.getElementById('daily-stats-edit-content');
-    const settingsContent = document.getElementById('daily-stats-settings-content');
+    const activeModal = document.getElementById(activeStatsPrefix + '-modal');
+    const editContent = document.getElementById(activeStatsPrefix + '-edit-content');
+    const settingsContent = document.getElementById(activeStatsPrefix + '-settings-content');
     const isEditing = (editContent && !editContent.classList.contains('hidden'))
       || (settingsContent && !settingsContent.classList.contains('hidden'));
-    if (dailyStatsModal && !dailyStatsModal.classList.contains('hidden') && currentDailyStatsDate && !isEditing) {
+    if (activeModal && !activeModal.classList.contains('hidden') && currentDailyStatsDate && !isEditing) {
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        const slider = document.getElementById('daily-stats-slider');
+        const slider = document.getElementById(activeStatsPrefix + '-slider');
         if (slider) {
           slider.style.transition = 'transform 0.25s ease';
           slider.style.transform = 'translateX(0%)';
@@ -10050,7 +10297,7 @@ function setupEventListeners() {
         }
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        const slider = document.getElementById('daily-stats-slider');
+        const slider = document.getElementById(activeStatsPrefix + '-slider');
         if (slider) {
           slider.style.transition = 'transform 0.25s ease';
           slider.style.transform = 'translateX(-66.6666%)';
@@ -10903,53 +11150,8 @@ function setupEventListeners() {
     });
   }
 
-  // Botones de la vista de edición de tarea en estadísticas
-  const statsEditCancelBtn = document.getElementById('stats-edit-cancel-btn');
-  if (statsEditCancelBtn) statsEditCancelBtn.addEventListener('click', closeStatsTaskEditView);
-
-  const statsEditSaveBtn = document.getElementById('stats-edit-save-btn');
-  if (statsEditSaveBtn) statsEditSaveBtn.addEventListener('click', saveStatsTaskEdit);
-
-  const statsEditResetBtn = document.getElementById('stats-edit-reset-btn');
-  if (statsEditResetBtn) statsEditResetBtn.addEventListener('click', resetStatsTaskEdit);
-
-  const statsEditCloseBtn = document.getElementById('stats-edit-close-btn');
-  if (statsEditCloseBtn) statsEditCloseBtn.addEventListener('click', closeStatsTaskEditView);
-
-  // Botón de fusionar/combinar tareas en la cabecera de estadísticas
-  const statsMergeBtn = document.getElementById('daily-stats-merge-btn');
-  if (statsMergeBtn) statsMergeBtn.addEventListener('click', toggleStatsMergeMode);
-
-  // Sliders del selector de color personalizado en estadísticas: actualizar en vivo
-  ['stats-edit-hsl-h', 'stats-edit-hsl-s', 'stats-edit-hsl-l'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', updateStatsHslPreview);
-  });
-
-  // Selectores de la ventana de Ajustes del panel de actividad (Estado, Filtrar
-  // por, Colores). Ahora viven en su propia ventana, no en cada panel.
-  const statusSelect = document.getElementById('daily-stats-status-select');
-  if (statusSelect) {
-    statusSelect.addEventListener('change', (e) => handleStatsStatusFilterChange(e.target.value));
-  }
-  const groupbySelect = document.getElementById('daily-stats-groupby-select');
-  if (groupbySelect) {
-    groupbySelect.addEventListener('change', (e) => handleStatsGroupByChange(e.target.value));
-  }
-  const colorSelect = document.getElementById('daily-stats-color-select');
-  if (colorSelect) {
-    colorSelect.addEventListener('change', (e) => handleStatsColorModeChange(e.target.value));
-  }
-
-  // Botón de Ajustes (engranaje) en la cabecera del panel de actividad.
-  const statsSettingsBtn = document.getElementById('daily-stats-settings-btn');
-  if (statsSettingsBtn) statsSettingsBtn.addEventListener('click', openDailyStatsSettings);
-  const statsSettingsClose = document.getElementById('daily-stats-settings-close-btn');
-  if (statsSettingsClose) statsSettingsClose.addEventListener('click', cancelDailyStatsSettings);
-  const statsSettingsCancel = document.getElementById('daily-stats-settings-cancel-btn');
-  if (statsSettingsCancel) statsSettingsCancel.addEventListener('click', cancelDailyStatsSettings);
-  const statsSettingsDone = document.getElementById('daily-stats-settings-done-btn');
-  if (statsSettingsDone) statsSettingsDone.addEventListener('click', closeDailyStatsSettings);
+  // Los event listeners de estadísticas (diarias y generales) se registran
+  // dinámicamente en initStatsEvents(prefix) para soportar múltiples paneles.
 
   // Submit Tag Form
   document.getElementById('tag-form').addEventListener('submit', (e) => {
@@ -11299,6 +11501,7 @@ function setupEventListeners() {
       if (col) {
         const dateStr = col.dataset.date;
         if (dateStr) {
+          activeStatsPrefix = 'daily-stats';
           estadisticasDiarias(dateStr, true);
         }
       }
@@ -11306,22 +11509,26 @@ function setupEventListeners() {
   });
 
   // Gestos de deslizamiento (swipe) en tiempo real para cambiar de día en el modal de estadísticas
-  const dailyStatsModal = document.getElementById('daily-stats-modal');
-  if (dailyStatsModal) {
+  // Gestos de deslizamiento (swipe) en tiempo real para cambiar de día en el modal de estadísticas
+  ['daily-stats-modal', 'general-stats-modal'].forEach(modalId => {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    const prefix = modalId.replace('-modal', '');
+
     let touchStartX = 0;
     let touchStartY = 0;
     let isDragging = false;
     let sliderWidth = 0;
     const startTranslate = -33.3333; // Posición central en %
     
-    const slider = document.getElementById('daily-stats-slider');
-    const viewport = dailyStatsModal.querySelector('.daily-stats-viewport');
+    const slider = document.getElementById(prefix + '-slider');
+    const viewport = modal.querySelector('.daily-stats-viewport');
     
-    dailyStatsModal.addEventListener('touchstart', (e) => {
+    modal.addEventListener('touchstart', (e) => {
       if (!currentDailyStatsDate) return;
-      const editContent = document.getElementById('daily-stats-edit-content');
+      const editContent = document.getElementById(prefix + '-edit-content');
       if (editContent && !editContent.classList.contains('hidden')) return;
-      const settingsContent = document.getElementById('daily-stats-settings-content');
+      const settingsContent = document.getElementById(prefix + '-settings-content');
       if (settingsContent && !settingsContent.classList.contains('hidden')) return;
       const touch = e.touches[0];
       touchStartX = touch.clientX;
@@ -11335,7 +11542,7 @@ function setupEventListeners() {
       }
     }, { passive: true });
     
-    dailyStatsModal.addEventListener('touchmove', (e) => {
+    modal.addEventListener('touchmove', (e) => {
       if (!isDragging || !slider || sliderWidth <= 0) return;
       const touch = e.touches[0];
       const dx = touch.clientX - touchStartX;
@@ -11359,7 +11566,7 @@ function setupEventListeners() {
       slider.style.transform = `translateX(${targetTranslate}%)`;
     }, { passive: false });
     
-    dailyStatsModal.addEventListener('touchend', (e) => {
+    modal.addEventListener('touchend', (e) => {
       if (!isDragging || !slider || sliderWidth <= 0) return;
       isDragging = false;
       
@@ -11393,7 +11600,7 @@ function setupEventListeners() {
         slider.style.transform = 'translateX(-33.3333%)';
       }
     }, { passive: true });
-  }
+  });
 
 
 

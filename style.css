@@ -4560,21 +4560,25 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 
 /* La ventana de AJUSTES de estadísticas solo tiene tres desplegables: no necesita
    la altura fija de la vista de gráfico. Se compacta a su contenido y se estrecha. */
-#daily-stats-settings-content.daily-stats-w {
+#daily-stats-settings-content.daily-stats-w,
+#general-stats-settings-content.daily-stats-w {
   height: auto;
   width: 300px;
 }
 
-#daily-stats-modal .modal-header {
+#daily-stats-modal .modal-header,
+#general-stats-modal .modal-header {
   padding-bottom: 10px;
   flex-shrink: 0;
 }
 
-#daily-stats-modal .modal-footer {
+#daily-stats-modal .modal-footer,
+#general-stats-modal .modal-footer {
   flex-shrink: 0;
 }
 
-#daily-stats-modal .modal-body {
+#daily-stats-modal .modal-body,
+#general-stats-modal .modal-body {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4761,10 +4765,12 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 }
 
 /* Estado activo del botón combinar y fila seleccionada */
-#daily-stats-merge-btn.active img {
+#daily-stats-merge-btn.active img,
+#general-stats-merge-btn.active img {
   filter: invert(28%) sepia(96%) saturate(7000%) hue-rotate(356deg) brightness(95%) contrast(118%);
 }
-#daily-stats-merge-btn.active:hover {
+#daily-stats-merge-btn.active:hover,
+#general-stats-merge-btn.active:hover {
   background-color: rgba(255, 0, 0, 0.08);
 }
 .daily-stats-row.merge-selected {
