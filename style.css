@@ -2994,6 +2994,52 @@ body.not-logged-in .app-container {
   right: 12px;
 }
 
+/* ── Iconos del header de día (MÓVIL): pila/flujo que colapsa a la derecha ───
+   Antes cada icono iba en position:absolute con un `right` fijo, de modo que al
+   ocultarse uno quedaba un hueco. Ahora los iconos participan en el flujo FLEX
+   del header y se compactan pegados al borde derecho, sin huecos: si un icono
+   está oculto (display:none, p.ej. copiar siempre, o basurero/estadísticas según
+   el día), el siguiente ocupa su lugar.
+
+   Cómo se empujan a la derecha: el número del día lleva margin-right:auto, que
+   absorbe todo el espacio libre y manda el grupo de iconos contra el borde. Como
+   el número siempre es visible, el empuje funciona sea cual sea la combinación de
+   iconos presentes. El orden visual (copiar → estadísticas → notas → basurero) lo
+   fija `order`, independiente del orden en el DOM (que difiere entre planner y
+   horario). El gap de 10px del .day-header conserva el espaciado previo (32px
+   centro-a-centro). */
+.mobile-mode .day-header .day-number {
+  margin-right: auto;
+}
+.mobile-mode .day-header .copy-day-btn,
+.mobile-mode .day-header .stats-day-btn,
+.mobile-mode .day-header .dialogue-day-btn,
+.mobile-mode .day-header .clear-day-btn,
+.mobile-mode .day-header .duration-day-btn {
+  position: static;
+  top: auto;
+  right: auto;
+  left: auto;
+  transform: none;
+  flex: 0 0 auto;
+  /* Margen lateral 0: la separación la da el gap del header. El padding:4px del
+     propio botón se conserva (área táctil), igual que antes. */
+  margin: 0;
+}
+/* Orden visual de izquierda a derecha, pase lo que pase con la visibilidad. */
+.mobile-mode .day-header .copy-day-btn   { order: 1; }
+.mobile-mode .day-header .stats-day-btn  { order: 2; }
+.mobile-mode .day-header .dialogue-day-btn { order: 3; }
+.mobile-mode .day-header .clear-day-btn  { order: 4; }
+/* Pegar el grupo al borde con el mismo margen que antes (12px). El último icono
+   visible (sea cual sea) lleva el padding:4px del botón, así que con un
+   padding-right de 8px en el header el icono queda a 12px del borde, idéntico a
+   antes y consistente aunque se oculte el basurero o las estadísticas. El lado
+   IZQUIERDO del header conserva sus 16px (solo tocamos el derecho). */
+.mobile-mode .day-header {
+  padding-right: 8px;
+}
+
 .mobile-mode .modal-header {
   padding-right: 12px;
 }
@@ -4675,35 +4721,6 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .daily-stats-row.merge-selected {
   background-color: rgba(255, 59, 48, 0.06);
 }
-
-/* Toast para alternar entre modos (Planner / Horario) */
-.mode-toast {
-  position: fixed;
-  bottom: 40px;
-  left: 50%;
-  transform: translate(-50%, 15px);
-  background-color: hsl(0, 0%, 15%); /* Gris oscuro (15% luminosidad, 5% más claro) */
-  color: #ffffff; /* Letras blancas */
-  padding: 8px 16px;
-  border-radius: 9999px; /* Extremos completamente redondeados */
-  font-family: 'Inter', -apple-system, sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  z-index: 200000; /* Por encima de todo, incluidos modales */
-  pointer-events: none;
-  width: 130px; /* Ancho del contenedor igual para ambos mensajes (más pequeño) */
-  text-align: center;
-  box-sizing: border-box;
-  opacity: 0;
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.mode-toast.show {
-  opacity: 1;
-  transform: translate(-50%, 0);
-}
-
 
 
 
