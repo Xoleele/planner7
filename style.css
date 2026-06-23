@@ -1799,6 +1799,35 @@ input:checked + .slider:before {
   text-align: left;
 }
 
+/* Campo editable dentro del trigger del selector de etiqueta. Hereda el aspecto
+   del trigger (sin borde propio) para que parezca un texto que se puede escribir. */
+.custom-select-trigger-input {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font-size: inherit;
+  font-family: inherit;
+  color: var(--text-main);
+  text-align: left;
+  cursor: text;
+}
+.custom-select-trigger-input:focus,
+.custom-select-trigger-input:focus-visible {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+.custom-select-trigger-input::placeholder {
+  color: var(--text-muted);
+}
+
 .custom-select-arrow {
   display: flex;
   align-items: center;

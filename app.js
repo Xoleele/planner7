@@ -8820,52 +8820,35 @@ function setSelectTagValue(tagId) {
   const trigger = document.getElementById('tag-select-trigger');
   if (trigger && tag) {
     const circle = trigger.querySelector('.custom-select-color-circle');
-    const text = trigger.querySelector('.custom-select-trigger-text');
+    const input = document.getElementById('tag-select-input');
     if (circle) circle.style.backgroundColor = tag.color.bg;
-    if (text) text.textContent = tag.name;
+    if (input) input.value = tag.name;
   }
 }
 
-// Añade un campo de búsqueda al inicio del desplegable de etiquetas (escritorio
-// y móvil) que filtra las opciones en vivo al teclear.
-function addTagSearchBox(container) {
-  const search = document.createElement('input');
-  search.type = 'text';
-  search.className = 'tag-search-input';
-  search.placeholder = 'Buscar etiqueta…';
-  search.autocomplete = 'off';
-  // Evitar que un clic en el campo cierre el desplegable o seleccione.
-  search.addEventListener('click', (e) => e.stopPropagation());
-  search.addEventListener('keydown', (e) => e.stopPropagation());
-  search.addEventListener('input', () => {
-    const q = search.value.trim().toLowerCase();
-    container.querySelectorAll('.custom-option').forEach(opt => {
-      const name = (opt.dataset.name || '').toLowerCase();
-      opt.style.display = (!q || name.includes(q)) ? '' : 'none';
-    });
+// Filtra las opciones del desplegable según el texto escrito en el input del
+// trigger. Devuelve la primera opción visible (útil para seleccionar con Enter).
+function filterTagOptions(container, query) {
+  const q = (query || '').trim().toLowerCase();
+  let first = null;
+  container.querySelectorAll('.custom-option').forEach(opt => {
+    const name = (opt.dataset.name || '').toLowerCase();
+    const match = (!q || name.includes(q));
+    opt.style.display = match ? '' : 'none';
+    if (match && !first) first = opt;
   });
-  container.appendChild(search);
+  return first;
 }
 
-// Al abrir el desplegable: limpiar el buscador, mostrar todas las opciones y
-// enfocar el campo para que el usuario pueda teclear de inmediato (escritorio).
-function resetTagSearch(container) {
-  const search = container.querySelector('.tag-search-input');
-  if (!search) return;
-  search.value = '';
+// Muestra todas las opciones (sin filtro) en el desplegable indicado.
+function showAllTagOptions(container) {
   container.querySelectorAll('.custom-option').forEach(opt => { opt.style.display = ''; });
-  // En escritorio enfocamos el campo para teclear de inmediato. En móvil no
-  // forzamos el foco (evita abrir el teclado sin que el usuario lo pida).
-  if (!isMobile()) {
-    setTimeout(() => search.focus(), 0);
-  }
 }
 
 function buildTagSelectorOptions() {
   const container = document.getElementById('tag-options-container');
   if (!container) return;
   container.innerHTML = '';
-  addTagSearchBox(container);
 
   getOrderedTagsForDisplay().forEach(tag => {
     const option = document.createElement('div');
@@ -9506,9 +9489,9 @@ function setTimerSelectTagValue(tagId) {
   const trigger = document.getElementById('timer-tag-select-trigger');
   if (trigger && tag) {
     const circle = trigger.querySelector('.custom-select-color-circle');
-    const text = trigger.querySelector('.custom-select-trigger-text');
+    const input = document.getElementById('timer-tag-select-input');
     if (circle) circle.style.backgroundColor = tag.color.bg;
-    if (text) text.textContent = tag.name;
+    if (input) input.value = tag.name;
   }
 }
 
@@ -9516,7 +9499,6 @@ function buildTimerTagSelectorOptions() {
   const container = document.getElementById('timer-tag-options-container');
   if (!container) return;
   container.innerHTML = '';
-  addTagSearchBox(container);
 
   getOrderedTagsForDisplay().forEach(tag => {
     const option = document.createElement('div');
@@ -10978,47 +10960,82 @@ function setupEventListeners() {
     }
   });
 
-  // Custom Select Dropdown for Tags Toggle
-  const tagSelectTrigger = document.getElementById('tag-select-trigger');
-  const tagOptionsContainer = document.getElementById('tag-options-container');
+  // Selector de etiqueta como campo de búsqueda (editor de tareas y cronómetro).
+  // El usuario escribe → se filtran las opciones; Enter selecciona la primera
+  // visible; clic en una opción la selecciona; clic fuera restaura el nombre.
+  function setupTagSearchSelect(triggerId, inputId, containerId, hiddenId, onSelect) {
+    const trigger = document.getElementById(triggerId);
+    const input = document.getElementById(inputId);
+    const container = document.getElementById(containerId);
+    if (!trigger || !input || !container) return;
 
-  if (tagSelectTrigger && tagOptionsContainer) {
-    tagSelectTrigger.addEventListener('click', (e) => {
-      e.stopPropagation();
-      tagOptionsContainer.classList.toggle('hidden');
-      if (!tagOptionsContainer.classList.contains('hidden')) {
-        resetTagSearch(tagOptionsContainer);
+    const openDropdown = () => {
+      filterTagOptions(container, input.value);
+      container.classList.remove('hidden');
+    };
+
+    // Restaura el nombre de la etiqueta actualmente seleccionada en el input.
+    const restoreSelected = () => {
+      const hidden = document.getElementById(hiddenId);
+      const id = hidden ? hidden.value : 'default';
+      const tag = tags.find(t => t.id === id) || tags.find(t => t.id === 'default');
+      if (tag) input.value = tag.name;
+    };
+
+    // Al enfocar/hacer clic: abrir y seleccionar todo el texto para sobrescribir.
+    input.addEventListener('focus', () => {
+      openDropdown();
+      input.select();
+    });
+
+    input.addEventListener('input', () => {
+      filterTagOptions(container, input.value);
+      container.classList.remove('hidden');
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const first = filterTagOptions(container, input.value);
+        if (first) first.click();
+        input.blur();
+      } else if (e.key === 'Escape') {
+        restoreSelected();
+        container.classList.add('hidden');
+        input.blur();
       }
     });
 
-    // Close options list when clicking outside
+    // Al perder el foco: si no se eligió nada, restaurar el nombre seleccionado.
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        showAllTagOptions(container);
+        restoreSelected();
+      }, 150);
+    });
+
+    // Clic en la flecha o el círculo abre/cierra el desplegable.
+    trigger.addEventListener('click', (e) => {
+      if (e.target === input) return; // el input gestiona su propio foco
+      e.stopPropagation();
+      if (container.classList.contains('hidden')) {
+        input.focus();
+      } else {
+        container.classList.add('hidden');
+      }
+    });
+
+    // Cerrar al hacer clic fuera.
     document.addEventListener('click', (e) => {
-      if (!tagSelectTrigger.contains(e.target) && !tagOptionsContainer.contains(e.target)) {
-        tagOptionsContainer.classList.add('hidden');
+      if (!trigger.contains(e.target) && !container.contains(e.target)) {
+        container.classList.add('hidden');
+        showAllTagOptions(container);
       }
     });
   }
 
-  // Custom Select Dropdown for Timer Tags
-  const timerTagSelectTrigger = document.getElementById('timer-tag-select-trigger');
-  const timerTagOptionsContainer = document.getElementById('timer-tag-options-container');
-
-  if (timerTagSelectTrigger && timerTagOptionsContainer) {
-    timerTagSelectTrigger.addEventListener('click', (e) => {
-      e.stopPropagation();
-      timerTagOptionsContainer.classList.toggle('hidden');
-      if (!timerTagOptionsContainer.classList.contains('hidden')) {
-        resetTagSearch(timerTagOptionsContainer);
-      }
-    });
-
-    // Close options list when clicking outside
-    document.addEventListener('click', (e) => {
-      if (!timerTagSelectTrigger.contains(e.target) && !timerTagOptionsContainer.contains(e.target)) {
-        timerTagOptionsContainer.classList.add('hidden');
-      }
-    });
-  }
+  setupTagSearchSelect('tag-select-trigger', 'tag-select-input', 'tag-options-container', 'task-select-tag');
+  setupTagSearchSelect('timer-tag-select-trigger', 'timer-tag-select-input', 'timer-tag-options-container', 'timer-select-tag');
 
   // Edge scrolling when dragging a task on desktop
   window.addEventListener('dragover', (e) => {
@@ -12422,7 +12439,7 @@ window.recuperarHoras = async function (aplicar = false) {
   // Aplicar: actualizar cada fila en Supabase (no destructivo: solo añade hora).
   let ok = 0, fail = 0;
   for (const c of cambios) {
-    const row = rows.find(r => r.id === c.id);
+     const row = rows.find(r => r.id === c.id);
     const nuevo = { ...row.data, startTime: c.startTime, endTime: c.endTime, _timeFieldsMigrated: true };
     const { error: upErr } = await sb.from('tasks').update({ data: nuevo }).eq('id', c.id).eq('user_id', currentUser.id);
     if (upErr) { console.error('Falló', c.id, upErr); fail++; }
