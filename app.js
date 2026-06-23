@@ -893,6 +893,7 @@ let statsGroupBy = 'title';
 // defecto) o 'tag' (usa el color definido por el usuario para cada etiqueta).
 let statsColorMode = 'auto';
 let generalStatsChartType = 'circular';
+let lineStatsActiveTags = [];
 // Estado guardado al abrir Ajustes de estadísticas, para restaurar si se cancela.
 let statsSettingsSnapshot = null;
 let statsMergeFirstSelected = '';
@@ -7107,6 +7108,7 @@ function getStatsModalHTML(prefix) {
           <select id="general-stats-chart-type-select" style="width: 100%; padding: 6px 10px; font-size: 13px; height: 36px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
             <option value="circular" selected>Circular</option>
             <option value="barras-apiladas">Barras apiladas</option>
+            <option value="lineal">Lineal</option>
           </select>
         </div>
         <div class="form-group flex-1" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
@@ -7472,6 +7474,92 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
   return svgParts.join('\n');
 }
 
+function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
+  const y_bottom = 80;
+  const y_top = 10;
+  const plotHeight = y_bottom - y_top;
+  const x_left = 15;
+  const x_right = 190;
+  const plotWidth = x_right - x_left;
+  const N = dates.length;
+  const denom = N > 1 ? N - 1 : 1;
+
+  const tagDailyHours = {};
+  let maxDailyHours = 0;
+
+  activeTags.forEach(tagName => {
+    tagDailyHours[tagName] = Array(N).fill(0);
+  });
+
+  dates.forEach((dStr, dateIdx) => {
+    groupedList.forEach(group => {
+      if (!activeTags.includes(group.name)) return;
+      group.occurrences.forEach(occ => {
+        if (occ.dateStr === dStr) {
+          tagDailyHours[group.name][dateIdx] += occ.mins / 60;
+        }
+      });
+    });
+  });
+
+  activeTags.forEach(tagName => {
+    tagDailyHours[tagName].forEach(hours => {
+      if (hours > maxDailyHours) {
+        maxDailyHours = hours;
+      }
+    });
+  });
+
+  const yMax = maxDailyHours > 0 ? maxDailyHours * 1.1 : 1;
+
+  const svgParts = [];
+  svgParts.push(`<svg viewBox="0 0 200 100" style="width: 100%; height: 100%;">`);
+
+  const gridLinesY = [y_top + plotHeight * 0.25, y_top + plotHeight * 0.5, y_top + plotHeight * 0.75];
+  gridLinesY.forEach((yVal, idx) => {
+    svgParts.push(`<line x1="${x_left}" y1="${yVal}" x2="${x_right}" y2="${yVal}" stroke="var(--border-light, #f2f2f7)" stroke-dasharray="1.5,1.5" stroke-width="0.35" />`);
+    const hoursVal = yMax * (0.75 - idx * 0.25);
+    svgParts.push(`<text x="${x_left - 3}" y="${yVal}" fill="var(--text-muted, #8e8e93)" font-size="5" font-weight="600" text-anchor="end" dominant-baseline="central">${hoursVal.toFixed(1)}h</text>`);
+  });
+
+  svgParts.push(`<line x1="${x_left}" y1="${y_bottom}" x2="${x_right + 5}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
+  svgParts.push(`<line x1="${x_left}" y1="${y_top - 5}" x2="${x_left}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
+
+  const step = N > 15 ? 5 : 2;
+  dates.forEach((dStr, idx) => {
+    if (idx % step === 0 || idx === N - 1) {
+      const x = x_left + (idx / denom) * plotWidth;
+      const dateObj = new Date(dStr + 'T12:00:00');
+      const dayNum = dateObj.getDate();
+      svgParts.push(`<text x="${x}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="5.5" font-weight="600" text-anchor="middle">${dayNum}</text>`);
+    }
+  });
+
+  activeTags.forEach(tagName => {
+    const group = groupedList.find(g => g.name === tagName);
+    if (!group) return;
+    const color = group.color.bg;
+
+    const points = [];
+    dates.forEach((dStr, idx) => {
+      const x = x_left + (idx / denom) * plotWidth;
+      const hours = tagDailyHours[tagName][idx];
+      const y = y_bottom - (hours / yMax) * plotHeight;
+      points.push({ x, y, hours });
+    });
+
+    const pathD = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    svgParts.push(`<path d="${pathD}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />`);
+
+    points.forEach(p => {
+      svgParts.push(`<circle cx="${p.x}" cy="${p.y}" r="2" fill="${color}" stroke="var(--bg-card, #ffffff)" stroke-width="0.5" />`);
+    });
+  });
+
+  svgParts.push(`</svg>`);
+  return svgParts.join('\n');
+}
+
 function getDatesInRange(fromStr, toStr) {
   const dates = [];
   const start = new Date(fromStr + 'T12:00:00');
@@ -7677,10 +7765,17 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   const includedGroups = groupedList.filter(g => !excludedSet.has(g.name));
   const totalIncludedMins = includedGroups.reduce((sum, g) => sum + g.minutes, 0);
   
+  // Initialize lineStatsActiveTags if empty in lineal mode
+  if (prefix === 'general-stats' && generalStatsChartType === 'lineal' && lineStatsActiveTags.length === 0) {
+    if (groupedList.length > 0) {
+      lineStatsActiveTags = [groupedList[0].name];
+    }
+  }
+
   // Renderizar gráfico
   const chartContainer = chartPlaceholder.parentElement;
   if (chartContainer) {
-    if (prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas') {
+    if (prefix === 'general-stats' && (generalStatsChartType === 'barras-apiladas' || generalStatsChartType === 'lineal')) {
       chartContainer.style.width = '100%';
       chartContainer.style.maxWidth = '340px';
       chartContainer.style.height = '175px';
@@ -7693,6 +7788,8 @@ function renderDailyStatsPanel(panelEl, dateParam) {
 
   if (prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas') {
     chartPlaceholder.innerHTML = renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet);
+  } else if (prefix === 'general-stats' && generalStatsChartType === 'lineal') {
+    chartPlaceholder.innerHTML = renderLineChartSVG(occurrences, dates, groupedList, lineStatsActiveTags);
   } else {
     chartPlaceholder.innerHTML = renderPieChartSVG(includedGroups);
   }
@@ -7728,7 +7825,10 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     const tbody = document.createElement('tbody');
     
     groupedList.forEach(group => {
-      const isExcluded = excludedSet.has(group.name);
+      let isExcluded = excludedSet.has(group.name);
+      if (prefix === 'general-stats' && generalStatsChartType === 'lineal') {
+        isExcluded = !lineStatsActiveTags.includes(group.name);
+      }
       const mins = group.minutes;
       const percent = totalIncludedMins > 0 && !isExcluded ? (mins / totalIncludedMins * 100) : 0;
       const percentStr = isExcluded ? '-' : `${percent.toFixed(0)}%`;
@@ -7802,14 +7902,20 @@ function renderDailyStatsPanel(panelEl, dateParam) {
         tdDuration.style.cursor = 'default';
       }
       
-      // 4. Botón de acción con icono '+' para excluir/incluir
+      // 4. Botón de acción con icono '+' para excluir/incluir o seleccionar
       const tdAction = document.createElement('td');
       tdAction.style.textAlign = 'center';
       tdAction.style.width = '30px';
       
       const btn = document.createElement('button');
       btn.className = 'daily-stats-btn-exclude' + (isExcluded ? ' excluded' : '');
-      btn.title = isExcluded ? 'Incluir en el total' : 'Excluir del total';
+      
+      let tooltipTitle = isExcluded ? 'Incluir en el total' : 'Excluir del total';
+      if (prefix === 'general-stats' && generalStatsChartType === 'lineal') {
+        tooltipTitle = isExcluded ? 'Mostrar en el gráfico' : 'Ocultar del gráfico';
+      }
+      btn.title = tooltipTitle;
+
       btn.innerHTML = `
         <svg width="12.5" height="12.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect x="2" y="2" width="20" height="20" rx="5" fill="${isExcluded ? '#9a9a9a' : '#111111'}" />
@@ -7820,12 +7926,30 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (isExcluded) {
-          excludedSet.delete(group.name);
+        if (prefix === 'general-stats' && generalStatsChartType === 'lineal') {
+          if (lineStatsActiveTags.includes(group.name)) {
+            if (lineStatsActiveTags.length <= 1) {
+              alert('Debe haber al menos una etiqueta seleccionada.');
+            } else {
+              lineStatsActiveTags = lineStatsActiveTags.filter(t => t !== group.name);
+              renderDailyStatsPanel(panelEl, dateParam);
+            }
+          } else {
+            if (lineStatsActiveTags.length >= 3) {
+              alert('Puedes seleccionar un máximo de 3 etiquetas.');
+            } else {
+              lineStatsActiveTags.push(group.name);
+              renderDailyStatsPanel(panelEl, dateParam);
+            }
+          }
         } else {
-          excludedSet.add(group.name);
+          if (isExcluded) {
+            excludedSet.delete(group.name);
+          } else {
+            excludedSet.add(group.name);
+          }
+          renderDailyStatsPanel(panelEl, dateParam);
         }
-        renderDailyStatsPanel(panelEl, dateParam);
       });
       
       tdAction.appendChild(btn);
@@ -8068,6 +8192,16 @@ function updatePeriodSelectOptions() {
     } else {
       periodSelect.value = 'semanal';
     }
+  } else if (generalStatsChartType === 'lineal') {
+    periodSelect.innerHTML = `
+      <option value="10dias">Últimos 10 días</option>
+      <option value="30dias">Últimos 30 días</option>
+    `;
+    if (currentVal === '10dias' || currentVal === '30dias') {
+      periodSelect.value = currentVal;
+    } else {
+      periodSelect.value = '10dias';
+    }
   } else {
     periodSelect.innerHTML = `
       <option value="hoy">Hoy</option>
@@ -8109,6 +8243,20 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
         from: formatDate(monday),
         to: formatDate(sunday)
       };
+    } else if (generalStatsChartType === 'lineal') {
+      periodSelect.value = '10dias';
+      
+      const endDate = new Date(dateStr + 'T12:00:00');
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 9);
+      
+      generalStatsDateRange = {
+        from: formatDate(startDate),
+        to: formatDate(endDate)
+      };
+      
+      // Reset active tags to let renderDailyStatsPanel select the top one dynamically
+      lineStatsActiveTags = [];
     } else {
       periodSelect.value = 'hoy';
       generalStatsDateRange = null;
@@ -8149,6 +8297,16 @@ function handleGeneralStatsPeriodChange() {
     generalStatsDateRange = {
       from: formatDate(monday),
       to: formatDate(sunday)
+    };
+    renderGeneralStatsForRange();
+  } else if (val === '10dias') {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const from = new Date(today);
+    from.setDate(from.getDate() - 9);
+    generalStatsDateRange = {
+      from: formatDate(from),
+      to: formatDate(today)
     };
     renderGeneralStatsForRange();
   } else if (val === '7dias') {
