@@ -7667,19 +7667,22 @@ function renderHabitTrackerHTML(dates) {
     });
   };
 
-  // Grilla en columnas verticales (estilo GitHub): 7 filas por columna (semanas),
-  // las columnas avanzan en el tiempo de izquierda a derecha.
-  const cells = dates.map(dStr => {
+  // Orden: el día más reciente en la esquina superior izquierda; se rellena de
+  // izquierda a derecha y luego hacia abajo (flujo por filas). `dates` viene en
+  // orden ascendente, así que lo invertimos.
+  const COLS = 10;
+  const ordered = dates.slice().reverse();
+  const cells = ordered.map(dStr => {
     const done = isDoneOnDate(dStr);
     const dObj = new Date(dStr + 'T12:00:00');
     const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
-    const tip = `${dLabel}: ${done ? (tag ? tag.name : 'completado') : 'sin completar'}`;
+    const tip = `${dLabel}: ${done ? 'completado' : 'sin completar'}`;
     const bg = done ? fillColor : EMPTY;
     return `<div class="habit-cell" data-tooltip="${tip}" style="background:${bg};"></div>`;
   }).join('');
 
   return `
-    <div class="habit-grid" style="display:grid; grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; padding: 6px 0; width: 100%;">
+    <div class="habit-grid" style="display:grid; grid-template-columns: repeat(${COLS}, 1fr); grid-auto-flow: row; gap: 3px; padding: 6px 0; width: 100%;">
       ${cells}
     </div>`;
 }
