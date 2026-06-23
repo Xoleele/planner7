@@ -7130,6 +7130,7 @@ function getStatsModalHTML(prefix) {
             <option value="barras-apiladas">Barras apiladas</option>
             <option value="lineal">Lineal</option>
             <option value="habitos">Hábitos</option>
+            <option value="heatmap">Mapa de calor</option>
           </select>
         </div>
         <div class="form-group flex-1" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
@@ -7680,6 +7681,79 @@ function renderHabitTrackerHTML(dates) {
     </div>`;
 }
 
+// Devuelve el tono (H) y saturación (S) de un color (hex o hsl) para construir
+// una escala de 4 luminosidades del mismo color.
+function getHueSatFromColor(color) {
+  if (typeof color === 'string' && color.startsWith('#') && color.length >= 7) {
+    const [h, s] = hexToHsl(color);
+    return [h, s];
+  }
+  const m = typeof color === 'string' && color.match(/hsl\(\s*(\d+)[,\s]+(\d+)%/i);
+  if (m) return [parseInt(m[1], 10), parseInt(m[2], 10)];
+  return [210, 70]; // azul por defecto
+}
+
+// Mapa de calor: 24 columnas (horas 0–23) × 12 filas (últimos 12 días, el más
+// reciente abajo). El valor de cada celda son los minutos de la etiqueta
+// seleccionada que caen en esa hora de ese día (solo tareas con hora inicio/fin).
+// La intensidad usa 4 luminosidades del color de la etiqueta; el rango se divide
+// entre el mínimo y el máximo del periodo.
+function renderHeatmapHTML(dates) {
+  const tag = tags.find(t => t.id === generalStatsHabitTag) || tags.find(t => t.id === 'default');
+  const [hue, sat] = getHueSatFromColor(tag && tag.color ? tag.color.bg : '#50a9ed');
+  // 4 luminosidades, de más claro (valor bajo) a más oscuro (valor alto).
+  const LUM = [88, 70, 52, 36];
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+  // Matriz [día][hora] = minutos. Reparte la duración de cada tarea por hora.
+  const grid = dates.map(() => new Array(24).fill(0));
+  dates.forEach((dStr, di) => {
+    const dateObj = new Date(dStr + 'T12:00:00');
+    tasks.forEach(task => {
+      if ((task.tagId || 'default') !== generalStatsHabitTag) return;
+      if (!checkTaskOccurrence(task, dateObj)) return;
+      const r = getTaskTimeRange(task); // requiere startTime + endTime
+      if (!r) return;
+      // Repartir [startMin, endMin) por hora; si cruza medianoche, recortar a las 24h del día.
+      const end = r.crossesMidnight ? 24 * 60 : r.rawEndMin;
+      for (let m = r.startMin; m < end; m++) {
+        const hour = Math.floor(m / 60);
+        if (hour >= 0 && hour < 24) grid[di][hour] += 1;
+      }
+    });
+  });
+
+  // Mínimo y máximo (sobre todas las celdas) del periodo.
+  let maxVal = 0;
+  grid.forEach(row => row.forEach(v => { if (v > maxVal) maxVal = v; }));
+
+  // Asigna un índice de tono (0–3) a un valor según el rango [0, maxVal].
+  const tierFor = (v) => {
+    if (maxVal <= 0) return 0;
+    const frac = v / maxVal;            // 0..1
+    const idx = Math.ceil(frac * 4) - 1; // 0..3
+    return Math.max(0, Math.min(3, idx));
+  };
+
+  let cellsHtml = '';
+  dates.forEach((dStr, di) => {
+    const dObj = new Date(dStr + 'T12:00:00');
+    const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
+    for (let h = 0; h < 24; h++) {
+      const v = grid[di][h];
+      const lum = LUM[tierFor(v)];
+      const bg = `hsl(${hue}, ${sat}%, ${lum}%)`;
+      const tip = `${dLabel} ${String(h).padStart(2,'0')}:00 · ${v} min`;
+      cellsHtml += `<div class="heatmap-cell" data-tooltip="${tip}" style="background:${bg};"></div>`;
+    }
+  });
+
+  return `
+    <div class="heatmap-grid" style="display:grid; grid-template-columns: repeat(24, 1fr); gap: 2px; padding: 6px 0; width: 100%;">
+      ${cellsHtml}
+    </div>`;
+}
+
 function getDatesInRange(fromStr, toStr) {
   const dates = [];
   const start = new Date(fromStr + 'T12:00:00');
@@ -7900,7 +7974,7 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   // Renderizar gráfico
   const chartContainer = chartPlaceholder.parentElement;
   if (chartContainer) {
-    if (prefix === 'general-stats' && generalStatsChartType === 'habitos') {
+    if (prefix === 'general-stats' && (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap')) {
       chartContainer.style.width = '100%';
       chartContainer.style.maxWidth = '340px';
       chartContainer.style.height = 'auto';
@@ -7915,7 +7989,27 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     }
   }
 
-  if (prefix === 'general-stats' && generalStatsChartType === 'habitos') {
+  if (prefix === 'general-stats' && generalStatsChartType === 'heatmap') {
+    chartPlaceholder.innerHTML = renderHeatmapHTML(dates);
+    // Tooltip por cuadrito (día/hora + duración).
+    const hcells = chartPlaceholder.querySelectorAll('.heatmap-cell');
+    hcells.forEach(cell => {
+      cell.addEventListener('mouseenter', () => {
+        const text = cell.getAttribute('data-tooltip');
+        if (!text) return;
+        const tooltip = getOrCreateChartTooltip();
+        tooltip.textContent = text;
+        tooltip.classList.add('visible');
+        const rect = cell.getBoundingClientRect();
+        tooltip.style.left = `${rect.left + window.scrollX + rect.width / 2}px`;
+        tooltip.style.top = `${rect.top + window.scrollY - 25}px`;
+        tooltip.style.transform = 'translateX(-50%)';
+      });
+      cell.addEventListener('mouseleave', () => {
+        getOrCreateChartTooltip().classList.remove('visible');
+      });
+    });
+  } else if (prefix === 'general-stats' && generalStatsChartType === 'habitos') {
     chartPlaceholder.innerHTML = renderHabitTrackerHTML(dates);
     // Tooltip por cuadrito (fecha + estado).
     const cells = chartPlaceholder.querySelectorAll('.habit-cell');
@@ -7963,8 +8057,8 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     chartPlaceholder.innerHTML = renderPieChartSVG(includedGroups);
   }
 
-  // El modo hábitos no usa la tabla de actividades ni los totales.
-  if (prefix === 'general-stats' && generalStatsChartType === 'habitos') {
+  // Los modos hábitos y heatmap no usan la tabla de actividades ni los totales.
+  if (prefix === 'general-stats' && (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap')) {
     activityListEl.innerHTML = '';
     const tw = panelEl.querySelector('.daily-stats-totals-wrapper');
     if (tw) tw.style.display = 'none';
@@ -8386,6 +8480,11 @@ function updatePeriodSelectOptions() {
     } else {
       periodSelect.value = '30dias';
     }
+  } else if (generalStatsChartType === 'heatmap') {
+    periodSelect.innerHTML = `
+      <option value="12dias">Últimos 12 días</option>
+    `;
+    periodSelect.value = '12dias';
   } else {
     periodSelect.innerHTML = `
       <option value="hoy">Hoy</option>
@@ -8453,6 +8552,17 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
         from: formatDate(startDate),
         to: formatDate(endDate)
       };
+    } else if (generalStatsChartType === 'heatmap') {
+      periodSelect.value = '12dias';
+
+      const endDate = new Date(dateStr + 'T12:00:00');
+      const startDate = new Date(endDate);
+      startDate.setDate(startDate.getDate() - 11);
+
+      generalStatsDateRange = {
+        from: formatDate(startDate),
+        to: formatDate(endDate)
+      };
     } else {
       periodSelect.value = 'hoy';
       generalStatsDateRange = null;
@@ -8515,8 +8625,8 @@ function handleGeneralStatsPeriodChange() {
       to: formatDate(today)
     };
     renderGeneralStatsForRange();
-  } else if (val === '30dias' || val === '50dias' || val === '100dias') {
-    const days = val === '50dias' ? 50 : (val === '100dias' ? 100 : 30);
+  } else if (val === '12dias' || val === '30dias' || val === '50dias' || val === '100dias') {
+    const days = val === '12dias' ? 12 : (val === '50dias' ? 50 : (val === '100dias' ? 100 : 30));
     const today = new Date();
     today.setHours(12, 0, 0, 0);
     const from = new Date(today);
@@ -10479,7 +10589,7 @@ let habitTagSelectWired = false;
 function updateHabitTagRowVisibility() {
   const row = document.getElementById('general-stats-habit-tag-row');
   if (!row) return;
-  const visible = (generalStatsChartType === 'habitos');
+  const visible = (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap');
   row.style.display = visible ? 'flex' : 'none';
   if (visible) {
     buildHabitTagSelectorOptions();

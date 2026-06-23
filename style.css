@@ -3680,6 +3680,16 @@ body.not-logged-in .app-container {
 }
 .habit-cell:hover { transform: scale(1.12); }
 
+/* --- Mapa de calor (24h x 12 días) --- */
+.heatmap-cell {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 2px;
+  cursor: default;
+  transition: transform 0.1s ease;
+}
+.heatmap-cell:hover { transform: scale(1.25); }
+
 /* --- Reordenar etiquetas: handle de arrastre --- */
 .tag-drag-handle {
   display: flex;
