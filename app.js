@@ -8972,11 +8972,20 @@ function initStatsEvents(prefix) {
       });
     }
 
-    // Selector de etiqueta del modo Hábitos.
+    // Selector de etiqueta del modo Hábitos. Reutiliza el mismo mecanismo de
+    // búsqueda que el creador de tareas (setupTagSearchSelect).
     buildHabitTagSelectorOptions();
     setHabitSelectTagValue(generalStatsHabitTag);
     updateHabitTagRowVisibility();
-    setupHabitTagSelect();
+    if (typeof window.setupTagSearchSelect === 'function') {
+      window.setupTagSearchSelect(
+        'habit-tag-select-trigger',
+        'habit-tag-select-input',
+        'habit-tag-options-container',
+        'habit-select-tag',
+        (tagId) => { setHabitSelectTagValue(tagId); renderGeneralStatsForRange(); }
+      );
+    }
 
     const periodSelect = document.getElementById('general-stats-period-select');
     if (periodSelect) {
@@ -10477,56 +10486,6 @@ function setHabitSelectTagValue(tagId) {
 function updateHabitTagRowVisibility() {
   const row = document.getElementById('general-stats-habit-tag-row');
   if (row) row.style.display = (generalStatsChartType === 'habitos') ? 'flex' : 'none';
-}
-
-// Configura el campo de búsqueda de etiqueta del modo hábitos (mismo patrón que
-// el selector del creador de tareas).
-function setupHabitTagSelect() {
-  const trigger = document.getElementById('habit-tag-select-trigger');
-  const input = document.getElementById('habit-tag-select-input');
-  const container = document.getElementById('habit-tag-options-container');
-  if (!trigger || !input || !container) return;
-
-  const restoreSelected = () => {
-    const tag = tags.find(t => t.id === generalStatsHabitTag) || tags.find(t => t.id === 'default');
-    if (tag) input.value = tag.name;
-  };
-
-  input.addEventListener('focus', () => {
-    filterTagOptions(container, input.value);
-    container.classList.remove('hidden');
-    input.select();
-  });
-  input.addEventListener('input', () => {
-    filterTagOptions(container, input.value);
-    container.classList.remove('hidden');
-  });
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const first = filterTagOptions(container, input.value.trim());
-      if (first) { first.click(); input.blur(); }
-    } else if (e.key === 'Escape') {
-      restoreSelected();
-      container.classList.add('hidden');
-      input.blur();
-    }
-  });
-  input.addEventListener('blur', () => {
-    setTimeout(() => { showAllTagOptions(container); restoreSelected(); }, 150);
-  });
-  trigger.addEventListener('click', (e) => {
-    if (e.target === input) return;
-    e.stopPropagation();
-    if (container.classList.contains('hidden')) input.focus();
-    else container.classList.add('hidden');
-  });
-  document.addEventListener('click', (e) => {
-    if (!trigger.contains(e.target) && !container.contains(e.target)) {
-      container.classList.add('hidden');
-      showAllTagOptions(container);
-    }
-  });
 }
 
 // --- Custom Date Picker Dropdown ---
@@ -12708,6 +12667,9 @@ function setupEventListeners() {
 
   setupTagSearchSelect('tag-select-trigger', 'tag-select-input', 'tag-options-container', 'task-select-tag');
   setupTagSearchSelect('timer-tag-select-trigger', 'timer-tag-select-input', 'timer-tag-options-container', 'timer-select-tag');
+  // Exponer para reutilizarlo en el modal de estadísticas (modo Hábitos), cuyo
+  // HTML se genera dinámicamente después del init.
+  window.setupTagSearchSelect = setupTagSearchSelect;
 
   // Edge scrolling when dragging a task on desktop
   window.addEventListener('dragover', (e) => {
