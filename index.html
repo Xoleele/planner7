@@ -392,7 +392,6 @@
         <!-- Fila TÍTULO (a todo el ancho). -->
         <div class="form-row">
           <div class="form-group task-title-group">
-            <label for="task-input-title">Título</label>
             <div class="title-input-wrapper">
               <input type="text" id="task-input-title" placeholder="Título de la tarea" autocomplete="off">
               <button type="button" class="time-clear-btn" id="task-title-clear" title="Borrar título" aria-label="Borrar título">
@@ -401,10 +400,15 @@
             </div>
           </div>
         </div>
-        <!-- Fila ETIQUETA (debajo del título, a todo el ancho). -->
+        <div class="form-group">
+          <label for="task-input-description">Descripción</label>
+          <textarea id="task-input-description" placeholder="Añade una descripción (opcional)" rows="3"></textarea>
+        </div>
+
+        <!-- Fila ETIQUETA + FECHA (a la misma altura). -->
         <div class="form-row">
           <!-- Antiguo selector de etiquetas, ahora "ACTIVIDAD". -->
-          <div class="form-group task-activity-group">
+          <div class="form-group flex-1 task-activity-group">
             <label for="task-select-tag">Etiqueta</label>
             <div class="custom-select-wrapper">
               <input type="hidden" id="task-select-tag" value="default">
@@ -420,15 +424,6 @@
               </div>
             </div>
           </div>
-        </div>
-
-        <div class="form-group">
-          <label for="task-input-description">Descripción</label>
-          <textarea id="task-input-description" placeholder="Añade una descripción (opcional)" rows="3"></textarea>
-        </div>
-
-        <!-- Filas separadas de Fecha y Horas para evitar compresión en móvil. -->
-        <div class="form-row">
           <!-- Fecha Base. La ✕ quita la fecha → la tarea queda archivada.
                (Se conserva el checkbox de archivar oculto para no romper el JS;
                la ✕ lo controla.) -->
@@ -923,10 +918,14 @@
           <div id="timer-display" style="font-size: 38px; font-weight: 700; font-family: monospace; color: var(--text-main); letter-spacing: 1px;">00:00:00</div>
         </div>
 
-        <!-- Nombre de la tarea -->
-        <div class="form-group" style="margin: 0; width: 100%;">
-          <label for="timer-input-title" class="sr-only">Título</label>
-          <input type="text" id="timer-input-title" placeholder="Título de la tarea" autocomplete="off">
+        <!-- Nombre de la tarea (igual que el editor de tareas) -->
+        <div class="form-group task-title-group" style="margin: 0; width: 100%;">
+          <div class="title-input-wrapper">
+            <input type="text" id="timer-input-title" placeholder="Título de la tarea" autocomplete="off">
+            <button type="button" class="time-clear-btn" id="timer-title-clear" title="Borrar título" aria-label="Borrar título">
+              <img src="icons/close.svg" alt="Quitar" width="14" height="14">
+            </button>
+          </div>
         </div>
 
         <!-- Descripción de la tarea -->
@@ -935,12 +934,12 @@
           <textarea id="timer-input-description" placeholder="Añade una descripción (opcional)" rows="3"></textarea>
         </div>
 
-        <!-- Fila: etiqueta + hora de inicio (editable) -->
-        <div style="display: flex; gap: 12px; width: 100%; align-items: flex-start;">
+        <!-- Fila: etiqueta + hora de inicio (igual que el editor de tareas) -->
+        <div class="form-row" style="width: 100%;">
 
           <!-- Dropdown para asignar etiqueta -->
-          <div class="form-group" style="margin: 0; flex: 1; min-width: 0;">
-            <label for="timer-select-tag" style="display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px;">Etiqueta</label>
+          <div class="form-group flex-1 task-activity-group" style="margin: 0; min-width: 0;">
+            <label for="timer-select-tag">Etiqueta</label>
             <div class="custom-select-wrapper" style="position: relative; width: 100%;">
               <input type="hidden" id="timer-select-tag" value="default">
               <div class="custom-select-trigger" id="timer-tag-select-trigger" style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background-color: var(--bg-card); cursor: pointer; font-size: 13px; color: var(--text-main); user-select: none;">
@@ -958,10 +957,13 @@
             </div>
           </div>
 
-          <!-- Hora de inicio (editable) -->
-          <div class="form-group" style="margin: 0; flex: 1; min-width: 0;">
-            <label for="timer-input-start" style="display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px;">Hora de inicio</label>
-            <input type="time" id="timer-input-start" style="width: 100%; box-sizing: border-box;">
+          <!-- Hora de inicio (editable, igual que el editor de tareas) -->
+          <div class="form-group flex-1 task-time-group" style="margin: 0; min-width: 0;">
+            <label for="timer-input-start">Inicio</label>
+            <div class="time-input-wrapper has-clock">
+              <img class="time-clock-icon" src="icons/clock.svg" alt="" width="13" height="13" data-target="timer-input-start">
+              <input type="time" id="timer-input-start">
+            </div>
           </div>
 
         </div>

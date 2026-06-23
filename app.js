@@ -10303,6 +10303,20 @@ function setupEventListeners() {
     timerCancelBtn.addEventListener('click', stopTimer);
   }
 
+  // Botón ✕ para borrar el título en el cronómetro (igual que el editor).
+  const timerTitleClearBtn = document.getElementById('timer-title-clear');
+  if (timerTitleClearBtn) {
+    timerTitleClearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const titleEl = document.getElementById('timer-input-title');
+      if (!titleEl) return;
+      titleEl.value = '';
+      titleEl.dispatchEvent(new Event('input', { bubbles: true }));
+      titleEl.focus();
+    });
+  }
+
   const timerMinimizeBtn = document.getElementById('timer-minimize-btn');
   if (timerMinimizeBtn) {
     timerMinimizeBtn.addEventListener('click', minimizeTimer);

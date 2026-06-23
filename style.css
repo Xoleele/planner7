@@ -1038,25 +1038,9 @@ input[type="number"]:focus {
   box-shadow: none;
 }
 
-/* El campo "TÍTULO" del creador/editor de tarea usa el mismo estilo gráfico que
-   la DESCRIPCIÓN: rectángulo de bordes redondeados, misma tipografía y tamaño de
-   fuente que el resto de campos. Sobrescribe el estilo de subrayado anterior. */
-#task-input-title {
-  font-size: 13.5px;
-  font-weight: 400;
-  padding: 10px 14px;
-  border: 1px solid var(--border-light);
-  border-bottom: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  margin-bottom: 0;
-  background-color: var(--bg-card);
-  color: var(--text-main);
-}
-
-#task-input-title:focus {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
-}
+/* El campo "TÍTULO" del editor de tarea usa el mismo estilo que el cronómetro:
+   subrayado minimalista, tipografía grande. (Heredado de la regla compartida de
+   arriba; sin override de caja rectangular.) */
 
 /* Campo de TÍTULO con botón ✕ a la derecha para borrar el contenido. */
 .title-input-wrapper {
@@ -1067,7 +1051,8 @@ input[type="number"]:focus {
 .title-input-wrapper {
   width: 100%;
 }
-.title-input-wrapper #task-input-title {
+.title-input-wrapper #task-input-title,
+.title-input-wrapper #timer-input-title {
   flex: 1;
   padding-right: 32px;
 }
@@ -1083,7 +1068,7 @@ input[type="number"]:focus {
 }
 
 .task-activity-group {
-  flex: 3;
+  flex: 1;
   min-width: 0;
 }
 
@@ -1343,7 +1328,8 @@ input:checked + .slider:before {
    el cuerpo y en el pie). Solo afecta a #task-modal. */
 #task-modal .modal-footer {
   background-color: transparent;
-  padding: 10px 24px 14px;
+  /* Botones desplazados más a la derecha (menos padding derecho). */
+  padding: 10px 12px 14px 24px;
   /* Sin línea horizontal sobre los botones (editor más compacto). */
   border-top: none;
 }
@@ -4336,6 +4322,12 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 #timer-modal .modal-footer {
   border-bottom-left-radius: var(--radius-lg);
   border-bottom-right-radius: var(--radius-lg);
+}
+
+/* El cuerpo del cronómetro ya separa con flex gap; evitar doble margen. */
+#timer-modal .form-row {
+  margin-bottom: 0;
+  gap: 12px;
 }
 
 /* ─── Diálogo de conflicto de hora de fin (al completar una tarea) ──────────── */
