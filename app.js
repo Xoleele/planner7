@@ -894,6 +894,9 @@ let statsGroupBy = 'title';
 let statsColorMode = 'auto';
 let generalStatsChartType = 'circular';
 let lineStatsActiveTags = [];
+// Indica que se debe auto-seleccionar la etiqueta principal al entrar al modo
+// lineal. Una vez que el usuario interactúa, puede dejar 0 etiquetas.
+let lineStatsNeedsAutoSelect = true;
 // Estado guardado al abrir Ajustes de estadísticas, para restaurar si se cancela.
 let statsSettingsSnapshot = null;
 let statsMergeFirstSelected = '';
@@ -7548,9 +7551,6 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
     svgParts.push(`<text x="${x_left - 3}" y="${yVal}" fill="var(--text-muted, #8e8e93)" font-size="5" font-weight="600" text-anchor="end" dominant-baseline="central">${hoursVal.toFixed(1)}h</text>`);
   });
 
-  svgParts.push(`<line x1="${x_left}" y1="${y_bottom}" x2="${x_right + 5}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
-  svgParts.push(`<line x1="${x_left}" y1="${y_top - 5}" x2="${x_left}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
-
   const step = Math.ceil(N / 10);
   dates.forEach((dStr, idx) => {
     if (idx % step === 0) {
@@ -7584,12 +7584,16 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
       const dObj = new Date(dates[idx] + 'T12:00:00');
       const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
       const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
-      const tipText = `${dLabel} · ${group.displayName || tagName}: ${p.hours.toFixed(1)}h`;
+      const tipText = `${dLabel}: ${p.hours.toFixed(1)}h`;
       // Área de hover invisible más grande con clase y atributo data-tooltip.
       // El <title> vacío evita el tooltip nativo heredado ("Planner7").
       svgParts.push(`<circle class="chart-hover-circle" cx="${p.x}" cy="${p.y}" r="6" fill="transparent" style="cursor: pointer;" data-tooltip="${tipText}"><title></title></circle>`);
     });
   });
+
+  // Ejes al final para que queden visualmente por encima de las líneas de datos.
+  svgParts.push(`<line x1="${x_left}" y1="${y_bottom}" x2="${x_right + 5}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
+  svgParts.push(`<line x1="${x_left}" y1="${y_top - 5}" x2="${x_left}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
 
   svgParts.push(`</svg>`);
   return svgParts.join('\n');
@@ -7801,10 +7805,15 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   const totalIncludedMins = includedGroups.reduce((sum, g) => sum + g.minutes, 0);
   
   // Initialize lineStatsActiveTags if empty in lineal mode
-  if (prefix === 'general-stats' && generalStatsChartType === 'lineal' && lineStatsActiveTags.length === 0) {
+  if (prefix === 'general-stats' && generalStatsChartType === 'lineal' && lineStatsNeedsAutoSelect && lineStatsActiveTags.length === 0) {
     if (groupedList.length > 0) {
       lineStatsActiveTags = [groupedList[0].name];
     }
+  }
+  // Tras el primer render en modo lineal, respetar la selección del usuario
+  // (incluido el estado de cero etiquetas).
+  if (prefix === 'general-stats' && generalStatsChartType === 'lineal') {
+    lineStatsNeedsAutoSelect = false;
   }
 
   // Renderizar gráfico
@@ -7983,12 +7992,8 @@ function renderDailyStatsPanel(panelEl, dateParam) {
         e.stopPropagation();
         if (prefix === 'general-stats' && generalStatsChartType === 'lineal') {
           if (lineStatsActiveTags.includes(group.name)) {
-            if (lineStatsActiveTags.length <= 1) {
-              alert('Debe haber al menos una etiqueta seleccionada.');
-            } else {
-              lineStatsActiveTags = lineStatsActiveTags.filter(t => t !== group.name);
-              renderDailyStatsPanel(panelEl, dateParam);
-            }
+            lineStatsActiveTags = lineStatsActiveTags.filter(t => t !== group.name);
+            renderDailyStatsPanel(panelEl, dateParam);
           } else {
             if (lineStatsActiveTags.length >= 3) {
               showCenterToast('Puedes seleccionar un máximo de 3 etiquetas.');
@@ -8312,6 +8317,7 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
       
       // Reset active tags to let renderDailyStatsPanel select the top one dynamically
       lineStatsActiveTags = [];
+      lineStatsNeedsAutoSelect = true;
     } else {
       periodSelect.value = 'hoy';
       generalStatsDateRange = null;
