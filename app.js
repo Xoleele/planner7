@@ -2842,8 +2842,10 @@ function isAnyOverlayOpen() {
   const datepicker = document.getElementById('custom-calendar-dropdown');
   if (datepicker && !datepicker.classList.contains('hidden')) return true;
   // Panel de archivados (drawer abierto = sin la clase closed)
+  // En móvil, se comporta como un modal/overlay (bloquea la pantalla).
+  // En escritorio, es un panel lateral integrado, así que no debe bloquear el atajo.
   const drawer = document.getElementById('briefcase-drawer');
-  if (drawer && !drawer.classList.contains('closed')) return true;
+  if (drawer && !drawer.classList.contains('closed') && isMobile()) return true;
   return false;
 }
 
