@@ -7701,8 +7701,8 @@ function getHueSatFromColor(color) {
 function renderHeatmapHTML(dates) {
   const tag = tags.find(t => t.id === generalStatsHabitTag) || tags.find(t => t.id === 'default');
   const [hue, sat] = getHueSatFromColor(tag && tag.color ? tag.color.bg : '#50a9ed');
-  // 4 luminosidades, de más claro (valor bajo) a más oscuro (valor alto).
-  const LUM = [88, 70, 52, 36];
+  // 7 luminosidades, de más claro (valor bajo) a más oscuro (valor alto).
+  const LUM = [92, 82, 72, 60, 48, 38, 28];
   const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
   // Matriz [día][hora] = minutos. Reparte la duración de cada tarea por hora.
@@ -7727,30 +7727,42 @@ function renderHeatmapHTML(dates) {
   let maxVal = 0;
   grid.forEach(row => row.forEach(v => { if (v > maxVal) maxVal = v; }));
 
-  // Asigna un índice de tono (0–3) a un valor según el rango [0, maxVal].
+  // Asigna un índice de tono (0–6) a un valor según el rango [0, maxVal].
   const tierFor = (v) => {
     if (maxVal <= 0) return 0;
-    const frac = v / maxVal;            // 0..1
-    const idx = Math.ceil(frac * 4) - 1; // 0..3
-    return Math.max(0, Math.min(3, idx));
+    const frac = v / maxVal;             // 0..1
+    const idx = Math.ceil(frac * 7) - 1; // 0..6
+    return Math.max(0, Math.min(6, idx));
   };
 
-  let cellsHtml = '';
+  // Fila superior de horas: celda vacía (esquina) + 24 etiquetas. Para no saturar
+  // se muestra el número solo cada 3 horas (0, 3, 6 … 21).
+  let html = '<div class="heatmap-corner"></div>';
+  for (let h = 0; h < 24; h++) {
+    html += `<div class="heatmap-hlabel">${h % 3 === 0 ? h : ''}</div>`;
+  }
+
+  // Filas: etiqueta de día (día/mes) + 24 celdas.
   dates.forEach((dStr, di) => {
     const dObj = new Date(dStr + 'T12:00:00');
     const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
+    html += `<div class="heatmap-dlabel">${dObj.getDate()}/${dObj.getMonth() + 1}</div>`;
     for (let h = 0; h < 24; h++) {
       const v = grid[di][h];
       const lum = LUM[tierFor(v)];
       const bg = `hsl(${hue}, ${sat}%, ${lum}%)`;
       const tip = `${dLabel} ${String(h).padStart(2,'0')}:00 · ${v} min`;
-      cellsHtml += `<div class="heatmap-cell" data-tooltip="${tip}" style="background:${bg};"></div>`;
+      html += `<div class="heatmap-cell" data-tooltip="${tip}" style="background:${bg};"></div>`;
     }
   });
 
+  // Celdas de tamaño fijo (más grandes) y scroll horizontal: la primera columna
+  // (auto) es para las etiquetas de día, y 24 columnas de 22px para las horas.
   return `
-    <div class="heatmap-grid" style="display:grid; grid-template-columns: repeat(24, 1fr); gap: 2px; padding: 6px 0; width: 100%;">
-      ${cellsHtml}
+    <div class="heatmap-scroll" style="overflow-x: auto; max-width: 100%; padding-bottom: 4px;">
+      <div class="heatmap-grid" style="display:grid; grid-template-columns: auto repeat(24, 22px); gap: 3px; padding: 6px 0; width: max-content; align-items: center;">
+        ${html}
+      </div>
     </div>`;
 }
 
@@ -12889,6 +12901,12 @@ function setupEventListeners() {
     
     modal.addEventListener('touchstart', (e) => {
       if (!currentDailyStatsDate) return;
+      // Si el toque empieza sobre el mapa de calor (con scroll horizontal propio),
+      // no iniciar el swipe de cambio de periodo: dejamos que el dedo haga scroll.
+      if (e.target && e.target.closest && e.target.closest('.heatmap-scroll')) {
+        isDragging = false;
+        return;
+      }
       if (prefix === 'general-stats') {
         const periodSelect = document.getElementById('general-stats-period-select');
         if (periodSelect && periodSelect.value !== 'hoy' && !generalStatsDateRange) return;
