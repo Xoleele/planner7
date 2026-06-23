@@ -958,23 +958,35 @@ let pendingMoveTask = null;
 function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetColumnContainer, clientY }) {
   const taskIndex = tasks.findIndex(t => t.id === taskId);
   if (taskIndex === -1) return;
-  pushToUndoStack();
   const task = tasks[taskIndex];
   if (scope === 'only-this') {
-    if (!task.recurrence.exceptions) task.recurrence.exceptions = [];
-    if (!task.recurrence.exceptions.includes(sourceDateStr)) task.recurrence.exceptions.push(sourceDateStr);
     const standalone = { ...task, id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000), date: targetDateStr, recurrence: null };
     delete standalone.completedOccurrences;
     const afterEl = getDragAfterElement(targetColumnContainer, clientY);
     const checkDate = new Date(targetDateStr + 'T00:00:00');
     const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate));
-    dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
+    sortDayTasks(dayTasks, targetDateStr);
     let insertIndex = dayTasks.length;
     if (afterEl) { const idx = dayTasks.findIndex(t => t.id === afterEl.dataset.id); if (idx !== -1) insertIndex = idx; }
     dayTasks.splice(insertIndex, 0, standalone);
+
+    if (!validateProposedOrder(dayTasks, targetDateStr)) {
+      renderWeeklyCalendar();
+      return;
+    }
+
+    pushToUndoStack();
+
+    if (!task.recurrence.exceptions) task.recurrence.exceptions = [];
+    if (!task.recurrence.exceptions.includes(sourceDateStr)) task.recurrence.exceptions.push(sourceDateStr);
+
     dayTasks.forEach((t, i) => setEffectivePosition(t, targetDateStr, i * 10));
     tasks.push(standalone);
   } else {
+    // Guardar estado original para posible reversión
+    const originalDate = task.date;
+    const originalRecurrenceDays = task.recurrence && task.recurrence.days ? [...task.recurrence.days] : null;
+
     const newBaseDate = new Date(targetDateStr + 'T00:00:00');
     if (task.recurrence.unit === 'weekly' && sourceDateStr) {
       const sourceDate = new Date(sourceDateStr + 'T00:00:00');
@@ -997,10 +1009,22 @@ function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetCo
     const afterEl = getDragAfterElement(targetColumnContainer, clientY);
     const checkDate = new Date(targetDateStr + 'T00:00:00');
     const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate) && t.id !== task.id);
-    dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
+    sortDayTasks(dayTasks, targetDateStr);
     let insertIndex = dayTasks.length;
     if (afterEl) { const idx = dayTasks.findIndex(t => t.id === afterEl.dataset.id); if (idx !== -1) insertIndex = idx; }
     dayTasks.splice(insertIndex, 0, task);
+
+    if (!validateProposedOrder(dayTasks, targetDateStr)) {
+      // Revertir cambios en la tarea original
+      task.date = originalDate;
+      if (task.recurrence && originalRecurrenceDays) {
+        task.recurrence.days = originalRecurrenceDays;
+      }
+      renderWeeklyCalendar();
+      return;
+    }
+
+    pushToUndoStack();
     dayTasks.forEach((t, i) => setEffectivePosition(t, targetDateStr, i * 10));
   }
   saveTasksToStorage();
@@ -1027,8 +1051,6 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
     return;
   }
 
-  pushToUndoStack();
-
   if (isCopy) {
     // FLUJO DE COPIADO (CTRL presionado)
     // 1. Crear un clon del objeto original
@@ -1049,7 +1071,7 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
       const checkDate = new Date(targetDateStr + 'T00:00:00');
       const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate));
 
-      dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
+      sortDayTasks(dayTasks, targetDateStr);
 
       let insertIndex = dayTasks.length;
       if (afterElement) {
@@ -1060,6 +1082,14 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
 
       dayTasks.splice(insertIndex, 0, clonedTask);
 
+      // Validar orden propuesto
+      if (!validateProposedOrder(dayTasks, targetDateStr)) {
+        renderWeeklyCalendar();
+        return;
+      }
+
+      pushToUndoStack();
+
       dayTasks.forEach((t, idx) => {
         setEffectivePosition(t, targetDateStr, idx * 10);
       });
@@ -1069,6 +1099,9 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
   } else {
     // FLUJO DE MOVIMIENTO (Comportamiento Original)
     const task = originalTask;
+    const originalDate = task.date;
+    const originalRecurrenceDays = task.recurrence && task.recurrence.days ? [...task.recurrence.days] : null;
+
     // If task is simple, just update the date
     if (!task.recurrence || !task.recurrence.enabled) {
       task.date = targetDateStr;
@@ -1119,7 +1152,7 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
       const checkDate = new Date(targetDateStr + 'T00:00:00');
       const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate) && t.id !== task.id);
 
-      dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
+      sortDayTasks(dayTasks, targetDateStr);
 
       let insertIndex = dayTasks.length;
       if (afterElement) {
@@ -1129,6 +1162,19 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
       }
 
       dayTasks.splice(insertIndex, 0, task);
+
+      // Validar orden propuesto
+      if (!validateProposedOrder(dayTasks, targetDateStr)) {
+        // Revertir cambios en la tarea
+        task.date = originalDate;
+        if (task.recurrence && originalRecurrenceDays) {
+          task.recurrence.days = originalRecurrenceDays;
+        }
+        renderWeeklyCalendar();
+        return;
+      }
+
+      pushToUndoStack();
 
       // Asignar posicion SOLO para este dia. En recurrentes va a positionOverrides,
       // asi los demas dias conservan su orden.
@@ -1974,6 +2020,84 @@ function setEffectivePosition(task, dateStr, value) {
   }
 }
 
+// --- CONFIGURACIÓN DE ORDENACIÓN DE TAREAS ---
+// Si es true, las tareas con hora de inicio se ordenan automáticamente de forma
+// cronológica en el Planner, y no se permite reordenarlas violando dicho orden.
+let AUTO_SORT_TIMED_TASKS = true;
+
+function sortDayTasks(dayTasks, dateStr) {
+  // Primero ordenar por posición para tener el orden base (que separa pendientes y completadas)
+  dayTasks.sort((a, b) => getEffectivePosition(a, dateStr) - getEffectivePosition(b, dateStr));
+
+  if (!AUTO_SORT_TIMED_TASKS) return;
+
+  const isCompleted = (t) => (t.recurrence && t.recurrence.enabled)
+    ? !!(t.completedOccurrences && t.completedOccurrences.includes(dateStr))
+    : !!t.completed;
+
+  // Separar pendientes y completadas
+  const pending = dayTasks.filter(t => !isCompleted(t));
+  const completed = dayTasks.filter(t => isCompleted(t));
+
+  // Ordenar cronológicamente las tareas con hora en cada grupo sin mover las tareas sin hora de sus posiciones relativas
+  autoSortTimedTasksInGroup(pending);
+  autoSortTimedTasksInGroup(completed);
+
+  // Re-ensamblar la lista de tareas del día
+  dayTasks.length = 0;
+  dayTasks.push(...pending, ...completed);
+}
+
+function autoSortTimedTasksInGroup(group) {
+  const timedIndices = [];
+  const timedTasks = [];
+
+  group.forEach((task, idx) => {
+    if (task.startTime) {
+      timedIndices.push(idx);
+      timedTasks.push(task);
+    }
+  });
+
+  if (timedTasks.length <= 1) return;
+
+  // Ordenar las tareas con hora cronológicamente
+  timedTasks.sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  // Colocar las tareas ordenadas en los índices originales
+  timedIndices.forEach((origIdx, i) => {
+    group[origIdx] = timedTasks[i];
+  });
+}
+
+function validateProposedOrder(proposedDayTasks, dateStr) {
+  if (!AUTO_SORT_TIMED_TASKS) return true;
+
+  const isCompleted = (t) => (t.recurrence && t.recurrence.enabled)
+    ? !!(t.completedOccurrences && t.completedOccurrences.includes(dateStr))
+    : !!t.completed;
+
+  // Separar pendientes y completadas de la lista propuesta
+  const pending = proposedDayTasks.filter(t => !isCompleted(t));
+  const completed = proposedDayTasks.filter(t => isCompleted(t));
+
+  // Verificar que el orden cronológico se respete en ambos grupos
+  return isChronologicalOrderValid(pending) && isChronologicalOrderValid(completed);
+}
+
+function isChronologicalOrderValid(taskList) {
+  let lastTime = "";
+  for (const t of taskList) {
+    if (t.startTime) {
+      if (lastTime && t.startTime.localeCompare(lastTime) < 0) {
+        return false;
+      }
+      lastTime = t.startTime;
+    }
+  }
+  return true;
+}
+
 // Ensure all tasks have a defined position for sorting, grouping by date
 async function ensurePositions() {
   // Limpieza: una tarea simple no debe conservar positionOverrides (quedan
@@ -2552,7 +2676,7 @@ function renderWeeklyCalendar(targetWrapper = document) {
     });
 
     // Sort tasks by position (which handles both chronological and manual ordering)
-    dayTasks.sort((a, b) => getEffectivePosition(a, colDateStr) - getEffectivePosition(b, colDateStr));
+    sortDayTasks(dayTasks, colDateStr);
 
     // Render tasks
     renderTasksToContainer(dayTasks, tasksContainer, colDateStr);
@@ -5634,7 +5758,7 @@ function reorderCompletedTask(taskId, targetDateStr, afterTaskId) {
 
   // Separar pendientes y completadas del dia, respetando el orden actual.
   const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate));
-  dayTasks.sort((a, b) => getEffectivePosition(a, targetDateStr) - getEffectivePosition(b, targetDateStr));
+  sortDayTasks(dayTasks, targetDateStr);
 
   const isCompleted = (t) => (t.recurrence && t.recurrence.enabled)
     ? !!(t.completedOccurrences && t.completedOccurrences.includes(targetDateStr))
@@ -5650,6 +5774,12 @@ function reorderCompletedTask(taskId, targetDateStr, afterTaskId) {
     if (idx !== -1) insertIndex = idx;
   }
   completed.splice(insertIndex, 0, movedTask);
+
+  // Validar si el nuevo orden propuesto respeta el orden cronológico
+  if (!validateProposedOrder([...pending, ...completed], targetDateStr)) {
+    renderWeeklyCalendar();
+    return;
+  }
 
   pushToUndoStack();
 
@@ -7871,7 +8001,7 @@ function getOrderedDayTasks(dateStr) {
     const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
     return tag ? tag.visible !== false : true;
   });
-  dayTasks.sort((a, b) => getEffectivePosition(a, dateStr) - getEffectivePosition(b, dateStr));
+  sortDayTasks(dayTasks, dateStr);
 
   const isCompleted = (t) => (t.recurrence && t.recurrence.enabled)
     ? !!(t.completedOccurrences && t.completedOccurrences.includes(dateStr))
@@ -11624,7 +11754,7 @@ function makeMobileDayCard(date) {
     const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
     return tag ? tag.visible !== false : true;
   });
-  dayTasks.sort((a, b) => getEffectivePosition(a, dateStr) - getEffectivePosition(b, dateStr));
+  sortDayTasks(dayTasks, dateStr);
   renderTasksToContainer(dayTasks, tasksContainer, dateStr);
   col.appendChild(tasksContainer);
 
@@ -11839,7 +11969,7 @@ function updateMobileFeedTasks() {
         const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
         return tag ? tag.visible !== false : true;
       });
-      dayTasks.sort((a, b) => getEffectivePosition(a, dateStr) - getEffectivePosition(b, dateStr));
+      sortDayTasks(dayTasks, dateStr);
       renderTasksToContainer(dayTasks, tasksContainer, dateStr);
     }
   });
