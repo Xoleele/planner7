@@ -7574,7 +7574,22 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
       points.push({ x, y, hours });
     });
 
-    const pathD = points.map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+    // Construir el path por segmentos: no dibujar el tramo entre dos puntos si
+    // ambos valen 0 (evita la línea horizontal pegada al eje x).
+    let pathD = '';
+    points.forEach((p, idx) => {
+      if (idx === 0) {
+        pathD += `M ${p.x} ${p.y}`;
+        return;
+      }
+      const prev = points[idx - 1];
+      if (prev.hours === 0 && p.hours === 0) {
+        // Tramo plano en cero: levantar el lápiz y reiniciar en el punto actual.
+        pathD += ` M ${p.x} ${p.y}`;
+      } else {
+        pathD += ` L ${p.x} ${p.y}`;
+      }
+    });
     svgParts.push(`<path d="${pathD}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />`);
 
     points.forEach((p, idx) => {
