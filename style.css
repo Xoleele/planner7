@@ -904,10 +904,12 @@ html:not(.mobile-mode) .app-container {
   border-bottom: 1px solid var(--border-light);
 }
 
-.modal-header h2 {
+.modal-header h2,
+.modal-content > h2 {
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  color: var(--text-main);
 }
 
 .modal-header-actions {
@@ -3067,8 +3069,8 @@ body.not-logged-in .app-container {
 }
 
 .drawer-title-wrapper h3 {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
@@ -3220,9 +3222,9 @@ body.not-logged-in .app-container {
 }
 
 .drawer-title-wrapper h3 {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 .close-drawer-btn {
