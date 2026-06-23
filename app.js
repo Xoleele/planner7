@@ -8523,7 +8523,9 @@ function shiftGeneralStatsRange(direction) {
   
   generalStatsDateRange = {
     from: formatDate(fromDate),
-    to: formatDate(toDate)
+    to: formatDate(toDate),
+    unit: generalStatsDateRange.unit,
+    qty: generalStatsDateRange.qty
   };
   
   renderGeneralStatsForRange();
@@ -8620,6 +8622,26 @@ function initStatsEvents(prefix) {
         previousPeriodValue = periodSelect.value;
       });
       periodSelect.addEventListener('change', handleGeneralStatsPeriodChange);
+      
+      let selectOpen = false;
+      periodSelect.addEventListener('click', () => {
+        if (periodSelect.value === 'personalizado') {
+          if (selectOpen) {
+            selectOpen = false;
+            openGeneralStatsCustomRangeModal();
+          } else {
+            selectOpen = true;
+          }
+        } else {
+          selectOpen = false;
+        }
+      });
+      periodSelect.addEventListener('blur', () => {
+        selectOpen = false;
+      });
+      periodSelect.addEventListener('change', () => {
+        selectOpen = false;
+      });
     }
     
     // Inputs del modal personalizado
