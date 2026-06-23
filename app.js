@@ -2870,7 +2870,7 @@ function toggleCronograma() {
       cronogramaMobileDate = visibleDate;
       renderCronograma();
       const label = document.getElementById('week-range-label');
-      if (label) label.textContent = formatSingleDateNumeric(visibleDate);
+      if (label) label.textContent = formatSingleDate(visibleDate);
     } else {
       cronogramaMobileDate = null;
       renderCronograma();
@@ -2917,7 +2917,7 @@ function restoreSavedViewMode() {
   renderCronograma();
   if (isMobile()) {
     const label = document.getElementById('week-range-label');
-    if (label) label.textContent = formatSingleDateNumeric(new Date());
+    if (label) label.textContent = formatSingleDate(new Date());
   }
   requestAnimationFrame(scrollHorarioToNowLine);
 }
@@ -3694,7 +3694,7 @@ function goToCronogramaMobileDate(date) {
 // Actualiza la etiqueta de fecha de la barra superior (móvil).
 function updateCronogramaMobileLabel(date) {
   const label = document.getElementById('week-range-label');
-  if (label) label.textContent = formatSingleDateNumeric(date);
+  if (label) label.textContent = formatSingleDate(date);
 }
 
 // ─── Carrusel del horario MÓVIL: scroll nativo con snap ──────────────────────
