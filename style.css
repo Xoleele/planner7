@@ -4192,12 +4192,19 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .mobile-mode .cronograma-headers {
   display: none;
 }
+/* La zona desplazable exterior NO scrollea verticalmente en móvil: el scroll
+   vertical (de las horas) ocurre DENTRO de cada tarjeta-día, para que el header
+   del día quede fijo arriba. Aquí solo fijamos la altura al alto disponible. */
+.mobile-mode .cronograma-scroll {
+  overflow-y: hidden;
+  scrollbar-gutter: auto;
+}
 .mobile-mode .cronograma-grid {
-  /* Una sola pista a todo el ancho: el carrusel ocupa todo. */
+  /* Una sola pista a todo el ancho: el carrusel ocupa todo. Altura = el alto
+     disponible del contenedor (no el de 24h), para que el scroll vertical viva
+     dentro de cada tarjeta. */
   grid-template-columns: 1fr;
-  /* La altura la marca el contenido (header + cuerpo de 24h por tarjeta), no el
-     valor fijo de 24h del escritorio. Así el scroll vertical abarca todo. */
-  height: auto;
+  height: 100%;
 }
 
 /* ── Carrusel horizontal de TARJETAS-DÍA en el horario MÓVIL ─────────────────
@@ -4209,6 +4216,7 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   grid-row: 1;
   position: relative;
   width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: row;
   /* Separación entre tarjetas-día, igual que el planner (.planner-grid gap). */
@@ -4222,16 +4230,16 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 }
 .mobile-mode .cr-mobile-track::-webkit-scrollbar { display: none; }
 
-/* Cada tarjeta-día ocupa todo el ancho del horario y se apila en columna:
-   header arriba, cuerpo (horas + tareas) debajo. Lleva su PROPIO marco (borde
-   gris redondeado + sombra suave), idéntico a la tarjeta del planner, de modo
-   que el marco se desliza junto con el día. overflow:hidden recorta el contenido
-   a las esquinas redondeadas. */
+/* Cada tarjeta-día ocupa todo el ancho y TODO el alto disponible, apilando en
+   columna: header FIJO arriba + cuerpo desplazable debajo. Lleva su propio marco
+   (borde redondeado + sombra), idéntico a la tarjeta del planner, que se desliza
+   con el día. overflow:hidden recorta el cuerpo a las esquinas redondeadas. */
 .mobile-mode .cr-mobile-day {
   position: relative;
   flex: 0 0 100%;
   width: 100%;
   min-width: 100%;
+  height: 100%;
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
@@ -4242,20 +4250,31 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   overflow: hidden;
 }
 
-/* Header del día dentro de la tarjeta. Sticky arriba para que el nombre del día y
-   sus iconos sigan visibles al hacer scroll vertical, igual que el planner. NO se
-   redefine el fondo: hereda la barra oscura (#333) de .mobile-mode .day-header,
-   idéntico al header del planner. */
+/* Header del día: FIJO arriba de la tarjeta. Como queda FUERA del cuerpo
+   desplazable, no se mueve con el scroll vertical de las horas. Hereda la barra
+   oscura (#333) de .mobile-mode .day-header, idéntico al header del planner. */
 .mobile-mode .cr-mobile-day > .day-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
   flex: 0 0 auto;
+  z-index: 10;
 }
 
-/* Cuerpo de la tarjeta: alto de 24h (1px = 1min). Contiene la columna de horas
-   (capa absoluta izquierda) y la zona de tareas (con sangría para las horas). */
+/* Cuerpo de la tarjeta: es el área que SCROLLEA verticalmente (las horas). Ocupa
+   el alto restante bajo el header. Dentro, el contenido mide 24h (1px = 1min). */
 .mobile-mode .cr-mobile-day-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.mobile-mode .cr-mobile-day-body::-webkit-scrollbar { display: none; }
+
+/* Lienzo interno del cuerpo con la altura real de 24h, sobre el que se posicionan
+   las horas y los bloques en absoluto. */
+.mobile-mode .cr-mobile-day-canvas {
   position: relative;
   height: calc(60px * 24);
   width: 100%;

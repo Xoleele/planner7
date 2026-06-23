@@ -3569,6 +3569,10 @@ function renderCronograma() {
       requestAnimationFrame(() => {
         scrollCronogramaTrackToDate(formatDate(centerDate), false);
         setupCronogramaTrackScroll();
+        // Sincronizar el scroll vertical entre tarjetas y restaurar la posición
+        // vertical compartida (para que al re-renderizar no salte a 00:00).
+        setupCrMobileVScrollSync();
+        applyCrMobileVScroll();
       });
     });
 
@@ -3633,12 +3637,13 @@ function renderCronograma() {
 }
 
 // Construye una TARJETA-DÍA completa para el carrusel móvil del horario.
-// Estructura (todo se desliza junto, como en el planner):
-//   .cr-mobile-day                     ← tarjeta a ancho completo (snap)
-//     .day-header                      ← encabezado del día (con sus iconos)
-//     .cr-mobile-day-body              ← cuerpo desplazable verticalmente
-//       .cr-mobile-hours               ← columna de horas + líneas (propias)
-//       .cr-day-col (.cr-mobile-grid)  ← zona de tareas (bloques absolutos)
+// Estructura (el header queda FIJO; el cuerpo scrollea verticalmente):
+//   .cr-mobile-day                       ← tarjeta a ancho completo (snap)
+//     .day-header                        ← encabezado FIJO (con sus iconos)
+//     .cr-mobile-day-body                ← cuerpo desplazable verticalmente
+//       .cr-mobile-day-canvas            ← lienzo de 24h (1px=1min)
+//         .cr-mobile-hours               ← columna de horas + líneas (propias)
+//         .cr-day-col (.cr-mobile-grid)  ← zona de tareas (bloques absolutos)
 // La zona de tareas conserva la clase .cr-day-col para que el arrastre, la
 // delegación de clics y el posicionamiento de bloques (1px=1min) funcionen igual.
 function buildCronogramaMobileDayCol(date, todayStr) {
@@ -3648,24 +3653,30 @@ function buildCronogramaMobileDayCol(date, todayStr) {
   card.className = 'cr-mobile-day' + (isToday ? ' today' : '');
   card.dataset.date = formatDate(date);
 
-  // 1) Header del día (mismo componente que el resto de la app → mismos iconos).
+  // 1) Header del día FIJO (mismo componente → mismos iconos). Fuera del cuerpo
+  //    desplazable, así no se mueve con el scroll vertical de las horas.
   const dayNameUpper = CRONOGRAMA_DAY_NAMES[getAppDayIndex(date) - 1];
   card.appendChild(buildCronogramaHeader(date, dayNameUpper, isToday));
 
-  // 2) Cuerpo: columna de horas embebida + zona de tareas.
+  // 2) Cuerpo desplazable verticalmente.
   const body = document.createElement('div');
   body.className = 'cr-mobile-day-body';
 
+  // 2.0) Lienzo interno con la altura real de 24h (sobre él van horas y tareas).
+  const canvas = document.createElement('div');
+  canvas.className = 'cr-mobile-day-canvas';
+
   // 2a) Columna de horas propia de este día (etiquetas + líneas de fondo).
-  body.appendChild(buildCronogramaMobileHours());
+  canvas.appendChild(buildCronogramaMobileHours());
 
   // 2b) Zona de tareas. Conserva .cr-day-col para reusar toda la lógica.
   const colEl = document.createElement('div');
   colEl.className = 'cr-day-col cr-mobile-grid' + (isToday ? ' today' : '');
   colEl.dataset.date = formatDate(date);
   renderCronogramaDayBlocks(colEl, date);
-  body.appendChild(colEl);
+  canvas.appendChild(colEl);
 
+  body.appendChild(canvas);
   card.appendChild(body);
   return card;
 }
@@ -3781,8 +3792,14 @@ function setupCronogramaTrackScroll() {
   // track nuevo, así que reseteamos la bandera en renderCronograma (id estable).
   crTrackListenerBound = true;
 
-  track.addEventListener('scroll', () => {
+  track.addEventListener('scroll', (e) => {
+    // Este listener burbujea tanto el scroll HORIZONTAL del track como el
+    // VERTICAL de los cuerpos de tarjeta. Solo nos interesa el horizontal (cambio
+    // de día); el vertical lo gestiona setupCrMobileVScrollSync.
+    if (e.target !== track) return;
     if (crTrackScrollTimer) clearTimeout(crTrackScrollTimer);
+    // Mantener todas las tarjetas a la misma altura (hora) al deslizar de día.
+    applyCrMobileVScroll();
     // Mover la etiqueta de la barra superior en vivo mientras se desliza.
     const centered = getCenteredCronogramaCol(track);
     if (centered && centered.dataset.date) {
@@ -3796,6 +3813,8 @@ function setupCronogramaTrackScroll() {
     crTrackScrollTimer = setTimeout(() => {
       currentWeekStart = getMondayOf(cronogramaMobileDate || new Date());
       expandCronogramaTrackIfNeeded(track);
+      // Reaplicar la posición vertical a las tarjetas recién añadidas.
+      applyCrMobileVScroll();
     }, 120);
   }, { passive: true });
 }
@@ -3861,16 +3880,57 @@ function updateNowLinePosition() {
 // `minutosDelDia` px dentro de la rejilla, scrollTop = minutosDelDia deja la
 // línea pegada bajo las cabeceras.
 function scrollHorarioToNowLine() {
+  const now = new Date();
+  const minutesIntoDay = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+
+  // MÓVIL: el scroll vertical vive dentro del cuerpo de cada tarjeta-día. Fijamos
+  // la posición compartida y la aplicamos a todas las tarjetas (sincronizadas).
+  if (isMobile()) {
+    const body = document.querySelector('.cr-mobile-day-body');
+    if (body) {
+      const maxScroll = body.scrollHeight - body.clientHeight;
+      crMobileVScroll = Math.min(Math.max(0, minutesIntoDay), maxScroll);
+      applyCrMobileVScroll();
+    }
+    return;
+  }
+
+  // ESCRITORIO: scroll vertical en el contenedor común.
   const scroll = document.querySelector('.cronograma-scroll');
   const nowLine = document.getElementById('cr-now-line');
   if (!scroll || !nowLine) return;
-  const now = new Date();
-  const minutesIntoDay = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-  // Si la hora está muy avanzada, la posición deseada puede superar el scroll
-  // máximo posible: en ese caso simplemente bajamos hasta el fondo (sin dejar
-  // la línea bajo las cabeceras, lo que provocaría un espacio vacío raro).
   const maxScroll = scroll.scrollHeight - scroll.clientHeight;
   scroll.scrollTop = Math.min(Math.max(0, minutesIntoDay), maxScroll);
+}
+
+// Posición vertical compartida del horario móvil (en px desde 00:00). Mantiene
+// todas las tarjetas-día mostrando la misma hora al deslizar entre días.
+let crMobileVScroll = 0;
+let crMobileVScrollSyncing = false;
+
+// Aplica la posición vertical compartida a todos los cuerpos de tarjeta.
+function applyCrMobileVScroll() {
+  const bodies = document.querySelectorAll('.cr-mobile-day-body');
+  crMobileVScrollSyncing = true;
+  bodies.forEach(b => { if (b.scrollTop !== crMobileVScroll) b.scrollTop = crMobileVScroll; });
+  // Liberar el guard tras el frame para no perder scrolls reales del usuario.
+  requestAnimationFrame(() => { crMobileVScrollSyncing = false; });
+}
+
+// Engancha la sincronización del scroll vertical entre tarjetas: cuando el
+// usuario scrollea una, las demás siguen y se recuerda la posición.
+function setupCrMobileVScrollSync() {
+  const track = document.getElementById('cr-mobile-track');
+  if (!track) return;
+  track.addEventListener('scroll', (e) => {
+    const body = e.target.closest ? e.target.closest('.cr-mobile-day-body') : null;
+    if (!body || crMobileVScrollSyncing) return;
+    crMobileVScroll = body.scrollTop;
+    const bodies = track.querySelectorAll('.cr-mobile-day-body');
+    crMobileVScrollSyncing = true;
+    bodies.forEach(b => { if (b !== body && b.scrollTop !== crMobileVScroll) b.scrollTop = crMobileVScroll; });
+    requestAnimationFrame(() => { crMobileVScrollSyncing = false; });
+  }, { capture: true, passive: true });
 }
 
 // Mantiene la línea avanzando: la reubica cada 30s mientras esté en pantalla.
@@ -12187,3 +12247,4 @@ window.recuperarHoras = async function (aplicar = false) {
   return { ok, fail };
 };
 // EOF
+
