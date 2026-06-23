@@ -7584,7 +7584,15 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
       const dObj = new Date(dates[idx] + 'T12:00:00');
       const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
       const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
-      const tipText = `${dLabel}: ${p.hours.toFixed(1)}h`;
+      // Formato horas/minutos: 2.5 -> "2h30min", 3 -> "3h", 0.5 -> "30min"
+      const totalMin = Math.round(p.hours * 60);
+      const hh = Math.floor(totalMin / 60);
+      const mm = totalMin % 60;
+      let durLabel;
+      if (hh > 0 && mm > 0) durLabel = `${hh}h${mm}min`;
+      else if (hh > 0) durLabel = `${hh}h`;
+      else durLabel = `${mm}min`;
+      const tipText = `${dLabel}: ${durLabel}`;
       // Área de hover invisible más grande con clase y atributo data-tooltip.
       // El <title> vacío evita el tooltip nativo heredado ("Planner7").
       svgParts.push(`<circle class="chart-hover-circle" cx="${p.x}" cy="${p.y}" r="6" fill="transparent" style="cursor: pointer;" data-tooltip="${tipText}"><title></title></circle>`);
