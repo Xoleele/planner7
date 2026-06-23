@@ -892,6 +892,7 @@ let statsGroupBy = 'title';
 // Modo de color del panel de actividad: 'auto' (asignación automática, por
 // defecto) o 'tag' (usa el color definido por el usuario para cada etiqueta).
 let statsColorMode = 'auto';
+let generalStatsChartType = 'circular';
 // Estado guardado al abrir Ajustes de estadísticas, para restaurar si se cancela.
 let statsSettingsSnapshot = null;
 let statsMergeFirstSelected = '';
@@ -1540,6 +1541,7 @@ async function startApp(user) {
       if (parsedPrefs.statsGroupBy) statsGroupBy = parsedPrefs.statsGroupBy;
       if (parsedPrefs.statsStatusFilter) statsStatusFilter = parsedPrefs.statsStatusFilter;
       if (parsedPrefs.statsColorMode) statsColorMode = parsedPrefs.statsColorMode;
+      if (parsedPrefs.generalStatsChartType) generalStatsChartType = parsedPrefs.generalStatsChartType;
       if (parsedPrefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...parsedPrefs.copyOptions };
     }
   } catch (e) {
@@ -1558,6 +1560,7 @@ async function startApp(user) {
     if (prefs.statsGroupBy) statsGroupBy = prefs.statsGroupBy;
     if (prefs.statsStatusFilter) statsStatusFilter = prefs.statsStatusFilter;
     if (prefs.statsColorMode) statsColorMode = prefs.statsColorMode;
+    if (prefs.generalStatsChartType) generalStatsChartType = prefs.generalStatsChartType;
     if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
     activeTimerState = prefs.activeTimer || null;
     try {
@@ -7103,6 +7106,7 @@ function getStatsModalHTML(prefix) {
           <label for="general-stats-chart-type-select" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Tipo de Gráfico</label>
           <select id="general-stats-chart-type-select" style="width: 100%; padding: 6px 10px; font-size: 13px; height: 36px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
             <option value="circular" selected>Circular</option>
+            <option value="barras-apiladas">Barras apiladas</option>
           </select>
         </div>
         <div class="form-group flex-1" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
@@ -7357,6 +7361,90 @@ function renderPieChartSVG(includedGroups) {
   `;
 }
 
+function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) {
+  const y_bottom = 80;
+  const y_top = 8;
+  const plotHeight = y_bottom - y_top;
+  const x_left = 10;
+  const x_right = 94;
+  const plotWidth = x_right - x_left;
+  const N = dates.length;
+  
+  const dailyTotals = {};
+  const dailyBreakdown = {};
+  let maxDayMinutes = 0;
+  
+  dates.forEach(dStr => {
+    dailyTotals[dStr] = 0;
+    dailyBreakdown[dStr] = {};
+  });
+  
+  groupedList.forEach(group => {
+    if (excludedSet.has(group.name)) return;
+    group.occurrences.forEach(occ => {
+      const dStr = occ.dateStr;
+      if (dailyTotals[dStr] !== undefined) {
+        dailyBreakdown[dStr][group.name] = (dailyBreakdown[dStr][group.name] || 0) + occ.mins;
+        dailyTotals[dStr] += occ.mins;
+      }
+    });
+  });
+  
+  dates.forEach(dStr => {
+    if (dailyTotals[dStr] > maxDayMinutes) {
+      maxDayMinutes = dailyTotals[dStr];
+    }
+  });
+
+  const gap = N > 8 ? 2 : 3;
+  const barWidth = (plotWidth - (N - 1) * gap) / N;
+
+  const svgParts = [];
+  svgParts.push(`<svg viewBox="0 0 100 100" style="width: 100%; height: 100%;">`);
+  
+  const gridLinesY = [y_top + plotHeight * 0.25, y_top + plotHeight * 0.5, y_top + plotHeight * 0.75];
+  gridLinesY.forEach(yVal => {
+    svgParts.push(`<line x1="${x_left}" y1="${yVal}" x2="${x_right}" y2="${yVal}" stroke="var(--border-light, #f2f2f7)" stroke-dasharray="1.5,1.5" stroke-width="0.3" />`);
+  });
+
+  svgParts.push(`<line x1="${x_left - 2}" y1="${y_bottom}" x2="${x_right + 2}" y2="${y_bottom}" stroke="var(--border-light, #e5e5ea)" stroke-width="0.5" />`);
+
+  const fontSize = N > 9 ? 4.5 : 5.5;
+
+  dates.forEach((dStr, idx) => {
+    const x = x_left + idx * (barWidth + gap);
+    const x_center = x + barWidth / 2;
+    
+    const dateObj = new Date(dStr + 'T12:00:00');
+    const dayNum = dateObj.getDate();
+    svgParts.push(`<text x="${x_center}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="${fontSize}" font-weight="600" text-anchor="middle">${dayNum}</text>`);
+
+    if (maxDayMinutes > 0 && dailyTotals[dStr] > 0) {
+      let currentY = y_bottom;
+      
+      svgParts.push(`<rect x="${x}" y="${y_top}" width="${barWidth}" height="${plotHeight}" fill="var(--border-light, #f2f2f7)" opacity="0.15" rx="0.5" />`);
+
+      groupedList.forEach(group => {
+        if (excludedSet.has(group.name)) return;
+        const mins = dailyBreakdown[dStr][group.name] || 0;
+        if (mins > 0) {
+          const segHeight = (mins / maxDayMinutes) * plotHeight;
+          const y = currentY - segHeight;
+          
+          svgParts.push(`<rect x="${x}" y="${y}" width="${barWidth}" height="${segHeight}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.25" rx="0.3" />`);
+          
+          currentY = y;
+        }
+      });
+    } else {
+      svgParts.push(`<rect x="${x}" y="${y_bottom - 1.5}" width="${barWidth}" height="1.5" fill="var(--border-light, #e5e5ea)" rx="0.3" />`);
+    }
+  });
+
+  svgParts.push(`</svg>`);
+  return svgParts.join('\n');
+}
+
 function getDatesInRange(fromStr, toStr) {
   const dates = [];
   const start = new Date(fromStr + 'T12:00:00');
@@ -7563,7 +7651,11 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   const totalIncludedMins = includedGroups.reduce((sum, g) => sum + g.minutes, 0);
   
   // Renderizar gráfico
-  chartPlaceholder.innerHTML = renderPieChartSVG(includedGroups);
+  if (prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas') {
+    chartPlaceholder.innerHTML = renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet);
+  } else {
+    chartPlaceholder.innerHTML = renderPieChartSVG(includedGroups);
+  }
   
   let totalsWrapper = panelEl.querySelector('.daily-stats-totals-wrapper');
   if (!totalsWrapper) {
@@ -7792,6 +7884,7 @@ function saveStatsSettings() {
   prefs.statsGroupBy = statsGroupBy;
   prefs.statsStatusFilter = statsStatusFilter;
   prefs.statsColorMode = statsColorMode;
+  prefs.generalStatsChartType = generalStatsChartType;
 
   try {
     localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
@@ -7921,13 +8014,86 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
 function estadisticasGenerales(dateStr, resetFilter = false) {
   activeStatsPrefix = 'general-stats';
   
+  const chartTypeSelect = document.getElementById('general-stats-chart-type-select');
+  if (chartTypeSelect) {
+    chartTypeSelect.value = generalStatsChartType;
+  }
+  
   const periodSelect = document.getElementById('general-stats-period-select');
   if (periodSelect) {
-    periodSelect.value = 'hoy';
+    if (generalStatsChartType === 'barras-apiladas') {
+      const optionHoy = periodSelect.querySelector('option[value="hoy"]');
+      const option30 = periodSelect.querySelector('option[value="30dias"]');
+      if (optionHoy) optionHoy.disabled = true;
+      if (option30) option30.disabled = true;
+      
+      periodSelect.value = '7dias';
+      const today = new Date();
+      today.setHours(12, 0, 0, 0);
+      const from = new Date(today);
+      from.setDate(from.getDate() - 6);
+      generalStatsDateRange = {
+        from: formatDate(from),
+        to: formatDate(today)
+      };
+    } else {
+      const optionHoy = periodSelect.querySelector('option[value="hoy"]');
+      const option30 = periodSelect.querySelector('option[value="30dias"]');
+      if (optionHoy) optionHoy.disabled = false;
+      if (option30) option30.disabled = false;
+      
+      periodSelect.value = 'hoy';
+      generalStatsDateRange = null;
+    }
+  } else {
+    generalStatsDateRange = null;
   }
-  generalStatsDateRange = null;
   
   estadisticasDiarias(dateStr, resetFilter);
+
+  if (generalStatsDateRange) {
+    renderGeneralStatsForRange();
+  }
+}
+
+function handleGeneralStatsChartTypeChange() {
+  const periodSelect = document.getElementById('general-stats-period-select');
+  if (!periodSelect) return;
+
+  if (generalStatsChartType === 'barras-apiladas') {
+    const optionHoy = periodSelect.querySelector('option[value="hoy"]');
+    const option30 = periodSelect.querySelector('option[value="30dias"]');
+    if (optionHoy) optionHoy.disabled = true;
+    if (option30) option30.disabled = true;
+
+    const val = periodSelect.value;
+    if (val === 'hoy' || val === '30dias') {
+      periodSelect.value = '7dias';
+      handleGeneralStatsPeriodChange();
+      return;
+    }
+
+    if (val === 'personalizado' && generalStatsDateRange) {
+      const days = countDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
+      if (days === null || days < 2 || days > 12) {
+        const today = new Date();
+        today.setHours(12, 0, 0, 0);
+        const from = new Date(today);
+        from.setDate(from.getDate() - 6);
+        generalStatsDateRange = {
+          from: formatDate(from),
+          to: formatDate(today)
+        };
+      }
+    }
+  } else {
+    const optionHoy = periodSelect.querySelector('option[value="hoy"]');
+    const option30 = periodSelect.querySelector('option[value="30dias"]');
+    if (optionHoy) optionHoy.disabled = false;
+    if (option30) option30.disabled = false;
+  }
+
+  rerenderDailyStatsPanels();
 }
 
 function handleGeneralStatsPeriodChange() {
@@ -7977,17 +8143,45 @@ function openGeneralStatsCustomRangeModal() {
   const toInput = document.getElementById('general-stats-custom-range-end');
   const durationInput = document.getElementById('general-stats-custom-range-duration');
   
+  if (durationInput) {
+    if (generalStatsChartType === 'barras-apiladas') {
+      durationInput.min = 2;
+      durationInput.max = 12;
+    } else {
+      durationInput.min = 1;
+      durationInput.removeAttribute('max');
+    }
+  }
+
   if (fromInput && toInput && durationInput) {
     if (generalStatsDateRange) {
       fromInput.value = generalStatsDateRange.from;
       toInput.value = generalStatsDateRange.to;
-      const days = countDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
-      durationInput.value = days !== null ? days : 1;
+      let days = countDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
+      if (days !== null) {
+        if (generalStatsChartType === 'barras-apiladas') {
+          if (days < 2) days = 2;
+          if (days > 12) days = 12;
+          const startDate = new Date(generalStatsDateRange.from + 'T12:00:00');
+          startDate.setDate(startDate.getDate() + days - 1);
+          toInput.value = formatDate(startDate);
+        }
+        durationInput.value = days;
+      } else {
+        durationInput.value = (generalStatsChartType === 'barras-apiladas') ? 2 : 1;
+      }
     } else {
       const todayStr = formatDate(new Date());
       fromInput.value = todayStr;
-      toInput.value = todayStr;
-      durationInput.value = 1;
+      if (generalStatsChartType === 'barras-apiladas') {
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + 1);
+        toInput.value = formatDate(endDate);
+        durationInput.value = 2;
+      } else {
+        toInput.value = todayStr;
+        durationInput.value = 1;
+      }
     }
   }
   
@@ -8025,7 +8219,14 @@ function recordCustomRangeChange(field) {
   
   let startVal = startInput.value;
   let endVal = endInput.value;
-  let durationVal = parseInt(durationInput.value, 10) || 1;
+  
+  let minD = (generalStatsChartType === 'barras-apiladas') ? 2 : 1;
+  let maxD = (generalStatsChartType === 'barras-apiladas') ? 12 : Infinity;
+  
+  let durationVal = parseInt(durationInput.value, 10) || minD;
+  if (durationVal < minD) durationVal = minD;
+  if (durationVal > maxD) durationVal = maxD;
+  durationInput.value = durationVal;
   
   if (adjustedField === 'start') {
     if (endVal) {
@@ -8043,10 +8244,16 @@ function recordCustomRangeChange(field) {
     if (startVal && endVal) {
       const days = countDaysInRange(startVal, endVal);
       if (days !== null) {
-        durationInput.value = Math.max(1, days);
+        let finalDays = Math.max(minD, Math.min(maxD, days));
+        durationInput.value = finalDays;
+        if (finalDays !== days) {
+          const startDate = new Date(startVal + 'T12:00:00');
+          startDate.setDate(startDate.getDate() + finalDays - 1);
+          endInput.value = formatDate(startDate);
+        }
       } else {
         endInput.value = startVal;
-        durationInput.value = 1;
+        durationInput.value = minD;
       }
     }
   }
@@ -8091,6 +8298,14 @@ function handleGeneralStatsCustomRangeAccept() {
   if (fromVal > toVal) {
     alert('La fecha de inicio no puede ser posterior a la fecha de término.');
     return;
+  }
+  
+  const days = countDaysInRange(fromVal, toVal);
+  if (generalStatsChartType === 'barras-apiladas') {
+    if (days < 2 || days > 12) {
+      alert('Para el gráfico de barras apiladas, el periodo debe ser de entre 2 y 12 días.');
+      return;
+    }
   }
   
   generalStatsDateRange = {
@@ -8271,6 +8486,15 @@ function initStatsEvents(prefix) {
   });
 
   if (prefix === 'general-stats') {
+    const chartTypeSelect = document.getElementById('general-stats-chart-type-select');
+    if (chartTypeSelect) {
+      chartTypeSelect.addEventListener('change', (e) => {
+        generalStatsChartType = e.target.value;
+        saveStatsSettings();
+        handleGeneralStatsChartTypeChange();
+      });
+    }
+
     const periodSelect = document.getElementById('general-stats-period-select');
     if (periodSelect) {
       periodSelect.addEventListener('focus', () => {
@@ -8292,7 +8516,10 @@ function initStatsEvents(prefix) {
     if (durationInput) {
       durationInput.addEventListener('input', () => {
         let val = parseInt(durationInput.value, 10);
-        if (isNaN(val) || val < 1) val = 1;
+        let minVal = (generalStatsChartType === 'barras-apiladas') ? 2 : 1;
+        let maxVal = (generalStatsChartType === 'barras-apiladas') ? 12 : Infinity;
+        if (isNaN(val) || val < minVal) val = minVal;
+        if (val > maxVal) val = maxVal;
         durationInput.value = val;
         recordCustomRangeChange('duration');
       });
@@ -12492,11 +12719,11 @@ function askEndTimeConflict(originalEnd, currentEnd) {
     btnKeep.addEventListener('click', () => finish('keep'));
 
     const btnOverwrite = document.createElement('button');
-    btnOverwrite.className = 'btn btn-primary';
+    btnOverwrite.className = 'btn btn-secondary';
     btnOverwrite.textContent = 'Sobrescribir';
     btnOverwrite.addEventListener('click', () => finish('overwrite'));
 
-    actions.append(btnCancel, btnKeep, btnOverwrite);
+    actions.append(btnCancel, btnOverwrite, btnKeep);
     box.append(h, p, info, actions);
     overlay.appendChild(box);
     // Clic fuera de la caja = cancelar.
