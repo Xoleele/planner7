@@ -8972,20 +8972,9 @@ function initStatsEvents(prefix) {
       });
     }
 
-    // Selector de etiqueta del modo Hábitos. Reutiliza el mismo mecanismo de
-    // búsqueda que el creador de tareas (setupTagSearchSelect).
-    buildHabitTagSelectorOptions();
-    setHabitSelectTagValue(generalStatsHabitTag);
+    // El selector de etiqueta del modo Hábitos se puebla y engancha de forma
+    // perezosa en updateHabitTagRowVisibility() al entrar en ese modo.
     updateHabitTagRowVisibility();
-    if (typeof window.setupTagSearchSelect === 'function') {
-      window.setupTagSearchSelect(
-        'habit-tag-select-trigger',
-        'habit-tag-select-input',
-        'habit-tag-options-container',
-        'habit-select-tag',
-        (tagId) => { setHabitSelectTagValue(tagId); renderGeneralStatsForRange(); }
-      );
-    }
 
     const periodSelect = document.getElementById('general-stats-period-select');
     if (periodSelect) {
@@ -10482,10 +10471,30 @@ function setHabitSelectTagValue(tagId) {
   }
 }
 
+let habitTagSelectWired = false;
 // Muestra u oculta la fila del selector de etiqueta según el tipo de gráfico.
+// Al mostrarla, repuebla las opciones, refresca el valor y engancha los listeners
+// del buscador la primera vez (las etiquetas y window.setupTagSearchSelect pueden
+// no estar disponibles durante el init).
 function updateHabitTagRowVisibility() {
   const row = document.getElementById('general-stats-habit-tag-row');
-  if (row) row.style.display = (generalStatsChartType === 'habitos') ? 'flex' : 'none';
+  if (!row) return;
+  const visible = (generalStatsChartType === 'habitos');
+  row.style.display = visible ? 'flex' : 'none';
+  if (visible) {
+    buildHabitTagSelectorOptions();
+    setHabitSelectTagValue(generalStatsHabitTag);
+    if (!habitTagSelectWired && typeof window.setupTagSearchSelect === 'function') {
+      window.setupTagSearchSelect(
+        'habit-tag-select-trigger',
+        'habit-tag-select-input',
+        'habit-tag-options-container',
+        'habit-select-tag',
+        (tagId) => { setHabitSelectTagValue(tagId); renderGeneralStatsForRange(); }
+      );
+      habitTagSelectWired = true;
+    }
+  }
 }
 
 // --- Custom Date Picker Dropdown ---
