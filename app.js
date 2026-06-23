@@ -3536,9 +3536,18 @@ function renderCronograma() {
     // ── MÓVIL: carrusel horizontal de columnas-día con snap nativo ──────────
     const centerDate = cronogramaMobileDate ? new Date(cronogramaMobileDate) : new Date(today);
 
-    // Cabecera única (día centrado); se actualiza al deslizar.
-    const dayNameUpper = CRONOGRAMA_DAY_NAMES[getAppDayIndex(centerDate) - 1];
-    headersEl.appendChild(buildCronogramaHeader(centerDate, dayNameUpper, formatDate(centerDate) === todayStr));
+    // Track de CABECERAS: un encabezado por día precargado, alineado 1:1 con el
+    // carrusel de tareas. Se desliza en vivo (vía transform) junto con el track
+    // de días, igual que el planner móvil (donde header y tareas viven en la
+    // misma tarjeta). Sustituye al antiguo encabezado único y fijo.
+    const headerTrack = document.createElement('div');
+    headerTrack.className = 'cr-mobile-header-track';
+    headerTrack.id = 'cr-mobile-header-track';
+    headersEl.appendChild(headerTrack);
+
+    for (let i = -CR_MOBILE_PRELOAD; i <= CR_MOBILE_PRELOAD; i++) {
+      headerTrack.appendChild(buildCronogramaMobileHeaderCell(addDays(centerDate, i), todayStr));
+    }
 
     // Pista deslizable que contiene los días precargados.
     const track = document.createElement('div');
@@ -3562,6 +3571,8 @@ function renderCronograma() {
       requestAnimationFrame(() => {
         scrollCronogramaTrackToDate(formatDate(centerDate), false);
         setupCronogramaTrackScroll();
+        // Alinear el track de cabeceras con la posición inicial del carrusel.
+        syncCronogramaHeaderTrack();
       });
     });
 
@@ -3635,6 +3646,19 @@ function buildCronogramaMobileDayCol(date, todayStr) {
   return colEl;
 }
 
+// Construye una celda de CABECERA para el track de cabeceras del horario móvil.
+// Cada celda ocupa el 100% del ancho (igual que su columna-día homóloga) y
+// contiene el mismo .day-header que el resto de la app, de modo que el
+// encabezado se desliza junto con su día. dataset.date permite re-alinearlas.
+function buildCronogramaMobileHeaderCell(date, todayStr) {
+  const cell = document.createElement('div');
+  cell.className = 'cr-mobile-header-cell';
+  cell.dataset.date = formatDate(date);
+  const dayNameUpper = CRONOGRAMA_DAY_NAMES[getAppDayIndex(date) - 1];
+  cell.appendChild(buildCronogramaHeader(date, dayNameUpper, formatDate(date) === todayStr));
+  return cell;
+}
+
 // Coloca la línea de hora actual en el horario móvil. Se monta a nivel del GRID
 // (capa fija, por encima de la columna de horas, no dentro del carrusel), de modo
 // que su marca no queda tapada por las etiquetas de hora. Solo es visible cuando
@@ -3673,6 +3697,9 @@ function scrollCronogramaTrackToDate(dateStr, smooth) {
   const col = track.querySelector(`.cr-mobile-day[data-date="${dateStr}"]`);
   if (!col) return;
   track.scrollTo({ left: col.offsetLeft, behavior: smooth ? 'smooth' : 'auto' });
+  // Mantener el track de cabeceras alineado (el evento scroll lo refinará, pero
+  // para saltos sin animación conviene fijarlo de inmediato).
+  if (!smooth) syncCronogramaHeaderTrack(track);
 }
 
 // Cambia el día central del horario móvil deslizando el carrusel a esa columna.
@@ -3718,12 +3745,15 @@ function setupCronogramaTrackScroll() {
 
   track.addEventListener('scroll', () => {
     if (crTrackScrollTimer) clearTimeout(crTrackScrollTimer);
-    // Mover la cabecera del día y la etiqueta en vivo mientras se desliza.
+    // Deslizar el track de CABECERAS en vivo, en sincronía exacta con el track
+    // de días: así el encabezado acompaña a su columna (swipe y arrastre), igual
+    // que el planner móvil.
+    syncCronogramaHeaderTrack(track);
+    // Mover la etiqueta de la barra superior en vivo mientras se desliza.
     const centered = getCenteredCronogramaCol(track);
     if (centered && centered.dataset.date) {
       const d = new Date(centered.dataset.date + 'T00:00:00');
       cronogramaMobileDate = d;
-      updateCronogramaMobileHeader(d);
       updateCronogramaMobileLabel(d);
       // La línea de "ahora" solo se ve cuando el día centrado es hoy.
       syncNowLineVisibilityMobile();
@@ -3747,16 +3777,16 @@ function getCenteredCronogramaCol(track) {
   return best;
 }
 
-// Actualiza la cabecera del día (única, fija) con la fecha centrada.
-function updateCronogramaMobileHeader(date) {
-  const headersEl = document.getElementById('cronograma-headers');
-  if (!headersEl) return;
-  const oldHeader = headersEl.querySelector('.day-header');
-  if (!oldHeader) return;
-  const todayStr = formatDate(new Date());
-  const dayNameUpper = CRONOGRAMA_DAY_NAMES[getAppDayIndex(date) - 1];
-  const newHeader = buildCronogramaHeader(date, dayNameUpper, formatDate(date) === todayStr);
-  oldHeader.replaceWith(newHeader);
+// Desliza el track de cabeceras en sincronía con el carrusel de días. El track
+// de cabeceras se mueve con translateX(-scrollLeft) para reflejar exactamente la
+// misma posición horizontal que las columnas de tareas, de modo que cada
+// encabezado quede siempre pegado a su día durante el swipe y el arrastre.
+function syncCronogramaHeaderTrack(track) {
+  track = track || document.getElementById('cr-mobile-track');
+  if (!track) return;
+  const headerTrack = document.getElementById('cr-mobile-header-track');
+  if (!headerTrack) return;
+  headerTrack.style.transform = `translateX(${-track.scrollLeft}px)`;
 }
 
 // Añade más días a los lados cuando el usuario se acerca a un borde del carrusel,
@@ -3765,20 +3795,31 @@ function expandCronogramaTrackIfNeeded(track) {
   const cols = [...track.querySelectorAll('.cr-mobile-day')];
   if (cols.length === 0) return;
   const todayStr = formatDate(new Date());
+  const headerTrack = document.getElementById('cr-mobile-header-track');
 
   // Cerca del borde izquierdo → añadir días antes.
   if (track.scrollLeft < track.clientWidth * 1.5) {
     const first = cols[0];
     const firstDate = new Date(first.dataset.date + 'T00:00:00');
     const frag = document.createDocumentFragment();
+    const headerFrag = document.createDocumentFragment();
     for (let i = CR_MOBILE_PRELOAD; i >= 1; i--) {
       frag.appendChild(buildCronogramaMobileDayCol(addDays(firstDate, -i), todayStr));
+      headerFrag.appendChild(buildCronogramaMobileHeaderCell(addDays(firstDate, -i), todayStr));
     }
     const prevLeft = first.offsetLeft;
     track.insertBefore(frag, first);
+    // Insertar las cabeceras homólogas al inicio del header-track (mismo orden).
+    if (headerTrack && headerTrack.firstChild) {
+      headerTrack.insertBefore(headerFrag, headerTrack.firstChild);
+    } else if (headerTrack) {
+      headerTrack.appendChild(headerFrag);
+    }
     // Mantener la posición visual tras insertar al inicio.
     track.scrollLeft += (first.offsetLeft - prevLeft);
     applyDayIsolation();
+    // Re-alinear el header-track con el nuevo scrollLeft.
+    syncCronogramaHeaderTrack(track);
   }
 
   // Cerca del borde derecho → añadir días después.
@@ -3786,11 +3827,15 @@ function expandCronogramaTrackIfNeeded(track) {
     const last = cols[cols.length - 1];
     const lastDate = new Date(last.dataset.date + 'T00:00:00');
     const frag = document.createDocumentFragment();
+    const headerFrag = document.createDocumentFragment();
     for (let i = 1; i <= CR_MOBILE_PRELOAD; i++) {
       frag.appendChild(buildCronogramaMobileDayCol(addDays(lastDate, i), todayStr));
+      headerFrag.appendChild(buildCronogramaMobileHeaderCell(addDays(lastDate, i), todayStr));
     }
     track.appendChild(frag);
+    if (headerTrack) headerTrack.appendChild(headerFrag);
     applyDayIsolation();
+    syncCronogramaHeaderTrack(track);
   }
 }
 
@@ -7285,14 +7330,10 @@ function rerenderDailyStatsPanels() {
 function estadisticasDiarias(dateStr, resetFilter = false) {
   currentDailyStatsDate = dateStr;
 
-  // Solo restablecer el filtro de estado a "todas las tareas" cuando se abre el
-  // modal desde cero. En re-renderizados (fusión, deslizamiento entre días,
-  // edición) se conserva el filtro que el usuario tenga seleccionado.
-  if (resetFilter) {
-    statsStatusFilter = 'all';
-    statsGroupBy = 'title';
-    statsColorMode = 'auto';
-  }
+  // Los ajustes de estadísticas (estado, agrupación, color) son globales y
+  // persistentes (se guardan en Supabase), por lo que se conservan al abrir el
+  // modal, al cerrarlo y entre sesiones. Ya no se restablecen por defecto.
+  // (Se mantiene el parámetro resetFilter por compatibilidad, sin efecto.)
   const selects = document.querySelectorAll('.daily-stats-status-select');
   selects.forEach(sel => {
     sel.value = statsStatusFilter;

@@ -4184,6 +4184,11 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 
 .mobile-mode .cronograma-headers {
   grid-template-columns: var(--cr-time-col) 1fr;
+  /* En móvil el carrusel de tareas oculta su scrollbar; anulamos el hueco de
+     scrollbar reservado por el encabezado para que la zona de día del header
+     mida EXACTAMENTE lo mismo que la de la rejilla y el header-track quede
+     alineado al píxel con el carrusel. */
+  scrollbar-gutter: auto;
 }
 .mobile-mode .cronograma-grid {
   grid-template-columns: var(--cr-time-col) 1fr;
@@ -4268,24 +4273,57 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 }
 
 /* La barra oscura del encabezado (JUEVES 18 + botones) abarca ambas columnas:
-   el .day-header se extiende sobre la columna de horas (grid-column: 1 / -1),
-   así que la esquina .cr-corner ya no se ve y se oculta para no interferir. */
+   el .day-header se extiende sobre la columna de horas, así que la esquina
+   .cr-corner ya no se ve y se oculta para no interferir. */
 .mobile-mode .cronograma-headers .cr-corner {
   display: none;
 }
-.mobile-mode .cronograma-headers .day-header {
-  /* El header del día ocupa AMBAS columnas (horas + día) para que su texto
-     empiece a la izquierda del todo, sobre la columna de horas. */
-  grid-column: 1 / -1;
+
+/* ── Track de CABECERAS del horario móvil ───────────────────────────────────
+   Un carril horizontal de cabeceras (una por día) que se desliza en SINCRONÍA
+   con el carrusel de tareas mediante translateX (lo aplica el JS). Así el
+   encabezado acompaña a su columna durante el swipe y el arrastre, idéntico al
+   planner móvil (donde header y tareas viven en la misma tarjeta).
+   Ocupa AMBAS columnas del grid; el overflow oculto recorta los días vecinos. */
+.mobile-mode .cronograma-headers .cr-mobile-header-track {
+  /* Ocupa SOLO la zona de día (columna 2), igual que el carrusel de tareas
+     (.cr-mobile-track), de modo que su scroll horizontal en píxeles coincide 1:1
+     con el del carrusel y la sincronía por translateX queda exacta. */
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  flex-direction: row;
+  /* El overflow lo recorta el contenedor .cronograma-headers (overflow:hidden).
+     Aquí dejamos que las celdas vecinas sobresalgan; el JS las traslada. */
+  overflow: visible;
+  /* La traslación horizontal la fija el JS (syncCronogramaHeaderTrack). */
+  will-change: transform;
+}
+
+/* Cada celda ocupa el 100% de la ZONA DE DÍA, igual que su columna-día homóloga
+   (.cr-mobile-day = flex 0 0 100% del track de días), para quedar alineada con
+   ella píxel a píxel. */
+.mobile-mode .cronograma-headers .cr-mobile-header-cell {
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 100%;
+}
+
+.mobile-mode .cronograma-headers .cr-mobile-header-cell .day-header {
+  /* El header del día se extiende a la IZQUIERDA sobre la columna de horas
+     (margen negativo = ancho de la columna de horas) para que su texto empiece
+     al borde izquierdo del todo, exactamente como antes. */
+  margin-left: calc(-1 * var(--cr-time-col));
   /* Igualar EXACTAMENTE el encabezado de la tarjeta de día del planner
-     (.mobile-mode .mobile-feed-day .day-header) para que al alternar Planner ↔
-     Horario el encabezado no cambie: mismo padding (8px 16px, heredado de
-     .mobile-mode .day-header), mismo radio (--radius-md) y mismo margen negativo
-     que monta el header sobre el borde del contenedor por arriba y los lados. */
+     (.mobile-mode .mobile-feed-day .day-header): mismo padding (8px 16px),
+     mismo radio (--radius-md) y mismo margen negativo que lo monta sobre el
+     borde del contenedor por arriba y los lados. */
   padding: 8px 16px;
-  margin: -1px -1px 0 -1px;
+  margin-top: -1px;
+  margin-right: -1px;
   border-top-left-radius: var(--radius-md);
   border-top-right-radius: var(--radius-md);
+  border-right: none;
 }
 
 /* ── Medidas durante el arrastre de un bloque en el horario (móvil) ─────────
