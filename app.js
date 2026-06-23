@@ -7223,9 +7223,9 @@ function getStatsModalHTML(prefix) {
       <div class="modal-body" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; text-align: left; box-sizing: border-box; width: 100%;">
         <div class="form-group" style="margin-bottom: 0; width: 100%;">
           <label for="${prefix}-groupby-select">Filtrar por</label>
-          <select id="${prefix}-groupby-select" class="${prefix}-groupby-select" style="width: 100%; padding: 8px 10px; box-sizing: border-box;">
-            <option value="title" selected>Por título de tarea</option>
-            <option value="activity">Por etiqueta</option>
+          <select id="${prefix}-groupby-select" class="${prefix}-groupby-select" style="width: 100%; padding: 8px 10px; box-sizing: border-box;" ${prefix === 'general-stats' ? 'disabled' : ''}>
+            <option value="title" ${prefix === 'daily-stats' ? 'selected' : ''}>Por título de tarea</option>
+            <option value="activity" ${prefix === 'general-stats' ? 'selected' : ''}>Por etiqueta</option>
           </select>
         </div>
         <div class="form-group" style="margin-bottom: 0; width: 100%;">
@@ -7413,7 +7413,9 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   //   'title'    → agrupa por título de tarea (resolviendo combinaciones/fusión).
   //   'activity' → agrupa por actividad (etiqueta/tag).
   const grouped = {};
-  if (statsGroupBy === 'activity') {
+  const prefix = panelEl.id.startsWith('general-stats-') ? 'general-stats' : 'daily-stats';
+  const effectiveGroupBy = prefix === 'general-stats' ? 'activity' : statsGroupBy;
+  if (effectiveGroupBy === 'activity') {
     occurrences.forEach(occ => {
       const task = occ.task;
       const dStr = occ.dateStr;
@@ -7572,7 +7574,6 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   totalsWrapper.innerHTML = '';
 
   // Ocultar/mostrar el botón de combinar si es un rango
-  const prefix = panelEl.id.startsWith('general-stats-') ? 'general-stats' : 'daily-stats';
   const mergeBtn = document.getElementById(prefix + '-merge-btn');
   if (mergeBtn) {
     if (dates.length > 1) {
@@ -7808,7 +7809,7 @@ function openDailyStatsSettings() {
   const g = getStatsEl('daily-stats-groupby-select');
   const s = getStatsEl('daily-stats-status-select');
   const c = getStatsEl('daily-stats-color-select');
-  if (g) g.value = statsGroupBy;
+  if (g) g.value = activeStatsPrefix === 'general-stats' ? 'activity' : statsGroupBy;
   if (s) s.value = statsStatusFilter;
   if (c) c.value = statsColorMode;
   // Guardar el estado actual para poder restaurarlo si el usuario cancela.
@@ -7867,7 +7868,7 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
   });
   const groupBySelects = document.querySelectorAll('.' + activeStatsPrefix + '-groupby-select');
   groupBySelects.forEach(sel => {
-    sel.value = statsGroupBy;
+    sel.value = activeStatsPrefix === 'general-stats' ? 'activity' : statsGroupBy;
   });
   const colorSelects = document.querySelectorAll('.' + activeStatsPrefix + '-color-select');
   colorSelects.forEach(sel => {
