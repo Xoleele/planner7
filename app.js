@@ -2459,9 +2459,9 @@ function renderWeeklyCalendar(targetWrapper = document) {
     if (mobileScrollInit) {
       updateMobileFeedTasks();
     }
-    // Actualizar label de semana
+    // Actualizar label de semana (planner móvil: con nombre del día).
     const visibleDate = getMobileVisibleDate() || new Date();
-    document.getElementById('week-range-label').textContent = formatSingleDateNumeric(visibleDate);
+    document.getElementById('week-range-label').textContent = formatSingleDate(visibleDate);
     // Si el horario está activo, mantenerlo sincronizado también en móvil. Sin
     // esto, cuando las tareas llegan de la nube DESPUÉS del primer render del
     // cronograma (carga asíncrona), el horario móvil se quedaba vacío porque
