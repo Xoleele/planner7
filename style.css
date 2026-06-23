@@ -2246,21 +2246,21 @@ body.not-logged-in .app-container {
 
 
 
-/* Filas de resultados del panel de estadísticas */
-.stats-result-row {
+/* Filas de resultados del panel del buscador */
+.buscador-result-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 0;
 }
-.stats-result-row + .stats-result-row {
+.buscador-result-row + .buscador-result-row {
   border-top: 1px solid var(--border-light);
 }
-.stats-result-label {
+.buscador-result-label {
   color: var(--text-muted);
   font-size: 14px;
 }
-.stats-result-value {
+.buscador-result-value {
   color: var(--text-main);
   font-size: 16px;
   font-weight: 600;

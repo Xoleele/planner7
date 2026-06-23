@@ -33,6 +33,7 @@ const STATIC_ASSETS = [
   '/icons/edit.svg',
   '/icons/folder-closed.svg',
   '/icons/folder-open.svg',
+  '/icons/search.svg',
   '/icons/bar-chart.svg',
   '/icons/key.svg',
   '/icons/log-out.svg',

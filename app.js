@@ -498,6 +498,10 @@ function setupUserMenu() {
         <img src="icons/edit.svg" alt="" width="13.3" height="13.3">
         Plantilla de notas
       </button>
+      <button id="buscador-menu-btn" class="user-dropdown-item">
+        <img src="icons/search.svg" alt="" width="14" height="14">
+        Buscador
+      </button>
       <button id="stats-menu-btn" class="user-dropdown-item">
         <img src="icons/bar-chart.svg" alt="" width="14" height="14">
         Estadísticas
@@ -540,12 +544,21 @@ function setupUserMenu() {
       openNoteTemplateModal();
     });
 
+    const buscadorMenuBtn = document.getElementById('buscador-menu-btn');
+    if (buscadorMenuBtn) {
+      buscadorMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.remove();
+        openBuscadorModal();
+      });
+    }
+
     const statsMenuBtn = document.getElementById('stats-menu-btn');
     if (statsMenuBtn) {
       statsMenuBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         dropdown.remove();
-        openStatsModal();
+        // Por ahora sin función
       });
     }
 
@@ -9498,15 +9511,15 @@ function setupTimeMaskInput(inputEl) {
 }
 
 // --- Wire Up Event Listeners ---
-// Abre el modal de estadísticas y reinicia su estado. Reutilizado por el botón
+// Abre el modal del buscador y reinicia su estado. Reutilizado por el botón
 // de escritorio y por el ítem del menú de usuario (móvil).
-function openStatsModal() {
-  document.getElementById('stats-results').classList.add('hidden');
-  document.getElementById('stats-keyword').value = '';
-  document.getElementById('stats-period').value = 'today';
-  document.getElementById('stats-custom-range').classList.add('hidden');
-  document.getElementById('stats-modal').classList.remove('hidden');
-  document.getElementById('stats-keyword').focus();
+function openBuscadorModal() {
+  document.getElementById('buscador-results').classList.add('hidden');
+  document.getElementById('buscador-keyword').value = '';
+  document.getElementById('buscador-period').value = 'today';
+  document.getElementById('buscador-custom-range').classList.add('hidden');
+  document.getElementById('buscador-modal').classList.remove('hidden');
+  document.getElementById('buscador-keyword').focus();
 }
 
 // --- Cronómetro de Tareas ---
@@ -10779,31 +10792,31 @@ function setupEventListeners() {
     tagsBtn.addEventListener('click', openTagsModal);
   }
 
-  // ─── Estadísticas ──────────────────────────────────────────────────────────
-  const statsBtn = document.getElementById('stats-btn');
-  if (statsBtn) {
-    statsBtn.addEventListener('click', openStatsModal);
+  // ─── Buscador ──────────────────────────────────────────────────────────────
+  const buscadorBtn = document.getElementById('buscador-btn');
+  if (buscadorBtn) {
+    buscadorBtn.addEventListener('click', openBuscadorModal);
   }
 
-  const statsCancelBtn = document.getElementById('stats-cancel-btn');
-  if (statsCancelBtn) {
-    statsCancelBtn.addEventListener('click', () => {
-      document.getElementById('stats-modal').classList.add('hidden');
+  const buscadorCancelBtn = document.getElementById('buscador-cancel-btn');
+  if (buscadorCancelBtn) {
+    buscadorCancelBtn.addEventListener('click', () => {
+      document.getElementById('buscador-modal').classList.add('hidden');
     });
   }
 
   // Mostrar/ocultar rango personalizado según el periodo
-  const statsPeriodSelect = document.getElementById('stats-period');
-  if (statsPeriodSelect) {
-    statsPeriodSelect.addEventListener('change', () => {
-      const customRange = document.getElementById('stats-custom-range');
-      customRange.classList.toggle('hidden', statsPeriodSelect.value !== 'custom');
+  const buscadorPeriodSelect = document.getElementById('buscador-period');
+  if (buscadorPeriodSelect) {
+    buscadorPeriodSelect.addEventListener('change', () => {
+      const customRange = document.getElementById('buscador-custom-range');
+      customRange.classList.toggle('hidden', buscadorPeriodSelect.value !== 'custom');
     });
   }
 
-  const statsAcceptBtn = document.getElementById('stats-accept-btn');
-  if (statsAcceptBtn) {
-    statsAcceptBtn.addEventListener('click', runStatsCalculation);
+  const buscadorAcceptBtn = document.getElementById('buscador-accept-btn');
+  if (buscadorAcceptBtn) {
+    buscadorAcceptBtn.addEventListener('click', runBuscadorCalculation);
   }
 
   // Trigger Nueva Etiqueta Button: abre la ventana aparte para crear actividad.
@@ -11647,7 +11660,7 @@ async function confirmAndClearTasksForDay(dateStr) {
   }
 }
 
-// ─── Estadísticas ────────────────────────────────────────────────────────────
+// ─── Buscador ────────────────────────────────────────────────────────────────
 // Normaliza texto para búsqueda: minúsculas y sin acentos/diacríticos.
 function normalizeForSearch(str) {
   return (str || '')
@@ -11659,7 +11672,8 @@ function normalizeForSearch(str) {
 
 // Devuelve el rango [from, to] (YYYY-MM-DD inclusive) según el periodo.
 // Para 'custom' lee los inputs de fecha. Si un extremo falta, queda como null.
-function getStatsDateRange(period) {  const today = new Date();
+function getBuscadorDateRange(period) {
+  const today = new Date();
   today.setHours(12, 0, 0, 0);
   const toStr = formatDate(today);
 
@@ -11687,8 +11701,8 @@ function getStatsDateRange(period) {  const today = new Date();
     return { from: formatDate(from), to: toStr };
   }
   if (period === 'custom') {
-    const fromInput = document.getElementById('stats-date-from').value || null;
-    const toInput = document.getElementById('stats-date-to').value || null;
+    const fromInput = document.getElementById('buscador-date-from').value || null;
+    const toInput = document.getElementById('buscador-date-to').value || null;
     return { from: fromInput, to: toInput };
   }
   return { from: null, to: null };
@@ -11711,9 +11725,9 @@ function countDaysInRange(from, to) {
   return diff >= 0 ? diff + 1 : null;
 }
 
-function computeStats(keyword, period) {
+function computeBuscadorStats(keyword, period) {
   const kw = normalizeForSearch(keyword);
-  const { from, to } = getStatsDateRange(period);
+  const { from, to } = getBuscadorDateRange(period);
   const totalDays = countDaysInRange(from, to);
 
   let repetitions = 0;
@@ -11746,21 +11760,21 @@ function computeStats(keyword, period) {
   return { repetitions, days: uniqueDays.size, totalDays, totalMinutes, hasAnyDuration };
 }
 
-function runStatsCalculation() {
-  const keyword = document.getElementById('stats-keyword').value.trim();
-  const period = document.getElementById('stats-period').value;
-  const stats = computeStats(keyword, period);
-  document.getElementById('stats-repetitions').textContent = stats.repetitions;
+function runBuscadorCalculation() {
+  const keyword = document.getElementById('buscador-keyword').value.trim();
+  const period = document.getElementById('buscador-period').value;
+  const stats = computeBuscadorStats(keyword, period);
+  document.getElementById('buscador-repetitions').textContent = stats.repetitions;
   if (stats.totalDays) {
     const pct = Math.round((stats.days / stats.totalDays) * 100);
-    document.getElementById('stats-days').textContent =
+    document.getElementById('buscador-days').textContent =
       `${stats.days}/${stats.totalDays} días (${pct}%)`;
   } else {
-    document.getElementById('stats-days').textContent = stats.days;
+    document.getElementById('buscador-days').textContent = stats.days;
   }
-  document.getElementById('stats-total-time').textContent =
+  document.getElementById('buscador-total-time').textContent =
     stats.hasAnyDuration ? minutesToReadable(stats.totalMinutes) : '—';
-  document.getElementById('stats-results').classList.remove('hidden');
+  document.getElementById('buscador-results').classList.remove('hidden');
 }
 
 // Devuelve la hora actual en formato "HH:MM".

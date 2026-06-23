@@ -114,11 +114,11 @@
           <button id="timer-btn" title="Cronómetro" class="icon-button">
             <img src="icons/timer.svg" alt="Cronómetro" width="20" height="20">
           </button>
-          <!-- Botón Estadísticas: oculto en el header; ahora vive en las opciones
+          <!-- Botón Buscador: oculto en el header; ahora vive en las opciones
                de usuario (menú del avatar). Se conserva el elemento por si se
                quiere volver a mostrar. -->
-          <button id="stats-btn" title="Estadísticas" class="icon-button desktop-only" style="display: none;">
-            <img src="icons/bar-chart.svg" alt="Estadísticas" width="20" height="20">
+          <button id="buscador-btn" title="Buscador" class="icon-button desktop-only" style="display: none;">
+            <img src="icons/search.svg" alt="Buscador" width="20" height="20">
           </button>
           <!-- Botón Etiquetas (gestor de actividades) -->
           <button id="tags-btn" title="Etiquetas" class="icon-button">
@@ -734,23 +734,23 @@
     </div>
   </div>
 
-  <!-- MODAL: ESTADÍSTICAS -->
-  <div id="stats-modal" class="modal-backdrop hidden">
+  <!-- MODAL: BUSCADOR -->
+  <div id="buscador-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">
       <div class="modal-header">
-        <h2 id="stats-modal-title">Mis estadísticas</h2>
-        <button class="close-modal-btn" data-modal="stats-modal">
+        <h2 id="buscador-modal-title">Buscador</h2>
+        <button class="close-modal-btn" data-modal="buscador-modal">
           <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
         </button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label for="stats-keyword">Palabra clave</label>
-          <input type="text" id="stats-keyword" placeholder="Escribe una palabra clave" autocomplete="off">
+          <label for="buscador-keyword">Palabra clave</label>
+          <input type="text" id="buscador-keyword" placeholder="Escribe una palabra clave" autocomplete="off">
         </div>
         <div class="form-group">
-          <label for="stats-period">Periodo</label>
-          <select id="stats-period" style="width: 100%; padding: 6px 10px;">
+          <label for="buscador-period">Periodo</label>
+          <select id="buscador-period" style="width: 100%; padding: 6px 10px;">
             <option value="today">Hoy</option>
             <option value="last10">Últimos 10 días</option>
             <option value="last30">Últimos 30 días</option>
@@ -762,36 +762,36 @@
         </div>
 
         <!-- Rango personalizado (oculto por defecto) -->
-        <div class="form-row hidden" id="stats-custom-range">
+        <div class="form-row hidden" id="buscador-custom-range">
           <div class="form-group flex-1">
-            <label for="stats-date-from">Desde</label>
-            <input type="date" id="stats-date-from">
+            <label for="buscador-date-from">Desde</label>
+            <input type="date" id="buscador-date-from">
           </div>
           <div class="form-group flex-1">
-            <label for="stats-date-to">Hasta</label>
-            <input type="date" id="stats-date-to">
+            <label for="buscador-date-to">Hasta</label>
+            <input type="date" id="buscador-date-to">
           </div>
         </div>
 
         <!-- Resultados (ocultos hasta presionar Aceptar) -->
-        <div id="stats-results" class="hidden" style="margin-top: 4px; border-top: 1px solid var(--border-light); padding-top: 14px;">
-          <div class="stats-result-row">
-            <span class="stats-result-label">Repeticiones</span>
-            <span class="stats-result-value" id="stats-repetitions">0</span>
+        <div id="buscador-results" class="hidden" style="margin-top: 4px; border-top: 1px solid var(--border-light); padding-top: 14px;">
+          <div class="buscador-result-row">
+            <span class="buscador-result-label">Repeticiones</span>
+            <span class="buscador-result-value" id="buscador-repetitions">0</span>
           </div>
-          <div class="stats-result-row">
-            <span class="stats-result-label">Días</span>
-            <span class="stats-result-value" id="stats-days">0</span>
+          <div class="buscador-result-row">
+            <span class="buscador-result-label">Días</span>
+            <span class="buscador-result-value" id="buscador-days">0</span>
           </div>
-          <div class="stats-result-row">
-            <span class="stats-result-label">Tiempo total</span>
-            <span class="stats-result-value" id="stats-total-time">—</span>
+          <div class="buscador-result-row">
+            <span class="buscador-result-label">Tiempo total</span>
+            <span class="buscador-result-value" id="buscador-total-time">—</span>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" id="stats-cancel-btn">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="stats-accept-btn">Aplicar</button>
+        <button type="button" class="btn btn-secondary" id="buscador-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="buscador-accept-btn">Aplicar</button>
       </div>
     </div>
   </div>
