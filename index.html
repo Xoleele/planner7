@@ -636,6 +636,55 @@
     </div>
   </div>
 
+  <!-- MODAL: PREGUNTAR CREAR NUEVA ETIQUETA -->
+  <div id="new-tag-prompt-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Crear nueva etiqueta</h2>
+        <button class="close-modal-btn" id="new-tag-close-btn">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <p style="font-size: 13.5px; color: var(--text-main); margin-bottom: 16px;">
+          La etiqueta <strong id="new-tag-prompt-name-display">"..."</strong> no existe. ¿Deseas crearla?
+        </p>
+
+        <div class="form-group">
+          <label>Color</label>
+          <div class="color-palette-grid" id="new-tag-color-palette-grid">
+            <!-- Círculos de color se generarán por JS -->
+          </div>
+          <!-- Selector de color personalizado (HSL) -->
+          <div id="new-tag-hsl-picker" class="hsl-picker hidden">
+            <div class="hsl-preview-row">
+              <span id="new-tag-hsl-preview" class="hsl-preview"></span>
+              <span id="new-tag-hsl-value" class="hsl-value"></span>
+            </div>
+            <div class="hsl-slider-row">
+              <label for="new-tag-hsl-h">Tono</label>
+              <input type="range" id="new-tag-hsl-h" min="0" max="360" value="210">
+            </div>
+            <div class="hsl-slider-row">
+              <label for="new-tag-hsl-s">Saturación</label>
+              <input type="range" id="new-tag-hsl-s" min="0" max="100" value="70">
+            </div>
+            <div class="hsl-slider-row">
+              <label for="new-tag-hsl-l">Luminosidad</label>
+              <input type="range" id="new-tag-hsl-l" min="0" max="100" value="55">
+            </div>
+          </div>
+        </div>
+
+        <div class="tag-form-actions" style="margin-top: 24px;">
+          <button type="button" id="new-tag-cancel-btn" class="btn btn-secondary">Cancelar</button>
+          <button type="button" id="new-tag-submit-btn" class="btn btn-primary">Aceptar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: NOTAS -->
   <div id="notes-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">

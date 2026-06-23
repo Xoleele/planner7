@@ -856,6 +856,10 @@ let prefilledTimes = null; // {start:'HH:MM', end:'HH:MM'} para nueva tarea desd
 let activeRecurrenceDays = new Set(); // Stores 1-7 representing days for recurrence
 let selectedColorIndex = 0; // Index of selected color in the palette
 let customColor = null; // color HSL personalizado: { bg, text, border } o null
+let newTagPromptCallback = null;
+let newTagPromptName = "";
+let newTagPromptColorIndex = 0;
+let newTagPromptCustomColor = null;
 let undoStack = []; // Pila para CTRL+Z
 let redoStack = []; // Pila para CTRL+Y
 let selectedOccurrenceDate = null; // Fecha específica de la ocurrencia seleccionada
@@ -8708,6 +8712,110 @@ function resetTagForm() {
   buildColorPalette();
 }
 
+function buildNewTagPromptColorPalette() {
+  const container = document.getElementById('new-tag-color-palette-grid');
+  if (!container) return;
+  container.innerHTML = '';
+
+  DEFAULT_COLORS.forEach((color, idx) => {
+    const circle = document.createElement('div');
+    circle.className = 'color-circle';
+    circle.style.backgroundColor = color.bg;
+    circle.style.borderColor = color.border;
+    circle.dataset.index = idx;
+
+    if (idx === newTagPromptColorIndex && !newTagPromptCustomColor) {
+      circle.classList.add('selected');
+    }
+
+    circle.addEventListener('click', () => {
+      container.querySelectorAll('.color-circle').forEach(c => c.classList.remove('selected'));
+      circle.classList.add('selected');
+      newTagPromptColorIndex = idx;
+      newTagPromptCustomColor = null;
+      hideNewTagPromptHslPicker();
+    });
+
+    container.appendChild(circle);
+  });
+
+  // Boton '+' (circulo negro) para definir un color personalizado HSL
+  const addBtn = document.createElement('div');
+  addBtn.className = 'color-circle color-circle-add';
+  addBtn.title = 'Color personalizado';
+  addBtn.innerHTML = '<span class="color-add-plus">+</span>';
+  if (newTagPromptCustomColor) addBtn.classList.add('selected');
+  addBtn.addEventListener('click', () => {
+    let startBg = null;
+    if (newTagPromptCustomColor) {
+      startBg = newTagPromptCustomColor.bg;
+    } else if (newTagPromptColorIndex >= 0 && DEFAULT_COLORS[newTagPromptColorIndex]) {
+      startBg = DEFAULT_COLORS[newTagPromptColorIndex].bg;
+    }
+    if (startBg) {
+      const [h, s, l] = hexToHsl(startBg);
+      const hEl = document.getElementById('new-tag-hsl-h'), sEl = document.getElementById('new-tag-hsl-s'), lEl = document.getElementById('new-tag-hsl-l');
+      if (hEl) hEl.value = h;
+      if (sEl) sEl.value = s;
+      if (lEl) lEl.value = l;
+    }
+    container.querySelectorAll('.color-circle').forEach(c => c.classList.remove('selected'));
+    addBtn.classList.add('selected');
+    newTagPromptColorIndex = -1;
+    showNewTagPromptHslPicker();
+  });
+  container.appendChild(addBtn);
+}
+
+function updateNewTagPromptHslPreview() {
+  const h = +document.getElementById('new-tag-hsl-h').value;
+  const s = +document.getElementById('new-tag-hsl-s').value;
+  const l = +document.getElementById('new-tag-hsl-l').value;
+  const hex = hslToHex(h, s, l);
+  newTagPromptCustomColor = { bg: hex, text: '#ffffff', border: hex };
+  const prev = document.getElementById('new-tag-hsl-preview');
+  const val = document.getElementById('new-tag-hsl-value');
+  if (prev) prev.style.backgroundColor = hex;
+  if (val) val.textContent = `${hex.toUpperCase()}  (H ${h}, S ${s}, L ${l})`;
+}
+
+function showNewTagPromptHslPicker() {
+  const picker = document.getElementById('new-tag-hsl-picker');
+  if (picker) picker.classList.remove('hidden');
+  updateNewTagPromptHslPreview();
+}
+
+function hideNewTagPromptHslPicker() {
+  const picker = document.getElementById('new-tag-hsl-picker');
+  if (picker) picker.classList.add('hidden');
+}
+
+function promptCreateNewTag(name, callback) {
+  newTagPromptCallback = callback;
+  newTagPromptName = name;
+  newTagPromptColorIndex = 0;
+  newTagPromptCustomColor = null;
+
+  const displayEl = document.getElementById('new-tag-prompt-name-display');
+  if (displayEl) displayEl.textContent = `"${name}"`;
+
+  buildNewTagPromptColorPalette();
+  hideNewTagPromptHslPicker();
+
+  const modal = document.getElementById('new-tag-prompt-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeNewTagPromptModal(acceptedTag = null) {
+  const modal = document.getElementById('new-tag-prompt-modal');
+  if (modal) modal.classList.add('hidden');
+  if (newTagPromptCallback) {
+    const cb = newTagPromptCallback;
+    newTagPromptCallback = null;
+    cb(acceptedTag);
+  }
+}
+
 // Estado temporal del flujo de borrado de etiqueta (con reasignacion)
 let pendingDeleteTagId = null;
 
@@ -10742,6 +10850,46 @@ function setupEventListeners() {
     if (el) el.addEventListener('input', updateHslPreview);
   });
 
+  // Sliders del selector de color del modal de confirmación de nueva etiqueta
+  ['new-tag-hsl-h', 'new-tag-hsl-s', 'new-tag-hsl-l'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateNewTagPromptHslPreview);
+  });
+
+  // Botones del modal de confirmación de nueva etiqueta
+  const newTagCancelBtn = document.getElementById('new-tag-cancel-btn');
+  if (newTagCancelBtn) {
+    newTagCancelBtn.addEventListener('click', () => {
+      closeNewTagPromptModal(null);
+    });
+  }
+
+  const newTagCloseBtn = document.getElementById('new-tag-close-btn');
+  if (newTagCloseBtn) {
+    newTagCloseBtn.addEventListener('click', () => {
+      closeNewTagPromptModal(null);
+    });
+  }
+
+  const newTagSubmitBtn = document.getElementById('new-tag-submit-btn');
+  if (newTagSubmitBtn) {
+    newTagSubmitBtn.addEventListener('click', () => {
+      const color = newTagPromptCustomColor ? newTagPromptCustomColor : DEFAULT_COLORS[newTagPromptColorIndex];
+      const newTag = {
+        id: 'tag-' + Date.now(),
+        name: newTagPromptName,
+        color,
+        colorIndex: newTagPromptColorIndex
+      };
+      tags.push(newTag);
+      saveTagsToStorage();
+      buildTagSelectorOptions();
+      buildTimerTagSelectorOptions();
+      renderWeeklyCalendar();
+      closeNewTagPromptModal(newTag);
+    });
+  }
+
   // Botones de la vista de edición de tarea en estadísticas
   const statsEditCancelBtn = document.getElementById('stats-edit-cancel-btn');
   if (statsEditCancelBtn) statsEditCancelBtn.addEventListener('click', closeStatsTaskEditView);
@@ -10998,9 +11146,34 @@ function setupEventListeners() {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        const first = filterTagOptions(container, input.value);
-        if (first) first.click();
-        input.blur();
+        const value = input.value.trim();
+        if (!value) return;
+        const first = filterTagOptions(container, value);
+        if (first) {
+          first.click();
+          input.blur();
+        } else {
+          // No hay coincidencia con ninguna etiqueta existente.
+          // Abrir el diálogo de creación rápida de etiqueta.
+          promptCreateNewTag(value, (createdTag) => {
+            if (createdTag) {
+              const hidden = document.getElementById(hiddenId);
+              if (hidden) {
+                hidden.value = createdTag.id;
+              }
+              if (onSelect) onSelect(createdTag.id);
+              else {
+                if (triggerId === 'tag-select-trigger') {
+                  setSelectTagValue(createdTag.id);
+                } else if (triggerId === 'timer-tag-select-trigger') {
+                  setTimerSelectTagValue(createdTag.id);
+                  if (timerStartTime) saveActiveTimerState();
+                }
+              }
+            }
+          });
+          input.blur();
+        }
       } else if (e.key === 'Escape') {
         restoreSelected();
         container.classList.add('hidden');
