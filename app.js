@@ -2840,6 +2840,16 @@ function isAnyOverlayOpen() {
 }
 
 function toggleCronograma() {
+  // Capturar el día visible ANTES de cambiar de estado u ocultar nada (si se lee
+  // después, el grid ya está display:none y getBoundingClientRect devuelve 0,
+  // por lo que se obtenía un día equivocado).
+  let mobileKeepDate = null;
+  if (isMobile()) {
+    mobileKeepDate = cronogramaActive
+      ? (cronogramaMobileDate || new Date())   // venimos del horario
+      : (getMobileVisibleDate() || new Date()); // venimos del planner
+  }
+
   cronogramaActive = !cronogramaActive;
   document.body.classList.toggle('cronograma-active', cronogramaActive);
 
@@ -2854,13 +2864,16 @@ function toggleCronograma() {
   if (cronogramaActive) {
     if (cronograma) cronograma.classList.remove('hidden');
     if (plannerGrid) plannerGrid.style.display = 'none';
-    // El horario móvil siempre se abre en HOY.
-    cronogramaMobileDate = null;
-    renderCronograma();
-    // En móvil, mostrar la fecha de hoy en la etiqueta superior.
+
     if (isMobile()) {
+      const visibleDate = mobileKeepDate || new Date();
+      cronogramaMobileDate = visibleDate;
+      renderCronograma();
       const label = document.getElementById('week-range-label');
-      if (label) label.textContent = formatSingleDateNumeric(new Date());
+      if (label) label.textContent = formatSingleDateNumeric(visibleDate);
+    } else {
+      cronogramaMobileDate = null;
+      renderCronograma();
     }
     // Colocar el scroll para que la línea de hora quede bajo las cabeceras.
     requestAnimationFrame(scrollHorarioToNowLine);
@@ -2869,13 +2882,12 @@ function toggleCronograma() {
     if (plannerGrid) plannerGrid.style.display = '';
     stopNowLineClock(); // detener el reloj de la línea de hora al salir del horario
 
-    // En móvil el horario siempre muestra HOY; al volver al planner, colocar el
-    // feed en HOY también (antes se quedaba en el inicio de la semana, p. ej. el
-    // lunes 8, en vez del día que se estaba viendo). El feed estaba oculto, así
-    // que esperamos a que tenga layout antes de scrollear.
+    // En móvil, al volver al planner, colocar el feed en el día que se estaba
+    // viendo en el horario (en lugar de forzar siempre hoy).
     if (isMobile()) {
+      const targetDate = mobileKeepDate || cronogramaMobileDate || new Date();
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => jumpMobileFeedToDate(new Date()));
+        requestAnimationFrame(() => jumpMobileFeedToDate(targetDate));
       });
     }
   }
@@ -3536,9 +3548,13 @@ function renderCronograma() {
     crTrackListenerBound = false;
 
     // Posicionar el carrusel en el día central y enganchar el listener de snap.
+    // Usamos doble requestAnimationFrame para asegurar que el navegador haya
+    // calculado los layouts y offsetLeft de las columnas antes de scrollear.
     requestAnimationFrame(() => {
-      scrollCronogramaTrackToDate(formatDate(centerDate), false);
-      setupCronogramaTrackScroll();
+      requestAnimationFrame(() => {
+        scrollCronogramaTrackToDate(formatDate(centerDate), false);
+        setupCronogramaTrackScroll();
+      });
     });
 
     // Línea de hora actual: se coloca dentro de la columna de HOY (si está).
