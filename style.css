@@ -1787,8 +1787,8 @@ input:checked + .slider:before {
 .custom-select-trigger {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 10px;
+  gap: 0px;
+  padding: 0 5px;
   height: 38px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -1798,6 +1798,11 @@ input:checked + .slider:before {
   color: var(--text-main);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   user-select: none;
+}
+
+#tag-input-name {
+  padding-left: 2px !important;
+  padding-right: 2px !important;
 }
 
 .custom-select-trigger:hover {
@@ -1910,6 +1915,10 @@ input:checked + .slider:before {
   border: 1px solid rgba(0, 0, 0, 0.08);
   display: inline-block;
   flex-shrink: 0;
+}
+
+.custom-select-trigger .custom-select-color-circle {
+  margin-left: 8px;
 }
 
 
