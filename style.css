@@ -3689,7 +3689,8 @@ body.not-logged-in .app-container {
   transition: transform 0.1s ease;
 }
 .heatmap-cell:hover { transform: scale(1.2); }
-/* Fila de horas: fija arriba al hacer scroll vertical. */
+/* Fila de horas: fija arriba al hacer scroll vertical. El box-shadow extiende el
+   blanco para cubrir el gap (3px) y ocultar las celdas que pasan por debajo. */
 .heatmap-hlabel {
   font-size: 9px;
   color: var(--text-muted, #8e8e93);
@@ -3698,8 +3699,9 @@ body.not-logged-in .app-container {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--bg-card, #fff);
+  background: #fff;
   padding: 2px 0;
+  box-shadow: 0 3px 0 0 #fff, 0 -6px 0 0 #fff;
 }
 /* Columna de fechas: fija a la izquierda al hacer scroll horizontal. */
 .heatmap-dlabel {
@@ -3712,7 +3714,8 @@ body.not-logged-in .app-container {
   position: sticky;
   left: 0;
   z-index: 2;
-  background: var(--bg-card, #fff);
+  background: #fff;
+  box-shadow: 3px 0 0 0 #fff;
 }
 /* Esquina superior izquierda: fija en ambas direcciones, por encima de todo. */
 .heatmap-corner {
@@ -3721,7 +3724,8 @@ body.not-logged-in .app-container {
   top: 0;
   left: 0;
   z-index: 3;
-  background: var(--bg-card, #fff);
+  background: #fff;
+  box-shadow: 3px 0 0 0 #fff, 0 3px 0 0 #fff;
 }
 
 /* Botón ✕ del selector de etiqueta del mapa de calor (copiado del editor de

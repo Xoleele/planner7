@@ -7744,6 +7744,28 @@ function renderHeatmapRow(dStr, hue, sat) {
   return row;
 }
 
+// Devuelve el id de la etiqueta con mayor duración acumulada (tareas con
+// horario) en el rango [fromStr, toStr], o null si no hay ninguna.
+function topTagByDurationInRange(fromStr, toStr) {
+  const dates = getDatesInRange(fromStr, toStr);
+  const totals = {}; // tagId -> minutos
+  dates.forEach(dStr => {
+    const dateObj = new Date(dStr + 'T12:00:00');
+    tasks.forEach(task => {
+      if (!checkTaskOccurrence(task, dateObj)) return;
+      const mins = getTaskDurationMinutes(task);
+      if (mins === null || mins <= 0) return;
+      const tagId = task.tagId || 'default';
+      totals[tagId] = (totals[tagId] || 0) + mins;
+    });
+  });
+  let best = null, bestMin = -1;
+  Object.keys(totals).forEach(id => {
+    if (totals[id] > bestMin) { bestMin = totals[id]; best = id; }
+  });
+  return best;
+}
+
 // Fecha (YYYY-MM-DD) de la tarea más antigua con la etiqueta seleccionada, o null.
 function heatmapOldestDate() {
   let oldest = null;
@@ -8639,6 +8661,10 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
         from: formatDate(startDate),
         to: formatDate(endDate)
       };
+
+      // Etiqueta por defecto: la de mayor duración acumulada en estos 12 días.
+      const topTag = topTagByDurationInRange(generalStatsDateRange.from, generalStatsDateRange.to);
+      if (topTag) generalStatsHabitTag = topTag;
     } else {
       periodSelect.value = 'hoy';
       generalStatsDateRange = null;
