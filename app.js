@@ -12262,7 +12262,20 @@ function setupEventListeners() {
       e.preventDefault();
       e.stopPropagation();
       const target = document.getElementById(icon.dataset.target);
-      if (!target || target.disabled) return;
+      if (!target) return;
+      // Si el campo de fecha está deshabilitado es porque la tarea está archivada
+      // (sin fecha). Pulsar el calendario es la acción para volver a darle fecha:
+      // desarchivamos (rehabilita el campo y pone una fecha por defecto) y luego
+      // abrimos el selector. Así la ✕ (archivar) y el calendario (dar fecha) son
+      // acciones opuestas y deterministas, sin desincronización.
+      if (target.disabled && target.id === 'task-input-date') {
+        const briefcaseCheckbox = document.getElementById('task-in-briefcase-checkbox');
+        if (briefcaseCheckbox && briefcaseCheckbox.checked) {
+          briefcaseCheckbox.checked = false;
+          briefcaseCheckbox.dispatchEvent(new Event('change'));
+        }
+      }
+      if (target.disabled) return;
       if (!isMobile() && target.classList.contains('time-masked-input')) {
         target.focus();
         return;
@@ -12284,9 +12297,13 @@ function setupEventListeners() {
       e.stopPropagation();
       const briefcaseCheckbox = document.getElementById('task-in-briefcase-checkbox');
       if (!briefcaseCheckbox) return;
-      // Alternar: si tiene fecha → archivar (sin fecha); si ya está archivada →
-      // desarchivar y volver a habilitar la fecha (hoy por defecto).
-      briefcaseCheckbox.checked = !briefcaseCheckbox.checked;
+      // La ✕ SIEMPRE significa "sin fecha definida" → archivar. No alterna: si ya
+      // está archivada, no hace nada (antes invertía el estado y, al reponer una
+      // fecha desde el calendario sin re-sincronizar el checkbox, el siguiente
+      // clic en la ✕ desarchivaba en vez de archivar). Para volver a darle fecha
+      // se usa el icono de calendario / el propio campo (ver más abajo).
+      if (briefcaseCheckbox.checked) return; // ya archivada
+      briefcaseCheckbox.checked = true;
       briefcaseCheckbox.dispatchEvent(new Event('change'));
     });
   }
