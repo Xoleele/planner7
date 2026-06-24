@@ -2283,7 +2283,7 @@ function formatSingleDate(date) {
 }
 
 // Solo la fecha en números (DD/MM/AAAA), sin el nombre del día. La usa el
-// navegador móvil para mostrar únicamente la fecha.
+// Navegador en móvil para mostrar únicamente la fecha.
 function formatSingleDateNumeric(date) {
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -3101,7 +3101,7 @@ function toggleCronograma() {
   updateViewToggleMenuLabel();
 }
 
-// Actualiza el tooltip y el icono del botón de alternar vista (en el navegador)
+// Actualiza el tooltip y el icono del botón de alternar vista (en el Navegador)
 // según el modo activo.
 function updateViewToggleMenuLabel() {
   const btn = document.getElementById('nav-view-toggle-btn');
@@ -12754,7 +12754,7 @@ function setupEventListeners() {
     timerStopBtn.addEventListener('click', finishTimer);
   }
 
-  // ─── Alternar vista (Planner / Horario) desde el navegador ─────────────────
+  // ─── Alternar vista (Planner / Horario) desde el Navegador ─────────────────
   const navViewToggleBtn = document.getElementById('nav-view-toggle-btn');
   if (navViewToggleBtn) {
     navViewToggleBtn.addEventListener('click', toggleCronograma);

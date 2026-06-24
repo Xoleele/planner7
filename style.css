@@ -110,8 +110,8 @@ html:not(.mobile-mode) .app-container {
   display: inline-block;
 }
 
-/* Week Navigation */
-.week-navigator {
+/* Navegador */
+.navegador {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -122,7 +122,7 @@ html:not(.mobile-mode) .app-container {
   box-shadow: var(--shadow-sm);
 }
 
-.week-navigator button {
+.navegador button {
   background: none;
   border: none;
   cursor: pointer;
@@ -136,7 +136,7 @@ html:not(.mobile-mode) .app-container {
   transition: var(--transition-fast);
 }
 
-.week-navigator button:hover {
+.navegador button:hover {
   background-color: #f2f2f7;
 }
 
@@ -2267,8 +2267,8 @@ body.not-logged-in .app-container {
   font-weight: 600;
 }
 
-/* El navegador de semana ocupa la segunda fila completa */
-.mobile-mode .week-navigator {
+/* El Navegador ocupa la segunda fila completa */
+.mobile-mode .navegador {
   order: 3;
   flex: 0 0 100%;
   /* Sin justify-content: center, para que el contenedor CENTRAL crezca y absorba
@@ -2279,23 +2279,23 @@ body.not-logged-in .app-container {
 }
 
 /* Botones laterales y flechas: tamaño fijo (no crecen). */
-.mobile-mode .week-navigator #prev-week-btn,
-.mobile-mode .week-navigator #next-week-btn,
-.mobile-mode .week-navigator #nav-view-toggle-btn,
-.mobile-mode .week-navigator #today-btn {
+.mobile-mode .navegador #prev-week-btn,
+.mobile-mode .navegador #next-week-btn,
+.mobile-mode .navegador #nav-view-toggle-btn,
+.mobile-mode .navegador #today-btn {
   flex: 0 0 auto;
 }
-/* En móvil el padding lateral del navegador es 10px: ajustar el margin negativo
+/* En móvil el padding lateral del Navegador es 10px: ajustar el margin negativo
    para que los botones lleguen justo al borde (no 12px). */
-.mobile-mode .week-navigator #nav-view-toggle-btn {
+.mobile-mode .navegador #nav-view-toggle-btn {
   margin-left: -10px;
 }
-.mobile-mode .week-navigator #today-btn {
+.mobile-mode .navegador #today-btn {
   margin-right: -10px;
 }
 
 /* El contenedor central (flechas + fecha) ABSORBE el espacio disponible. */
-.mobile-mode .week-navigator .week-display-container {
+.mobile-mode .navegador .week-display-container {
   flex: 1 1 auto;
   min-width: 0;
   justify-content: center;
