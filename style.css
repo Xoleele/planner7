@@ -739,14 +739,53 @@ html:not(.mobile-mode) .app-container {
   -webkit-appearance: none;
 }
 
-/* Botón de campana (alarma) dentro del campo de hora de inicio, a la izquierda
-   de la ✕. Cuando hay campana, el input reserva más hueco a la derecha. */
+/* ── Formato 24h FORZADO en cualquier dispositivo ───────────────────────────
+   El input nativo type=time muestra a.m./p.m. según la región del SISTEMA y
+   no es controlable por CSS/lang en todos los navegadores (p. ej. iOS Safari).
+   Solución: ocultamos el texto nativo del input (lo dejamos transparente pero
+   100% funcional para abrir el selector) y pintamos encima un overlay con el
+   valor en formato 23:03. El overlay lo sincroniza app.js (initForce24Time). */
+input[type="time"][data-force24] {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  caret-color: transparent;
+}
+.time-24-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  font-family: var(--font-primary);
+  font-size: 13.5px;
+  color: var(--text-main);
+  z-index: 1;
+  white-space: nowrap;
+}
+/* Alinea el overlay con el texto del input (que tiene padding-left 8px cuando
+   hay icono de reloj). */
+.time-input-wrapper.has-clock .time-24-overlay {
+  left: 42px; /* 34px botón-icono + 8px padding-left del input */
+}
+.time-input-wrapper:not(.has-clock) .time-24-overlay {
+  left: 8px;
+}
+/* Placeholder visual cuando el campo está vacío. */
+.time-24-overlay:empty::before {
+  content: "--:--";
+  opacity: 0.4;
+}
+
+/* Botón de campana (alarma) dentro del campo de hora de inicio. Tras el
+   intercambio: la ✕ queda a la IZQUIERDA y la campana a la DERECHA.
+   Cuando hay campana, el input reserva más hueco a la derecha. */
 .time-input-wrapper.has-bell input {
   padding-right: 54px;
 }
 .time-bell-btn {
   position: absolute;
-  right: 30px;
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -824,15 +863,22 @@ html:not(.mobile-mode) .app-container {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  /* Área táctil más alta: ocupa casi todo el alto del campo. El icono se
+     mantiene a 14px (definido en el HTML); solo crece la zona pulsable. */
+  height: 34px;
   padding: 0;
   border: none;
   background: none;
-  border-radius: 50%;
+  border-radius: 8px;
   cursor: pointer;
   opacity: 0.55;
   transition: opacity var(--transition-fast), background-color var(--transition-fast);
+}
+/* En el campo de hora de inicio (con campana) la ✕ se coloca a la IZQUIERDA
+   de la campana — intercambio de posiciones solicitado. */
+.time-input-wrapper.has-bell .time-clear-btn {
+  right: 30px;
 }
 .time-clear-btn:hover {
   opacity: 1;

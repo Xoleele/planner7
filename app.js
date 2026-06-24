@@ -1672,6 +1672,7 @@ async function startApp(user) {
   renderWeeklyCalendar();
   initMobileFeed();
   initAlarms();
+  initForce24Time();
 
   // Reanudar el cronómetro si quedó uno activo de una sesión anterior. Si superó
   // las 12h estando cerrada la app, se crea la tarea de 12h automáticamente.
@@ -2865,6 +2866,36 @@ function syncAlarmCheckboxState() {
       ? 'Define una hora de inicio para activar la alarma'
       : (checkbox.checked ? 'Alarma activada (clic para desactivar)' : 'Activar alarma');
   }
+}
+
+// ─── Formato de hora 24h forzado (independiente del dispositivo) ──────────────
+// El input nativo type=time muestra a.m./p.m. según la región del sistema y no
+// se puede forzar a 24h de forma fiable en todos los navegadores. Aquí ocultamos
+// el texto nativo (vía CSS) y sincronizamos un overlay con el valor "HH:MM", que
+// ya está en formato 24h. Cualquier asignación a .value (manual o por código)
+// actualiza el overlay porque interceptamos el setter de la propiedad value.
+function updateTime24Overlay(input) {
+  if (!input) return;
+  const overlay = document.querySelector('.time-24-overlay[data-for="' + input.id + '"]');
+  if (overlay) overlay.textContent = input.value || '';
+}
+
+function initForce24Time() {
+  const inputs = document.querySelectorAll('input[type="time"][data-force24]');
+  const proto = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  inputs.forEach(input => {
+    // Interceptar asignaciones programáticas de .value para refrescar el overlay.
+    try {
+      Object.defineProperty(input, 'value', {
+        configurable: true,
+        get() { return proto.get.call(this); },
+        set(v) { proto.set.call(this, v); updateTime24Overlay(this); }
+      });
+    } catch (e) { /* si falla, los listeners de abajo cubren la interacción manual */ }
+    input.addEventListener('input', () => updateTime24Overlay(input));
+    input.addEventListener('change', () => updateTime24Overlay(input));
+    updateTime24Overlay(input); // estado inicial
+  });
 }
 
 // ─── Sistema de alarmas ───────────────────────────────────────────────────────
