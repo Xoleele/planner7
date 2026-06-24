@@ -10060,20 +10060,23 @@ function renderTagsList() {
 
     // Handle de arrastre para reordenar (raton + tactil).
     // La etiqueta 'default' (Por defecto) queda fija arriba: sin handle, no se arrastra.
-    // En modo alfabético no se permite arrastrar (la vista no es el orden real).
-    if (tag.id !== 'default' && !tagsSortAlphabetical) {
-      const grip = document.createElement('button');
-      grip.className = 'tag-drag-handle';
-      grip.title = 'Arrastrar para reordenar';
-      grip.setAttribute('aria-label', 'Reordenar actividad');
-      grip.innerHTML = `<img src="icons/grip.svg" alt="" width="14" height="14">`;
-      grip.addEventListener('click', (e) => e.stopPropagation());
-      item.appendChild(grip);
-    } else {
-      // Espaciador invisible para mantener alineado el contenido con las demas filas
-      const spacer = document.createElement('span');
-      spacer.className = 'tag-drag-handle tag-drag-handle-fixed';
-      item.appendChild(spacer);
+    // En modo alfabético no se permite arrastrar (la vista no es el orden real) ni se reserva espacio.
+    if (!tagsSortAlphabetical) {
+      if (tag.id !== 'default') {
+        const grip = document.createElement('button');
+        grip.className = 'tag-drag-handle';
+        grip.title = 'Arrastrar para reordenar';
+        grip.setAttribute('aria-label', 'Reordenar actividad');
+        grip.innerHTML = `<img src="icons/grip.svg" alt="" width="14" height="14">`;
+        grip.addEventListener('click', (e) => e.stopPropagation());
+        item.appendChild(grip);
+      } else {
+        // En orden personalizado, la fila 'Por defecto' no se arrastra pero mantiene un espaciador
+        // invisible para mantener alineado el contenido con las demas filas que si tienen handle.
+        const spacer = document.createElement('span');
+        spacer.className = 'tag-drag-handle tag-drag-handle-fixed';
+        item.appendChild(spacer);
+      }
     }
 
     const left = document.createElement('div');
