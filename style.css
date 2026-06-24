@@ -177,6 +177,8 @@ html:not(.mobile-mode) .app-container {
   border: none;
   border-top-right-radius: var(--radius-md, 8px);
   border-bottom-right-radius: var(--radius-md, 8px);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
   background-color: transparent;
   color: var(--text-main);
   cursor: pointer;
@@ -218,6 +220,8 @@ html:not(.mobile-mode) .app-container {
   border: none;
   border-top-left-radius: var(--radius-md, 8px);
   border-bottom-left-radius: var(--radius-md, 8px);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
   background-color: transparent;
   cursor: pointer;
   transition: var(--transition-fast);
