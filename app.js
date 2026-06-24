@@ -2279,16 +2279,18 @@ function formatSingleDate(date) {
   const dayName = date.toLocaleDateString('es-ES', { weekday: 'long' });
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
+  // Año a 2 dígitos (p. ej. 2026 → 26).
+  const year = String(date.getFullYear() % 100).padStart(2, '0');
   return `${capitalize(dayName)} ${day}/${month}/${year}`;
 }
 
-// Solo la fecha en números (DD/MM/AAAA), sin el nombre del día. La usa el
+// Solo la fecha en números (DD/MM/AA), sin el nombre del día. La usa el
 // Navegador en móvil para mostrar únicamente la fecha.
 function formatSingleDateNumeric(date) {
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
+  // Año a 2 dígitos (p. ej. 2026 → 26).
+  const year = String(date.getFullYear() % 100).padStart(2, '0');
   return `${day}/${month}/${year}`;
 }
 
