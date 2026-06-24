@@ -11702,6 +11702,35 @@ function finishTimer() {
   clearActiveTimerState();
 }
 
+// Nueva marca: finaliza la tarea actual y arranca una nueva de inmediato.
+function newMarkTimer() {
+  const elapsed = timerStartTime ? Math.floor((Date.now() - getEffectiveStartDate().getTime()) / 1000) : 0;
+  if (elapsed < 60) {
+    showDurationToast("Lo mínimo que se puede cronometrar es 1 minuto");
+    return;
+  }
+
+  const titleInput = document.getElementById('timer-input-title');
+  const title = titleInput ? titleInput.value.trim() : '';
+  const descInput = document.getElementById('timer-input-description');
+  const description = descInput ? descInput.value.trim() : '';
+  const tagEl = document.getElementById('timer-select-tag');
+  const tagId = tagEl ? tagEl.value : 'default';
+
+  createTimedTask(getEffectiveStartDate(), new Date(), title, tagId, description);
+
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  timerStartTime = null;
+  timerSeconds = 0;
+  setTimerButtonActive(false);
+  clearActiveTimerState();
+
+  startTimer();
+}
+
 // Finalización automática al alcanzar el límite de 12h con el modal abierto.
 // Crea una tarea de exactamente 12 horas desde la hora de inicio.
 function finishTimerAuto() {
@@ -12553,9 +12582,14 @@ function setupEventListeners() {
     });
   }
 
-  const timerCancelBtn = document.getElementById('timer-cancel-btn');
-  if (timerCancelBtn) {
-    timerCancelBtn.addEventListener('click', stopTimer);
+  const timerTrashBtn = document.getElementById('timer-trash-btn');
+  if (timerTrashBtn) {
+    timerTrashBtn.addEventListener('click', stopTimer);
+  }
+
+  const timerNewMarkBtn = document.getElementById('timer-new-mark-btn');
+  if (timerNewMarkBtn) {
+    timerNewMarkBtn.addEventListener('click', newMarkTimer);
   }
 
   // Botón ✕ para borrar el título en el cronómetro (igual que el editor).

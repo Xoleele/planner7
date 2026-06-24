@@ -4916,5 +4916,25 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   opacity: 1;
 }
 
+/* Botón de basurero rojo en el cronómetro */
+.timer-trash-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  transition: var(--transition-fast);
+}
+.timer-trash-btn:hover {
+  background-color: rgba(202, 63, 63, 0.1); /* fondo rojo sutil al pasar el cursor */
+}
+.timer-trash-btn img {
+  filter: invert(27%) sepia(85%) saturate(3025%) hue-rotate(346deg) brightness(97%) contrast(97%); /* #ca3f3f */
+}
+
 
 
