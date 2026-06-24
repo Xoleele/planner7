@@ -10177,6 +10177,48 @@ function setupTagDragAndDrop(container) {
   let lastIndicatorEl = null;
   let lastIndicatorClass = null;
 
+  let lastClientY = null;
+  let scrollInterval = null;
+  let scrollSpeed = 0;
+
+  function stopAutoScroll() {
+    if (scrollInterval) {
+      clearInterval(scrollInterval);
+      scrollInterval = null;
+    }
+  }
+
+  function handleAutoScroll(clientY) {
+    const rect = container.getBoundingClientRect();
+    const EDGE = 35; // px cerca del borde para activar scroll
+    const MAX_SPEED = 8; // px por tick (16ms)
+    
+    let speed = 0;
+    if (clientY < rect.top + EDGE) {
+      const intensity = Math.min(1, (rect.top + EDGE - clientY) / EDGE);
+      speed = -MAX_SPEED * intensity;
+    } else if (clientY > rect.bottom - EDGE) {
+      const intensity = Math.min(1, (clientY - (rect.bottom - EDGE)) / EDGE);
+      speed = MAX_SPEED * intensity;
+    }
+
+    if (speed === 0) {
+      stopAutoScroll();
+      return;
+    }
+
+    scrollSpeed = speed;
+
+    if (!scrollInterval) {
+      scrollInterval = setInterval(() => {
+        container.scrollTop += scrollSpeed;
+        if (lastClientY !== null) {
+          updateTagDragIndicator(lastClientY);
+        }
+      }, 16);
+    }
+  }
+
   const items = () => [...container.querySelectorAll('.tag-item')];
 
   function clearTagIndicators() {
@@ -10250,7 +10292,9 @@ function setupTagDragAndDrop(container) {
     handle.addEventListener('dragend', () => {
       if (dragItem) dragItem.classList.remove('tag-dragging');
       clearTagIndicators();
+      stopAutoScroll();
       dragItem = null; dragTagId = null;
+      lastClientY = null;
     });
 
     // ----- Tactil (movil): long-press para arrastrar -----
@@ -10281,11 +10325,15 @@ function setupTagDragAndDrop(container) {
       e.preventDefault();
       const touch = e.touches[0];
       if (ghost) ghost.style.top = (touch.clientY - offsetY) + 'px';
+      lastClientY = touch.clientY;
       updateTagDragIndicator(touch.clientY);
+      handleAutoScroll(touch.clientY);
     }, { passive: false });
 
     const endTouch = () => {
       if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+      stopAutoScroll();
+      lastClientY = null;
       if (touchDragging) {
         if (ghost) { ghost.remove(); ghost = null; }
         if (dragItem) {
@@ -10316,16 +10364,20 @@ function setupTagDragAndDrop(container) {
   container.addEventListener('dragover', (e) => {
     if (!dragItem) return;
     e.preventDefault();
+    lastClientY = e.clientY;
     updateTagDragIndicator(e.clientY);
+    handleAutoScroll(e.clientY);
   });
 
   container.addEventListener('dragleave', (e) => {
     if (container.contains(e.relatedTarget)) return;
     clearTagIndicators();
+    stopAutoScroll();
   });
 
   container.addEventListener('drop', (e) => {
     e.preventDefault();
+    stopAutoScroll();
     if (!dragItem) return;
 
     if (lastIndicatorEl) {
