@@ -3112,9 +3112,13 @@ function updateViewToggleMenuLabel() {
       if (cronogramaActive) {
         img.src = 'icons/clock.svg';
         img.alt = 'Modo línea de tiempo';
+        img.setAttribute('width', '17');
+        img.setAttribute('height', '17');
       } else {
         img.src = 'icons/to do.svg';
         img.alt = 'Modo lista de tareas';
+        img.setAttribute('width', '21');
+        img.setAttribute('height', '21');
       }
     }
   }
