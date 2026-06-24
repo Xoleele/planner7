@@ -779,31 +779,44 @@ input[type="time"][data-force24] {
 
 /* Botón de campana (alarma) dentro del campo de hora de inicio. Tras el
    intercambio: la ✕ queda a la IZQUIERDA y la campana a la DERECHA.
-   Cuando hay campana, el input reserva más hueco a la derecha. */
+   La campana ahora imita al icono de reloj: botón a TODO el alto del campo,
+   separado del input por una línea gris (a su IZQUIERDA, ya que está al borde
+   derecho). Solo reservamos hueco para la ✕ absoluta a su izquierda. */
 .time-input-wrapper.has-bell input {
-  padding-right: 54px;
+  padding-right: 34px; /* hueco para la ✕ absoluta (la campana es un flex item) */
 }
 .time-bell-btn {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
   padding: 0;
+  margin: 0;
   border: none;
   background: none;
-  border-radius: 50%;
+  border-radius: 0;
   cursor: pointer;
-  opacity: 0.45;
+  position: relative;
+  z-index: 1;
+  opacity: 0.55;
   transition: opacity var(--transition-fast), background-color var(--transition-fast);
 }
+/* Línea gris a la IZQUIERDA de la campana (separa del input), igual a la del
+   reloj pero en el lado opuesto. */
+.time-bell-btn::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -1px;
+  bottom: -1px;
+  width: 1px;
+  background-color: #d1d1d6;
+}
 .time-bell-btn:hover {
-  opacity: 0.85;
-  background-color: rgba(0, 0, 0, 0.06);
+  opacity: 0.9;
+  background-color: #f2f2f7;
 }
 /* Alarma ACTIVADA: campana rellena y en NEGRO. */
 .time-bell-btn.active {
@@ -876,9 +889,10 @@ input[type="time"][data-force24] {
   transition: opacity var(--transition-fast), background-color var(--transition-fast);
 }
 /* En el campo de hora de inicio (con campana) la ✕ se coloca a la IZQUIERDA
-   de la campana — intercambio de posiciones solicitado. */
+   de la campana — intercambio de posiciones solicitado. La campana ocupa 34px
+   al borde derecho, así que la ✕ se separa ese ancho + un pequeño margen. */
 .time-input-wrapper.has-bell .time-clear-btn {
-  right: 30px;
+  right: 40px;
 }
 .time-clear-btn:hover {
   opacity: 1;
