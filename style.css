@@ -3757,6 +3757,10 @@ body.not-logged-in .app-container {
   border-radius: var(--radius-sm, 6px);
   flex-shrink: 0;
   touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .tag-drag-handle:hover {
   background: rgba(0, 0, 0, 0.06);

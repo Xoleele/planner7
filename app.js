@@ -10307,6 +10307,9 @@ function setupTagDragAndDrop(container) {
     };
     handle.addEventListener('touchend', endTouch);
     handle.addEventListener('touchcancel', endTouch);
+
+    // Evitar que mantener presionado el handle abra el menú contextual del navegador
+    handle.addEventListener('contextmenu', (e) => e.preventDefault());
   });
 
   // Reordenamiento por línea indicadora mientras se arrastra con ratón
