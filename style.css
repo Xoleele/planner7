@@ -681,7 +681,10 @@ html:not(.mobile-mode) .app-container {
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
 }
 .time-input-wrapper input {
-  flex: 1;
+  flex: 1 1 auto;
+  /* min-width:0 permite que el input se encoja en pantallas estrechas en lugar
+     de empujar/ocultar los botones laterales (campana). */
+  min-width: 0;
   padding-right: 30px;
   cursor: pointer;
   border: none !important;
@@ -696,9 +699,11 @@ html:not(.mobile-mode) .app-container {
 /* Botón-icono izquierdo (reloj / calendario): ocupa todo el alto del wrapper,
    separado del input por una línea gris — mismo efecto que #nav-view-toggle-btn. */
 .field-icon-btn {
-  flex: 0 0 auto;
+  flex: 0 0 34px;
+  flex-shrink: 0;
   align-self: stretch;
   width: 34px;
+  min-width: 34px; /* ancho fijo: nunca se encoge ni se oculta */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -786,9 +791,11 @@ input[type="time"][data-force24] {
   padding-right: 34px; /* hueco para la ✕ absoluta (la campana es un flex item) */
 }
 .time-bell-btn {
-  flex: 0 0 auto;
+  flex: 0 0 34px;
+  flex-shrink: 0;
   align-self: stretch;
   width: 34px;
+  min-width: 34px; /* ancho fijo: nunca se encoge ni se oculta */
   display: flex;
   align-items: center;
   justify-content: center;
