@@ -675,6 +675,12 @@ html:not(.mobile-mode) .app-container {
   background-color: var(--bg-card);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   overflow: hidden;
+  /* Altura fija igual al campo "Actividad" (38px). Evita que iOS agrande el
+     campo según el tamaño del texto del control nativo. box-sizing border-box
+     para que el borde de 1px no sume altura. */
+  height: 38px;
+  min-height: 38px;
+  box-sizing: border-box;
 }
 .time-input-wrapper:focus-within {
   border-color: var(--border-focus);
@@ -691,6 +697,16 @@ html:not(.mobile-mode) .app-container {
   box-shadow: none !important;
   background: transparent;
   border-radius: 0;
+  /* iOS: forzar altura para que el control nativo no agrande el campo. */
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  line-height: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  /* font-size 16px evita el auto-zoom de iOS, pero romperíamos el diseño; el
+     overlay 23:03 ya muestra el texto, así que el tamaño real del input importa
+     menos. Mantenemos 13.5px heredado. */
 }
 .time-input-wrapper.has-clock input {
   /* El botón-icono ya ocupa su espacio en el flex; no se necesita padding-left extra. */
@@ -854,6 +870,11 @@ input[type="time"][data-force24] {
   background-color: var(--bg-card);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   overflow: hidden;
+  /* Altura fija igual al campo "Actividad" (38px). Evita que iOS agrande el
+     campo según el tamaño del texto del control nativo de fecha. */
+  height: 38px;
+  min-height: 38px;
+  box-sizing: border-box;
 }
 .date-input-wrapper:focus-within {
   border-color: var(--border-focus);
@@ -861,11 +882,19 @@ input[type="time"][data-force24] {
 }
 .date-input-wrapper input[type="date"] {
   flex: 1;
+  min-width: 0;
   padding-right: 30px;
   border: none !important;
   box-shadow: none !important;
   background: transparent;
   border-radius: 0;
+  /* iOS: forzar altura para que el control nativo de fecha no agrande el campo. */
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  line-height: 1;
+  -webkit-appearance: none;
+  appearance: none;
 }
 .date-input-wrapper.has-calendar input[type="date"] {
   /* El botón-icono ya ocupa su espacio en el flex. */
