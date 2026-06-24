@@ -120,9 +120,9 @@
           <button id="buscador-btn" title="Buscador" class="icon-button desktop-only" style="display: none;">
             <img src="icons/search.svg" alt="Buscador" width="20" height="20">
           </button>
-          <!-- Botón Etiquetas (gestor de actividades) -->
-          <button id="tags-btn" title="Etiquetas" class="icon-button">
-            <img src="icons/tag.svg" alt="Etiquetas" width="20" height="20">
+          <!-- Botón Actividades (gestor de actividades) -->
+          <button id="tags-btn" title="Actividades" class="icon-button">
+            <img src="icons/tag.svg" alt="Actividades" width="20" height="20">
           </button>
           <!-- Botón Archivados -->
           <button id="briefcase-btn" title="Tareas Archivadas" class="icon-button">
@@ -317,7 +317,7 @@
            En escritorio muestra los 7 días de la semana con la misma cabecera
            del planner; en móvil muestra solo el día de hoy. Todo el contenido
            (cabeceras, columna de horas, líneas y bloques) se genera en JS. -->
-      <section id="cronograma" class="cronograma hidden" aria-label="Horario">
+      <section id="cronograma" class="cronograma hidden" aria-label="Línea de tiempo">
         <!-- Cabeceras de día FUERA de la zona desplazable, para que la barra de
              scroll empiece justo debajo del encabezado (no a lo largo de él).
              Comparten el mismo grid-template-columns y ancho que la rejilla, y
@@ -404,16 +404,16 @@
           <textarea id="task-input-description" placeholder="Añade una descripción (opcional)" rows="3"></textarea>
         </div>
 
-        <!-- Fila ETIQUETA + FECHA (a la misma altura). -->
+        <!-- Fila ACTIVIDAD + FECHA (a la misma altura). -->
         <div class="form-row">
           <!-- Antiguo selector de etiquetas, ahora "ACTIVIDAD". -->
           <div class="form-group flex-1 task-activity-group">
-            <label for="task-select-tag">Etiqueta</label>
+            <label for="task-select-tag">Actividad</label>
             <div class="custom-select-wrapper">
               <input type="hidden" id="task-select-tag" value="default">
               <div class="custom-select-trigger" id="tag-select-trigger">
                 <span class="custom-select-color-circle" style="background-color: #50a9ed;"></span>
-                <input type="text" class="custom-select-trigger-input" id="tag-select-input" placeholder="Buscar etiqueta…" autocomplete="off">
+                <input type="text" class="custom-select-trigger-input" id="tag-select-input" placeholder="Buscar actividad…" autocomplete="off">
                 <span class="custom-select-arrow">
                   <img src="icons/chevron-down.svg" alt="Abrir" width="10" height="10">
                 </span>
@@ -550,13 +550,13 @@
     </div>
   </div>
 
-  <!-- MODAL: GESTIÓN DE ETIQUETAS -->
+  <!-- MODAL: GESTIÓN DE ACTIVIDADES -->
   <div id="tags-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">
       <div class="modal-header">
-        <h2>Mis etiquetas</h2>
+        <h2>Mis actividades</h2>
         <div class="modal-header-actions">
-          <button id="tags-sort-btn" type="button" class="icon-button" title="Ordenar etiquetas" aria-label="Ordenar etiquetas">
+          <button id="tags-sort-btn" type="button" class="icon-button" title="Ordenar actividades" aria-label="Ordenar actividades">
             <img src="icons/sort.svg" alt="Ordenar" width="15" height="15">
           </button>
           <button class="close-modal-btn" data-modal="tags-modal">
@@ -566,23 +566,23 @@
       </div>
 
       <div class="modal-body">
-        <!-- Lista de etiquetas existentes -->
+        <!-- Lista de actividades existentes -->
         <div id="tags-list" class="tags-list-container">
-          <!-- Las etiquetas existentes se listarán aquí -->
+          <!-- Las actividades existentes se listarán aquí -->
         </div>
 
         <button id="add-tag-trigger-btn" class="btn btn-secondary" style="width: 100%; margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-          <span style="font-size: 16px; font-weight: 500; line-height: 1;">+</span> Nueva etiqueta
+          <span style="font-size: 16px; font-weight: 500; line-height: 1;">+</span> Nueva actividad
         </button>
       </div>
     </div>
   </div>
 
-  <!-- MODAL: CREAR / EDITAR ACTIVIDAD (etiqueta) -->
+  <!-- MODAL: CREAR / EDITAR ACTIVIDAD -->
   <div id="tag-edit-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">
       <div class="modal-header">
-        <h2 id="tag-form-title">Nueva etiqueta</h2>
+        <h2 id="tag-form-title">Nueva actividad</h2>
         <button class="close-modal-btn" data-modal="tag-edit-modal">
           <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
         </button>
@@ -592,8 +592,8 @@
         <form id="tag-form">
           <input type="hidden" id="tag-edit-id">
           <div class="form-group">
-            <label for="tag-input-name">Nombre de etiqueta</label>
-            <input type="text" id="tag-input-name" placeholder="Nombre de etiqueta" required autocomplete="off">
+            <label for="tag-input-name">Nombre de actividad</label>
+            <input type="text" id="tag-input-name" placeholder="Nombre de actividad" required autocomplete="off">
           </div>
 
           <div class="form-group">
@@ -636,11 +636,11 @@
     </div>
   </div>
 
-  <!-- MODAL: PREGUNTAR CREAR NUEVA ETIQUETA -->
+  <!-- MODAL: PREGUNTAR CREAR NUEVA ACTIVIDAD -->
   <div id="new-tag-prompt-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">
       <div class="modal-header">
-        <h2>Crear nueva etiqueta</h2>
+        <h2>Crear nueva actividad</h2>
         <button class="close-modal-btn" id="new-tag-close-btn">
           <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
         </button>
@@ -648,7 +648,7 @@
 
       <div class="modal-body">
         <p style="font-size: 13.5px; color: var(--text-main); margin-bottom: 16px;">
-          La etiqueta <strong id="new-tag-prompt-name-display">"..."</strong> no existe. ¿Deseas crearla?
+          La actividad <strong id="new-tag-prompt-name-display">"..."</strong> no existe. ¿Deseas crearla?
         </p>
 
         <div class="form-group">
@@ -914,18 +914,18 @@
           <textarea id="timer-input-description" placeholder="Añade una descripción (opcional)" rows="3"></textarea>
         </div>
 
-        <!-- Fila: etiqueta + hora de inicio (igual que el editor de tareas) -->
+        <!-- Fila: actividad + hora de inicio (igual que el editor de tareas) -->
         <div class="form-row" style="width: 100%;">
 
-          <!-- Dropdown para asignar etiqueta -->
+          <!-- Dropdown para asignar actividad -->
           <div class="form-group flex-1 task-activity-group" style="margin: 0; min-width: 0;">
-            <label for="timer-select-tag">Etiqueta</label>
+            <label for="timer-select-tag">Actividad</label>
             <div class="custom-select-wrapper" style="position: relative; width: 100%;">
               <input type="hidden" id="timer-select-tag" value="default">
               <div class="custom-select-trigger" id="timer-tag-select-trigger" style="display: flex; align-items: center; justify-content: space-between; padding: 0 5px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background-color: var(--bg-card); cursor: pointer; color: var(--text-main); user-select: none; height: 38px; box-sizing: border-box;">
                 <div style="display: flex; align-items: center; gap: 0px; flex: 1; min-width: 0;">
                   <span class="custom-select-color-circle" style="background-color: #50a9ed;"></span>
-                  <input type="text" class="custom-select-trigger-input" id="timer-tag-select-input" placeholder="Buscar etiqueta…" autocomplete="off">
+                  <input type="text" class="custom-select-trigger-input" id="timer-tag-select-input" placeholder="Buscar actividad…" autocomplete="off">
                 </div>
                 <span class="custom-select-arrow" style="display: flex; align-items: center; margin-left: 0px;">
                   <img src="icons/chevron-down.svg" alt="Abrir" width="10" height="10">
@@ -1029,11 +1029,11 @@
     </div>
   </div>
 
-  <!-- MODAL: REASIGNAR TAREAS AL ELIMINAR ETIQUETA -->
+  <!-- MODAL: REASIGNAR TAREAS AL ELIMINAR ACTIVIDAD -->
   <div id="delete-tag-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">
       <div class="modal-header">
-        <h2>Eliminar etiqueta</h2>
+        <h2>Eliminar actividad</h2>
         <button class="close-modal-btn" data-modal="delete-tag-modal">
           <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
         </button>
@@ -1046,7 +1046,7 @@
 
         <div class="modal-footer" style="padding: 16px 0 0 0; border-top: 1px solid var(--border-light); background: none; display: flex; justify-content: flex-end; gap: 12px;">
           <button type="button" class="btn btn-secondary" id="delete-tag-cancel-btn">Cancelar</button>
-          <button type="button" class="btn btn-danger" id="delete-tag-confirm-btn">Eliminar etiqueta</button>
+          <button type="button" class="btn btn-danger" id="delete-tag-confirm-btn">Eliminar actividad</button>
         </div>
       </div>
     </div>
@@ -1088,7 +1088,7 @@
         </p>
         <ul style="font-size: 14px; color: var(--text-muted); line-height: 1.8; margin: 0; padding-left: 18px;">
           <li>Crea <strong>Tareas</strong> y márcalas como completadas cuando las termines.</li>
-          <li>Crea <strong>Etiquetas</strong> personalizadas y organiza tus tareas por colores.</li>
+          <li>Crea <strong>Actividades</strong> personalizadas y organiza tus tareas por colores.</li>
           <li><strong>Desliza</strong> la pantalla para cambiar de día o utiliza el calendario para navegar entre fechas.</li>
         </ul>
       </div>

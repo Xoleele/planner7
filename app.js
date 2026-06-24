@@ -7146,12 +7146,12 @@ function getStatsModalHTML(prefix) {
       <!-- Selector de etiqueta para el modo Hábitos (oculto en otros modos). -->
       <div id="general-stats-habit-tag-row" class="general-stats-filters" style="display: none; padding: 8px 24px 0 24px; align-items: flex-end;">
         <div class="form-group" style="flex: 2; margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
-          <label for="habit-tag-select-input" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Etiqueta</label>
+          <label for="habit-tag-select-input" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Actividad</label>
           <div class="custom-select-wrapper">
             <input type="hidden" id="habit-select-tag" value="default">
             <div class="custom-select-trigger" id="habit-tag-select-trigger">
               <span class="custom-select-color-circle" id="habit-tag-select-circle" style="background-color: #50a9ed;"></span>
-              <input type="text" class="custom-select-trigger-input" id="habit-tag-select-input" placeholder="Buscar etiqueta…" autocomplete="off">
+              <input type="text" class="custom-select-trigger-input" id="habit-tag-select-input" placeholder="Buscar actividad…" autocomplete="off">
               <button type="button" class="time-clear-btn" id="habit-tag-clear" title="Borrar" aria-label="Borrar texto">
                 <img src="icons/close.svg" alt="Quitar" width="14" height="14">
               </button>
@@ -7277,7 +7277,7 @@ function getStatsModalHTML(prefix) {
           <label for="${prefix}-groupby-select">Filtrar por</label>
           <select id="${prefix}-groupby-select" class="${prefix}-groupby-select" style="width: 100%; padding: 8px 10px; box-sizing: border-box;" ${prefix === 'general-stats' ? 'disabled' : ''}>
             <option value="title" ${prefix === 'daily-stats' ? 'selected' : ''}>Por título de tarea</option>
-            <option value="activity" ${prefix === 'general-stats' ? 'selected' : ''}>Por etiqueta</option>
+             <option value="activity" ${prefix === 'general-stats' ? 'selected' : ''}>Por actividad</option>
           </select>
         </div>
         <div class="form-group" style="margin-bottom: 0; width: 100%;">
@@ -7292,7 +7292,7 @@ function getStatsModalHTML(prefix) {
           <label for="${prefix}-color-select">Colores</label>
           <select id="${prefix}-color-select" class="${prefix}-color-select" style="width: 100%; padding: 8px 10px; box-sizing: border-box;">
             <option value="auto" selected>Automático</option>
-            <option value="tag">Por etiqueta</option>
+            <option value="tag">Por actividad</option>
           </select>
         </div>
       </div>
@@ -8371,7 +8371,7 @@ function renderDailyStatsPanel(panelEl, dateParam) {
             renderDailyStatsPanel(panelEl, dateParam);
           } else {
             if (lineStatsActiveTags.length >= 3) {
-              showCenterToast('Puedes seleccionar un máximo de 3 etiquetas.');
+              showCenterToast('Puedes seleccionar un máximo de 3 actividades.');
             } else {
               lineStatsActiveTags.push(group.name);
               renderDailyStatsPanel(panelEl, dateParam);
