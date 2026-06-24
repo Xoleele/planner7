@@ -809,6 +809,42 @@ input[type="time"][data-force24] {
   opacity: 0.4;
 }
 
+/* ── Formato de FECHA DD/MM/AA FORZADO en cualquier dispositivo ──────────────
+   Igual que la hora: el input nativo type=date muestra el formato de la región
+   del sistema (en iPhone, 00-00-0000). Ocultamos el texto nativo y pintamos un
+   overlay con DD/MM/AA. El input sigue 100% funcional (su .value es YYYY-MM-DD,
+   estándar, así que el resto del JS no cambia). Lo sincroniza initForce24Time. */
+input[type="date"][data-force-ddmmyy] {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  caret-color: transparent;
+}
+.date-ddmmyy-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  font-family: var(--font-primary);
+  font-size: 13.5px;
+  color: var(--text-main);
+  z-index: 1;
+  white-space: nowrap;
+}
+/* Alinea con el texto del input (padding-left 8px cuando hay icono calendario). */
+.date-input-wrapper.has-calendar .date-ddmmyy-overlay {
+  left: 42px; /* 34px botón-icono + 8px padding-left del input */
+}
+.date-input-wrapper:not(.has-calendar) .date-ddmmyy-overlay {
+  left: 8px;
+}
+/* Placeholder cuando no hay fecha. */
+.date-ddmmyy-overlay:empty::before {
+  content: "--/--/--";
+  opacity: 0.4;
+}
+
 /* Botón de campana (alarma) dentro del campo de hora de inicio. Tras el
    intercambio: la ✕ queda a la IZQUIERDA y la campana a la DERECHA.
    IMPORTANTE (iOS): el input nativo type=time tiene un ancho mínimo propio que

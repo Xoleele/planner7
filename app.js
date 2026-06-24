@@ -2882,10 +2882,21 @@ function updateTime24Overlay(input) {
   if (overlay) overlay.textContent = input.value || '';
 }
 
+// El .value de un input type=date es siempre "YYYY-MM-DD" (estándar, no depende
+// de la región). Lo convertimos a "DD/MM/AA" para el overlay.
+function updateDateOverlay(input) {
+  if (!input) return;
+  const overlay = document.querySelector('.date-ddmmyy-overlay[data-for="' + input.id + '"]');
+  if (!overlay) return;
+  const v = input.value || '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  overlay.textContent = m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : '';
+}
+
 function initForce24Time() {
-  const inputs = document.querySelectorAll('input[type="time"][data-force24]');
   const proto = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
-  inputs.forEach(input => {
+  // Hora (HH:MM)
+  document.querySelectorAll('input[type="time"][data-force24]').forEach(input => {
     // Interceptar asignaciones programáticas de .value para refrescar el overlay.
     try {
       Object.defineProperty(input, 'value', {
@@ -2897,6 +2908,19 @@ function initForce24Time() {
     input.addEventListener('input', () => updateTime24Overlay(input));
     input.addEventListener('change', () => updateTime24Overlay(input));
     updateTime24Overlay(input); // estado inicial
+  });
+  // Fecha (DD/MM/AA)
+  document.querySelectorAll('input[type="date"][data-force-ddmmyy]').forEach(input => {
+    try {
+      Object.defineProperty(input, 'value', {
+        configurable: true,
+        get() { return proto.get.call(this); },
+        set(v) { proto.set.call(this, v); updateDateOverlay(this); }
+      });
+    } catch (e) { /* los listeners cubren la interacción manual */ }
+    input.addEventListener('input', () => updateDateOverlay(input));
+    input.addEventListener('change', () => updateDateOverlay(input));
+    updateDateOverlay(input); // estado inicial
   });
 }
 
