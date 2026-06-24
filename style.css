@@ -844,6 +844,16 @@ input[type="date"][data-force-ddmmyy] {
   content: "--/--/--";
   opacity: 0.4;
 }
+/* Cuando está vacío (archivado), el input nativo está deshabilitado y es inerte
+   (no genera clics). Hacemos que el overlay sea el que CAPTURA el clic: así, al
+   pulsar sobre "--/--/--", el evento sí se dispara y burbujea al wrapper, que lo
+   convierte en "desarchivar + abrir selector". Se estira para cubrir el ancho
+   útil del campo (hasta dejar sitio a la ✕ de la derecha). */
+.date-ddmmyy-overlay:empty {
+  right: 30px;
+  pointer-events: auto;
+  cursor: pointer;
+}
 
 /* Botón de campana (alarma) dentro del campo de hora de inicio. Tras el
    intercambio: la ✕ queda a la IZQUIERDA y la campana a la DERECHA.

@@ -12288,6 +12288,36 @@ function setupEventListeners() {
     });
   });
 
+  // Clic sobre el CAMPO de fecha (incluido el overlay "--/--/--" cuando está
+  // archivado/vacío) → misma acción que el icono de calendario: si está
+  // archivado, desarchiva y abre el selector; si no, abre el selector. Se pone
+  // en el wrapper porque el input deshabilitado no emite eventos de clic.
+  const taskDateWrapper = document.querySelector('.task-date-group .date-input-wrapper');
+  if (taskDateWrapper) {
+    // Captura (true): el wrapper recibe el clic ANTES que el input. Es necesario
+    // porque un input deshabilitado (archivado) es inerte y no propaga el clic;
+    // en fase de captura el handler corre igual al pulsar sobre el "--/--/--".
+    taskDateWrapper.addEventListener('click', (e) => {
+      // Dejar que sus botones (icono de calendario y ✕) usen sus propios handlers.
+      if (e.target.closest('.date-calendar-icon, .time-clear-btn')) return;
+      const target = document.getElementById('task-input-date');
+      if (!target) return;
+      if (target.disabled) {
+        const briefcaseCheckbox = document.getElementById('task-in-briefcase-checkbox');
+        if (briefcaseCheckbox && briefcaseCheckbox.checked) {
+          briefcaseCheckbox.checked = false;
+          briefcaseCheckbox.dispatchEvent(new Event('change'));
+        }
+      }
+      if (target.disabled) return;
+      if (typeof target.showPicker === 'function') {
+        try { target.showPicker(); } catch (_) { target.focus(); }
+      } else {
+        target.focus();
+      }
+    }, true);
+  }
+
   // ✕ junto a la FECHA → quita la fecha y archiva la tarea (reutiliza el checkbox
   // oculto de archivar, disparando su lógica existente).
   const dateClearBtn = document.getElementById('task-date-clear');
