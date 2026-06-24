@@ -579,8 +579,9 @@ html:not(.mobile-mode) .app-container {
   position: absolute;
   top: 10px;
   right: 10px;
-  width: 16px;
-  height: 16px;
+  /* Tamaño DUPLICADO (antes 16px) para marcar/desmarcar tareas. */
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -593,6 +594,13 @@ html:not(.mobile-mode) .app-container {
   padding: 0;
   border-radius: 50%;
   z-index: 2;
+}
+
+/* Icono SVG del checkbox: tamaño DUPLICADO (antes 14px, inline en el SVG) en
+   TODOS los modos y versiones. Sobrescribe los atributos width/height inline. */
+.task-check-icon {
+  width: 28px !important;
+  height: 28px !important;
 }
 
 .task-card:hover .task-check-btn {
@@ -4390,8 +4398,9 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   position: absolute;
   top: 10px;
   right: 10px;
-  width: 16px;
-  height: 16px;
+  /* Tamaño DUPLICADO (antes 16px) para marcar/desmarcar tareas. */
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
