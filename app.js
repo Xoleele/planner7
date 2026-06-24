@@ -11767,7 +11767,7 @@ function createTimedTask(startDate, endDate, title, tagId, userDescription) {
     duration: durationMinutes,
     recurrence: null,
     alarm: false,
-    completed: false
+    completed: true
   };
 
   pushToUndoStack();
