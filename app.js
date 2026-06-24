@@ -10063,6 +10063,7 @@ function renderTagsList() {
     // En modo alfabético no se permite arrastrar (la vista no es el orden real) ni se reserva espacio.
     if (!tagsSortAlphabetical) {
       if (tag.id !== 'default') {
+        item.classList.add('tag-item-draggable');
         const grip = document.createElement('button');
         grip.className = 'tag-drag-handle';
         grip.title = 'Arrastrar para reordenar';
@@ -10281,18 +10282,20 @@ function setupTagDragAndDrop(container) {
     buildTagSelectorOptions();
   }
 
-  container.querySelectorAll('.tag-drag-handle').forEach(handle => {
-    const item = handle.closest('.tag-item');
-
+  container.querySelectorAll('.tag-item-draggable').forEach(item => {
     // ----- Raton (escritorio): HTML5 drag -----
-    handle.setAttribute('draggable', 'true');
-    handle.addEventListener('dragstart', (e) => {
+    item.setAttribute('draggable', 'true');
+    item.addEventListener('dragstart', (e) => {
+      if (e.target.closest('.tag-actions')) {
+        e.preventDefault();
+        return;
+      }
       dragItem = item; dragTagId = item.dataset.tagId;
       item.classList.add('tag-dragging');
       e.dataTransfer.effectAllowed = 'move';
       try { e.dataTransfer.setData('text/plain', dragTagId); } catch (err) {}
     });
-    handle.addEventListener('dragend', () => {
+    item.addEventListener('dragend', () => {
       if (dragItem) dragItem.classList.remove('tag-dragging');
       clearTagIndicators();
       stopAutoScroll();
@@ -10301,7 +10304,10 @@ function setupTagDragAndDrop(container) {
     });
 
     // ----- Tactil (movil): long-press para arrastrar -----
-    handle.addEventListener('touchstart', (e) => {
+    item.addEventListener('touchstart', (e) => {
+      if (e.target.closest('.tag-actions')) {
+        return;
+      }
       const touch = e.touches[0];
       touchTimer = setTimeout(() => {
         touchDragging = true;
@@ -10323,7 +10329,7 @@ function setupTagDragAndDrop(container) {
       }, 250);
     }, { passive: true });
 
-    handle.addEventListener('touchmove', (e) => {
+    item.addEventListener('touchmove', (e) => {
       if (!touchDragging) { if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; } return; }
       e.preventDefault();
       const touch = e.touches[0];
@@ -10356,11 +10362,15 @@ function setupTagDragAndDrop(container) {
         touchDragging = false; dragItem = null; dragTagId = null;
       }
     };
-    handle.addEventListener('touchend', endTouch);
-    handle.addEventListener('touchcancel', endTouch);
+    item.addEventListener('touchend', endTouch);
+    item.addEventListener('touchcancel', endTouch);
 
-    // Evitar que mantener presionado el handle abra el menú contextual del navegador
-    handle.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Evitar que mantener presionado el item abra el menú contextual del navegador
+    item.addEventListener('contextmenu', (e) => {
+      if (!e.target.closest('.tag-actions')) {
+        e.preventDefault();
+      }
+    });
   });
 
   // Reordenamiento por línea indicadora mientras se arrastra con ratón
