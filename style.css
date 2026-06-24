@@ -579,9 +579,8 @@ html:not(.mobile-mode) .app-container {
   position: absolute;
   top: 10px;
   right: 10px;
-  /* Tamaño DUPLICADO (antes 16px) para marcar/desmarcar tareas. */
-  width: 32px;
-  height: 32px;
+  width: 16px;
+  height: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -595,12 +594,16 @@ html:not(.mobile-mode) .app-container {
   border-radius: 50%;
   z-index: 2;
 }
-
-/* Icono SVG del checkbox: tamaño DUPLICADO (antes 14px, inline en el SVG) en
-   TODOS los modos y versiones. Sobrescribe los atributos width/height inline. */
-.task-check-icon {
-  width: 28px !important;
-  height: 28px !important;
+/* Área táctil invisible más grande SIN cambiar el tamaño ni la posición del
+   icono: un pseudo-elemento que sobresale del botón por todos lados. Captura
+   los toques alrededor del checkbox (útil sobre todo en móvil/iPhone). */
+.task-check-btn::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  bottom: -10px;
+  left: -10px;
 }
 
 .task-card:hover .task-check-btn {
@@ -4398,9 +4401,8 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   position: absolute;
   top: 10px;
   right: 10px;
-  /* Tamaño DUPLICADO (antes 16px) para marcar/desmarcar tareas. */
-  width: 32px;
-  height: 32px;
+  width: 16px;
+  height: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
