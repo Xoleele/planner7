@@ -784,16 +784,22 @@ input[type="time"][data-force24] {
 
 /* Botón de campana (alarma) dentro del campo de hora de inicio. Tras el
    intercambio: la ✕ queda a la IZQUIERDA y la campana a la DERECHA.
-   La campana ahora imita al icono de reloj: botón a TODO el alto del campo,
-   separado del input por una línea gris (a su IZQUIERDA, ya que está al borde
-   derecho). Solo reservamos hueco para la ✕ absoluta a su izquierda. */
+   IMPORTANTE (iOS): el input nativo type=time tiene un ancho mínimo propio que
+   Safari no encoge, así que si la campana fuese un flex item quedaría empujada
+   fuera del borde (oculta). Solución: la campana se posiciona ABSOLUTA sobre el
+   extremo derecho del input — se superpone al espacio sobrante/blanco del
+   control nativo, no al texto real (el overlay 23:03 va alineado a la
+   izquierda). Así nunca puede quedar oculta. Conserva alto completo + línea
+   gris a su izquierda, igual que el icono de reloj. */
 .time-input-wrapper.has-bell input {
-  padding-right: 34px; /* hueco para la ✕ absoluta (la campana es un flex item) */
+  /* Hueco a la derecha para ✕ (≈34px) + campana (34px). */
+  padding-right: 64px;
 }
 .time-bell-btn {
-  flex: 0 0 34px;
-  flex-shrink: 0;
-  align-self: stretch;
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
   width: 34px;
   min-width: 34px; /* ancho fijo: nunca se encoge ni se oculta */
   display: flex;
@@ -805,8 +811,7 @@ input[type="time"][data-force24] {
   background: none;
   border-radius: 0;
   cursor: pointer;
-  position: relative;
-  z-index: 1;
+  z-index: 2;
   opacity: 0.55;
   transition: opacity var(--transition-fast), background-color var(--transition-fast);
 }
@@ -816,8 +821,8 @@ input[type="time"][data-force24] {
   content: '';
   position: absolute;
   left: 0;
-  top: -1px;
-  bottom: -1px;
+  top: 0;
+  bottom: 0;
   width: 1px;
   background-color: #d1d1d6;
 }
