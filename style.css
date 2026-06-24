@@ -116,10 +116,12 @@ html:not(.mobile-mode) .app-container {
   align-items: center;
   gap: 8px;
   background-color: var(--bg-card);
-  padding: 6px 12px;
+  height: 40px;
+  padding: 0 12px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-light);
   box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
 }
 
 .navegador button {
@@ -170,11 +172,11 @@ html:not(.mobile-mode) .app-container {
   font-size: 12px;
   font-weight: 600;
   /* Sin recuadro. El texto "Hoy" se centra; la línea gris izquierda la dibuja un
-     pseudo-elemento que recorre todo el alto del navegador (incluido su padding
-     vertical), formando la separación tipo botón. */
+     pseudo-elemento que recorre todo el alto del navegador, formando la separación tipo botón. */
   position: relative;
   border: none;
-  border-radius: 0;
+  border-top-right-radius: var(--radius-md, 8px);
+  border-bottom-right-radius: var(--radius-md, 8px);
   background-color: transparent;
   color: var(--text-main);
   cursor: pointer;
@@ -188,19 +190,19 @@ html:not(.mobile-mode) .app-container {
   padding: 0;
   flex: 0 0 auto;
   align-self: stretch;
+  height: auto;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Línea gris vertical a la izquierda del botón, extendida para cubrir el padding
-   vertical (6px arriba/abajo) del contenedor y llegar de borde a borde. */
+/* Línea gris vertical a la izquierda del botón. */
 #today-btn::before {
   content: '';
   position: absolute;
   left: 0;
-  top: -6px;
-  bottom: -6px;
+  top: -1px;
+  bottom: -1px;
   width: 1px;
   background-color: #d1d1d6;
 }
@@ -214,19 +216,20 @@ html:not(.mobile-mode) .app-container {
 #nav-view-toggle-btn {
   position: relative;
   border: none;
-  border-radius: 0;
+  border-top-left-radius: var(--radius-md, 8px);
+  border-bottom-left-radius: var(--radius-md, 8px);
   background-color: transparent;
   cursor: pointer;
   transition: var(--transition-fast);
   /* Se extiende hasta el borde izquierdo del navegador (margin negativo = padding
-     izquierdo del contenedor) para que el icono quede centrado en TODA la zona
-     entre el borde y la línea gris. */
+     izquierdo del contenedor) para que cubra todo el alto de forma centrada. */
   margin: 0 8px 0 -12px;
   width: 44px;
   box-sizing: border-box;
   padding: 0;
   flex: 0 0 auto;
   align-self: stretch;
+  height: auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -239,8 +242,8 @@ html:not(.mobile-mode) .app-container {
   content: '';
   position: absolute;
   right: 0;
-  top: -6px;
-  bottom: -6px;
+  top: -1px;
+  bottom: -1px;
   width: 1px;
   background-color: #d1d1d6;
 }
@@ -2274,8 +2277,10 @@ body.not-logged-in .app-container {
   /* Sin justify-content: center, para que el contenedor CENTRAL crezca y absorba
      el ancho extra (en vez de repartirlo como espacio a los lados). */
   justify-content: flex-start;
-  padding: 6px 10px;
+  height: 40px;
+  padding: 0 10px;
   gap: 4px;
+  box-sizing: border-box;
 }
 
 /* Botones laterales y flechas: tamaño fijo (no crecen). */
@@ -2288,10 +2293,10 @@ body.not-logged-in .app-container {
 /* En móvil el padding lateral del Navegador es 10px: ajustar el margin negativo
    para que los botones lleguen justo al borde (no 12px). */
 .mobile-mode .navegador #nav-view-toggle-btn {
-  margin-left: -10px;
+  margin: 0 8px 0 -10px;
 }
 .mobile-mode .navegador #today-btn {
-  margin-right: -10px;
+  margin: 0 -10px 0 8px;
 }
 
 /* El contenedor central (flechas + fecha) ABSORBE el espacio disponible. */
