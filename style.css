@@ -4936,5 +4936,39 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   filter: invert(27%) sepia(85%) saturate(3025%) hue-rotate(346deg) brightness(97%) contrast(97%); /* #ca3f3f */
 }
 
+/* Indicadores de arrastre para ordenar actividades */
+.tag-item.drag-before-indicator {
+  position: relative;
+}
+.tag-item.drag-before-indicator::before {
+  content: '';
+  position: absolute;
+  top: -5px; /* dentro del gap natural entre actividades */
+  left: 2px;
+  right: 2px;
+  height: 3px;
+  background-color: var(--text-main);
+  border-radius: var(--radius-full);
+  z-index: 10;
+  box-shadow: 0 0 0 1px var(--bg-card);
+  pointer-events: none;
+}
+.tag-item.drag-after-indicator {
+  position: relative;
+}
+.tag-item.drag-after-indicator::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 2px;
+  right: 2px;
+  height: 3px;
+  background-color: var(--text-main);
+  border-radius: var(--radius-full);
+  z-index: 10;
+  box-shadow: 0 0 0 1px var(--bg-card);
+  pointer-events: none;
+}
+
 
 

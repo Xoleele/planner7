@@ -10174,18 +10174,57 @@ function setupTagDragAndDrop(container) {
   let touchTimer = null;
   let touchDragging = false;
 
+  let lastIndicatorEl = null;
+  let lastIndicatorClass = null;
+
   const items = () => [...container.querySelectorAll('.tag-item')];
 
-  // Devuelve el item sobre el que deberia insertarse, segun la Y del cursor
-  function itemAfter(y) {
+  function clearTagIndicators() {
+    container.querySelectorAll('.tag-item').forEach(el => {
+      el.classList.remove('drag-before-indicator', 'drag-after-indicator');
+    });
+    lastIndicatorEl = null;
+    lastIndicatorClass = null;
+  }
+
+  function updateTagDragIndicator(y) {
+    if (!dragItem) return;
     const others = items().filter(el => el !== dragItem);
+    if (others.length === 0) return;
+
+    let targetEl = null;
+    let targetClass = '';
+
+    // Buscar el primer elemento cuyo centro esté por debajo de la coordenada y
     for (const el of others) {
-      // Nunca insertar por ENCIMA de 'default': siempre va primera.
-      if (el.dataset.tagId === 'default') continue;
+      if (el.dataset.tagId === 'default') continue; // por defecto siempre va primera
       const r = el.getBoundingClientRect();
-      if (y < r.top + r.height / 2) return el;
+      if (y < r.top + r.height / 2) {
+        targetEl = el;
+        targetClass = 'drag-before-indicator';
+        break;
+      }
     }
-    return null;
+
+    // Si no encontramos ninguno, significa que la Y del cursor está por debajo
+    // del centro de todas las etiquetas de la lista. En ese caso, la posición de soltado
+    // será después de la última etiqueta de la lista.
+    if (!targetEl) {
+      targetEl = others[others.length - 1];
+      targetClass = 'drag-after-indicator';
+    }
+
+    if (lastIndicatorEl === targetEl && lastIndicatorClass === targetClass) {
+      return;
+    }
+
+    clearTagIndicators();
+
+    if (targetEl) {
+      targetEl.classList.add(targetClass);
+    }
+    lastIndicatorEl = targetEl;
+    lastIndicatorClass = targetClass;
   }
 
   function commitOrder() {
@@ -10210,7 +10249,7 @@ function setupTagDragAndDrop(container) {
     });
     handle.addEventListener('dragend', () => {
       if (dragItem) dragItem.classList.remove('tag-dragging');
-      commitOrder();
+      clearTagIndicators();
       dragItem = null; dragTagId = null;
     });
 
@@ -10242,16 +10281,26 @@ function setupTagDragAndDrop(container) {
       e.preventDefault();
       const touch = e.touches[0];
       if (ghost) ghost.style.top = (touch.clientY - offsetY) + 'px';
-      const ref = itemAfter(touch.clientY);
-      if (ref) container.insertBefore(dragItem, ref);
-      else container.appendChild(dragItem);
+      updateTagDragIndicator(touch.clientY);
     }, { passive: false });
 
     const endTouch = () => {
       if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
       if (touchDragging) {
         if (ghost) { ghost.remove(); ghost = null; }
-        if (dragItem) { dragItem.style.opacity = ''; dragItem.classList.remove('tag-dragging'); }
+        if (dragItem) {
+          dragItem.style.opacity = '';
+          dragItem.classList.remove('tag-dragging');
+          // Colocar el elemento según el indicador activo
+          if (lastIndicatorEl) {
+            if (lastIndicatorClass === 'drag-before-indicator') {
+              container.insertBefore(dragItem, lastIndicatorEl);
+            } else if (lastIndicatorClass === 'drag-after-indicator') {
+              container.insertBefore(dragItem, lastIndicatorEl.nextSibling);
+            }
+          }
+        }
+        clearTagIndicators();
         commitOrder();
         touchDragging = false; dragItem = null; dragTagId = null;
       }
@@ -10260,13 +10309,31 @@ function setupTagDragAndDrop(container) {
     handle.addEventListener('touchcancel', endTouch);
   });
 
-  // Reordenamiento en vivo mientras se arrastra con raton
+  // Reordenamiento por línea indicadora mientras se arrastra con ratón
   container.addEventListener('dragover', (e) => {
     if (!dragItem) return;
     e.preventDefault();
-    const ref = itemAfter(e.clientY);
-    if (ref) container.insertBefore(dragItem, ref);
-    else container.appendChild(dragItem);
+    updateTagDragIndicator(e.clientY);
+  });
+
+  container.addEventListener('dragleave', (e) => {
+    if (container.contains(e.relatedTarget)) return;
+    clearTagIndicators();
+  });
+
+  container.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (!dragItem) return;
+
+    if (lastIndicatorEl) {
+      if (lastIndicatorClass === 'drag-before-indicator') {
+        container.insertBefore(dragItem, lastIndicatorEl);
+      } else if (lastIndicatorClass === 'drag-after-indicator') {
+        container.insertBefore(dragItem, lastIndicatorEl.nextSibling);
+      }
+    }
+    clearTagIndicators();
+    commitOrder();
   });
 }
 
