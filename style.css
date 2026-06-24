@@ -670,26 +670,67 @@ html:not(.mobile-mode) .app-container {
   position: relative;
   display: flex;
   align-items: center;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-card);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  overflow: hidden;
+}
+.time-input-wrapper:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
 }
 .time-input-wrapper input {
   flex: 1;
-  /* Hueco a la izquierda para el reloj y a la derecha para la ✕. */
   padding-right: 30px;
   cursor: pointer;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent;
+  border-radius: 0;
 }
 .time-input-wrapper.has-clock input {
-  padding-left: 30px;
+  /* El botón-icono ya ocupa su espacio en el flex; no se necesita padding-left extra. */
+  padding-left: 8px;
 }
+/* Botón-icono izquierdo (reloj / calendario): ocupa todo el alto del wrapper,
+   separado del input por una línea gris — mismo efecto que #nav-view-toggle-btn. */
+.field-icon-btn {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  /* overflow:hidden en el wrapper recorta las esquinas automáticamente. */
+  margin: 0;
+  border-radius: 0;
+  position: relative;
+  opacity: 0.55;
+  transition: opacity var(--transition-fast), background-color var(--transition-fast);
+  z-index: 1;
+}
+.field-icon-btn::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -1px;
+  bottom: -1px;
+  width: 1px;
+  background-color: #d1d1d6;
+}
+.field-icon-btn:hover {
+  opacity: 0.9;
+  background-color: #f2f2f7;
+}
+
 /* Icono de reloj propio, a la izquierda del campo (reemplaza al nativo). */
 .time-clock-icon {
-  position: absolute;
-  left: 9px;
-  top: 50%;
-  transform: translateY(-50%);
-  opacity: 0.55;
-  pointer-events: auto;
-  cursor: pointer;
-  z-index: 1;
+  /* Ahora es un .field-icon-btn; solo conservamos lo heredado de arriba. */
 }
 /* Ocultar el indicador/icono nativo del selector de hora (lo sustituimos por el
    reloj a la izquierda). */
@@ -744,23 +785,31 @@ html:not(.mobile-mode) .app-container {
   position: relative;
   display: flex;
   align-items: center;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-card);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  overflow: hidden;
+}
+.date-input-wrapper:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
 }
 .date-input-wrapper input[type="date"] {
   flex: 1;
   padding-right: 30px;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent;
+  border-radius: 0;
 }
 .date-input-wrapper.has-calendar input[type="date"] {
-  padding-left: 30px;
+  /* El botón-icono ya ocupa su espacio en el flex. */
+  padding-left: 8px;
 }
-/* Icono de calendario propio, a la izquierda del campo (reemplaza al nativo). */
+/* Icono de calendario: ahora es un .field-icon-btn (ver arriba). */
 .date-calendar-icon {
-  position: absolute;
-  left: 9px;
-  top: 50%;
-  transform: translateY(-50%);
-  opacity: 0.55;
-  cursor: pointer;
-  z-index: 1;
+  /* Estilos heredados de .field-icon-btn */
 }
 /* Ocultar el icono nativo del selector de fecha. */
 .date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {

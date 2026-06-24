@@ -426,7 +426,9 @@
           <div class="form-group flex-1 task-date-group">
             <label for="task-input-date">Fecha</label>
             <div class="date-input-wrapper has-calendar">
-              <img class="date-calendar-icon" src="icons/calendar.svg" alt="" width="13" height="13" data-target="task-input-date">
+              <button type="button" class="date-calendar-icon field-icon-btn" data-target="task-input-date" aria-label="Abrir calendario">
+                <img src="icons/calendar.svg" alt="" width="13" height="13">
+              </button>
               <input type="date" id="task-input-date" required>
               <button type="button" class="time-clear-btn" id="task-date-clear" title="Sin fecha (archivar tarea)" aria-label="Quitar fecha y archivar la tarea">
                 <img src="icons/close.svg" alt="Quitar" width="14" height="14">
@@ -445,7 +447,9 @@
           <div class="form-group flex-1 task-time-group">
             <label for="task-input-start">Inicio</label>
             <div class="time-input-wrapper has-clock has-bell">
-              <img class="time-clock-icon" src="icons/clock.svg" alt="" width="13" height="13" data-target="task-input-start">
+              <button type="button" class="time-clock-icon field-icon-btn" data-target="task-input-start" aria-label="Poner hora actual">
+                <img src="icons/clock.svg" alt="" width="13" height="13">
+              </button>
               <input type="time" id="task-input-start">
               <button type="button" class="time-bell-btn" id="task-alarm-bell" title="Activar alarma" aria-label="Activar alarma">
                 <img src="icons/bell.svg" alt="Alarma" width="14" height="14">
@@ -458,7 +462,9 @@
           <div class="form-group flex-1 task-time-group">
             <label for="task-input-end">Fin</label>
             <div class="time-input-wrapper has-clock">
-              <img class="time-clock-icon" src="icons/clock.svg" alt="" width="13" height="13" data-target="task-input-end">
+              <button type="button" class="time-clock-icon field-icon-btn" data-target="task-input-end" aria-label="Poner hora actual">
+                <img src="icons/clock.svg" alt="" width="13" height="13">
+              </button>
               <input type="time" id="task-input-end">
               <button type="button" class="time-clear-btn" id="task-end-clear" data-target="task-input-end" title="Sin hora" aria-label="Quitar hora de fin">
                 <img src="icons/close.svg" alt="Quitar" width="14" height="14">
@@ -940,7 +946,9 @@
           <div class="form-group flex-1 task-time-group" style="margin: 0; min-width: 0;">
             <label for="timer-input-start">Inicio</label>
             <div class="time-input-wrapper has-clock">
-              <img class="time-clock-icon" src="icons/clock.svg" alt="" width="13" height="13" data-target="timer-input-start">
+              <button type="button" class="time-clock-icon field-icon-btn" data-target="timer-input-start" aria-label="Poner hora actual">
+                <img src="icons/clock.svg" alt="" width="13" height="13">
+              </button>
               <input type="time" id="timer-input-start">
             </div>
           </div>
