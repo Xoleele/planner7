@@ -3735,8 +3735,8 @@ body.not-logged-in .app-container {
 /* Botón ✕ del selector de etiqueta del mapa de calor (copiado del editor de
    tareas). Se posiciona a la izquierda de la flecha y se oculta si está vacío. */
 #habit-tag-select-trigger { position: relative; }
-#habit-tag-select-trigger .custom-select-trigger-input { padding-right: 40px; }
-#habit-tag-clear { right: 22px; }
+#habit-tag-select-trigger .custom-select-trigger-input { padding-right: 28px; }
+#habit-tag-clear { right: 6px; }
 #habit-tag-select-trigger .custom-select-trigger-input:placeholder-shown ~ #habit-tag-clear {
   display: none;
 }

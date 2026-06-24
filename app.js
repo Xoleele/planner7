@@ -7171,9 +7171,6 @@ function getStatsModalHTML(prefix) {
               <button type="button" class="time-clear-btn" id="habit-tag-clear" title="Borrar" aria-label="Borrar texto">
                 <img src="icons/close.svg" alt="Quitar" width="14" height="14">
               </button>
-              <span class="custom-select-arrow">
-                <img src="icons/chevron-down.svg" alt="Abrir" width="10" height="10">
-              </span>
             </div>
             <div class="custom-options-container hidden" id="habit-tag-options-container"></div>
           </div>
@@ -12943,10 +12940,10 @@ function setupEventListeners() {
       if (tag) input.value = tag.name;
     };
 
-    // Al enfocar/hacer clic: abrir y seleccionar todo el texto para sobrescribir.
+    // Al enfocar/hacer clic: abrir y borrar el campo para que el usuario pueda escribir directamente.
     input.addEventListener('focus', () => {
+      input.value = '';
       openDropdown();
-      input.select();
     });
 
     input.addEventListener('input', () => {
