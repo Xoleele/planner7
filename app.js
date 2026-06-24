@@ -3057,7 +3057,7 @@ function toggleCronograma() {
 
   cronogramaActive = !cronogramaActive;
   document.body.classList.toggle('cronograma-active', cronogramaActive);
-  showModeToast(cronogramaActive ? 'Modo Horario' : 'Modo Planner');
+  showModeToast(cronogramaActive ? 'Modo Línea de tiempo' : 'Modo Lista de tareas');
 
   // Recordar la vista elegida para la próxima vez que se abra la app.
   try {
@@ -3101,11 +3101,23 @@ function toggleCronograma() {
   updateViewToggleMenuLabel();
 }
 
-// Actualiza el tooltip del botón de alternar vista (en el navegador) para que
-// refleje la vista a la que cambiará al pulsarlo.
+// Actualiza el tooltip y el icono del botón de alternar vista (en el navegador)
+// según el modo activo.
 function updateViewToggleMenuLabel() {
   const btn = document.getElementById('nav-view-toggle-btn');
-  if (btn) btn.title = cronogramaActive ? 'Vista Planner' : 'Vista Horario';
+  if (btn) {
+    btn.title = cronogramaActive ? 'Vista Lista de tareas' : 'Vista Línea de tiempo';
+    const img = btn.querySelector('img');
+    if (img) {
+      if (cronogramaActive) {
+        img.src = 'icons/clock.svg';
+        img.alt = 'Modo línea de tiempo';
+      } else {
+        img.src = 'icons/to do.svg';
+        img.alt = 'Modo lista de tareas';
+      }
+    }
+  }
 }
 
 // Aplica al iniciar la vista guardada en localStorage. Si el usuario dejó la
@@ -6730,10 +6742,10 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
   if (!selectedTaskId) {
     const titleEl = document.getElementById('task-input-title');
     titleEl.focus();
-    // En el modo Horario el modal se abre desde un `pointerdown`; el `mouseup`/
+    // En el modo Línea de tiempo el modal se abre desde un `pointerdown`; el `mouseup`/
     // `click` que le sigue puede robar el foco recién puesto. Reaplicamos el foco
     // tras finalizar el gesto para que se pueda escribir el título de inmediato,
-    // igual que en el planner. Dos respaldos (rAF y un timeout breve) cubren los
+    // igual que en la lista de tareas. Dos respaldos (rAF y un timeout breve) cubren los
     // distintos momentos en que puede llegar el mouseup.
     const refocusTitle = () => {
       if (!document.getElementById('task-modal').classList.contains('hidden')
@@ -6782,7 +6794,7 @@ function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
           startTime, endTime, duration, recurrence, alarm } = formData;
 
   // Si la tarea se guarda sin título, asignar uno automático. Esto cubre todos
-  // los flujos de creación/edición (modo horario y modo planner, escritorio y
+  // los flujos de creación/edición (modo linea de tiempo y modo lista de tareas, escritorio y
   // móvil), ya que todos pasan por aquí.
   if (!title || !title.trim()) {
     title = 'Tarea sin título';
@@ -9924,7 +9936,7 @@ function exportUserDataToCSV() {
   // Add Tags
   tags.forEach(tag => {
     csvRows.push([
-      'Etiqueta',
+      'Actividad',
       '',
       tag.name,
       '',
@@ -10052,7 +10064,7 @@ function renderTagsList() {
       const grip = document.createElement('button');
       grip.className = 'tag-drag-handle';
       grip.title = 'Arrastrar para reordenar';
-      grip.setAttribute('aria-label', 'Reordenar etiqueta');
+      grip.setAttribute('aria-label', 'Reordenar actividad');
       grip.innerHTML = `<img src="icons/grip.svg" alt="" width="14" height="14">`;
       grip.addEventListener('click', (e) => e.stopPropagation());
       item.appendChild(grip);
@@ -10112,7 +10124,7 @@ function renderTagsList() {
     // Edit Button
     const editBtn = document.createElement('button');
     editBtn.className = 'tag-action-btn';
-    editBtn.title = 'Editar etiqueta';
+    editBtn.title = 'Editar actividad';
     editBtn.innerHTML = `<img src="icons/edit.svg" alt="Editar" width="14" height="14">`;
     editBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -10124,7 +10136,7 @@ function renderTagsList() {
     if (tag.id !== 'default') {
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'tag-action-btn delete';
-      deleteBtn.title = 'Eliminar etiqueta';
+      deleteBtn.title = 'Eliminar actividad';
       deleteBtn.innerHTML = `<img src="icons/trash.svg" alt="Eliminar" width="14" height="14">`;
       deleteBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -10354,7 +10366,7 @@ function startEditTag(tag) {
   const isDefault = tag.id === 'default';
   nameInput.disabled = isDefault;
   nameInput.title = isDefault ? 'El nombre de la actividad por defecto no se puede cambiar' : '';
-  document.getElementById('tag-form-title').textContent = 'Editar etiqueta';
+  document.getElementById('tag-form-title').textContent = 'Editar actividad';
   document.getElementById('tag-submit-btn').textContent = 'Guardar';
 
   // Seleccionar el color: de la paleta, o personalizado (HSL)
@@ -10408,7 +10420,7 @@ function resetTagForm() {
   nameInput.value = '';
   nameInput.disabled = false;
   nameInput.title = '';
-  document.getElementById('tag-form-title').textContent = 'Nueva etiqueta';
+  document.getElementById('tag-form-title').textContent = 'Nueva actividad';
   document.getElementById('tag-submit-btn').textContent = 'Crear';
 
   selectedColorIndex = 0;
@@ -10543,12 +10555,12 @@ async function deleteTag(tagId) {
 function openDeleteTagModal(tagId, affected) {
   pendingDeleteTagId = tagId;
   const tag = tags.find(t => t.id === tagId);
-  const tagName = tag ? tag.name : 'esta etiqueta';
+  const tagName = tag ? tag.name : 'esta actividad';
 
   const msg = document.getElementById('delete-tag-message');
   if (msg) {
     const plural = affected === 1 ? 'tarea tiene' : 'tareas tienen';
-    msg.innerHTML = `<strong>${affected}</strong> ${plural} la etiqueta &laquo;${tagName}&raquo;. ` +
+    msg.innerHTML = `<strong>${affected}</strong> ${plural} la actividad &laquo;${tagName}&raquo;. ` +
       `Antes de eliminarla, elige qu&eacute; hacer con esas tareas:`;
   }
 
