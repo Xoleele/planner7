@@ -4878,6 +4878,16 @@ function commitCronogramaDragResult(drag) {
 
   pushToUndoStack();
 
+  // Guardar el horario ORIGINAL (para detección de adyacencia y para revertir si
+  // el usuario cancela el aviso) ANTES de mutar la tarea.
+  const dragOldRange = getTaskAbsoluteRange(drag.task);
+  const dragRevert = {
+    startTime: drag.task.startTime,
+    endTime: drag.task.endTime,
+    date: drag.task.date,
+    duration: drag.task.duration
+  };
+
   // Actualizar la hora en los CAMPOS (manteniendo la duración). El fin se envuelve
   // a 24h si la tarea cruza medianoche.
   drag.task.startTime = toHHMM(newStartMin);
@@ -4894,6 +4904,22 @@ function commitCronogramaDragResult(drag) {
   // saltos. (renderCronograma ya se auto-protege si crDrag está activo.)
   renderCronograma();
   saveTasksToStorage();
+
+  // ── Aviso de tareas adyacentes tras el arrastre ───────────────────────────
+  // El cambio ya se aplicó/guardó. Si la tarea (con horario inicio+fin) quedó
+  // pegada a alguna vecina, ofrecemos ajustarla. "Cancelar" revierte el arrastre.
+  if (drag.task.startTime && drag.task.endTime && dragOldRange) {
+    const affectations = findAdjacentAffectedTasks(drag.task, dragOldRange);
+    if (affectations.length > 0) {
+      pendingAdjacent = {
+        mode: 'drag',
+        task: drag.task,
+        revert: dragRevert,
+        affectations
+      };
+      openAdjacentTasksModal(affectations);
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -12822,23 +12848,55 @@ function setupEventListeners() {
     const modifyAllBtn = document.getElementById('adjacent-modify-all-btn');
     const closeX = document.querySelector('#adjacent-tasks-modal .close-modal-btn');
 
-    // Cancelar / cerrar: no guarda nada, vuelve al editor de la tarea.
-    const onCancel = () => { closeAdjacentTasksModal(); };
+    // CANCELAR / cerrar.
+    //  - modo 'editor': no se había aplicado nada → solo cerrar (vuelve al editor).
+    //  - modo 'drag'  : el arrastre YA se aplicó → revertir al horario original.
+    const onCancel = () => {
+      if (pendingAdjacent && pendingAdjacent.mode === 'drag') {
+        const { task, revert } = pendingAdjacent;
+        if (task && revert) {
+          task.startTime = revert.startTime;
+          task.endTime = revert.endTime;
+          task.date = revert.date;
+          if (revert.duration !== undefined) task.duration = revert.duration;
+          saveTasksToStorage();
+          if (typeof renderCronograma === 'function') renderCronograma();
+          renderWeeklyCalendar();
+          if (typeof refreshAlarms === 'function') refreshAlarms();
+        }
+      }
+      closeAdjacentTasksModal();
+    };
     if (cancelBtn) cancelBtn.addEventListener('click', onCancel);
     if (closeX) closeX.addEventListener('click', onCancel);
 
-    // Conservar: guarda mi cambio, deja las vecinas intactas.
+    // CONSERVAR: aplica mi cambio (si no estaba aplicado) y deja las vecinas intactas.
     if (keepBtn) keepBtn.addEventListener('click', () => {
       if (!pendingAdjacent) { closeAdjacentTasksModal(); return; }
+      if (pendingAdjacent.mode === 'drag') {
+        // El arrastre ya quedó aplicado y guardado; no hay nada más que hacer.
+        closeAdjacentTasksModal();
+        return;
+      }
       const { formData, taskId, occurrenceDate } = pendingAdjacent;
       applyTaskChanges('all', formData, taskId, occurrenceDate);
       closeAdjacentTasksModal();
       closeTaskModal();
     });
 
-    // Modificar todo: guarda mi cambio Y ajusta las vecinas viables.
+    // MODIFICAR TODO: aplica mi cambio Y ajusta las vecinas viables.
     if (modifyAllBtn) modifyAllBtn.addEventListener('click', () => {
       if (!pendingAdjacent) { closeAdjacentTasksModal(); return; }
+      if (pendingAdjacent.mode === 'drag') {
+        // El arrastre ya está aplicado; solo ajustamos las vecinas.
+        applyAdjacentAffectations(pendingAdjacent.affectations);
+        saveTasksToStorage();
+        if (typeof renderCronograma === 'function') renderCronograma();
+        renderWeeklyCalendar();
+        if (typeof refreshAlarms === 'function') refreshAlarms();
+        closeAdjacentTasksModal();
+        return;
+      }
       const { formData, taskId, occurrenceDate, affectations } = pendingAdjacent;
       applyTaskChanges('all', formData, taskId, occurrenceDate);
       // applyTaskChanges ya hizo pushToUndoStack + guardó; aplicamos las vecinas
