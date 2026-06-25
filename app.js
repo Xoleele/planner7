@@ -6858,8 +6858,8 @@ function renderTaskModalCheckbox(completed) {
   btn.setAttribute('aria-pressed', completed ? 'true' : 'false');
   btn.title = completed ? 'Marcar como pendiente' : 'Marcar como completada';
   btn.innerHTML = completed
-    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon checked"><rect x="3" y="3" width="18" height="18" rx="5"/><polyline points="8 12.5 11 15.5 16.5 9"/></svg>'
-    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon"><rect x="2" y="2" width="20" height="20" rx="4" ry="4"/></svg>';
+    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon checked"><rect x="3" y="3" width="18" height="18" rx="5"/><polyline points="8 12.5 11 15.5 16.5 9"/></svg>'
+    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon"><rect x="3" y="3" width="18" height="18" rx="5"/></svg>';
 }
 
 function openTaskModal(taskId = null, occurrenceDate = null) {

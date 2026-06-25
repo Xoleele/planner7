@@ -1132,6 +1132,10 @@ input[type="date"][data-force-ddmmyy] {
   align-items: center;
   gap: 8px;
 }
+/* En el editor de tarea, juntar un poco más checkbox, basurero y X. */
+#task-modal .modal-header-actions {
+  gap: 4px;
+}
 
 .close-modal-btn {
   background: none;
@@ -1181,6 +1185,25 @@ input[type="date"][data-force-ddmmyy] {
   color: var(--text-main);
 }
 .task-modal-check-btn.hidden { display: none; }
+
+/* Sobrescrituras para el checkbox del modal de tarea: el icono NO debe heredar
+   las reglas globales de .task-check-icon.checked (que pintan la flecha del
+   color de fondo y aplican una animación 'pop' que cambia el tamaño). */
+.task-modal-check-btn .task-check-icon.checked {
+  animation: none;                 /* sin pop: no cambia de tamaño al marcar */
+}
+.task-modal-check-btn .task-check-icon.checked rect {
+  fill: none;                      /* cuadro sin relleno */
+  stroke: #000000;                 /* borde negro */
+}
+.task-modal-check-btn .task-check-icon.checked polyline {
+  stroke: #000000 !important;      /* flecha negra y visible (anula var(--tag-bg)) */
+}
+/* El botón no se escala al pasar el cursor ni al pulsar. */
+.task-modal-check-btn:hover,
+.task-modal-check-btn:active {
+  transform: none;
+}
 
 /* Footer del panel "Tareas con horario coincidente": los 3 botones comparten el
    ancho por igual para no desbordar ni cortarse, en escritorio y móvil. */
