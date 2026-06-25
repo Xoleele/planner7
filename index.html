@@ -1191,20 +1191,13 @@
         <p style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 12px;">
           El horario que cambiaste coincide con <span id="adjacent-tasks-count-label">otra tarea</span>. &iquest;Quieres ajustarla(s) tambi&eacute;n para que sigan encajando?
         </p>
-        <div id="adjacent-tasks-list" style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;"></div>
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <button id="adjacent-keep-btn" type="button" class="btn btn-secondary" style="text-align: left; padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; width: 100%;">
-            <strong style="font-size: 14px; font-weight: 600; color: var(--text-main);">Conservar</strong>
-            <span style="font-size: 11.5px; color: var(--text-muted); font-weight: normal; line-height: 1.3;">Guarda tu cambio y deja la(s) otra(s) tarea(s) sin modificar.</span>
-          </button>
-          <button id="adjacent-modify-all-btn" type="button" class="btn btn-secondary" style="text-align: left; padding: 14px 18px; display: flex; flex-direction: column; gap: 4px; width: 100%;">
-            <strong style="font-size: 14px; font-weight: 600; color: var(--text-main);">Modificar todo</strong>
-            <span style="font-size: 11.5px; color: var(--text-muted); font-weight: normal; line-height: 1.3;">Guarda tu cambio y ajusta la(s) tarea(s) coincidente(s) para que encajen.</span>
-          </button>
-        </div>
+        <div id="adjacent-tasks-list" style="font-size: 13px; color: var(--text-muted); line-height: 1.5;"></div>
       </div>
-      <div class="modal-footer" style="padding: 12px 24px;">
+      <div class="modal-footer" style="padding: 12px 24px; display: flex; align-items: center; gap: 12px;">
         <button id="adjacent-cancel-btn" type="button" class="btn btn-secondary">Cancelar</button>
+        <div style="flex: 1;"></div>
+        <button id="adjacent-keep-btn" type="button" class="btn btn-secondary">Conservar</button>
+        <button id="adjacent-modify-all-btn" type="button" class="btn btn-primary">Modificar todo</button>
       </div>
     </div>
   </div>
