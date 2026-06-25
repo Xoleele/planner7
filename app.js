@@ -10653,14 +10653,13 @@ function findKeywordConflict(editId) {
 
 // Auto-categorización: busca la actividad cuya palabra clave esté contenida en
 // el título (normalizado, sin mayúsculas ni acentos) y la asigna en el selector
-// del modal de tarea. Se llama SOLO cuando el usuario termina de editar el
-// título (blur / Enter). Si varias coinciden, gana la palabra clave que aparece
-// más a la izquierda en el título; a igual posición, gana la más larga.
-function autoCategorizeFromTitle() {
-  const titleEl = document.getElementById('task-input-title');
-  if (!titleEl) return;
-  const titleNorm = normalizeForKeyword(titleEl.value);
-  if (!titleNorm) return;
+// del modal de tarea / cronómetro. Se llama SOLO cuando el usuario termina de
+// editar el título (blur / Enter). Si varias coinciden, gana la palabra clave
+// que aparece más a la izquierda en el título; a igual posición, gana la más
+// larga. Devuelve el tagId que corresponde, o null si ninguna coincide.
+function findTagByKeywordsInText(text) {
+  const titleNorm = normalizeForKeyword(text);
+  if (!titleNorm) return null;
 
   let best = null; // { tagId, index, length }
   for (const tag of tags) {
@@ -10676,9 +10675,25 @@ function autoCategorizeFromTitle() {
       }
     }
   }
+  return best ? best.tagId : null;
+}
 
-  if (best) {
-    setSelectTagValue(best.tagId);
+// Auto-categorización en el modal de creación/edición de tarea.
+function autoCategorizeFromTitle() {
+  const titleEl = document.getElementById('task-input-title');
+  if (!titleEl) return;
+  const tagId = findTagByKeywordsInText(titleEl.value);
+  if (tagId) setSelectTagValue(tagId);
+}
+
+// Auto-categorización en la herramienta cronómetro.
+function autoCategorizeTimerFromTitle() {
+  const titleEl = document.getElementById('timer-input-title');
+  if (!titleEl) return;
+  const tagId = findTagByKeywordsInText(titleEl.value);
+  if (tagId) {
+    setTimerSelectTagValue(tagId);
+    if (timerStartTime) saveActiveTimerState();
   }
 }
 
@@ -12938,6 +12953,12 @@ function setupEventListeners() {
   if (timerTitleInput) {
     timerTitleInput.addEventListener('input', () => {
       if (timerStartTime) saveActiveTimerState();
+    });
+    // Categorización automática: al terminar de escribir/editar el título (blur o
+    // Enter) se asigna la actividad cuya palabra clave coincida.
+    timerTitleInput.addEventListener('blur', autoCategorizeTimerFromTitle);
+    timerTitleInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') autoCategorizeTimerFromTitle();
     });
   }
 
