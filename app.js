@@ -14874,7 +14874,6 @@ function updateMobileFeedTasks() {
 
     const tasksContainer = col.querySelector('.tasks-container');
     if (tasksContainer) {
-      tasksContainer.innerHTML = '';
       const dayTasks = tasks.filter(task => {
         const isOccurring = checkTaskOccurrence(task, date);
         if (!isOccurring) return false;
@@ -14882,7 +14881,30 @@ function updateMobileFeedTasks() {
         return tag ? tag.visible !== false : true;
       });
       sortDayTasks(dayTasks, dateStr);
-      renderTasksToContainer(dayTasks, tasksContainer, dateStr);
+
+      // Evitar reconstruir un día cuyo contenido no cambió: vaciar y recrear el
+      // DOM de TODOS los días en cada toggle es lo que provoca el parpadeo
+      // blanco en móvil. Comparamos una firma (id + completado + orden); solo se
+      // reconstruye el día cuya firma cambió (p.ej. el de la tarea marcada).
+      const signature = dayTasks.map(t => {
+        const done = (t.recurrence && t.recurrence.enabled)
+          ? !!(t.completedOccurrences && t.completedOccurrences.includes(dateStr))
+          : !!t.completed;
+        // Incluir los campos que afectan el render visible para que cualquier
+        // edición real del día lo reconstruya, pero un toggle en OTRO día no.
+        return [t.id, done ? '1' : '0', t.title || '', t.startTime || '',
+                t.endTime || '', t.tagId || '', t.alarm ? 'a' : ''].join('~');
+      }).join('|');
+
+      // Reconstruir si la firma cambió, o si el contenedor está vacío pero
+      // debería tener tareas (p.ej. tras un render inicial o limpieza externa).
+      const needsRebuild = col.dataset.tasksSignature !== signature ||
+        (dayTasks.length > 0 && tasksContainer.children.length === 0);
+      if (needsRebuild) {
+        col.dataset.tasksSignature = signature;
+        tasksContainer.innerHTML = '';
+        renderTasksToContainer(dayTasks, tasksContainer, dateStr);
+      }
     }
   });
   renderBriefcaseTasks();
