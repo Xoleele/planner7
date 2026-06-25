@@ -2820,6 +2820,148 @@ function getTaskTimeRange(task) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// DETECCIÓN DE TAREAS ADYACENTES (encadenado de horarios)
+// ─────────────────────────────────────────────────────────────────────────
+// Cuando el usuario modifica la hora de inicio o de fin de una tarea que está
+// "pegada" (dentro de un margen de tolerancia) a otra, ofrecemos ajustar la
+// vecina para que sigan encajando. Toda la comparación se hace en MINUTOS
+// ABSOLUTOS desde una época común (díaIndex*1440 + minutoDelDía), de modo que
+// un fin a las 01:00 del día siguiente y un inicio a las 01:00 de ese mismo día
+// se reconozcan como coincidentes aunque pertenezcan a fechas distintas.
+
+// Parámetros internos OCULTOS al usuario (fáciles de cambiar aquí).
+const TOLERANCIA_ADYACENCIA_MIN = 3;   // margen para considerar dos bordes "pegados"
+const MIN_DURACION_AJUSTE_MIN   = 20;  // la vecina no se ajusta si quedaría < esto
+
+// Convierte "YYYY-MM-DD" a un índice de día entero (días desde época). Devuelve
+// null si la fecha no es válida (p.ej. tareas del maletín sin fecha).
+function dateStrToDayIndex(dateStr) {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return null;
+  return Math.round(d.getTime() / 86400000);
+}
+
+// "HH:MM" -> minutos del día (0..1439), o null si inválido.
+function hhmmToMinutes(hhmm) {
+  if (!hhmm) return null;
+  const m = String(hhmm).match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10), mi = parseInt(m[2], 10);
+  if (h > 23 || mi > 59) return null;
+  return h * 60 + mi;
+}
+
+// Minutos absolutos del INICIO y FIN de una tarea con horario definido, en la
+// recta temporal común. Si la tarea cruza medianoche, el fin cae en el día
+// siguiente (+1440). Devuelve null si la tarea no tiene inicio+fin+fecha válidos.
+function getTaskAbsoluteRange(task) {
+  if (!task) return null;
+  const dayIdx = dateStrToDayIndex(task.date);
+  if (dayIdx === null) return null;
+  const sMin = hhmmToMinutes(task.startTime);
+  const eMin = hhmmToMinutes(task.endTime);
+  if (sMin === null || eMin === null) return null;
+  const base = dayIdx * 1440;
+  const startAbs = base + sMin;
+  // Cruce de medianoche: fin <= inicio significa que termina al día siguiente.
+  const endAbs = (eMin <= sMin) ? base + eMin + 1440 : base + eMin;
+  return { startAbs, endAbs };
+}
+
+// A partir de minutos absolutos, reconstruye { date:"YYYY-MM-DD", time:"HH:MM" }.
+function absoluteMinutesToDateTime(absMin) {
+  const dayIdx = Math.floor(absMin / 1440);
+  const minOfDay = ((absMin % 1440) + 1440) % 1440;
+  const d = new Date(dayIdx * 86400000);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(Math.floor(minOfDay / 60)).padStart(2, '0');
+  const mi = String(minOfDay % 60).padStart(2, '0');
+  return { date: `${yyyy}-${mm}-${dd}`, time: `${hh}:${mi}` };
+}
+
+// Núcleo de la detección.
+//   modifiedTask  : la tarea YA con sus nuevos startTime/endTime/date aplicados.
+//   oldRange      : { startAbs, endAbs } de la tarea ANTES del cambio (para saber
+//                   qué borde se movió y dónde estaba pegada la vecina).
+// Devuelve un array de "afectaciones" VIABLES, cada una:
+//   { task, edge:'start'|'end', newDate, newTime }
+// donde edge es el borde de la VECINA que se ajustaría.
+function findAdjacentAffectedTasks(modifiedTask, oldRange) {
+  const result = [];
+  if (!modifiedTask || !oldRange) return result;
+  const newRange = getTaskAbsoluteRange(modifiedTask);
+  if (!newRange) return result;
+
+  const startMoved = newRange.startAbs !== oldRange.startAbs;
+  const endMoved   = newRange.endAbs   !== oldRange.endAbs;
+  if (!startMoved && !endMoved) return result;
+
+  const tol = TOLERANCIA_ADYACENCIA_MIN;
+
+  for (const other of tasks) {
+    if (!other || other.id === modifiedTask.id) continue;
+    const oRange = getTaskAbsoluteRange(other);
+    if (!oRange) continue;
+
+    // (1) Moví el FIN de la tarea -> busco vecinas cuyo INICIO estaba pegado al
+    //     fin ANTERIOR; las re-anclo a mi nuevo fin (ajustando su INICIO).
+    if (endMoved && Math.abs(oRange.startAbs - oldRange.endAbs) <= tol) {
+      const newNeighborStartAbs = newRange.endAbs;
+      const neighborDurAfter = oRange.endAbs - newNeighborStartAbs;
+      // Filtro de viabilidad: la vecina debe conservar >= mínimo de duración.
+      if (neighborDurAfter >= MIN_DURACION_AJUSTE_MIN) {
+        const dt = absoluteMinutesToDateTime(newNeighborStartAbs);
+        result.push({ task: other, edge: 'start', newDate: dt.date, newTime: dt.time });
+      }
+      continue; // una vecina se ajusta por un solo borde
+    }
+
+    // (2) Moví el INICIO de la tarea -> busco vecinas cuyo FIN estaba pegado al
+    //     inicio ANTERIOR; las re-anclo a mi nuevo inicio (ajustando su FIN).
+    if (startMoved && Math.abs(oRange.endAbs - oldRange.startAbs) <= tol) {
+      const newNeighborEndAbs = newRange.startAbs;
+      const neighborDurAfter = newNeighborEndAbs - oRange.startAbs;
+      if (neighborDurAfter >= MIN_DURACION_AJUSTE_MIN) {
+        const dt = absoluteMinutesToDateTime(newNeighborEndAbs);
+        result.push({ task: other, edge: 'end', newDate: dt.date, newTime: dt.time });
+      }
+      continue;
+    }
+  }
+
+  return result;
+}
+
+// Aplica las afectaciones calculadas (mueve el borde correspondiente de cada
+// vecina). No guarda ni renderiza: eso lo hace el llamador.
+function applyAdjacentAffectations(affectations) {
+  if (!affectations || !affectations.length) return;
+  for (const aff of affectations) {
+    const t = aff.task;
+    if (!t) continue;
+    if (aff.edge === 'start') {
+      t.startTime = aff.newTime;
+      if (aff.newDate) t.date = aff.newDate;
+    } else if (aff.edge === 'end') {
+      t.endTime = aff.newTime;
+      // El fin puede caer en el día siguiente; eso se modela por la relación
+      // fin<=inicio (cruce de medianoche), no cambiando t.date.
+    }
+    // Recalcular duración almacenada (coherencia con el resto de la app).
+    const sMin = hhmmToMinutes(t.startTime);
+    const eMin = hhmmToMinutes(t.endTime);
+    if (sMin !== null && eMin !== null) {
+      let diff = eMin - sMin;
+      if (diff < 0) diff += 1440;
+      t.duration = diff;
+    }
+  }
+}
+
 // Duración (minutos) de una tarea para estadísticas/sumas.
 // Prioridad: (1) si la tarea tiene hora de inicio + fin definidas, se usa esa
 // duración; (2) en caso contrario, se usa la duración escrita al inicio de la
@@ -6835,6 +6977,9 @@ let pendingEditFormData = null;
 let pendingEditTaskId = null;
 let pendingEditOccurrenceDate = null;
 
+// Contexto pendiente para el aviso de tareas adyacentes (horario coincidente).
+let pendingAdjacent = null; // { formData, taskId, occurrenceDate, affectations }
+
 function openEditRecurringModal() {
   const modal = document.getElementById('edit-recurring-modal');
   if (modal) modal.classList.remove('hidden');
@@ -6846,6 +6991,40 @@ function closeEditRecurringModal() {
   pendingEditFormData = null;
   pendingEditTaskId = null;
   pendingEditOccurrenceDate = null;
+}
+
+// ─── Aviso de tareas adyacentes (horario coincidente) ─────────────────────
+function openAdjacentTasksModal(affectations) {
+  const modal = document.getElementById('adjacent-tasks-modal');
+  if (!modal) return;
+  const n = affectations.length;
+  const label = document.getElementById('adjacent-tasks-count-label');
+  if (label) label.textContent = n === 1 ? 'otra tarea' : `otras ${n} tareas`;
+  const list = document.getElementById('adjacent-tasks-list');
+  if (list) {
+    list.innerHTML = affectations.map(aff => {
+      const t = aff.task;
+      const titulo = (t && t.title) ? t.title : 'Tarea sin título';
+      const accion = aff.edge === 'start'
+        ? `su hora de inicio pasaría a ${aff.newTime}`
+        : `su hora de fin pasaría a ${aff.newTime}`;
+      return `• <strong style="color:var(--text-main);font-weight:600;">${escapeHtmlAdj(titulo)}</strong> — ${accion}`;
+    }).join('<br>');
+  }
+  modal.classList.remove('hidden');
+}
+
+function closeAdjacentTasksModal() {
+  const modal = document.getElementById('adjacent-tasks-modal');
+  if (modal) modal.classList.add('hidden');
+  pendingAdjacent = null;
+}
+
+// Escape mínimo para insertar títulos de tarea en el aviso de forma segura.
+function escapeHtmlAdj(str) {
+  return String(str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 /**
@@ -12636,6 +12815,43 @@ function setupEventListeners() {
   const alarmAcceptBtn = document.getElementById('alarm-accept-btn');
   if (alarmAcceptBtn) alarmAcceptBtn.addEventListener('click', acceptAlarmModal);
 
+  // ── Aviso de tareas adyacentes: botones Cancelar / Conservar / Modificar todo
+  (function bindAdjacentTasksModal() {
+    const cancelBtn = document.getElementById('adjacent-cancel-btn');
+    const keepBtn = document.getElementById('adjacent-keep-btn');
+    const modifyAllBtn = document.getElementById('adjacent-modify-all-btn');
+    const closeX = document.querySelector('#adjacent-tasks-modal .close-modal-btn');
+
+    // Cancelar / cerrar: no guarda nada, vuelve al editor de la tarea.
+    const onCancel = () => { closeAdjacentTasksModal(); };
+    if (cancelBtn) cancelBtn.addEventListener('click', onCancel);
+    if (closeX) closeX.addEventListener('click', onCancel);
+
+    // Conservar: guarda mi cambio, deja las vecinas intactas.
+    if (keepBtn) keepBtn.addEventListener('click', () => {
+      if (!pendingAdjacent) { closeAdjacentTasksModal(); return; }
+      const { formData, taskId, occurrenceDate } = pendingAdjacent;
+      applyTaskChanges('all', formData, taskId, occurrenceDate);
+      closeAdjacentTasksModal();
+      closeTaskModal();
+    });
+
+    // Modificar todo: guarda mi cambio Y ajusta las vecinas viables.
+    if (modifyAllBtn) modifyAllBtn.addEventListener('click', () => {
+      if (!pendingAdjacent) { closeAdjacentTasksModal(); return; }
+      const { formData, taskId, occurrenceDate, affectations } = pendingAdjacent;
+      applyTaskChanges('all', formData, taskId, occurrenceDate);
+      // applyTaskChanges ya hizo pushToUndoStack + guardó; aplicamos las vecinas
+      // sobre el estado resultante y volvemos a guardar/renderizar.
+      applyAdjacentAffectations(affectations);
+      saveTasksToStorage();
+      renderWeeklyCalendar();
+      if (typeof refreshAlarms === 'function') refreshAlarms();
+      closeAdjacentTasksModal();
+      closeTaskModal();
+    });
+  })();
+
   // Submit Task Form
   document.getElementById('task-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -12727,6 +12943,32 @@ function setupEventListeners() {
       pendingEditOccurrenceDate = selectedOccurrenceDate;
       openEditRecurringModal();
       return;
+    }
+
+    // ── Aviso de tareas adyacentes (horario coincidente) ──────────────────
+    // Solo en edición de una tarea EXISTENTE con horario (inicio+fin) que se
+    // guarda en el planner (no maletín). Detecta vecinas pegadas al borde
+    // que cambió y, si hay alguna ajustable, pregunta antes de aplicar.
+    if (selectedTaskId && !isBriefcase && startTime && endTime) {
+      const existingTaskForAdj = tasks.find(t => t.id === selectedTaskId);
+      if (existingTaskForAdj) {
+        const oldRange = getTaskAbsoluteRange(existingTaskForAdj);
+        // Simulación de la tarea con el nuevo horario para detectar vecinas.
+        const simulated = { id: selectedTaskId, date, startTime, endTime };
+        const affectations = oldRange
+          ? findAdjacentAffectedTasks(simulated, oldRange)
+          : [];
+        if (affectations.length > 0) {
+          pendingAdjacent = {
+            formData,
+            taskId: selectedTaskId,
+            occurrenceDate: selectedOccurrenceDate,
+            affectations
+          };
+          openAdjacentTasksModal(affectations);
+          return; // esperamos la decisión del usuario
+        }
+      }
     }
 
     // Caso normal (no recurrente, o nueva tarea): aplicar directo.
@@ -14596,7 +14838,6 @@ async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null)
   renderWeeklyCalendar();
   renderBriefcaseTasks();
 }
-
 async function deleteTask(taskId, occurrenceDate) {
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
