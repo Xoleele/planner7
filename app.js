@@ -10557,8 +10557,136 @@ function hideHslPicker() {
   if (picker) picker.classList.add('hidden');
 }
 
+// ─── Categorización automática: palabras clave por actividad ───────────────
+// Normaliza un texto para comparar: minúsculas, sin acentos, espacios colapsados.
+function normalizeForKeyword(text) {
+  return (text || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // quita diacríticos (acentos)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Estado temporal de las palabras clave que se están editando en el modal de
+// actividad. Es un array de strings (tal cual las escribió el usuario).
+let editingTagKeywords = [];
+
+// Pinta los chips de palabras clave en el modal de actividad a partir de
+// editingTagKeywords.
+function renderKeywordChips() {
+  const container = document.getElementById('tag-keywords-chips');
+  if (!container) return;
+  container.innerHTML = '';
+  editingTagKeywords.forEach((kw, idx) => {
+    const chip = document.createElement('div');
+    chip.className = 'keyword-chip';
+
+    const label = document.createElement('span');
+    label.textContent = kw;
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'keyword-chip-remove';
+    remove.setAttribute('aria-label', `Eliminar palabra clave ${kw}`);
+    remove.textContent = '×';
+    remove.addEventListener('click', () => {
+      editingTagKeywords.splice(idx, 1);
+      renderKeywordChips();
+      clearKeywordError();
+    });
+
+    chip.append(label, remove);
+    container.appendChild(chip);
+  });
+}
+
+function showKeywordError(msg) {
+  const el = document.getElementById('tag-keywords-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function clearKeywordError() {
+  const el = document.getElementById('tag-keywords-error');
+  if (!el) return;
+  el.textContent = '';
+  el.classList.add('hidden');
+}
+
+// Intenta añadir una palabra clave (desde el input). Devuelve true si se añadió.
+function addKeywordFromInput() {
+  const input = document.getElementById('tag-keyword-input');
+  if (!input) return false;
+  const raw = input.value.trim().slice(0, 25);
+  if (!raw) return false;
+
+  const norm = normalizeForKeyword(raw);
+  // Evitar duplicada dentro de la misma actividad.
+  if (editingTagKeywords.some(k => normalizeForKeyword(k) === norm)) {
+    input.value = '';
+    return false;
+  }
+  editingTagKeywords.push(raw);
+  input.value = '';
+  renderKeywordChips();
+  clearKeywordError();
+  return true;
+}
+
+// Devuelve { tagId, tagName, keyword } si alguna palabra clave de OTRA actividad
+// coincide con las que se están editando ahora. null si no hay conflicto.
+function findKeywordConflict(editId) {
+  const editingNorms = editingTagKeywords.map(normalizeForKeyword);
+  for (const tag of tags) {
+    if (tag.id === editId) continue;
+    const existing = Array.isArray(tag.keywords) ? tag.keywords : [];
+    for (const kw of existing) {
+      const n = normalizeForKeyword(kw);
+      if (editingNorms.includes(n)) {
+        return { tagId: tag.id, tagName: tag.name, keyword: kw };
+      }
+    }
+  }
+  return null;
+}
+
+// Auto-categorización: busca la actividad cuya palabra clave esté contenida en
+// el título (normalizado, sin mayúsculas ni acentos) y la asigna en el selector
+// del modal de tarea. Se llama SOLO cuando el usuario termina de editar el
+// título (blur / Enter). Si varias coinciden, gana la palabra clave más larga.
+function autoCategorizeFromTitle() {
+  const titleEl = document.getElementById('task-input-title');
+  if (!titleEl) return;
+  const titleNorm = normalizeForKeyword(titleEl.value);
+  if (!titleNorm) return;
+
+  let best = null; // { tagId, length }
+  for (const tag of tags) {
+    if (tag.id === 'default') continue;
+    const keywords = Array.isArray(tag.keywords) ? tag.keywords : [];
+    for (const kw of keywords) {
+      const kwNorm = normalizeForKeyword(kw);
+      if (kwNorm && titleNorm.includes(kwNorm)) {
+        if (!best || kwNorm.length > best.length) {
+          best = { tagId: tag.id, length: kwNorm.length };
+        }
+      }
+    }
+  }
+
+  if (best) {
+    setSelectTagValue(best.tagId);
+  }
+}
+
 function startEditTag(tag) {
   document.getElementById('tag-edit-id').value = tag.id;
+  editingTagKeywords = Array.isArray(tag.keywords) ? [...tag.keywords] : [];
+  renderKeywordChips();
+  clearKeywordError();
   const nameInput = document.getElementById('tag-input-name');
   nameInput.value = tag.name;
   // La actividad "Por defecto" no permite cambiar su nombre.
@@ -10615,6 +10743,11 @@ function hexToHsl(hex) {
 
 function resetTagForm() {
   document.getElementById('tag-edit-id').value = '';
+  editingTagKeywords = [];
+  renderKeywordChips();
+  clearKeywordError();
+  const kwInput = document.getElementById('tag-keyword-input');
+  if (kwInput) kwInput.value = '';
   const nameInput = document.getElementById('tag-input-name');
   nameInput.value = '';
   nameInput.disabled = false;
@@ -12383,6 +12516,18 @@ function setupEventListeners() {
   // Task Modal Form Cancel
   document.querySelector('.cancel-task-btn').addEventListener('click', closeTaskModal);
 
+  // Auto-categorización: al terminar de escribir/editar el título (blur o Enter)
+  // se asigna la actividad cuya palabra clave coincida. Solo en ese instante.
+  const taskTitleEl = document.getElementById('task-input-title');
+  if (taskTitleEl) {
+    taskTitleEl.addEventListener('blur', autoCategorizeFromTitle);
+    taskTitleEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        autoCategorizeFromTitle();
+      }
+    });
+  }
+
   // Recurrence Panel toggle
   const repeatToggle = document.getElementById('task-repeat-toggle');
   repeatToggle.addEventListener('change', (e) => {
@@ -12942,6 +13087,23 @@ function setupEventListeners() {
     });
   }
 
+  // Input de palabras clave (categorización automática): Enter añade un chip.
+  const keywordInput = document.getElementById('tag-keyword-input');
+  if (keywordInput) {
+    keywordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        addKeywordFromInput();
+      } else if (e.key === 'Backspace' && keywordInput.value === '' && editingTagKeywords.length) {
+        // Backspace con el input vacío elimina el último chip.
+        editingTagKeywords.pop();
+        renderKeywordChips();
+        clearKeywordError();
+      }
+    });
+    keywordInput.addEventListener('input', clearKeywordError);
+  }
+
   // Sliders del selector de color personalizado (HSL): actualizar en vivo
   ['hsl-h', 'hsl-s', 'hsl-l'].forEach(id => {
     const el = document.getElementById(id);
@@ -13000,13 +13162,25 @@ function setupEventListeners() {
     // Si hay un color personalizado activo (boton '+'), usarlo; si no, el de la paleta.
     const color = customColor ? customColor : DEFAULT_COLORS[selectedColorIndex];
 
+    // Si quedó texto sin confirmar en el input de palabra clave, añadirlo.
+    addKeywordFromInput();
+
+    // Validación: una misma palabra clave no puede usarse en dos actividades.
+    const conflict = findKeywordConflict(editId);
+    if (conflict) {
+      showKeywordError(`La palabra clave "${conflict.keyword}" ya se usa en la actividad "${conflict.tagName}". Cámbiala para poder guardar.`);
+      return; // No se guarda.
+    }
+
+    const keywords = [...editingTagKeywords];
+
     if (editId) {
       // Update Tag
       tags = tags.map(tag => {
         if (tag.id === editId) {
           // La actividad "Por defecto" conserva siempre su nombre original.
           const finalName = tag.id === 'default' ? tag.name : name;
-          return { ...tag, name: finalName, color, colorIndex: selectedColorIndex };
+          return { ...tag, name: finalName, color, colorIndex: selectedColorIndex, keywords };
         }
         return tag;
       });
@@ -13016,7 +13190,8 @@ function setupEventListeners() {
         id: 'tag-' + Date.now(),
         name,
         color,
-        colorIndex: selectedColorIndex
+        colorIndex: selectedColorIndex,
+        keywords
       };
       tags.push(newTag);
     }

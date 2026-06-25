@@ -2021,6 +2021,93 @@ input:checked + .slider:before {
   padding-right: 2px !important;
 }
 
+/* ─── Campo de palabras clave (categorización automática) ─────────────────── */
+.keywords-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #d2d2d7;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.keywords-field:focus-within {
+  border-color: #c7c7cc;
+}
+
+.keywords-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.keyword-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #8e8e93;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 4px 6px 4px 12px;
+  font-size: 13px;
+  line-height: 1;
+  max-width: 100%;
+}
+
+.keyword-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.keyword-chip .keyword-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.keyword-chip .keyword-chip-remove:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.keyword-input {
+  flex: 1;
+  min-width: 120px;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent;
+  padding: 4px 2px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.keywords-error {
+  color: #d70015;
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+
+.keywords-help {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  margin-top: 6px;
+}
+
 .custom-select-trigger:hover {
   border-color: #c7c7cc;
 }
