@@ -1156,6 +1156,32 @@ input[type="date"][data-force-ddmmyy] {
   color: #ff3b30 !important;
 }
 
+/* Checkbox de completado en el header del modal de tarea. Mismo SVG que las
+   tareas; aquí adopta el aspecto de los iconos del header (botón redondo). */
+.task-modal-check-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  padding: 0;
+  color: var(--text-muted);
+  transition: var(--transition-fast);
+}
+.task-modal-check-btn:hover {
+  background-color: #f2f2f7;
+  color: var(--text-main);
+}
+/* Estado marcado: el icono se ve en el color principal (relleno desde el SVG). */
+.task-modal-check-btn.is-checked {
+  color: var(--text-main);
+}
+.task-modal-check-btn.hidden { display: none; }
+
 .delete-btn:hover {
   background-color: #ffe5e5 !important;
 }
@@ -4548,6 +4574,14 @@ body.cronograma-active .planner-grid { display: none; }
      feedback del long-press para arrastrar). */
   -webkit-tap-highlight-color: transparent;
 }
+
+/* Tareas cortas (15–25 min): extremos izquierdo y derecho totalmente redondeados
+   (forma de píldora). Un radio muy grande se recorta a la mitad de la altura,
+   dejando ambos lados semicirculares. */
+.cr-task-block.cr-block-pill {
+  border-radius: 999px;
+}
+
 
 /* Transición suave para el hover (mismo timing que las tarjetas del planner). */
 .cr-task-block {

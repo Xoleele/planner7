@@ -3412,13 +3412,14 @@ function buildCronogramaHeader(date, dayNameUpper, isToday) {
 //   ≥ 60 min      → título + descripción (recortada con "…" según la altura).
 function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isCompleted, tag, task, occurrenceDate, isTail) {
   // Reglas de contenido por duración (horario, escritorio y móvil por igual):
-  //   < 25 min            → el bloque NO se muestra en absoluto (return null).
-  //   25–39 min           → solo el color (sin texto y sin checkbox).
+  //   < 15 min            → el bloque NO se muestra en absoluto (return null).
+  //   15–25 min           → solo el color, con los extremos izq/der redondeados (píldora).
+  //   15–39 min           → solo el color (sin texto y sin checkbox).
   //   40–59 min           → título + checkbox, centrados verticalmente.
   //   60–74 min           → título + hora (sin descripción).
   //   >= 75 min           → título + hora + descripción (los 3 juntos).
   const durationMin = bottomMin - topMin;
-  if (durationMin < 25) return null;
+  if (durationMin < 15) return null;
 
   const block = document.createElement('div');
   block.className = 'cr-task-block' + (isTail ? ' cr-tail' : '');
@@ -3491,8 +3492,13 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
     }
   }
 
-  // Por debajo de 40 min: solo color (sin texto). (El <25 ya salió antes.)
+  // Por debajo de 40 min: solo color (sin texto). (El <15 ya salió antes.)
   if (durationMin < 40) {
+    // Tareas cortas (15–25 min): extremos izquierdo y derecho totalmente
+    // redondeados (forma de píldora) para distinguirlas visualmente.
+    if (durationMin <= 25) {
+      block.classList.add('cr-block-pill');
+    }
     return block;
   }
 
@@ -6813,6 +6819,30 @@ function showWelcomeModal() {
   };
 }
 
+
+// ─── Checkbox de completado en el modal de tarea ──────────────────────────
+// Determina si una tarea (su ocurrencia, si es recurrente) está completada.
+function isTaskCompletedForModal(task, occurrenceDate) {
+  if (!task) return false;
+  if (task.recurrence && task.recurrence.enabled) {
+    return Array.isArray(task.completedOccurrences) &&
+           task.completedOccurrences.includes(occurrenceDate);
+  }
+  return !!task.completed;
+}
+
+// Pinta el icono del checkbox del modal según el estado (mismo SVG que las tareas).
+function renderTaskModalCheckbox(completed) {
+  const btn = document.getElementById('task-complete-btn');
+  if (!btn) return;
+  btn.classList.toggle('is-checked', !!completed);
+  btn.setAttribute('aria-pressed', completed ? 'true' : 'false');
+  btn.title = completed ? 'Marcar como pendiente' : 'Marcar como completada';
+  btn.innerHTML = completed
+    ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon checked"><rect x="2" y="2" width="20" height="20" rx="4" ry="4" fill="currentColor" stroke="none"/><polyline points="7 12 10 15 17 8" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>'
+    : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon"><rect x="2" y="2" width="20" height="20" rx="4" ry="4"/></svg>';
+}
+
 function openTaskModal(taskId = null, occurrenceDate = null) {
   const modal = document.getElementById('task-modal');
   const form = document.getElementById('task-form');
@@ -6854,9 +6884,14 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
     // EDIT MODE
     modalTitle.textContent = 'Editar tarea';
     deleteBtn.classList.remove('hidden');
+    // Checkbox de completado: visible solo al editar una tarea existente.
+    const completeBtn = document.getElementById('task-complete-btn');
+    if (completeBtn) completeBtn.classList.remove('hidden');
 
     const task = tasks.find(t => t.id === selectedTaskId);
     if (!task) return;
+
+    renderTaskModalCheckbox(isTaskCompletedForModal(task, occurrenceDate || task.date));
 
     document.getElementById('task-input-title').value = task.title;
     document.getElementById('task-input-description').value = task.description || '';
@@ -6936,6 +6971,9 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
     // NEW TASK MODE
     modalTitle.textContent = 'Nueva tarea';
     deleteBtn.classList.add('hidden');
+    // Tarea nueva: aún no se puede completar; ocultar el checkbox.
+    const completeBtnNew = document.getElementById('task-complete-btn');
+    if (completeBtnNew) completeBtnNew.classList.add('hidden');
     
     // Set date to clicked column date, or today
     if (selectedDayDate === null) {
@@ -13036,6 +13074,26 @@ function setupEventListeners() {
   });
 
   // Delete Task Button
+  // Checkbox de completado del modal: alterna el estado y avisa con un toast
+  // (mismo estilo del mensaje de cambio de modo).
+  const taskCompleteBtn = document.getElementById('task-complete-btn');
+  if (taskCompleteBtn) {
+    taskCompleteBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!selectedTaskId) return;
+      const task = tasks.find(t => t.id === selectedTaskId);
+      if (!task) return;
+      const occ = selectedOccurrenceDate || task.date;
+      await toggleTaskCompletion(task, occ);
+      // Releer el estado final (toggleTaskCompletion puede revertir, p.ej. si se
+      // cancela el diálogo de hora de fin) y reflejarlo en el icono + toast.
+      const nowCompleted = isTaskCompletedForModal(task, occ);
+      renderTaskModalCheckbox(nowCompleted);
+      showModeToast(nowCompleted ? 'Completado' : 'No completado');
+    });
+  }
+
   document.getElementById('delete-task-btn').addEventListener('click', async () => {
     if (!selectedTaskId) return;
     
