@@ -5413,3 +5413,6 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 #delete-task-btn img {
   filter: invert(36%) sepia(89%) saturate(3000%) hue-rotate(347deg) brightness(101%) contrast(101%);
 }
+
+/* Checkbox de completado del editor de tareas: oculto. */
+#task-complete-btn { display: none !important; }
