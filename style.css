@@ -1277,6 +1277,38 @@ input[type="number"]:focus {
 .title-input-wrapper {
   width: 100%;
 }
+/* Ghost de autocompletado de etiquetas: texto fantasma detrás del título.
+   Debe calcar tipografía, padding y caja del input de título para alinearse. */
+.title-autocomplete-ghost {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 32px;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 8px 0;
+  border-bottom: 1.5px solid transparent;
+  margin-bottom: 6px;
+  white-space: pre;
+  overflow: hidden;
+  pointer-events: none;
+  color: transparent;
+  z-index: 0;
+  box-sizing: border-box;
+  font-family: var(--font-primary);
+  line-height: normal;
+}
+/* La parte sugerida (sufijo) se ve en gris tenue. */
+.title-autocomplete-ghost .ac-suffix {
+  color: var(--text-muted);
+  opacity: 0.65;
+}
+/* El input va por encima del ghost y con fondo transparente para dejarlo ver. */
+.title-input-wrapper input {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
 .title-input-wrapper #task-input-title,
 .title-input-wrapper #timer-input-title {
   flex: 1;

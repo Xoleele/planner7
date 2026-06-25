@@ -1679,6 +1679,7 @@ async function startApp(user) {
   initMobileFeed();
   initAlarms();
   initForce24Time();
+  initTitleAutocomplete();
 
   // Reanudar el cronómetro si quedó uno activo de una sesión anterior. Si superó
   // las 12h estando cerrada la app, se crea la tarea de 12h automáticamente.
@@ -15202,5 +15203,139 @@ window.recuperarHoras = async function (aplicar = false) {
   console.log('Recarga la app para ver las horas. (Quizá necesites Ctrl+Shift+R.)');
   return { ok, fail };
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// AUTOCOMPLETADO DE ETIQUETAS EN EL CAMPO TÍTULO
+// ─────────────────────────────────────────────────────────────────────────
+// Al escribir el título (en el editor de tareas y en el cronómetro), se muestra
+// como texto fantasma el nombre de la etiqueta (actividad) que mejor coincide
+// por PREFIJO (de izquierda a derecha, ignorando mayúsculas y acentos).
+//   · Enter → completa el título con la etiqueta y termina la edición (blur).
+//   · Tab   → completa el título y mantiene el foco para seguir editando.
+// La sugerencia se elige por uso en las ÚLTIMAS 2 SEMANAS; ante empate o sin
+// datos, por orden alfabético.
+
+// Normaliza para comparar: minúsculas y sin diacríticos.
+function normalizeForAutocomplete(str) {
+  return String(str || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
+}
+
+// Conteo de uso de cada tagId en las últimas 2 semanas (por fecha de la tarea).
+function getRecentTagUsage() {
+  const usage = {};
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(start.getDate() - 13); // ventana de 14 días incluyendo hoy
+  const startStr = formatDate(start);
+  const endStr = formatDate(today);
+  for (const t of tasks) {
+    if (!t || !t.tagId || !t.date) continue;
+    if (t.date >= startStr && t.date <= endStr) {
+      usage[t.tagId] = (usage[t.tagId] || 0) + 1;
+    }
+  }
+  return usage;
+}
+
+// Devuelve el NOMBRE de la mejor etiqueta cuyo nombre empieza por `typed`, o
+// null si no hay ninguna o si `typed` está vacío / ya coincide exactamente.
+function getBestTagSuggestion(typed) {
+  const q = normalizeForAutocomplete(typed);
+  if (!q) return null;
+  const candidates = (tags || []).filter(tag => {
+    if (!tag || !tag.name) return false;
+    const n = normalizeForAutocomplete(tag.name);
+    return n.startsWith(q) && n.length > q.length; // descarta coincidencia exacta total
+  });
+  if (candidates.length === 0) return null;
+  const usage = getRecentTagUsage();
+  candidates.sort((a, b) => {
+    const ua = usage[a.id] || 0, ub = usage[b.id] || 0;
+    if (ub !== ua) return ub - ua;               // más usada primero
+    return a.name.localeCompare(b.name, 'es');   // empate → alfabético
+  });
+  return candidates[0].name;
+}
+
+// Refresca el texto fantasma de un input según lo escrito.
+function updateTitleGhost(input, ghost) {
+  if (!input || !ghost) return;
+  const typed = input.value;
+  // Sin sugerencia si el campo está vacío o el cursor no está al final.
+  const atEnd = input.selectionStart === typed.length && input.selectionEnd === typed.length;
+  const suggestionName = (typed && atEnd) ? getBestTagSuggestion(typed) : null;
+  if (!suggestionName) {
+    ghost.textContent = '';
+    input._acSuggestion = null;
+    return;
+  }
+  // El sufijo conserva las mayúsculas/acentos REALES de la etiqueta.
+  const suffix = suggestionName.slice(typed.length);
+  ghost.innerHTML = '';
+  const typedSpan = document.createElement('span');
+  typedSpan.textContent = typed;             // invisible (color transparent)
+  const suffixSpan = document.createElement('span');
+  suffixSpan.className = 'ac-suffix';
+  suffixSpan.textContent = suffix;           // gris
+  ghost.appendChild(typedSpan);
+  ghost.appendChild(suffixSpan);
+  input._acSuggestion = suggestionName;
+}
+
+// Aplica la sugerencia al input (completa el título). Devuelve true si aplicó.
+function acceptTitleSuggestion(input, ghost) {
+  const name = input && input._acSuggestion;
+  if (!name) return false;
+  input.value = name;
+  input._acSuggestion = null;
+  if (ghost) ghost.textContent = '';
+  // Disparar input para que otros listeners (duración, etc.) reaccionen.
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  // Cursor al final.
+  try { input.setSelectionRange(name.length, name.length); } catch (e) {}
+  return true;
+}
+
+function wireTitleAutocomplete(inputId, ghostId) {
+  const input = document.getElementById(inputId);
+  const ghost = document.getElementById(ghostId);
+  if (!input || !ghost) return;
+
+  const refresh = () => updateTitleGhost(input, ghost);
+
+  input.addEventListener('input', refresh);
+  input.addEventListener('click', refresh);
+  input.addEventListener('keyup', (e) => {
+    // Tras mover el cursor con flechas/inicio/fin, recalcular (puede dejar de estar al final).
+    if (['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) refresh();
+  });
+  input.addEventListener('blur', () => { ghost.textContent = ''; });
+  input.addEventListener('focus', refresh);
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      if (input._acSuggestion) {
+        e.preventDefault();              // no saltar de campo: completar y seguir aquí
+        acceptTitleSuggestion(input, ghost);
+        refresh();                       // por si la etiqueta completada es prefijo de otra
+      }
+    } else if (e.key === 'Enter') {
+      if (input._acSuggestion) {
+        e.preventDefault();              // completar y terminar edición
+        acceptTitleSuggestion(input, ghost);
+        input.blur();
+      }
+    }
+  });
+}
+
+function initTitleAutocomplete() {
+  wireTitleAutocomplete('task-input-title', 'task-title-ghost');
+  wireTitleAutocomplete('timer-input-title', 'timer-title-ghost');
+}
+
+
 // EOF
 

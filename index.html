@@ -392,6 +392,7 @@
         <div class="form-row">
           <div class="form-group task-title-group">
             <div class="title-input-wrapper">
+              <div class="title-autocomplete-ghost" id="task-title-ghost" aria-hidden="true"></div>
               <input type="text" id="task-input-title" placeholder="Título de la tarea" autocomplete="off">
               <button type="button" class="time-clear-btn" id="task-title-clear" title="Borrar título" aria-label="Borrar título">
                 <img src="icons/close.svg" alt="Quitar" width="14" height="14">
@@ -917,6 +918,7 @@
         <!-- Nombre de la tarea (igual que el editor de tareas) -->
         <div class="form-group task-title-group" style="margin: 0; width: 100%;">
           <div class="title-input-wrapper">
+            <div class="title-autocomplete-ghost" id="timer-title-ghost" aria-hidden="true"></div>
             <input type="text" id="timer-input-title" placeholder="Título de la tarea" autocomplete="off">
             <button type="button" class="time-clear-btn" id="timer-title-clear" title="Borrar título" aria-label="Borrar título">
               <img src="icons/close.svg" alt="Quitar" width="14" height="14">
