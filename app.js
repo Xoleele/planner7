@@ -10656,23 +10656,25 @@ function findKeywordConflict(editId) {
 // Auto-categorización: busca la actividad cuya palabra clave esté contenida en
 // el título (normalizado, sin mayúsculas ni acentos) y la asigna en el selector
 // del modal de tarea. Se llama SOLO cuando el usuario termina de editar el
-// título (blur / Enter). Si varias coinciden, gana la palabra clave más larga.
+// título (blur / Enter). Si varias coinciden, gana la palabra clave que aparece
+// más a la izquierda en el título; a igual posición, gana la más larga.
 function autoCategorizeFromTitle() {
   const titleEl = document.getElementById('task-input-title');
   if (!titleEl) return;
   const titleNorm = normalizeForKeyword(titleEl.value);
   if (!titleNorm) return;
 
-  let best = null; // { tagId, length }
+  let best = null; // { tagId, index, length }
   for (const tag of tags) {
     if (tag.id === 'default') continue;
     const keywords = Array.isArray(tag.keywords) ? tag.keywords : [];
     for (const kw of keywords) {
       const kwNorm = normalizeForKeyword(kw);
-      if (kwNorm && titleNorm.includes(kwNorm)) {
-        if (!best || kwNorm.length > best.length) {
-          best = { tagId: tag.id, length: kwNorm.length };
-        }
+      if (!kwNorm) continue;
+      const idx = titleNorm.indexOf(kwNorm);
+      if (idx === -1) continue;
+      if (!best || idx < best.index || (idx === best.index && kwNorm.length > best.length)) {
+        best = { tagId: tag.id, index: idx, length: kwNorm.length };
       }
     }
   }
