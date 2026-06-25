@@ -1207,6 +1207,25 @@
     </div>
   </div>
 
+  <!-- MODAL: CONFIRMAR ELIMINAR TAREA (solo móvil, desde el editor) -->
+  <div id="delete-task-confirm-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Eliminar tarea</h2>
+        <button class="close-modal-btn" data-modal="delete-task-confirm-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <p style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 16px;">&iquest;Est&aacute;s seguro? Esta tarea se eliminar&aacute;.</p>
+        <div class="modal-footer" style="padding: 16px 0 0 0; border-top: 1px solid var(--border-light); background: none; display: flex; justify-content: flex-end; gap: 12px;">
+          <button type="button" class="btn btn-secondary" id="delete-task-confirm-cancel-btn">Cancelar</button>
+          <button type="button" class="btn btn-danger" id="delete-task-confirm-ok-btn">Borrar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Tooltip global para botón de duración -->
   <div id="duration-tooltip"></div>
 

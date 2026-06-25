@@ -7206,6 +7206,15 @@ function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
   if (typeof refreshAlarms === 'function') refreshAlarms();
 }
 
+function openDeleteTaskConfirmModal() {
+  const m = document.getElementById('delete-task-confirm-modal');
+  if (m) m.classList.remove('hidden');
+}
+function closeDeleteTaskConfirmModal() {
+  const m = document.getElementById('delete-task-confirm-modal');
+  if (m) m.classList.add('hidden');
+}
+
 function openConfirmModal(task, occurrenceDate) {
   const confirmModal = document.getElementById('confirm-modal');
   confirmModal.classList.remove('hidden');
@@ -13134,14 +13143,34 @@ function setupEventListeners() {
     if (task.recurrence && task.recurrence.enabled) {
       // Abrir modal de confirmación personalizado para tarea recurrente
       openConfirmModal(task, selectedOccurrenceDate);
+    } else if (isMobile()) {
+      // En móvil, pedir confirmación antes de eliminar una tarea simple.
+      openDeleteTaskConfirmModal();
     } else {
-      // Eliminar tarea simple directamente sin confirmación
+      // Escritorio: eliminar tarea simple directamente sin confirmación.
       pushToUndoStack();
       tasks = tasks.filter(t => t.id !== selectedTaskId);
       saveTasksToStorage();
       closeTaskModal();
       renderWeeklyCalendar();
     }
+  });
+
+  // ── Modal de confirmación de borrado (móvil) ──────────────────────────────
+  const delConfirmCancel = document.getElementById('delete-task-confirm-cancel-btn');
+  const delConfirmOk = document.getElementById('delete-task-confirm-ok-btn');
+  const delConfirmClose = document.querySelector('#delete-task-confirm-modal .close-modal-btn');
+  const closeDelConfirm = () => closeDeleteTaskConfirmModal();
+  if (delConfirmCancel) delConfirmCancel.addEventListener('click', closeDelConfirm);
+  if (delConfirmClose) delConfirmClose.addEventListener('click', closeDelConfirm);
+  if (delConfirmOk) delConfirmOk.addEventListener('click', () => {
+    if (!selectedTaskId) { closeDeleteTaskConfirmModal(); return; }
+    pushToUndoStack();
+    tasks = tasks.filter(t => t.id !== selectedTaskId);
+    saveTasksToStorage();
+    closeDeleteTaskConfirmModal();
+    closeTaskModal();
+    renderWeeklyCalendar();
   });
 
   // Confirm Modal - Cancel button and Close button (X)
