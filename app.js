@@ -2200,8 +2200,9 @@ async function ensurePositions() {
 
 // Adjust position of a task whose time or date has been modified to ensure correct chronological sorting relative to other timed tasks
 function adjustPositionForModifiedTime(modifiedTask) {
+  const dateStr = modifiedTask.date;
   const dayTasks = tasks.filter(t => t.date === modifiedTask.date && t.id !== modifiedTask.id);
-  
+
   dayTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
 
   if (!modifiedTask.startTime) {
@@ -2213,45 +2214,42 @@ function adjustPositionForModifiedTime(modifiedTask) {
     return;
   }
 
-  const timedTasks = dayTasks.filter(t => t.startTime);
+  // Una tarea con hora de inicio se coloca LO MÁS ARRIBA POSIBLE, con una única
+  // restricción: no puede quedar por encima de una tarea NO completada que tenga
+  // una hora de inicio MENOR (más temprana). Las tareas completadas y las de
+  // hora mayor o igual no la frenan. En empate de hora, la nueva queda encima.
+  const isCompletedOnDate = (t) => (t.recurrence && t.recurrence.enabled)
+    ? !!(t.completedOccurrences && t.completedOccurrences.includes(dateStr))
+    : !!t.completed;
 
   let insertAfterTask = null;
-  let insertBeforeTask = null;
-  
-  for (let i = 0; i < timedTasks.length; i++) {
-    if (modifiedTask.startTime.localeCompare(timedTasks[i].startTime) >= 0) {
-      insertAfterTask = timedTasks[i];
-    } else {
-      insertBeforeTask = timedTasks[i];
-      break;
+  for (const t of dayTasks) {
+    if (!t.startTime) continue;
+    if (isCompletedOnDate(t)) continue;
+    if (t.startTime.localeCompare(modifiedTask.startTime) < 0) {
+      insertAfterTask = t; // la última (más abajo) con hora menor manda
     }
   }
 
   const newList = [];
   let inserted = false;
 
-  for (let i = 0; i < dayTasks.length; i++) {
-    const current = dayTasks[i];
-    
-    if (insertBeforeTask && current.id === insertBeforeTask.id && !inserted) {
-      newList.push(modifiedTask);
-      inserted = true;
-    }
-    
+  // Si no hay ninguna tarea pendiente con hora menor, va al principio del día.
+  if (!insertAfterTask) {
+    newList.push(modifiedTask);
+    inserted = true;
+  }
+
+  for (const current of dayTasks) {
     newList.push(current);
-    
-    if (insertAfterTask && current.id === insertAfterTask.id && !insertBeforeTask && !inserted) {
+    if (insertAfterTask && current.id === insertAfterTask.id && !inserted) {
       newList.push(modifiedTask);
       inserted = true;
     }
   }
 
   if (!inserted) {
-    if (insertBeforeTask) {
-      newList.unshift(modifiedTask);
-    } else {
-      newList.push(modifiedTask);
-    }
+    newList.push(modifiedTask);
   }
 
   newList.forEach((t, idx) => {
