@@ -1182,6 +1182,28 @@ input[type="date"][data-force-ddmmyy] {
 }
 .task-modal-check-btn.hidden { display: none; }
 
+/* Footer del panel "Tareas con horario coincidente": los 3 botones comparten el
+   ancho por igual para no desbordar ni cortarse, en escritorio y móvil. */
+.adjacent-modal-footer .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+/* En móvil, ajustar tipografía/espaciado para que los 3 entren cómodos. */
+.mobile-mode .adjacent-modal-footer {
+  gap: 6px;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+.mobile-mode .adjacent-modal-footer .btn {
+  font-size: 12px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
 .delete-btn:hover {
   background-color: #ffe5e5 !important;
 }

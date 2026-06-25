@@ -6822,6 +6822,20 @@ function showWelcomeModal() {
 
 // ─── Checkbox de completado en el modal de tarea ──────────────────────────
 // Determina si una tarea (su ocurrencia, si es recurrente) está completada.
+// Fija el estado de completado de una tarea (su ocurrencia, si es recurrente) al
+// valor `completed` indicado, sin los efectos secundarios de toggleTaskCompletion.
+function applyPendingCompleteState(task, occurrenceDate, completed) {
+  if (!task) return;
+  if (task.recurrence && task.recurrence.enabled) {
+    if (!Array.isArray(task.completedOccurrences)) task.completedOccurrences = [];
+    const i = task.completedOccurrences.indexOf(occurrenceDate);
+    if (completed && i === -1) task.completedOccurrences.push(occurrenceDate);
+    if (!completed && i !== -1) task.completedOccurrences.splice(i, 1);
+  } else {
+    task.completed = !!completed;
+  }
+}
+
 function isTaskCompletedForModal(task, occurrenceDate) {
   if (!task) return false;
   if (task.recurrence && task.recurrence.enabled) {
@@ -6839,8 +6853,8 @@ function renderTaskModalCheckbox(completed) {
   btn.setAttribute('aria-pressed', completed ? 'true' : 'false');
   btn.title = completed ? 'Marcar como pendiente' : 'Marcar como completada';
   btn.innerHTML = completed
-    ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon checked"><rect x="2" y="2" width="20" height="20" rx="4" ry="4" fill="currentColor" stroke="none"/><polyline points="7 12 10 15 17 8" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>'
-    : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon"><rect x="2" y="2" width="20" height="20" rx="4" ry="4"/></svg>';
+    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon checked"><rect x="3" y="3" width="18" height="18" rx="5"/><polyline points="8 12.5 11 15.5 16.5 9"/></svg>'
+    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon"><rect x="2" y="2" width="20" height="20" rx="4" ry="4"/></svg>';
 }
 
 function openTaskModal(taskId = null, occurrenceDate = null) {
@@ -6879,6 +6893,7 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
 
   selectedTaskId = taskId;
   selectedOccurrenceDate = occurrenceDate;
+  pendingCompleteState = null; // se recalcula desde la tarea al abrir
 
   if (selectedTaskId) {
     // EDIT MODE
@@ -7045,6 +7060,11 @@ let pendingEditOccurrenceDate = null;
 // Contexto pendiente para el aviso de tareas adyacentes (horario coincidente).
 let pendingAdjacent = null; // { formData, taskId, occurrenceDate, affectations }
 
+// Estado de completado elegido en el modal de tarea, PENDIENTE de guardar. Es
+// null si el usuario no tocó el checkbox; true/false si lo marcó/desmarcó. Solo
+// se aplica a la tarea cuando se hace click en Guardar (submit del formulario).
+let pendingCompleteState = null;
+
 function openEditRecurringModal() {
   const modal = document.getElementById('edit-recurring-modal');
   if (modal) modal.classList.remove('hidden');
@@ -7156,6 +7176,10 @@ function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
           title, description, tagId, date,
           startTime, endTime, duration, recurrence, alarm
         };
+        // Aplicar el completado PENDIENTE elegido en el modal (si lo hubo).
+        if (pendingCompleteState !== null) {
+          applyPendingCompleteState(tasks[idx], occurrenceDate || tasks[idx].date, pendingCompleteState);
+        }
         if (dateChanged || tasks[idx].position === undefined) {
           adjustPositionForModifiedTime(tasks[idx]);
         }
@@ -13078,19 +13102,17 @@ function setupEventListeners() {
   // (mismo estilo del mensaje de cambio de modo).
   const taskCompleteBtn = document.getElementById('task-complete-btn');
   if (taskCompleteBtn) {
-    taskCompleteBtn.addEventListener('click', async (e) => {
+    taskCompleteBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (!selectedTaskId) return;
-      const task = tasks.find(t => t.id === selectedTaskId);
-      if (!task) return;
-      const occ = selectedOccurrenceDate || task.date;
-      await toggleTaskCompletion(task, occ);
-      // Releer el estado final (toggleTaskCompletion puede revertir, p.ej. si se
-      // cancela el diálogo de hora de fin) y reflejarlo en el icono + toast.
-      const nowCompleted = isTaskCompletedForModal(task, occ);
-      renderTaskModalCheckbox(nowCompleted);
-      showModeToast(nowCompleted ? 'Completado' : 'No completado');
+      // No se guarda nada aquí: solo se alterna el estado PENDIENTE y se repinta
+      // el icono. El cambio real se aplica al guardar la tarea (submit).
+      const current = (pendingCompleteState !== null)
+        ? pendingCompleteState
+        : isTaskCompletedForModal(tasks.find(t => t.id === selectedTaskId), selectedOccurrenceDate);
+      pendingCompleteState = !current;
+      renderTaskModalCheckbox(pendingCompleteState);
     });
   }
 
