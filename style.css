@@ -1309,6 +1309,11 @@ input[type="number"]:focus {
   z-index: 1;
   background: transparent;
 }
+/* La ✕ de borrar debe quedar por ENCIMA del input para recibir el clic
+   (el input se elevó a z-index:1 por el ghost de autocompletado). */
+.title-input-wrapper .time-clear-btn {
+  z-index: 2;
+}
 .title-input-wrapper #task-input-title,
 .title-input-wrapper #timer-input-title {
   flex: 1;
