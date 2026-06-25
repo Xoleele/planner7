@@ -4905,27 +4905,32 @@ function commitCronogramaDragResult(drag) {
     drag.task.date = newDateStr;
   }
 
-  // Re-render INMEDIATO (síncrono) para que la vista refleje el cambio al
-  // instante, sin esperar al guardado. El guardado va en segundo plano: así un
-  // render diferido no puede ejecutarse en medio de un nuevo arrastre y pegar
-  // saltos. (renderCronograma ya se auto-protege si crDrag está activo.)
-  renderCronograma();
-  saveTasksToStorage();
-
   // ── Aviso de tareas adyacentes tras el arrastre ───────────────────────────
-  // El cambio ya se aplicó/guardó. Si la tarea (con horario inicio+fin) quedó
-  // pegada a alguna vecina, ofrecemos ajustarla. "Cancelar" revierte el arrastre.
+  // Si la tarea (con horario inicio+fin) quedó pegada a alguna vecina, NO se
+  // guarda todavía: se muestra el panel y el guardado se difiere hasta que el
+  // usuario decida (Conservar / Modificar). "Cancelar" revierte el arrastre.
+  let adjacentPending = false;
   if (drag.task.startTime && drag.task.endTime && dragOldRange) {
     const affectations = findAdjacentAffectedTasks(drag.task, dragOldRange);
     if (affectations.length > 0) {
+      adjacentPending = true;
       pendingAdjacent = {
         mode: 'drag',
         task: drag.task,
         revert: dragRevert,
         affectations
       };
-      openAdjacentTasksModal(affectations);
     }
+  }
+
+  // Re-render INMEDIATO (síncrono) para que la vista refleje el cambio al
+  // instante. Si hay un aviso pendiente NO guardamos aún (el guardado lo hace
+  // el botón del panel); si no, guardamos en segundo plano como siempre.
+  renderCronograma();
+  if (!adjacentPending) {
+    saveTasksToStorage();
+  } else {
+    openAdjacentTasksModal(pendingAdjacent.affectations);
   }
 }
 
@@ -12913,7 +12918,8 @@ function setupEventListeners() {
 
     // CANCELAR / cerrar.
     //  - modo 'editor': no se había aplicado nada → solo cerrar (vuelve al editor).
-    //  - modo 'drag'  : el arrastre YA se aplicó → revertir al horario original.
+    //  - modo 'drag'  : el arrastre se aplicó en memoria pero NO se guardó →
+    //    revertir la tarea a su horario original (sin persistir el arrastre).
     const onCancel = () => {
       if (pendingAdjacent && pendingAdjacent.mode === 'drag') {
         const { task, revert } = pendingAdjacent;
@@ -12922,7 +12928,8 @@ function setupEventListeners() {
           task.endTime = revert.endTime;
           task.date = revert.date;
           if (revert.duration !== undefined) task.duration = revert.duration;
-          saveTasksToStorage();
+          // El arrastre nunca se guardó; al revertir basta con re-render. No es
+          // necesario guardar (el estado persistido sigue siendo el original).
           if (typeof renderCronograma === 'function') renderCronograma();
           renderWeeklyCalendar();
           if (typeof refreshAlarms === 'function') refreshAlarms();
@@ -12937,7 +12944,9 @@ function setupEventListeners() {
     if (keepBtn) keepBtn.addEventListener('click', () => {
       if (!pendingAdjacent) { closeAdjacentTasksModal(); return; }
       if (pendingAdjacent.mode === 'drag') {
-        // El arrastre ya quedó aplicado y guardado; no hay nada más que hacer.
+        // El arrastre está aplicado en memoria pero NO se había guardado: ahora
+        // que el usuario elige Conservar, se persiste el cambio.
+        saveTasksToStorage();
         closeAdjacentTasksModal();
         return;
       }
@@ -15416,6 +15425,4 @@ function initTitleAutocomplete() {
   wireTitleAutocomplete('timer-input-title', 'timer-title-ghost');
 }
 
-
 // EOF
-
