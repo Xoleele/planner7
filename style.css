@@ -2017,8 +2017,8 @@ input:checked + .slider:before {
 }
 
 #tag-input-name {
-  padding-left: 2px !important;
-  padding-right: 2px !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
 }
 
 /* ─── Campo de palabras clave (categorización automática) ─────────────────── */
@@ -2066,13 +2066,13 @@ input:checked + .slider:before {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
   border: none;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.25);
+  background: #8e8e93;
   color: #ffffff;
-  font-size: 12px;
+  font-size: 19px;
   line-height: 1;
   cursor: pointer;
   padding: 0;
@@ -2080,7 +2080,7 @@ input:checked + .slider:before {
 }
 
 .keyword-chip .keyword-chip-remove:hover {
-  background: rgba(255, 255, 255, 0.45);
+  background: #7c7c80;
 }
 
 .keyword-input {
