@@ -46,6 +46,12 @@ let welcomeShownThisSession = false; // evita repetir el panel de bienvenida al 
 // (En el futuro esto se conectará a una opción de configuración en la interfaz.)
 const AUTO_SET_END_TIME_ON_COMPLETE = true;
 
+// Cuando la tarea YA tiene hora de fin, normalmente se abre un aviso para que el
+// usuario elija (Cancelar / Conservar / Sobrescribir). Con este flag en false,
+// ese aviso NO se muestra: simplemente se conserva la hora de fin original y la
+// tarea se marca como completada sin interrupción. Poner en true para reactivar.
+const ASK_END_TIME_CONFLICT = false;
+
 
 // ─── Duration parser ─────────────────────────────────────────────────────────
 // Detecta una duración escrita al PRINCIPIO de la descripción. Reconoce:
@@ -5523,7 +5529,7 @@ function createTaskCard(task, occurrenceDate) {
     // animación— para que no aparezca con retraso. La decisión se pasa luego a
     // toggleTaskCompletion para que no lo vuelva a abrir.
     let endTimeChoice = null;
-    if (!isCurrentlyCompleted && AUTO_SET_END_TIME_ON_COMPLETE && task.endTime) {
+    if (!isCurrentlyCompleted && AUTO_SET_END_TIME_ON_COMPLETE && task.endTime && ASK_END_TIME_CONFLICT) {
       endTimeChoice = await askEndTimeConflict(task.endTime, currentTimeHHMM());
       if (endTimeChoice === 'cancel') {
         card.style.pointerEvents = '';
@@ -13940,8 +13946,10 @@ async function toggleTaskCompletion(task, occurrenceDate, preResolvedEndTimeChoi
     const nowStr = currentTimeHHMM();
     if (task.endTime) {
       // Ya hay hora de fin: usar la decisión que el llamador ya obtuvo del
-      // diálogo, o abrirlo aquí si no vino precomputada.
-      const choice = preResolvedEndTimeChoice || await askEndTimeConflict(task.endTime, nowStr);
+      // diálogo, o abrirlo aquí si no vino precomputada. Si el aviso está
+      // desactivado, se conserva la hora de fin original sin preguntar.
+      const choice = preResolvedEndTimeChoice
+        || (ASK_END_TIME_CONFLICT ? await askEndTimeConflict(task.endTime, nowStr) : 'keep');
       if (choice === 'cancel') {
         // Revertir la marca de completado y no tocar nada más.
         if (task.recurrence && task.recurrence.enabled) {
