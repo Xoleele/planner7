@@ -5405,5 +5405,11 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   pointer-events: none;
 }
 
+/* Basurero de archivados: oculto siempre (escritorio y móvil). */
+#briefcase-trash-btn { display: none !important; }
 
-
+/* Basurero del editor de tareas en rojo. El icono es un <img>, así que se tiñe
+   con un filtro que lleva el negro del SVG a #ff3b30 (rojo del sistema). */
+#delete-task-btn img {
+  filter: invert(36%) sepia(89%) saturate(3000%) hue-rotate(347deg) brightness(101%) contrast(101%);
+}
