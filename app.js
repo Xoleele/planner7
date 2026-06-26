@@ -340,6 +340,18 @@ function showAuthScreen() {
         </div>
         <div id="auth-login-error" class="auth-error hidden"></div>
         <button type="submit" class="auth-submit-btn" id="auth-login-btn"><span>Entrar</span></button>
+        <button type="button" class="auth-forgot-link" id="auth-forgot-link">¿Olvidaste tu contraseña?</button>
+      </form>
+      <form id="auth-reset-form" class="auth-form hidden">
+        <p class="auth-reset-intro">Introduce tu correo y te enviaremos un enlace para restablecer tu contraseña.</p>
+        <div class="auth-field">
+          <label>Correo electrónico</label>
+          <input type="email" id="auth-reset-email" placeholder="tu@email.com" required autocomplete="email">
+        </div>
+        <div id="auth-reset-error" class="auth-error hidden"></div>
+        <div id="auth-reset-success" class="auth-success hidden"></div>
+        <button type="submit" class="auth-submit-btn" id="auth-reset-btn"><span>Enviar enlace</span></button>
+        <button type="button" class="auth-forgot-link" id="auth-reset-back">Volver a iniciar sesión</button>
       </form>
       <form id="auth-signup-form" class="auth-form hidden">
         <div class="auth-field">
@@ -374,6 +386,61 @@ function showAuthScreen() {
       document.getElementById('auth-signup-error').classList.add('hidden');
       document.getElementById('auth-signup-success').classList.add('hidden');
     });
+  });
+
+  // Mostrar formulario de recuperación de contraseña
+  const loginForm = document.getElementById('auth-login-form');
+  const resetForm = document.getElementById('auth-reset-form');
+  const tabsEl = screen.querySelector('.auth-tabs');
+  document.getElementById('auth-forgot-link').addEventListener('click', () => {
+    loginForm.classList.add('hidden');
+    tabsEl.classList.add('hidden');
+    resetForm.classList.remove('hidden');
+    document.getElementById('auth-reset-error').classList.add('hidden');
+    document.getElementById('auth-reset-success').classList.add('hidden');
+    // Precargar el correo si ya se escribió en el login
+    document.getElementById('auth-reset-email').value = document.getElementById('auth-login-email').value.trim();
+  });
+  document.getElementById('auth-reset-back').addEventListener('click', () => {
+    resetForm.classList.add('hidden');
+    tabsEl.classList.remove('hidden');
+    loginForm.classList.remove('hidden');
+  });
+
+  // Enviar enlace de recuperación
+  resetForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('auth-reset-btn');
+    const errorEl = document.getElementById('auth-reset-error');
+    const successEl = document.getElementById('auth-reset-success');
+    errorEl.classList.add('hidden');
+    successEl.classList.add('hidden');
+    btn.disabled = true;
+    btn.querySelector('span').textContent = 'Enviando…';
+
+    let errorObj = null;
+    try {
+      const { error } = await sb.auth.resetPasswordForEmail(
+        document.getElementById('auth-reset-email').value.trim(),
+        { redirectTo: window.location.origin + window.location.pathname }
+      );
+      errorObj = error;
+    } catch (err) {
+      console.error(err);
+      errorObj = { message: 'Error de conexión o seguridad. Si estás usando file://, abre la app mediante un servidor local (npm run dev).' };
+    }
+
+    if (errorObj) {
+      errorEl.textContent = translateAuthError(errorObj.message);
+      errorEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.querySelector('span').textContent = 'Enviar enlace';
+    } else {
+      successEl.textContent = 'Te enviamos un enlace para restablecer tu contraseña. Revisa tu correo (y la carpeta de spam).';
+      successEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.querySelector('span').textContent = 'Enviar enlace';
+    }
   });
 
   // Login
@@ -459,12 +526,76 @@ function hideAuthScreen() {
   }
 }
 
+// Formulario para fijar la nueva contraseña tras llegar desde el email de recuperación
+function showResetPasswordForm() {
+  const card = document.querySelector('#auth-screen .auth-card');
+  if (!card) return;
+  card.innerHTML = `
+    <div class="auth-logo">
+      <img src="icons/logo svg.png" alt="Planner7" height="28" style="width: auto;">
+    </div>
+    <form id="auth-newpass-form" class="auth-form">
+      <p class="auth-reset-intro">Elige tu nueva contraseña.</p>
+      <div class="auth-field">
+        <label>Nueva contraseña</label>
+        <input type="password" id="auth-newpass-password" placeholder="Mínimo 6 caracteres" required minlength="6" autocomplete="new-password">
+      </div>
+      <div class="auth-field">
+        <label>Confirmar contraseña</label>
+        <input type="password" id="auth-newpass-confirm" placeholder="Repite la contraseña" required minlength="6" autocomplete="new-password">
+      </div>
+      <div id="auth-newpass-error" class="auth-error hidden"></div>
+      <div id="auth-newpass-success" class="auth-success hidden"></div>
+      <button type="submit" class="auth-submit-btn" id="auth-newpass-btn"><span>Guardar contraseña</span></button>
+    </form>
+  `;
+  document.getElementById('auth-newpass-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('auth-newpass-btn');
+    const errorEl = document.getElementById('auth-newpass-error');
+    const successEl = document.getElementById('auth-newpass-success');
+    const password = document.getElementById('auth-newpass-password').value;
+    const confirm = document.getElementById('auth-newpass-confirm').value;
+    errorEl.classList.add('hidden');
+    successEl.classList.add('hidden');
+    if (password !== confirm) {
+      errorEl.textContent = 'Las contraseñas no coinciden.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    btn.disabled = true;
+    btn.querySelector('span').textContent = 'Guardando…';
+
+    let errorObj = null;
+    try {
+      const { error } = await sb.auth.updateUser({ password });
+      errorObj = error;
+    } catch (err) {
+      console.error(err);
+      errorObj = { message: 'Error de conexión o seguridad.' };
+    }
+
+    if (errorObj) {
+      errorEl.textContent = translateAuthError(errorObj.message);
+      errorEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.querySelector('span').textContent = 'Guardar contraseña';
+    } else {
+      successEl.textContent = '¡Contraseña actualizada! Entrando…';
+      successEl.classList.remove('hidden');
+    }
+  });
+}
+
 function translateAuthError(msg) {
   const map = {
     'Invalid login credentials': 'Correo o contraseña incorrectos.',
     'Email not confirmed': 'Confirma tu correo antes de iniciar sesión.',
     'User already registered': 'Ya existe una cuenta con ese correo.',
     'Password should be at least 6 characters': 'La contraseña debe tener al menos 6 caracteres.',
+    'Unable to validate email address: invalid format': 'El formato del correo no es válido.',
+    'For security purposes, you can only request this after 60 seconds.': 'Por seguridad, espera 60 segundos antes de volver a solicitarlo.',
+    'New password should be different from the old password.': 'La nueva contraseña debe ser distinta de la anterior.',
   };
   return map[msg] || msg;
 }
@@ -636,6 +767,11 @@ async function initAuth() {
     }, 2200);
   }
   sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      showAuthScreen();
+      showResetPasswordForm();
+      return;
+    }
     if (event === 'SIGNED_IN' && session?.user) {
       // Supabase re-emite SIGNED_IN (revalidacion de token) cada vez que la
       // pestaña/app vuelve a primer plano. Si ya estamos dentro con el mismo
