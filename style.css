@@ -1515,9 +1515,26 @@ input:checked + .slider:before {
 .recurrence-toggle-wrapper {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   user-select: none;
 }
+
+.recurrence-toggle-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Bloque "Completado:" + checkbox, alineado a la derecha de la fila de
+   "¿Se repite?". Se muestra solo al editar una tarea existente. */
+.task-complete-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-complete-wrapper.hidden { display: none; }
 
 .recurrence-label-text {
   font-size: 13.5px;

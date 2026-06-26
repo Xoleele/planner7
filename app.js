@@ -7080,6 +7080,10 @@ function isTaskCompletedForModal(task, occurrenceDate) {
 function renderTaskModalCheckbox(completed) {
   const btn = document.getElementById('task-complete-btn');
   if (!btn) return;
+  // El botón nunca debe quedar oculto: su visibilidad la controla el wrapper
+  // (#task-complete-wrapper). Quitamos cualquier .hidden heredada para que no
+  // herede el display:none de la versión que vivía en el encabezado del modal.
+  btn.classList.remove('hidden');
   btn.classList.toggle('is-checked', !!completed);
   btn.setAttribute('aria-pressed', completed ? 'true' : 'false');
   btn.title = completed ? 'Marcar como pendiente' : 'Marcar como completada';
@@ -7131,8 +7135,8 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
     modalTitle.textContent = 'Editar tarea';
     deleteBtn.classList.remove('hidden');
     // Checkbox de completado: visible solo al editar una tarea existente.
-    const completeBtn = document.getElementById('task-complete-btn');
-    if (completeBtn) completeBtn.classList.remove('hidden');
+    const completeWrapper = document.getElementById('task-complete-wrapper');
+    if (completeWrapper) completeWrapper.classList.remove('hidden');
 
     const task = tasks.find(t => t.id === selectedTaskId);
     if (!task) return;
@@ -7218,8 +7222,8 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
     modalTitle.textContent = 'Nueva tarea';
     deleteBtn.classList.add('hidden');
     // Tarea nueva: aún no se puede completar; ocultar el checkbox.
-    const completeBtnNew = document.getElementById('task-complete-btn');
-    if (completeBtnNew) completeBtnNew.classList.add('hidden');
+    const completeWrapperNew = document.getElementById('task-complete-wrapper');
+    if (completeWrapperNew) completeWrapperNew.classList.add('hidden');
     
     // Set date to clicked column date, or today
     if (selectedDayDate === null) {
