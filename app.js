@@ -2578,34 +2578,45 @@ function renderTasksToContainer(dayTasks, tasksContainer, dateStr) {
 
   // Render completed tasks inside a collapsible section at the bottom
   if (completedTasks.length > 0) {
+    const completedWrapper = buildCompletedWrapper(dateStr, completedTasks.length, pendingTasks.length > 0);
+    const completedContainer = completedWrapper.querySelector('.completed-tasks-container');
+
+    completedTasks.forEach(task => {
+      const taskCard = createTaskCard(task, dateStr);
+      completedContainer.appendChild(taskCard);
+    });
+
+    tasksContainer.appendChild(completedWrapper);
+  }
+}
+
+// Construye el wrapper colapsable de "Completadas" (cabecera + contenedor) con
+// su listener de toggle, SIN tarjetas dentro. Se usa tanto en el render normal
+// como al mover una tarjeta in-place (móvil) para no reconstruir el día entero.
+function buildCompletedWrapper(dateStr, completedCount, hasPending) {
     const completedWrapper = document.createElement('div');
-    completedWrapper.className = 'completed-tasks-wrapper' + (pendingTasks.length > 0 ? ' has-pending' : '');
-    
+    completedWrapper.className = 'completed-tasks-wrapper' + (hasPending ? ' has-pending' : '');
+
     const toggleBtn = document.createElement('button');
     toggleBtn.type = 'button';
     toggleBtn.className = 'completed-tasks-toggle';
-    
+
     const isExpanded = completedTasksExpanded;
     if (isExpanded) {
       completedWrapper.classList.add('expanded');
     }
-    
+
     toggleBtn.innerHTML = `
       <img src="icons/chevron-down.svg" alt="" width="12" height="12" class="completed-toggle-arrow ${isExpanded ? 'rotated' : ''}">
-      <span class="completed-toggle-text">Completadas (${completedTasks.length})</span>
+      <span class="completed-toggle-text">Completadas (${completedCount})</span>
     `;
-    
+
     const completedContainer = document.createElement('div');
     completedContainer.className = 'completed-tasks-container';
     if (!isExpanded) {
       completedContainer.style.display = 'none';
     }
-    
-    completedTasks.forEach(task => {
-      const taskCard = createTaskCard(task, dateStr);
-      completedContainer.appendChild(taskCard);
-    });
-    
+
     toggleBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       completedTasksExpanded = !completedTasksExpanded;
@@ -2767,7 +2778,50 @@ function renderTasksToContainer(dayTasks, tasksContainer, dateStr) {
     
     completedWrapper.appendChild(toggleBtn);
     completedWrapper.appendChild(completedContainer);
-    tasksContainer.appendChild(completedWrapper);
+    return completedWrapper;
+}
+
+// Mueve UNA tarjeta entre la sección de pendientes y el wrapper de "Completadas"
+// directamente en el DOM ya renderizado, sin vaciar ni reconstruir el día. Esto
+// elimina el parpadeo blanco en móvil al marcar/desmarcar una tarea.
+//   container    → .tasks-container del día
+//   card         → la tarjeta a mover (ya con su clase .completed actualizada)
+//   nowCompleted → true si pasó a completada, false si pasó a pendiente
+function moveTaskCardInPlace(container, card, dateStr, nowCompleted) {
+  if (!container || !card) return;
+  let wrapper = container.querySelector('.completed-tasks-wrapper');
+
+  if (nowCompleted) {
+    // Asegurar que existe el wrapper de completadas; crearlo si no.
+    if (!wrapper) {
+      const hasPending = !!container.querySelector(':scope > .task-card');
+      wrapper = buildCompletedWrapper(dateStr, 0, hasPending);
+      container.appendChild(wrapper);
+    }
+    const ctr = wrapper.querySelector('.completed-tasks-container');
+    // Mover al inicio de las completadas (más recientemente completada arriba).
+    ctr.insertBefore(card, ctr.firstChild);
+  } else {
+    // Devolver la tarjeta a la zona de pendientes, antes del wrapper.
+    container.insertBefore(card, wrapper || null);
+    // Si ya no quedan completadas, eliminar el wrapper.
+    if (wrapper) {
+      const ctr = wrapper.querySelector('.completed-tasks-container');
+      if (!ctr.querySelector('.task-card')) {
+        wrapper.remove();
+        wrapper = null;
+      }
+    }
+  }
+
+  // Actualizar contador y flag has-pending del wrapper restante.
+  if (wrapper) {
+    const ctr = wrapper.querySelector('.completed-tasks-container');
+    const count = ctr.querySelectorAll('.task-card').length;
+    const textEl = wrapper.querySelector('.completed-toggle-text');
+    if (textEl) textEl.textContent = `Completadas (${count})`;
+    const hasPending = !!container.querySelector(':scope > .task-card');
+    wrapper.classList.toggle('has-pending', hasPending);
   }
 }
 
@@ -5931,7 +5985,7 @@ function createTaskCard(task, occurrenceDate) {
             top: el.getBoundingClientRect().top
           })).filter(s => s.key !== null);
 
-          toggleTaskCompletion(task, occurrenceDate, endTimeChoice);
+          toggleTaskCompletion(task, occurrenceDate, endTimeChoice, { card, container });
 
           requestAnimationFrame(() => {
             belowSnap.forEach(({ key, top }) => {
@@ -5967,7 +6021,7 @@ function createTaskCard(task, occurrenceDate) {
           const completedWrapper = container.querySelector('.completed-tasks-wrapper');
           const wrapperTopBefore = completedWrapper ? completedWrapper.getBoundingClientRect().top : null;
 
-          toggleTaskCompletion(task, occurrenceDate, endTimeChoice);
+          toggleTaskCompletion(task, occurrenceDate, endTimeChoice, { card, container });
 
           requestAnimationFrame(() => {
             // Animar completed-tasks-wrapper bajando
@@ -14668,7 +14722,7 @@ function askEndTimeConflict(originalEnd, currentEnd) {
 // preResolvedEndTimeChoice (opcional): si el llamador ya mostró el diálogo de
 // conflicto de hora de fin y obtuvo la decisión del usuario, la pasa aquí para
 // no volver a abrirlo. Valores: 'keep' | 'overwrite' (o null si no aplica).
-async function toggleTaskCompletion(task, occurrenceDate, preResolvedEndTimeChoice = null) {
+async function toggleTaskCompletion(task, occurrenceDate, preResolvedEndTimeChoice = null, inPlaceCardCtx = null) {
   pushToUndoStack();
 
   let nowCompleted;
@@ -14709,6 +14763,22 @@ async function toggleTaskCompletion(task, occurrenceDate, preResolvedEndTimeChoi
         } else {
           task.completed = false;
         }
+        // En móvil con contexto in-place, revertir solo el estado visual de la
+        // tarjeta sin reconstruir el día (evita el parpadeo blanco).
+        if (inPlaceCardCtx && inPlaceCardCtx.card && isMobile()) {
+          const c = inPlaceCardCtx.card;
+          c.classList.remove('completed');
+          const cb = c.querySelector('.task-check-btn');
+          if (cb) {
+            cb.title = 'Marcar como completada';
+            cb.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon">
+          <rect x="2" y="2" width="20" height="20" rx="4" ry="4"/>
+        </svg>`;
+          }
+          c.style.pointerEvents = '';
+          return;
+        }
         renderWeeklyCalendar();
         return;
       }
@@ -14743,7 +14813,62 @@ async function toggleTaskCompletion(task, occurrenceDate, preResolvedEndTimeChoi
   }
 
   saveTasksToStorage();
+
+  // En móvil, si el llamador pasó el contexto de la tarjeta, movemos esa única
+  // tarjeta entre pendientes/completadas in-place y dejamos el resto del feed
+  // intacto. Así evitamos el vaciado+reconstrucción del día que provoca el
+  // parpadeo blanco. Sincronizamos la firma del día para que un updateMobileFeedTasks
+  // posterior (p. ej. al volver de la nube) no lo reconstruya innecesariamente.
+  if (inPlaceCardCtx && inPlaceCardCtx.card && inPlaceCardCtx.container && isMobile()) {
+    moveTaskCardInPlace(inPlaceCardCtx.container, inPlaceCardCtx.card, dateStr, nowCompleted);
+    const dayCol = inPlaceCardCtx.container.closest('.mobile-feed-day');
+    if (dayCol) refreshMobileDaySignature(dayCol, dateStr);
+    // Refrescar indicadores del día (duración, botones) sin tocar las tarjetas.
+    updateMobileDayMeta(dayCol, dateStr);
+    renderBriefcaseTasks();
+    return;
+  }
+
   renderWeeklyCalendar();
+}
+
+// Recalcula la firma de tareas de un día del feed móvil a partir del estado
+// actual de datos, para mantener sincronizado el caché que evita reconstrucciones.
+function refreshMobileDaySignature(dayCol, dateStr) {
+  if (!dayCol) return;
+  const date = new Date(dateStr + 'T00:00:00');
+  const dayTasks = tasks.filter(task => {
+    if (!checkTaskOccurrence(task, date)) return false;
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    return tag ? tag.visible !== false : true;
+  });
+  sortDayTasks(dayTasks, dateStr);
+  dayCol.dataset.tasksSignature = dayTasks.map(t => {
+    const done = (t.recurrence && t.recurrence.enabled)
+      ? !!(t.completedOccurrences && t.completedOccurrences.includes(dateStr))
+      : !!t.completed;
+    return [t.id, done ? '1' : '0', t.title || '', t.startTime || '',
+            t.endTime || '', t.tagId || '', t.alarm ? 'a' : ''].join('~');
+  }).join('|');
+}
+
+// Actualiza solo los indicadores de cabecera de un día móvil (notas, duración,
+// botones copiar/limpiar) sin tocar el DOM de las tarjetas.
+function updateMobileDayMeta(dayCol, dateStr) {
+  if (!dayCol) return;
+  const durationBtn2 = dayCol.querySelector('.duration-day-btn');
+  if (durationBtn2) {
+    const pendingMins2 = getDurationForDay(dateStr, false);
+    const completedMins2 = getDurationForDay(dateStr, true);
+    if (pendingMins2 > 0 || completedMins2 > 0) {
+      durationBtn2.classList.add('has-duration');
+      durationBtn2.dataset.tooltip = buildDurationTooltip(dateStr);
+    } else {
+      durationBtn2.classList.remove('has-duration');
+      durationBtn2.dataset.tooltip = 'Sin tareas con duración definida';
+    }
+  }
+  updateDayHeaderButtonsVisibility(dayCol, dateStr);
 }
 
 // ─── Feed horizontal de semana (solo móvil) ──────────────────────────────────
