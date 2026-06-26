@@ -1136,7 +1136,7 @@ function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetCo
     if (afterEl) { const idx = dayTasks.findIndex(t => t.id === afterEl.dataset.id); if (idx !== -1) insertIndex = idx; }
     dayTasks.splice(insertIndex, 0, standalone);
 
-    if (!validateProposedOrder(dayTasks, targetDateStr)) {
+    if (!resolveTimedReorderOnDrop(dayTasks, standalone, targetDateStr, sourceDateStr)) {
       renderWeeklyCalendar();
       return;
     }
@@ -1180,7 +1180,7 @@ function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetCo
     if (afterEl) { const idx = dayTasks.findIndex(t => t.id === afterEl.dataset.id); if (idx !== -1) insertIndex = idx; }
     dayTasks.splice(insertIndex, 0, task);
 
-    if (!validateProposedOrder(dayTasks, targetDateStr)) {
+    if (!resolveTimedReorderOnDrop(dayTasks, task, targetDateStr, sourceDateStr)) {
       // Revertir cambios en la tarea original
       task.date = originalDate;
       if (task.recurrence && originalRecurrenceDays) {
@@ -1248,8 +1248,8 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
 
       dayTasks.splice(insertIndex, 0, clonedTask);
 
-      // Validar orden propuesto
-      if (!validateProposedOrder(dayTasks, targetDateStr)) {
+      // Validar / auto-ordenar orden propuesto
+      if (!resolveTimedReorderOnDrop(dayTasks, clonedTask, targetDateStr, sourceDateStr)) {
         renderWeeklyCalendar();
         return;
       }
@@ -1329,8 +1329,8 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
 
       dayTasks.splice(insertIndex, 0, task);
 
-      // Validar orden propuesto
-      if (!validateProposedOrder(dayTasks, targetDateStr)) {
+      // Validar / auto-ordenar orden propuesto
+      if (!resolveTimedReorderOnDrop(dayTasks, task, targetDateStr, sourceDateStr)) {
         // Revertir cambios en la tarea
         task.date = originalDate;
         if (task.recurrence && originalRecurrenceDays) {
@@ -2281,6 +2281,42 @@ function isChronologicalOrderValid(taskList) {
       lastTime = t.startTime;
     }
   }
+  return true;
+}
+
+// Resuelve el orden al SOLTAR una tarea en un día durante un movimiento ENTRE
+// DÍAS. Si la tarea movida tiene hora de inicio, en lugar de rechazar el drop
+// cuando rompe el orden cronológico, reordena automáticamente las tareas CON
+// hora entre sí (dejando las tareas SIN hora en la posición manual donde el
+// usuario las dejó) y acepta siempre el drop. Para movimientos dentro del mismo
+// día, o cuando la tarea movida no tiene hora, conserva el comportamiento
+// original de validación estricta.
+//
+// `dayTasks` se modifica IN-PLACE con el orden final cuando se reordena.
+// Devuelve true si el drop se acepta, false si debe rechazarse.
+function resolveTimedReorderOnDrop(dayTasks, movedTask, targetDateStr, sourceDateStr) {
+  const isCrossDay = sourceDateStr && sourceDateStr !== targetDateStr;
+
+  // Solo auto-ordenamos al mover entre días una tarea que tiene hora de inicio.
+  // En cualquier otro caso, mantenemos la validación estricta de siempre.
+  if (!AUTO_SORT_TIMED_TASKS || !isCrossDay || !movedTask || !movedTask.startTime) {
+    return validateProposedOrder(dayTasks, targetDateStr);
+  }
+
+  const isCompleted = (t) => (t.recurrence && t.recurrence.enabled)
+    ? !!(t.completedOccurrences && t.completedOccurrences.includes(targetDateStr))
+    : !!t.completed;
+
+  // Separar pendientes y completadas (las completadas siempre quedan al final),
+  // y dentro de cada grupo reordenar solo las tareas con hora, sin tocar la
+  // posición relativa de las que no tienen hora.
+  const pending = dayTasks.filter(t => !isCompleted(t));
+  const completed = dayTasks.filter(t => isCompleted(t));
+  autoSortTimedTasksInGroup(pending);
+  autoSortTimedTasksInGroup(completed);
+
+  dayTasks.length = 0;
+  dayTasks.push(...pending, ...completed);
   return true;
 }
 
