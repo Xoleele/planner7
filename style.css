@@ -5435,7 +5435,7 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .tag-item.drag-after-indicator::after {
   content: '';
   position: absolute;
-  bottom: -5px;
+  bottom: -5px; /* dentro del gap natural entre actividades */
   left: 2px;
   right: 2px;
   height: 3px;
@@ -5455,5 +5455,6 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   filter: invert(36%) sepia(89%) saturate(3000%) hue-rotate(347deg) brightness(101%) contrast(101%);
 }
 
-/* Checkbox de completado del editor de tareas: oculto. */
-#task-complete-btn { display: none !important; }
+/* Checkbox de completado del editor de tareas: visible (su tamaño y forma
+   los define .task-modal-check-btn). */
+#task-complete-btn { display: flex !important; }
