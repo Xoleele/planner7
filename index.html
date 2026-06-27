@@ -418,6 +418,23 @@
             </div>
           </div>
         </div>
+        <!-- Estado del objetivo -->
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label for="objetivo-status-toggle">Estado</label>
+          <input type="hidden" id="objetivo-input-status" value="sin_comenzar">
+          <div class="objetivo-status-toggle" id="objetivo-status-toggle" role="group" aria-label="Estado del objetivo">
+            <button type="button" class="status-option is-active" data-status="sin_comenzar">Sin comenzar</button>
+            <button type="button" class="status-option" data-status="en_proceso">En proceso</button>
+            <button type="button" class="status-option" data-status="finalizado">Finalizado</button>
+            <button type="button" class="status-option" data-status="cancelado">Cancelado</button>
+            <button type="button" class="status-option" data-status="pausado">Pausado</button>
+          </div>
+        </div>
+        <!-- Descripción del objetivo -->
+        <div class="form-group" style="margin-bottom: 4px;">
+          <label for="objetivo-input-description">Descripción</label>
+          <textarea id="objetivo-input-description" placeholder="Añade una descripción (opcional)" rows="3"></textarea>
+        </div>
         <!-- Fila de Fechas de Inicio y Término -->
         <div class="form-row" style="display: flex; gap: 16px; margin-top: 16px;">
           <div class="form-group flex-1 task-date-group">

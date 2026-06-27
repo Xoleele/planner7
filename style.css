@@ -1119,6 +1119,40 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   width: 420px;
 }
 
+/* Toggle de Estado (modal de objetivos) */
+.objetivo-status-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.objetivo-status-toggle .status-option {
+  flex: 1 1 auto;
+  min-width: fit-content;
+  padding: 7px 12px;
+  font-family: var(--font-primary);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.objetivo-status-toggle .status-option:hover {
+  border-color: var(--text-muted);
+  color: var(--text-main);
+}
+
+.objetivo-status-toggle .status-option.is-active {
+  background-color: #000;
+  border-color: #000;
+  color: #fff;
+}
+
 /* Modal Header */
 .modal-header {
   display: flex;

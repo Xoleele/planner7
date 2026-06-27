@@ -1116,6 +1116,17 @@ function updateObjetivoDateConstraints() {
   }
 }
 
+function setObjetivoStatus(status) {
+  const statusInput = document.getElementById('objetivo-input-status');
+  const toggle = document.getElementById('objetivo-status-toggle');
+  if (statusInput) statusInput.value = status;
+  if (toggle) {
+    toggle.querySelectorAll('.status-option').forEach(btn => {
+      btn.classList.toggle('is-active', btn.dataset.status === status);
+    });
+  }
+}
+
 function openObjetivoModal(id, targetLevel = 1, parentId = null) {
   editingObjetivoId = id;
   editingParentGoalId = parentId;
@@ -1125,12 +1136,15 @@ function openObjetivoModal(id, targetLevel = 1, parentId = null) {
   const deleteBtn = document.getElementById('delete-objetivo-btn');
   const startInput = document.getElementById('objetivo-input-start-date');
   const endInput = document.getElementById('objetivo-input-end-date');
+  const descInput = document.getElementById('objetivo-input-description');
 
   if (id === null) {
     modalTitle.textContent = targetLevel > 1 ? 'Nuevo sub-objetivo' : 'Nuevo objetivo';
     input.value = '';
     startInput.value = '';
     endInput.value = '';
+    if (descInput) descInput.value = '';
+    setObjetivoStatus('sin_comenzar');
     deleteBtn.classList.add('hidden');
   } else {
     modalTitle.textContent = targetLevel > 1 ? 'Editar sub-objetivo' : 'Editar objetivo';
@@ -1139,6 +1153,8 @@ function openObjetivoModal(id, targetLevel = 1, parentId = null) {
     input.value = obj ? obj.title : '';
     startInput.value = (obj && obj.startDate) ? obj.startDate : '';
     endInput.value = (obj && obj.endDate) ? obj.endDate : '';
+    if (descInput) descInput.value = (obj && obj.description) ? obj.description : '';
+    setObjetivoStatus((obj && obj.status) ? obj.status : 'sin_comenzar');
     deleteBtn.classList.remove('hidden');
   }
 
@@ -1170,6 +1186,10 @@ function setupObjetivosEventListeners() {
 
     const startVal = startInput.value || null;
     const endVal = endInput.value || null;
+    const descInput = document.getElementById('objetivo-input-description');
+    const statusInput = document.getElementById('objetivo-input-status');
+    const descVal = descInput ? descInput.value.trim() : '';
+    const statusVal = statusInput ? statusInput.value : 'sin_comenzar';
 
     if (startVal && endVal && endVal < startVal) {
       alert('La fecha de fin no puede ser anterior a la fecha de inicio.');
@@ -1188,6 +1208,8 @@ function setupObjetivosEventListeners() {
             title: title,
             startDate: startVal,
             endDate: endVal,
+            description: descVal,
+            status: statusVal,
             subgoals: []
           });
         } else {
@@ -1196,6 +1218,8 @@ function setupObjetivosEventListeners() {
             sub.title = title;
             sub.startDate = startVal;
             sub.endDate = endVal;
+            sub.description = descVal;
+            sub.status = statusVal;
           }
         }
       }
@@ -1207,6 +1231,8 @@ function setupObjetivosEventListeners() {
           title: title,
           startDate: startVal,
           endDate: endVal,
+          description: descVal,
+          status: statusVal,
           subgoals: []
         };
         objetivos.push(newObj);
@@ -1216,6 +1242,8 @@ function setupObjetivosEventListeners() {
           obj.title = title;
           obj.startDate = startVal;
           obj.endDate = endVal;
+          obj.description = descVal;
+          obj.status = statusVal;
         }
       }
     }
@@ -1268,6 +1296,17 @@ function setupObjetivosEventListeners() {
     updateDateOverlay(endInput);
     updateObjetivoDateConstraints();
   });
+
+  // Toggle de Estado
+  const statusToggle = document.getElementById('objetivo-status-toggle');
+  if (statusToggle) {
+    statusToggle.addEventListener('click', (e) => {
+      const btn = e.target.closest('.status-option');
+      if (!btn) return;
+      e.preventDefault();
+      setObjetivoStatus(btn.dataset.status);
+    });
+  }
 
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -16654,7 +16693,6 @@ function acceptTitleSuggestion(input, ghost) {
   if (!name) return false;
   input.value = name;
   input._acSuggestion = null;
-  if (ghost) ghost.textContent = '';
   // Disparar input para que otros listeners (duración, etc.) reaccionen.
   input.dispatchEvent(new Event('input', { bubbles: true }));
   // Cursor al final.
