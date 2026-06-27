@@ -4666,6 +4666,13 @@ body.cronograma-active .planner-grid { display: none; }
    dejando ambos lados semicirculares. */
 .cr-task-block.cr-block-pill {
   border-radius: 999px;
+  /* Estas tareas solo muestran color (sin texto), así que el padding y el
+     min-height del bloque normal no aportan nada y, al sumar ~24px, igualaban
+     visualmente todas las píldoras. Los anulamos para que la altura del bloque
+     corresponda a su duración real (15–25 px = 15–25 min). */
+  padding-top: 0;
+  padding-bottom: 0;
+  min-height: 0;
 }
 
 
