@@ -5512,14 +5512,24 @@ function crChangeWeekDuringDrag(dir) {
 // deslizamiento, SIN depender de un arrastre. Lo usan las flechas del teclado.
 function crSlideWeek(dir) {
   if (crHorizAnimating) return;
+  // Actualiza el navegador de tiempo (cabecera) con el nuevo rango de días, igual
+  // que el modo lista de tareas. En escritorio el horario muestra la semana
+  // completa, así que se usa el rango (lunes–domingo).
+  const updateCrWeekLabel = () => {
+    if (isMobile()) return; // en móvil el label lo gestiona el flujo táctil
+    const label = document.getElementById('week-range-label');
+    if (label) label.textContent = formatWeekRange(currentWeekStart);
+  };
   crAnimateWeekSlide(dir, {
     rerender: () => {
       currentWeekStart = addDays(currentWeekStart, dir * 7);
       renderCronograma();
+      updateCrWeekLabel();
     },
     fallback: () => {
       currentWeekStart = addDays(currentWeekStart, dir * 7);
       renderCronograma();
+      updateCrWeekLabel();
     },
     onSettle: null
   });
