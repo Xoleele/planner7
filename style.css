@@ -1119,38 +1119,49 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   width: 420px;
 }
 
-/* Toggle de Estado (modal de objetivos) */
-.objetivo-status-toggle {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.objetivo-status-toggle .status-option {
-  flex: 1 1 auto;
-  min-width: fit-content;
-  padding: 7px 12px;
+/* Desplegable de Estado (modal de objetivos) */
+.objetivo-status-select {
+  width: 100%;
+  padding: 9px 12px;
   font-family: var(--font-primary);
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--text-main);
   background-color: var(--bg-card);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  white-space: nowrap;
-  transition: all var(--transition-fast);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 34px;
+  transition: border-color var(--transition-fast);
 }
 
-.objetivo-status-toggle .status-option:hover {
-  border-color: var(--text-muted);
-  color: var(--text-main);
+.objetivo-status-select:focus {
+  outline: none;
+  border-color: var(--border-focus);
 }
 
-.objetivo-status-toggle .status-option.is-active {
-  background-color: #000;
-  border-color: #000;
-  color: #fff;
+/* Fechas automáticas (objetivos con sub-objetivos): solo lectura */
+.objetivo-dates-auto-note {
+  font-size: 12px;
+  color: var(--text-muted, #86868b);
+  margin-top: 14px;
+  margin-bottom: -2px;
+}
+
+.objetivo-dates-locked input[type="date"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #f5f5f7;
+}
+
+/* Celdas de fecha calculadas en la lista (atenuadas) */
+.goal-date-col.goal-date-auto {
+  color: var(--text-muted, #86868b);
 }
 
 /* Modal Header */
@@ -5621,6 +5632,78 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .objetivos-content-placeholder {
   flex: 1;
 }
+
+/* ===== Carta Gantt de Objetivos ===== */
+.objetivos-gantt {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 16px;
+  box-sizing: border-box;
+}
+
+/* Cabecera con la línea del tiempo */
+.gantt-timeline-header {
+  position: relative;
+  height: 28px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.gantt-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted, #86868b);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+/* Línea vertical sutil de cada marca, proyectada sobre las filas */
+.gantt-gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--border-light);
+  opacity: 0.5;
+}
+
+/* Zona de filas/barras */
+.gantt-rows {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Barra horizontal de cada objetivo */
+.gantt-bar {
+  position: absolute;
+  height: 14px;
+  background-color: #c7c7cc;
+  border: none;
+  border-radius: 9999px;
+  transform: translateY(-50%);
+}
+
+/* Estado vacío (sin objetivos) */
+.gantt-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted, #86868b);
+  font-size: 13px;
+}
+
 
 .mobile-mode .objetivos-body {
   flex-direction: column;

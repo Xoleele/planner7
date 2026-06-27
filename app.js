@@ -896,96 +896,106 @@ function renderGoalNode(obj, level) {
   titleCol.className = 'goal-title-col';
   titleCol.textContent = obj.title;
 
+  // ¿Tiene sub-objetivos? Si los tiene, las fechas son automáticas (solo lectura).
+  const isParent = goalHasChildren(obj);
+  const effDates = getEffectiveGoalDates(obj);
+  const dispStart = isParent ? effDates.startDate : (obj.startDate || null);
+  const dispEnd = isParent ? effDates.endDate : (obj.endDate || null);
+
   // Columna Inicio
   const inicioCol = document.createElement('div');
-  inicioCol.className = 'goal-date-col';
+  inicioCol.className = 'goal-date-col' + (isParent ? ' goal-date-auto' : '');
   inicioCol.style.position = 'relative';
 
   const inicioText = document.createElement('span');
-  inicioText.textContent = obj.startDate ? formatDateDMY(obj.startDate) : '-';
+  inicioText.textContent = dispStart ? formatDateDMY(dispStart) : '-';
   inicioCol.appendChild(inicioText);
-
-  const inicioInput = document.createElement('input');
-  inicioInput.type = 'date';
-  inicioInput.value = obj.startDate || '';
-  inicioInput.className = 'goal-inline-date-input';
-  
-  // Evitar abrir el modal de objetivos y abrir picker
-  inicioInput.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (typeof inicioInput.showPicker === 'function') {
-      try { inicioInput.showPicker(); } catch(_) {}
-    }
-  });
 
   // Evitar que el clic en la celda abra el modal
   inicioCol.addEventListener('click', (e) => {
     e.stopPropagation();
   });
 
-  // Guardar cambios al cambiar de fecha
-  inicioInput.addEventListener('change', async (e) => {
-    const newVal = e.target.value || null;
-    
-    // Validar restricción: fin no menor a inicio
-    if (newVal && obj.endDate && obj.endDate < newVal) {
-      alert('La fecha de inicio no puede ser posterior a la fecha de fin.');
-      inicioInput.value = obj.startDate || '';
-      return;
-    }
+  if (!isParent) {
+    const inicioInput = document.createElement('input');
+    inicioInput.type = 'date';
+    inicioInput.value = obj.startDate || '';
+    inicioInput.className = 'goal-inline-date-input';
 
-    obj.startDate = newVal;
-    await saveObjetivosToStorage();
-    renderObjetivos();
-  });
-  inicioCol.appendChild(inicioInput);
+    // Evitar abrir el modal de objetivos y abrir picker
+    inicioInput.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (typeof inicioInput.showPicker === 'function') {
+        try { inicioInput.showPicker(); } catch(_) {}
+      }
+    });
+
+    // Guardar cambios al cambiar de fecha
+    inicioInput.addEventListener('change', async (e) => {
+      const newVal = e.target.value || null;
+
+      // Validar restricción: fin no menor a inicio
+      if (newVal && obj.endDate && obj.endDate < newVal) {
+        alert('La fecha de inicio no puede ser posterior a la fecha de fin.');
+        inicioInput.value = obj.startDate || '';
+        return;
+      }
+
+      obj.startDate = newVal;
+      await saveObjetivosToStorage();
+      renderObjetivos();
+    });
+    inicioCol.appendChild(inicioInput);
+  }
 
   // Columna Fin
   const finCol = document.createElement('div');
-  finCol.className = 'goal-date-col';
+  finCol.className = 'goal-date-col' + (isParent ? ' goal-date-auto' : '');
   finCol.style.position = 'relative';
 
   const finText = document.createElement('span');
-  finText.textContent = obj.endDate ? formatDateDMY(obj.endDate) : '-';
+  finText.textContent = dispEnd ? formatDateDMY(dispEnd) : '-';
   finCol.appendChild(finText);
-
-  const finInput = document.createElement('input');
-  finInput.type = 'date';
-  finInput.value = obj.endDate || '';
-  finInput.className = 'goal-inline-date-input';
-
-  finInput.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (typeof finInput.showPicker === 'function') {
-      try { finInput.showPicker(); } catch(_) {}
-    }
-  });
 
   finCol.addEventListener('click', (e) => {
     e.stopPropagation();
   });
 
-  finInput.addEventListener('change', async (e) => {
-    const newVal = e.target.value || null;
-    
-    // Validar restricción: fin no menor a inicio
-    if (newVal && obj.startDate && newVal < obj.startDate) {
-      alert('La fecha de fin no puede ser anterior a la fecha de inicio.');
-      finInput.value = obj.endDate || '';
-      return;
-    }
+  if (!isParent) {
+    const finInput = document.createElement('input');
+    finInput.type = 'date';
+    finInput.value = obj.endDate || '';
+    finInput.className = 'goal-inline-date-input';
 
-    obj.endDate = newVal;
-    await saveObjetivosToStorage();
-    renderObjetivos();
-  });
-  finCol.appendChild(finInput);
+    finInput.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (typeof finInput.showPicker === 'function') {
+        try { finInput.showPicker(); } catch(_) {}
+      }
+    });
+
+    finInput.addEventListener('change', async (e) => {
+      const newVal = e.target.value || null;
+
+      // Validar restricción: fin no menor a inicio
+      if (newVal && obj.startDate && newVal < obj.startDate) {
+        alert('La fecha de fin no puede ser anterior a la fecha de inicio.');
+        finInput.value = obj.endDate || '';
+        return;
+      }
+
+      obj.endDate = newVal;
+      await saveObjetivosToStorage();
+      renderObjetivos();
+    });
+    finCol.appendChild(finInput);
+  }
 
   // Visualización compacta en móviles
   const mobileDates = document.createElement('div');
   mobileDates.className = 'goal-mobile-dates';
-  const startText = obj.startDate ? formatDateDMY(obj.startDate) : 'Sin inicio';
-  const endText = obj.endDate ? formatDateDMY(obj.endDate) : 'Sin fin';
+  const startText = dispStart ? formatDateDMY(dispStart) : 'Sin inicio';
+  const endText = dispEnd ? formatDateDMY(dispEnd) : 'Sin fin';
   mobileDates.textContent = `${startText} • ${endText}`;
 
   item.appendChild(titleCol);
@@ -1085,6 +1095,200 @@ function renderObjetivos() {
 
     setupObjetivosDragAndDrop(container);
   }
+
+  // Dibujar tras el reflow para que las posiciones de las filas sean correctas
+  renderGanttChart();
+  requestAnimationFrame(renderGanttChart);
+}
+
+// ===== Carta Gantt de Objetivos =====
+function parseGoalDate(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+// Un objetivo es "hoja" si no tiene sub-objetivos dentro
+function goalHasChildren(obj) {
+  return !!(obj && obj.subgoals && obj.subgoals.length > 0);
+}
+
+// Fechas efectivas de un objetivo:
+//  - hoja: sus propias startDate/endDate
+//  - padre: el rango (mínimo inicio, máximo fin) de TODOS sus descendientes hoja.
+// Devuelve { startDate, endDate } en formato 'YYYY-MM-DD' o null si no aplica.
+function getEffectiveGoalDates(obj) {
+  if (!obj) return { startDate: null, endDate: null };
+
+  if (!goalHasChildren(obj)) {
+    return {
+      startDate: obj.startDate || null,
+      endDate: obj.endDate || null
+    };
+  }
+
+  // Padre: agregar fechas de descendientes
+  let minStart = null, maxEnd = null;
+  (function walk(node) {
+    if (!node || !node.subgoals) return;
+    node.subgoals.forEach(child => {
+      if (goalHasChildren(child)) {
+        walk(child);
+      } else {
+        const sd = parseGoalDate(child.startDate);
+        const ed = parseGoalDate(child.endDate);
+        if (sd && (minStart === null || sd < minStart)) minStart = sd;
+        if (ed && (maxEnd === null || ed > maxEnd)) maxEnd = ed;
+      }
+    });
+  })(obj);
+
+  const fmt = (d) => {
+    if (!d) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  return { startDate: fmt(minStart), endDate: fmt(maxEnd) };
+}
+
+function renderGanttChart() {
+  const gantt = document.getElementById('objetivos-gantt');
+  const header = document.getElementById('gantt-timeline-header');
+  const rowsEl = document.getElementById('gantt-rows');
+  const listContainer = document.getElementById('objetivos-list-container') ||
+    document.querySelector('.objetivos-list-container');
+  if (!gantt || !header || !rowsEl || !listContainer) return;
+
+  header.innerHTML = '';
+  rowsEl.innerHTML = '';
+
+  // Recolectar las filas visibles de la lista (en el orden en que aparecen)
+  const itemEls = Array.from(listContainer.querySelectorAll('.objetivo-container'))
+    .filter(c => {
+      // visible si ninguno de sus ancestros .objetivo-subgoals-list está oculto
+      let p = c.parentElement;
+      while (p && p !== listContainer) {
+        if (p.classList && p.classList.contains('objetivo-subgoals-list') &&
+            p.classList.contains('hidden')) return false;
+        p = p.parentElement;
+      }
+      return true;
+    })
+    .map(c => ({ el: c.querySelector(':scope > .objetivo-item'), id: c.dataset.goalId }))
+    .filter(r => r.el && r.id);
+
+  if (itemEls.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'gantt-empty';
+    empty.textContent = 'Sin objetivos para mostrar';
+    rowsEl.appendChild(empty);
+    return;
+  }
+
+  // Datos (fechas) de cada fila
+  const rows = itemEls.map(r => {
+    const found = findGoalByIdRecursive(objetivos, r.id);
+    const obj = found ? found.node : null;
+    const eff = getEffectiveGoalDates(obj);
+    return {
+      el: r.el,
+      start: parseGoalDate(eff.startDate),
+      end: parseGoalDate(eff.endDate)
+    };
+  });
+
+  // Rango global de fechas
+  let minT = Infinity, maxT = -Infinity;
+  rows.forEach(r => {
+    if (r.start && r.end) {
+      minT = Math.min(minT, r.start.getTime());
+      maxT = Math.max(maxT, r.end.getTime());
+    }
+  });
+
+  const DAY = 86400000;
+
+  if (!isFinite(minT) || !isFinite(maxT)) {
+    // No hay ninguna barra que dibujar, pero igual mostramos filas vacías alineadas
+    drawGanttBars(rows, header, rowsEl, listContainer, null);
+    return;
+  }
+
+  // Añadir un pequeño margen al rango (5% a cada lado, mínimo 2 días)
+  const span = Math.max(maxT - minT, DAY);
+  const pad = Math.max(span * 0.05, 2 * DAY);
+  let rangeStart = new Date(minT - pad);
+  let rangeEnd = new Date(maxT + pad);
+
+  // Decidir escala: semanas si el rango total es corto, meses si es largo
+  const totalDays = (rangeEnd - rangeStart) / DAY;
+  const scale = totalDays <= 70 ? 'week' : 'month';
+
+  drawGanttBars(rows, header, rowsEl, listContainer, { rangeStart, rangeEnd, scale });
+}
+
+function drawGanttBars(rows, header, rowsEl, listContainer, range) {
+  const rowsRect = rowsEl.getBoundingClientRect();
+  const width = rowsRect.width || 1;
+
+  if (range) {
+    const { rangeStart, rangeEnd, scale } = range;
+    const totalMs = rangeEnd - rangeStart || 1;
+    const toX = (date) => ((date - rangeStart) / totalMs) * width;
+
+    // Marcas de la línea del tiempo
+    const ticks = [];
+    if (scale === 'month') {
+      let d = new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+      if (d < rangeStart) d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      while (d <= rangeEnd) {
+        ticks.push({ date: new Date(d), label: d.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }) });
+        d = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      }
+    } else {
+      // semanas: comenzar el lunes siguiente
+      let d = new Date(rangeStart);
+      const dow = (d.getDay() + 6) % 7; // 0 = lunes
+      d.setDate(d.getDate() + (dow === 0 ? 0 : 7 - dow));
+      d.setHours(0, 0, 0, 0);
+      while (d <= rangeEnd) {
+        ticks.push({ date: new Date(d), label: d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) });
+        d = new Date(d.getTime() + 7 * 86400000);
+      }
+    }
+
+    ticks.forEach(t => {
+      const x = toX(t.date);
+      const gl = document.createElement('div');
+      gl.className = 'gantt-gridline';
+      gl.style.left = x + 'px';
+      rowsEl.appendChild(gl);
+
+      const tk = document.createElement('div');
+      tk.className = 'gantt-tick';
+      tk.style.left = x + 'px';
+      tk.textContent = t.label;
+      header.appendChild(tk);
+    });
+
+    // Barras
+    rows.forEach(r => {
+      if (!r.start || !r.end) return; // fila vacía: sin barra
+      const itemRect = r.el.getBoundingClientRect();
+      const centerY = itemRect.top + itemRect.height / 2 - rowsRect.top;
+      const x1 = toX(r.start);
+      const x2 = toX(r.end);
+      const bar = document.createElement('div');
+      bar.className = 'gantt-bar';
+      bar.style.left = Math.min(x1, x2) + 'px';
+      bar.style.width = Math.max(Math.abs(x2 - x1), 6) + 'px';
+      bar.style.top = centerY + 'px';
+      rowsEl.appendChild(bar);
+    });
+  }
 }
 
 function updateObjetivoDateConstraints() {
@@ -1118,13 +1322,7 @@ function updateObjetivoDateConstraints() {
 
 function setObjetivoStatus(status) {
   const statusInput = document.getElementById('objetivo-input-status');
-  const toggle = document.getElementById('objetivo-status-toggle');
   if (statusInput) statusInput.value = status;
-  if (toggle) {
-    toggle.querySelectorAll('.status-option').forEach(btn => {
-      btn.classList.toggle('is-active', btn.dataset.status === status);
-    });
-  }
 }
 
 function openObjetivoModal(id, targetLevel = 1, parentId = null) {
@@ -1138,6 +1336,7 @@ function openObjetivoModal(id, targetLevel = 1, parentId = null) {
   const endInput = document.getElementById('objetivo-input-end-date');
   const descInput = document.getElementById('objetivo-input-description');
 
+  let editObj = null;
   if (id === null) {
     modalTitle.textContent = targetLevel > 1 ? 'Nuevo sub-objetivo' : 'Nuevo objetivo';
     input.value = '';
@@ -1149,13 +1348,39 @@ function openObjetivoModal(id, targetLevel = 1, parentId = null) {
   } else {
     modalTitle.textContent = targetLevel > 1 ? 'Editar sub-objetivo' : 'Editar objetivo';
     const foundData = findGoalByIdRecursive(objetivos, id);
-    const obj = foundData ? foundData.node : null;
+    editObj = foundData ? foundData.node : null;
+    const obj = editObj;
     input.value = obj ? obj.title : '';
     startInput.value = (obj && obj.startDate) ? obj.startDate : '';
     endInput.value = (obj && obj.endDate) ? obj.endDate : '';
     if (descInput) descInput.value = (obj && obj.description) ? obj.description : '';
     setObjetivoStatus((obj && obj.status) ? obj.status : 'sin_comenzar');
     deleteBtn.classList.remove('hidden');
+  }
+
+  // Si el objetivo tiene sub-objetivos, sus fechas son automáticas (solo lectura)
+  const isParent = goalHasChildren(editObj);
+  const datesRow = document.getElementById('objetivo-dates-row');
+  const autoNote = document.getElementById('objetivo-dates-auto-note');
+  const startClear = document.getElementById('objetivo-start-date-clear');
+  const endClear = document.getElementById('objetivo-end-date-clear');
+  if (isParent) {
+    const eff = getEffectiveGoalDates(editObj);
+    startInput.value = eff.startDate || '';
+    endInput.value = eff.endDate || '';
+    startInput.disabled = true;
+    endInput.disabled = true;
+    if (datesRow) datesRow.classList.add('objetivo-dates-locked');
+    if (autoNote) autoNote.classList.remove('hidden');
+    if (startClear) startClear.style.display = 'none';
+    if (endClear) endClear.style.display = 'none';
+  } else {
+    startInput.disabled = false;
+    endInput.disabled = false;
+    if (datesRow) datesRow.classList.remove('objetivo-dates-locked');
+    if (autoNote) autoNote.classList.add('hidden');
+    if (startClear) startClear.style.display = '';
+    if (endClear) endClear.style.display = '';
   }
 
   // Refrescar overlays de fecha
@@ -1203,6 +1428,9 @@ function setupObjetivosEventListeners() {
       if (parent) {
         if (!parent.subgoals) parent.subgoals = [];
         if (editingObjetivoId === null) {
+          // El padre pasa a tener hijos: sus fechas manuales se descartan
+          parent.startDate = null;
+          parent.endDate = null;
           parent.subgoals.push({
             id: 'goal-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
             title: title,
@@ -1216,8 +1444,14 @@ function setupObjetivosEventListeners() {
           const sub = parent.subgoals.find(s => s.id === editingObjetivoId);
           if (sub) {
             sub.title = title;
-            sub.startDate = startVal;
-            sub.endDate = endVal;
+            // Si tiene sub-objetivos, las fechas son automáticas (se descartan las manuales)
+            if (goalHasChildren(sub)) {
+              sub.startDate = null;
+              sub.endDate = null;
+            } else {
+              sub.startDate = startVal;
+              sub.endDate = endVal;
+            }
             sub.description = descVal;
             sub.status = statusVal;
           }
@@ -1240,8 +1474,14 @@ function setupObjetivosEventListeners() {
         const obj = objetivos.find(o => o.id === editingObjetivoId);
         if (obj) {
           obj.title = title;
-          obj.startDate = startVal;
-          obj.endDate = endVal;
+          // Si tiene sub-objetivos, las fechas son automáticas (se descartan las manuales)
+          if (goalHasChildren(obj)) {
+            obj.startDate = null;
+            obj.endDate = null;
+          } else {
+            obj.startDate = startVal;
+            obj.endDate = endVal;
+          }
           obj.description = descVal;
           obj.status = statusVal;
         }
@@ -1297,23 +1537,32 @@ function setupObjetivosEventListeners() {
     updateObjetivoDateConstraints();
   });
 
-  // Toggle de Estado
-  const statusToggle = document.getElementById('objetivo-status-toggle');
-  if (statusToggle) {
-    statusToggle.addEventListener('click', (e) => {
-      const btn = e.target.closest('.status-option');
-      if (!btn) return;
-      e.preventDefault();
-      setObjetivoStatus(btn.dataset.status);
-    });
-  }
-
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       saveBtn.click();
     }
   });
+
+  // Mantener el Gantt alineado con la lista al hacer scroll o al redimensionar
+  const listContainer = document.getElementById('objetivos-list-container') ||
+    document.querySelector('.objetivos-list-container');
+  if (listContainer && !listContainer.dataset.ganttScrollBound) {
+    listContainer.dataset.ganttScrollBound = '1';
+    listContainer.addEventListener('scroll', () => {
+      if (typeof renderGanttChart === 'function') renderGanttChart();
+    }, { passive: true });
+  }
+  if (!window.__ganttResizeBound) {
+    window.__ganttResizeBound = true;
+    let rt = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(rt);
+      rt = setTimeout(() => {
+        if (typeof renderGanttChart === 'function') renderGanttChart();
+      }, 100);
+    });
+  }
 }
 
 function setupObjetivosDragAndDrop(container) {

@@ -389,7 +389,12 @@
             <div id="objetivos-lista" class="objetivos-lista"></div>
           </div>
         </div>
-        <div class="objetivos-content-placeholder"></div>
+        <div class="objetivos-content-placeholder">
+          <div id="objetivos-gantt" class="objetivos-gantt">
+            <div class="gantt-timeline-header" id="gantt-timeline-header"></div>
+            <div class="gantt-rows" id="gantt-rows"></div>
+          </div>
+        </div>
       </div>
     </section>
   </div><!-- /.app-container -->
@@ -420,15 +425,14 @@
         </div>
         <!-- Estado del objetivo -->
         <div class="form-group" style="margin-bottom: 20px;">
-          <label for="objetivo-status-toggle">Estado</label>
-          <input type="hidden" id="objetivo-input-status" value="sin_comenzar">
-          <div class="objetivo-status-toggle" id="objetivo-status-toggle" role="group" aria-label="Estado del objetivo">
-            <button type="button" class="status-option is-active" data-status="sin_comenzar">Sin comenzar</button>
-            <button type="button" class="status-option" data-status="en_proceso">En proceso</button>
-            <button type="button" class="status-option" data-status="finalizado">Finalizado</button>
-            <button type="button" class="status-option" data-status="cancelado">Cancelado</button>
-            <button type="button" class="status-option" data-status="pausado">Pausado</button>
-          </div>
+          <label for="objetivo-input-status">Estado</label>
+          <select id="objetivo-input-status" class="objetivo-status-select">
+            <option value="sin_comenzar">Sin comenzar</option>
+            <option value="en_proceso">En proceso</option>
+            <option value="finalizado">Finalizado</option>
+            <option value="cancelado">Cancelado</option>
+            <option value="pausado">Pausado</option>
+          </select>
         </div>
         <!-- Descripción del objetivo -->
         <div class="form-group" style="margin-bottom: 4px;">
@@ -436,7 +440,8 @@
           <textarea id="objetivo-input-description" placeholder="Añade una descripción (opcional)" rows="3"></textarea>
         </div>
         <!-- Fila de Fechas de Inicio y Término -->
-        <div class="form-row" style="display: flex; gap: 16px; margin-top: 16px;">
+        <div class="objetivo-dates-auto-note hidden" id="objetivo-dates-auto-note">Fechas calculadas automáticamente a partir de los objetivos internos.</div>
+        <div class="form-row" id="objetivo-dates-row" style="display: flex; gap: 16px; margin-top: 16px;">
           <div class="form-group flex-1 task-date-group">
             <label for="objetivo-input-start-date">INICIO</label>
             <div class="date-input-wrapper">
