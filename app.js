@@ -7932,10 +7932,12 @@ function renderPieChartSVG(includedGroups) {
   
   if (includedGroups.length === 1) {
     const percentVal = 100;
-    const textEl = percentVal >= 5 ? `<text x="0" y="0" fill="#ffffff" font-size="0.11" font-weight="700" text-anchor="middle" dominant-baseline="central" style="font-family: inherit;">100%</text>` : '';
+    const only = includedGroups[0];
+    const tip = `${only.displayName || only.name} · ${minutesToReadable(only.minutes)}`;
+    const textEl = percentVal >= 5 ? `<text x="0" y="0" fill="#ffffff" font-size="0.11" font-weight="700" text-anchor="middle" dominant-baseline="central" style="font-family: inherit; pointer-events: none;">100%</text>` : '';
     return `
       <svg viewBox="-1.05 -1.05 2.1 2.1" style="width: 100%; height: 100%; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.06));">
-        <circle cx="0" cy="0" r="0.95" fill="${includedGroups[0].color.bg}" stroke="none" />
+        <circle class="chart-slice" data-tooltip="${escapeHtmlAdj(tip)}" cx="0" cy="0" r="0.95" fill="${only.color.bg}" stroke="none" />
         ${textEl}
       </svg>
     `;
@@ -7948,16 +7950,18 @@ function renderPieChartSVG(includedGroups) {
   includedGroups.forEach(group => {
     const percent = group.minutes / totalMins;
     if (percent <= 0) return;
-    
+
     const percentVal = Math.round(percent * 100);
     const startAngle = cumulativeAngle;
     cumulativeAngle += percent * 2 * Math.PI;
     const endAngle = cumulativeAngle;
-    
+
+    const tip = `${group.displayName || group.name} · ${minutesToReadable(group.minutes)}`;
+
     if (percent >= 0.999) {
-      paths.push(`<circle cx="0" cy="0" r="0.95" fill="${group.color.bg}" stroke="none" />`);
+      paths.push(`<circle class="chart-slice" data-tooltip="${escapeHtmlAdj(tip)}" cx="0" cy="0" r="0.95" fill="${group.color.bg}" stroke="none" />`);
       if (percentVal >= 5) {
-        labels.push(`<text x="0" y="0" fill="#ffffff" font-size="0.11" font-weight="700" text-anchor="middle" dominant-baseline="central" style="font-family: inherit;">${percentVal}%</text>`);
+        labels.push(`<text x="0" y="0" fill="#ffffff" font-size="0.11" font-weight="700" text-anchor="middle" dominant-baseline="central" style="font-family: inherit; pointer-events: none;">${percentVal}%</text>`);
       }
       return;
     }
@@ -7976,14 +7980,14 @@ function renderPieChartSVG(includedGroups) {
       `Z`
     ].join(' ');
     
-    paths.push(`<path d="${pathData}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.02" stroke-linejoin="round" />`);
-    
+    paths.push(`<path class="chart-slice" data-tooltip="${escapeHtmlAdj(tip)}" d="${pathData}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.02" stroke-linejoin="round" />`);
+
     if (percentVal >= 5) {
       const middleAngle = (startAngle + endAngle) / 2;
       const labelR = 0.68; // Posiciona la etiqueta a un 68% del radio (más hacia el exterior)
       const labelX = labelR * Math.cos(middleAngle);
       const labelY = labelR * Math.sin(middleAngle);
-      labels.push(`<text x="${labelX.toFixed(3)}" y="${labelY.toFixed(3)}" fill="#ffffff" font-size="0.11" font-weight="700" text-anchor="middle" dominant-baseline="central" style="font-family: inherit;">${percentVal}%</text>`);
+      labels.push(`<text x="${labelX.toFixed(3)}" y="${labelY.toFixed(3)}" fill="#ffffff" font-size="0.11" font-weight="700" text-anchor="middle" dominant-baseline="central" style="font-family: inherit; pointer-events: none;">${percentVal}%</text>`);
     }
   });
   
@@ -8091,9 +8095,10 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
         if (mins > 0) {
           const segHeight = (mins / maxBarMinutes) * plotHeight;
           const y = currentY - segHeight;
-          
-          svgParts.push(`<rect x="${x}" y="${y}" width="${barWidth}" height="${segHeight}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.25" rx="0.3" />`);
-          
+
+          const segTip = `${group.displayName || group.name} · ${minutesToReadable(mins)}`;
+          svgParts.push(`<rect class="chart-slice" data-tooltip="${escapeHtmlAdj(segTip)}" x="${x}" y="${y}" width="${barWidth}" height="${segHeight}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.25" rx="0.3" />`);
+
           currentY = y;
         }
       });
@@ -8811,6 +8816,30 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     chartPlaceholder.innerHTML = renderPieChartSVG(includedGroups);
   }
 
+  // Tooltip al pasar el cursor sobre una porción del gráfico circular o un
+  // segmento del gráfico de barras (ambos llevan la clase .chart-slice y un
+  // atributo data-tooltip con nombre · duración · porcentaje). El tooltip sigue
+  // al cursor mientras está dentro de la porción.
+  const chartSlices = chartPlaceholder.querySelectorAll('.chart-slice');
+  chartSlices.forEach(slice => {
+    slice.style.cursor = 'pointer';
+    const moveTip = (e) => {
+      const text = slice.getAttribute('data-tooltip');
+      if (!text) return;
+      const tooltip = getOrCreateChartTooltip();
+      tooltip.textContent = text;
+      tooltip.classList.add('visible');
+      tooltip.style.left = `${e.clientX + window.scrollX}px`;
+      tooltip.style.top = `${e.clientY + window.scrollY - 28}px`;
+      tooltip.style.transform = 'translateX(-50%)';
+    };
+    slice.addEventListener('mouseenter', moveTip);
+    slice.addEventListener('mousemove', moveTip);
+    slice.addEventListener('mouseleave', () => {
+      getOrCreateChartTooltip().classList.remove('visible');
+    });
+  });
+
   // Los modos hábitos y heatmap no usan la tabla de actividades ni los totales.
   if (prefix === 'general-stats' && (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap')) {
     activityListEl.innerHTML = '';
@@ -8848,12 +8877,26 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     table.className = 'daily-stats-table';
     
     const tbody = document.createElement('tbody');
-    
-    groupedList.forEach(group => {
-      let isExcluded = excludedSet.has(group.name);
+
+    // Determina si un grupo está desmarcado (oculto en el gráfico), usando la
+    // misma regla que el render de cada fila (incluido el modo lineal).
+    const isGroupExcluded = (group) => {
       if (prefix === 'general-stats' && generalStatsChartType === 'lineal') {
-        isExcluded = !lineStatsActiveTags.includes(group.name);
+        return !lineStatsActiveTags.includes(group.name);
       }
+      return excludedSet.has(group.name);
+    };
+
+    // Reordenar la lista para que los ítems desmarcados bajen al fondo: arriba
+    // siempre quedan los que se están visualizando. Dentro de cada bloque se
+    // conserva el orden previo (por mayor duración). Orden estable.
+    const orderedList = [
+      ...groupedList.filter(g => !isGroupExcluded(g)),
+      ...groupedList.filter(g => isGroupExcluded(g))
+    ];
+
+    orderedList.forEach(group => {
+      let isExcluded = isGroupExcluded(group);
       const mins = group.minutes;
       const percent = totalIncludedMins > 0 && !isExcluded ? (mins / totalIncludedMins * 100) : 0;
       const percentStr = isExcluded ? '-' : `${percent.toFixed(0)}%`;

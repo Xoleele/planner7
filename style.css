@@ -1941,8 +1941,8 @@ input:checked + .slider:before {
   transform: translateX(-50%) translateY(20px);
   background-color: var(--text-main);
   color: var(--bg-card);
-  padding: 12px 24px;
-  border-radius: var(--radius-md);
+  padding: 8px 18px;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
   box-shadow: var(--shadow-lg);
