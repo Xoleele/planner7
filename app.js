@@ -1102,6 +1102,8 @@ function renderObjetivos() {
 }
 
 // ===== Carta Gantt de Objetivos =====
+let ganttScrollX = 0; // desplazamiento horizontal (px) de la línea de tiempo
+let ganttContentWidth = 0; // ancho total del lienzo del gantt
 function parseGoalDate(v) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v || '');
   if (!m) return null;
@@ -1227,17 +1229,40 @@ function renderGanttChart() {
   const totalDays = (rangeEnd - rangeStart) / DAY;
   const scale = totalDays <= 70 ? 'week' : 'month';
 
-  drawGanttBars(rows, header, rowsEl, listContainer, { rangeStart, rangeEnd, scale });
+  // Ancho del lienzo por densidad fija de px/día. Si el resultado es menor que el
+  // panel visible, se usa el ancho del panel (no hay nada que desplazar).
+  const viewportWidth = rowsEl.getBoundingClientRect().width || 1;
+  const pxPerDay = scale === 'week' ? 16 : 5; // semanas más "abiertas", meses más compactos
+  const contentWidth = Math.max(totalDays * pxPerDay, viewportWidth);
+
+  drawGanttBars(rows, header, rowsEl, listContainer, { rangeStart, rangeEnd, scale, contentWidth, viewportWidth });
 }
 
 function drawGanttBars(rows, header, rowsEl, listContainer, range) {
   const rowsRect = rowsEl.getBoundingClientRect();
-  const width = rowsRect.width || 1;
 
   if (range) {
-    const { rangeStart, rangeEnd, scale } = range;
+    const { rangeStart, rangeEnd, scale, contentWidth, viewportWidth } = range;
     const totalMs = rangeEnd - rangeStart || 1;
+    const width = contentWidth;
     const toX = (date) => ((date - rangeStart) / totalMs) * width;
+
+    ganttContentWidth = width;
+    // Limitar el desplazamiento al rango válido
+    const maxScroll = Math.max(0, width - viewportWidth);
+    if (ganttScrollX > maxScroll) ganttScrollX = maxScroll;
+    if (ganttScrollX < 0) ganttScrollX = 0;
+
+    // Lienzos internos desplazables (uno para header, otro para barras)
+    const headerTrack = document.createElement('div');
+    headerTrack.className = 'gantt-header-track';
+    headerTrack.style.width = width + 'px';
+    headerTrack.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
+
+    const rowsTrack = document.createElement('div');
+    rowsTrack.className = 'gantt-rows-track';
+    rowsTrack.style.width = width + 'px';
+    rowsTrack.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
 
     // Marcas de la línea del tiempo
     const ticks = [];
@@ -1265,13 +1290,13 @@ function drawGanttBars(rows, header, rowsEl, listContainer, range) {
       const gl = document.createElement('div');
       gl.className = 'gantt-gridline';
       gl.style.left = x + 'px';
-      rowsEl.appendChild(gl);
+      rowsTrack.appendChild(gl);
 
       const tk = document.createElement('div');
       tk.className = 'gantt-tick';
       tk.style.left = x + 'px';
       tk.textContent = t.label;
-      header.appendChild(tk);
+      headerTrack.appendChild(tk);
     });
 
     // Barras
@@ -1286,9 +1311,18 @@ function drawGanttBars(rows, header, rowsEl, listContainer, range) {
       bar.style.left = Math.min(x1, x2) + 'px';
       bar.style.width = Math.max(Math.abs(x2 - x1), 6) + 'px';
       bar.style.top = centerY + 'px';
-      rowsEl.appendChild(bar);
+      rowsTrack.appendChild(bar);
     });
+
+    header.appendChild(headerTrack);
+    rowsEl.appendChild(rowsTrack);
   }
+}
+
+// Aplica el desplazamiento horizontal actual sin recalcular todo el gantt
+function applyGanttScroll() {
+  const tracks = document.querySelectorAll('.gantt-header-track, .gantt-rows-track');
+  tracks.forEach(t => { t.style.transform = 'translateX(' + (-ganttScrollX) + 'px)'; });
 }
 
 function updateObjetivoDateConstraints() {
@@ -1562,6 +1596,26 @@ function setupObjetivosEventListeners() {
         if (typeof renderGanttChart === 'function') renderGanttChart();
       }, 100);
     });
+  }
+
+  // Ctrl + rueda sobre el Gantt: desplazar horizontalmente por la línea de tiempo
+  const ganttEl = document.getElementById('objetivos-gantt');
+  if (ganttEl && !ganttEl.dataset.ganttWheelBound) {
+    ganttEl.dataset.ganttWheelBound = '1';
+    ganttEl.addEventListener('wheel', (e) => {
+      if (!e.ctrlKey) return; // sin Ctrl, comportamiento normal
+      e.preventDefault();
+      const rowsEl = document.getElementById('gantt-rows');
+      const viewportWidth = rowsEl ? rowsEl.getBoundingClientRect().width : 0;
+      const maxScroll = Math.max(0, ganttContentWidth - viewportWidth);
+      if (maxScroll <= 0) return; // nada que desplazar
+      // Usar el delta dominante (rueda vertical u horizontal)
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      ganttScrollX += delta;
+      if (ganttScrollX < 0) ganttScrollX = 0;
+      if (ganttScrollX > maxScroll) ganttScrollX = maxScroll;
+      applyGanttScroll();
+    }, { passive: false });
   }
 }
 

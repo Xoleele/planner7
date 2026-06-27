@@ -5684,6 +5684,16 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   overflow: hidden;
 }
 
+/* Lienzos internos desplazables (header y filas) */
+.gantt-header-track,
+.gantt-rows-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  will-change: transform;
+}
+
 /* Barra horizontal de cada objetivo */
 .gantt-bar {
   position: absolute;
