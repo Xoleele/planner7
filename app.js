@@ -899,12 +899,87 @@ function renderGoalNode(obj, level) {
   // Columna Inicio
   const inicioCol = document.createElement('div');
   inicioCol.className = 'goal-date-col';
-  inicioCol.textContent = obj.startDate ? formatDateDMY(obj.startDate) : '-';
+  inicioCol.style.position = 'relative';
+
+  const inicioText = document.createElement('span');
+  inicioText.textContent = obj.startDate ? formatDateDMY(obj.startDate) : '-';
+  inicioCol.appendChild(inicioText);
+
+  const inicioInput = document.createElement('input');
+  inicioInput.type = 'date';
+  inicioInput.value = obj.startDate || '';
+  inicioInput.className = 'goal-inline-date-input';
+  
+  // Evitar abrir el modal de objetivos y abrir picker
+  inicioInput.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (typeof inicioInput.showPicker === 'function') {
+      try { inicioInput.showPicker(); } catch(_) {}
+    }
+  });
+
+  // Evitar que el clic en la celda abra el modal
+  inicioCol.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
+  // Guardar cambios al cambiar de fecha
+  inicioInput.addEventListener('change', async (e) => {
+    const newVal = e.target.value || null;
+    
+    // Validar restricción: fin no menor a inicio
+    if (newVal && obj.endDate && obj.endDate < newVal) {
+      alert('La fecha de inicio no puede ser posterior a la fecha de fin.');
+      inicioInput.value = obj.startDate || '';
+      return;
+    }
+
+    obj.startDate = newVal;
+    await saveObjetivosToStorage();
+    renderObjetivos();
+  });
+  inicioCol.appendChild(inicioInput);
 
   // Columna Fin
   const finCol = document.createElement('div');
   finCol.className = 'goal-date-col';
-  finCol.textContent = obj.endDate ? formatDateDMY(obj.endDate) : '-';
+  finCol.style.position = 'relative';
+
+  const finText = document.createElement('span');
+  finText.textContent = obj.endDate ? formatDateDMY(obj.endDate) : '-';
+  finCol.appendChild(finText);
+
+  const finInput = document.createElement('input');
+  finInput.type = 'date';
+  finInput.value = obj.endDate || '';
+  finInput.className = 'goal-inline-date-input';
+
+  finInput.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (typeof finInput.showPicker === 'function') {
+      try { finInput.showPicker(); } catch(_) {}
+    }
+  });
+
+  finCol.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
+  finInput.addEventListener('change', async (e) => {
+    const newVal = e.target.value || null;
+    
+    // Validar restricción: fin no menor a inicio
+    if (newVal && obj.startDate && newVal < obj.startDate) {
+      alert('La fecha de fin no puede ser anterior a la fecha de inicio.');
+      finInput.value = obj.endDate || '';
+      return;
+    }
+
+    obj.endDate = newVal;
+    await saveObjetivosToStorage();
+    renderObjetivos();
+  });
+  finCol.appendChild(finInput);
 
   // Visualización compacta en móviles
   const mobileDates = document.createElement('div');

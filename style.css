@@ -972,9 +972,9 @@ input[type="date"][data-force-ddmmyy]:focus ~ .date-ddmmyy-overlay {
   /* Estilos heredados de .field-icon-btn */
 }
 /* Ocultar el icono nativo del selector de fecha. */
-.date-input-wrapper input[type="date"]::-webkit-calendar-picker-indicator {
-  display: none;
-  -webkit-appearance: none;
+input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none !important;
+  -webkit-appearance: none !important;
 }
 .time-clear-btn {
   position: absolute;
@@ -5687,6 +5687,60 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   font-size: 12.5px;
   color: var(--text-muted);
   text-align: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+}
+
+.goal-inline-date-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: transparent;
+}
+
+.goal-inline-date-input:focus {
+  opacity: 1;
+  z-index: 10;
+  background-color: transparent;
+  color: var(--text-main, #111111) !important;
+  -webkit-text-fill-color: var(--text-main, #111111) !important;
+  caret-color: var(--text-main, #111111) !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0;
+  text-align: center;
+}
+
+/* Eliminar borde del envoltorio y ajustar alineación en el modal de objetivos */
+#objetivo-modal .date-input-wrapper {
+  border: none !important;
+  box-shadow: none !important;
+  background-color: transparent !important;
+  padding-left: 0 !important;
+}
+
+#objetivo-modal .date-input-wrapper input[type="date"] {
+  padding-left: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+#objetivo-modal .date-input-wrapper .date-ddmmyy-overlay {
+  left: 0 !important;
 }
 
 .goal-mobile-dates {
