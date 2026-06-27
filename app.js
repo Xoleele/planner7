@@ -3919,13 +3919,13 @@ function handleCronogramaEmptyClick(colEl, clickMin) {
   // ── HORA DE INICIO ─────────────────────────────────────────────────────────
   // Si hay una tarea anterior cuyo FIN está a menos de 1 h del punto del clic,
   // la nueva tarea arranca pegada a ella: fin anterior + GAP_MIN.
-  // En caso contrario, se redondea el punto del clic a la media hora hacia abajo
-  // (15:58 → 15:30, 15:11 → 15:00).
+  // En caso contrario, se redondea el punto del clic al cuarto de hora hacia
+  // abajo (15:58 → 15:45, 15:11 → 15:00).
   let startMin;
   if (prevEnd !== null && (clickMin - prevEnd) < 60) {
     startMin = prevEnd + GAP_MIN;
   } else {
-    startMin = Math.floor(clickMin / 30) * 30;
+    startMin = Math.floor(clickMin / 15) * 15;
   }
 
   // ── HORA DE FIN ────────────────────────────────────────────────────────────
@@ -4084,10 +4084,10 @@ function dropTaskOnCronograma(taskId, colEl, clientY, isCopy) {
   const dateStr = colEl.dataset.date;
   if (!dateStr) return;
 
-  // Minuto del día ajustado al intervalo de 30 min más cercano.
+  // Minuto del día ajustado al intervalo de 15 min más cercano.
   const rawMin = cronogramaClickToMinutes(colEl, clientY);
-  let startMin = Math.round(rawMin / 30) * 30;
-  startMin = Math.max(0, Math.min(1440 - 30, startMin));
+  let startMin = Math.round(rawMin / 15) * 15;
+  startMin = Math.max(0, Math.min(1440 - 15, startMin));
 
   // Duración: la que ya tenga la tarea (por horas inicio+fin, o por la duración
   // escrita en su descripción), o 1 h por defecto si no tiene ninguna.
@@ -4611,7 +4611,7 @@ function stopNowLineClock() {
 // ─────────────────────────────────────────────────────────────────────────
 
 const CR_HOUR_HEIGHT = 60;   // px por hora (= 1px por minuto)
-const CR_SNAP_MIN = 30;      // granularidad del arrastre vertical
+const CR_SNAP_MIN = 15;      // granularidad del arrastre vertical
 
 // Reescribe el rango "HH:MM - HH:MM" al inicio de la descripción por uno nuevo,
 // preservando el resto del texto exactamente como estaba. Si por algún motivo
