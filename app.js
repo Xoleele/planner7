@@ -623,6 +623,10 @@ function setupUserMenu() {
     dropdown.innerHTML = `
       <div class="user-dropdown-email">${currentUser.email}</div>
       <hr class="user-dropdown-divider">
+      <button id="objetivos-menu-btn" class="user-dropdown-item">
+        <img src="icons/target.svg" alt="" width="14" height="14">
+        Objetivos
+      </button>
       <button id="change-password-btn" class="user-dropdown-item">
         <img src="icons/key.svg" alt="" width="14" height="14">
         Cambiar contraseña
