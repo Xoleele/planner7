@@ -5762,12 +5762,12 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .subgoal-create-btn {
   display: flex;
   align-items: center;
-  padding: 5px 10px;
+  padding: 6px 12px;
   border-radius: var(--radius-md, 6px);
   cursor: pointer;
-  background-color: #aeaeb2;
+  background-color: #8e8e93;
   color: #ffffff;
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 600;
   transition: background-color 0.15s ease, opacity 0.15s ease;
   user-select: none;
@@ -5776,7 +5776,7 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   margin-top: 4px;
 }
 .subgoal-create-btn:hover {
-  background-color: #8e8e93;
+  background-color: #76767b;
   color: #ffffff;
 }
 

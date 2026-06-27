@@ -966,7 +966,9 @@ function renderGoalNode(obj, level) {
     createSubBtn.className = 'subgoal-create-btn';
     createSubBtn.textContent = '+ Añadir';
     if (level < 3) {
-      createSubBtn.style.marginLeft = '24px'; // Alinear con el texto de los subobjetivos
+      createSubBtn.style.marginLeft = '16px'; // Alinear exactamente con el icono de triángulo (segundo y tercer grado)
+    } else if (level === 3) {
+      createSubBtn.style.marginLeft = '32px'; // Alinear con el texto de cuarto grado
     }
     createSubBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -989,7 +991,7 @@ function renderObjetivos() {
     const createBtn = document.createElement('div');
     createBtn.className = 'objetivo-create-btn';
     createBtn.textContent = '+ Añadir';
-    createBtn.style.marginLeft = '24px';
+    createBtn.style.marginLeft = '16px'; // Alinear exactamente con el icono de triángulo (primer grado)
     createBtn.addEventListener('click', () => openObjetivoModal(null, 1));
     container.appendChild(createBtn);
   } else {
@@ -1002,6 +1004,7 @@ function renderObjetivos() {
     const createBtn = document.createElement('div');
     createBtn.className = 'objetivo-create-btn';
     createBtn.textContent = '+ Añadir';
+    createBtn.style.marginLeft = '16px'; // Alinear exactamente con el icono de triángulo (primer grado)
     createBtn.addEventListener('click', () => openObjetivoModal(null, 1));
     container.appendChild(createBtn);
 
