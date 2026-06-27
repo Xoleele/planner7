@@ -80,6 +80,7 @@ html:not(.mobile-mode) .app-container {
   padding-bottom: 24px;
   border-bottom: 1px solid var(--border-light);
   margin-bottom: 24px;
+  min-height: 40px;
 }
 
 .header-left {
@@ -5471,3 +5472,325 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 /* Checkbox de completado del editor de tareas: visible (su tamaño y forma
    los define .task-modal-check-btn). */
 #task-complete-btn { display: flex !important; }
+
+/* ====================== SECCIÓN: OBJETIVOS ======================
+   Vista a pantalla completa que se superpone al planner. Tiene su propio
+   header (solo logo + avatar). Se muestra quitando la clase .hidden. */
+.objetivos-section {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: var(--bg-color, #fff);
+  display: flex;
+  flex-direction: column;
+  padding: 24px 32px;
+  overflow: hidden;
+}
+
+.objetivos-section.hidden { display: none; }
+
+/* El logo actúa como botón de "volver". */
+.objetivos-logo-btn { cursor: pointer; }
+
+.objetivos-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 32px;
+}
+
+.objetivos-panel {
+  width: 45%;
+  max-width: 600px;
+  min-width: 320px;
+  border-right: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 24px 16px 0;
+  box-sizing: border-box;
+}
+
+.objetivos-panel-header {
+  margin-bottom: 16px;
+}
+
+.objetivos-panel-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted, #868685);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.objetivos-list-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.objetivos-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.objetivo-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: var(--radius-md, 6px);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  color: var(--text-main, #1a1a1a);
+  font-size: 15px;
+  font-weight: 500;
+  user-select: none;
+}
+
+.objetivo-item:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.objetivo-create-btn {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: var(--radius-md, 6px);
+  cursor: pointer;
+  background-color: #8e8e93;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+  user-select: none;
+  width: fit-content;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.objetivo-create-btn:hover {
+  background-color: #76767b;
+  color: #ffffff;
+}
+
+.objetivos-content-placeholder {
+  flex: 1;
+}
+
+.mobile-mode .objetivos-body {
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mobile-mode .objetivos-panel {
+  width: 100%;
+  max-width: none;
+  border-right: none;
+  padding: 8px 0;
+}
+
+.mobile-mode .objetivos-content-placeholder {
+  display: none;
+}
+
+.mobile-mode .objetivos-section { padding: 16px; }
+
+/* Indicadores de arrastre para ordenar objetivos */
+.objetivo-container.drag-before-indicator {
+  position: relative;
+}
+.objetivo-container.drag-before-indicator::before {
+  content: '';
+  position: absolute;
+  top: -5px; /* dentro del gap natural */
+  left: 2px;
+  right: 2px;
+  height: 3px;
+  background-color: var(--text-main);
+  border-radius: var(--radius-full);
+  z-index: 10;
+  box-shadow: 0 0 0 1px var(--bg-card);
+  pointer-events: none;
+}
+.objetivo-container.drag-after-indicator {
+  position: relative;
+}
+.objetivo-container.drag-after-indicator::after {
+  content: '';
+  position: absolute;
+  bottom: -5px; /* dentro del gap natural */
+  left: 2px;
+  right: 2px;
+  height: 3px;
+  background-color: var(--text-main);
+  border-radius: var(--radius-full);
+  z-index: 10;
+  box-shadow: 0 0 0 1px var(--bg-card);
+  pointer-events: none;
+}
+
+.objetivo-container.dragging {
+  opacity: 0.4;
+}
+
+.objetivo-drag-ghost {
+  background: var(--bg-card, #fff);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md, 6px);
+  box-shadow: var(--shadow-lg);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.objetivos-table-header {
+  display: flex;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1.5px solid var(--border-light);
+  margin-bottom: 8px;
+  user-select: none;
+}
+
+.objetivos-table-header .col-title {
+  flex: 3;
+}
+
+.objetivos-table-header .col-date {
+  flex: 1;
+  text-align: center;
+}
+
+.objetivo-item .goal-title-col {
+  flex: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.objetivo-item .goal-date-col {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.goal-mobile-dates {
+  display: none;
+}
+
+.mobile-mode .objetivos-table-header {
+  display: none;
+}
+
+.mobile-mode .objetivo-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.mobile-mode .objetivo-item .goal-date-col {
+  display: none;
+}
+
+.mobile-mode .objetivo-item .goal-mobile-dates {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Triángulo desplegable y subobjetivos */
+.objetivo-toggle-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  margin-right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: var(--radius-sm, 4px);
+  color: var(--text-main);
+  transition: background-color 0.15s ease;
+  flex-shrink: 0;
+}
+.objetivo-toggle-btn:hover {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+.objetivo-toggle-icon {
+  transition: transform 0.15s ease;
+  transform: rotate(0deg);
+  display: block;
+}
+.objetivo-toggle-icon.expanded {
+  transform: rotate(90deg);
+}
+
+/* Lista de subobjetivos */
+.objetivo-subgoals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: 20px;
+  border-left: 1.5px solid var(--border-light);
+  padding-left: 12px;
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+.objetivo-subgoals-list.hidden {
+  display: none;
+}
+
+.subgoal-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: var(--radius-md, 6px);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  color: var(--text-main, #1a1a1a);
+  font-size: 13.5px;
+  font-weight: 500;
+  user-select: none;
+}
+.subgoal-item:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.subgoal-create-btn {
+  display: flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: var(--radius-md, 6px);
+  cursor: pointer;
+  background-color: #aeaeb2;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+  user-select: none;
+  width: fit-content;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  margin-top: 4px;
+}
+.subgoal-create-btn:hover {
+  background-color: #8e8e93;
+  color: #ffffff;
+}
+
+/* Ajustes responsivos para subobjetivos */
+.mobile-mode .subgoal-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.mobile-mode .subgoal-item .goal-date-col {
+  display: none;
+}
+.mobile-mode .subgoal-item .goal-mobile-dates {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}

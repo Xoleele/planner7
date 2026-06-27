@@ -8,3 +8,7 @@
   - Rango de fechas o fecha actual (week-range-label)
   - Botón "Hoy" (today-btn)
 - En el código, la clase CSS principal de esta barra es `.navegador` (anteriormente `.week-navigator`).
+
+## Terminología
+- La sección principal de la app (que no es la sección objetivos) se llamará **sección principal**.
+

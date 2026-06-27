@@ -601,130 +601,861 @@ function translateAuthError(msg) {
 }
 
 function setupUserMenu() {
-  const avatar = document.querySelector('.user-avatar');
-  if (!avatar || !currentUser) return;
-  avatar.querySelector('span').textContent = (currentUser.email || 'U')[0].toUpperCase();
-  avatar.title = currentUser.email;
-  avatar.classList.add('active');
+  const avatars = document.querySelectorAll('.user-avatar');
+  if (avatars.length === 0 || !currentUser) return;
 
-  // Evitar registrar el listener de click más de una vez. onAuthStateChange
-  // puede re-emitir SIGNED_IN (p. ej. al volver a la pestaña y refrescarse el
-  // token), lo que llamaría a setupUserMenu de nuevo y apilaría listeners; con
-  // un número par de ellos el dropdown se crea y se elimina al instante.
-  if (avatar.dataset.menuBound === 'true') return;
-  avatar.dataset.menuBound = 'true';
+  avatars.forEach(avatar => {
+    const span = avatar.querySelector('span');
+    if (span) {
+      span.textContent = (currentUser.email || 'U')[0].toUpperCase();
+    }
+    avatar.title = currentUser.email;
+    avatar.classList.add('active');
 
-  avatar.addEventListener('click', (e) => {
-    e.stopPropagation();
-    let dropdown = document.getElementById('user-dropdown');
-    if (dropdown) { dropdown.remove(); return; }
-    dropdown = document.createElement('div');
-    dropdown.id = 'user-dropdown';
-    dropdown.innerHTML = `
-      <div class="user-dropdown-email">${currentUser.email}</div>
-      <hr class="user-dropdown-divider">
-      <button id="objetivos-menu-btn" class="user-dropdown-item">
-        <img src="icons/target.svg" alt="" width="14" height="14">
-        Objetivos
-      </button>
-      <button id="change-password-btn" class="user-dropdown-item">
-        <img src="icons/key.svg" alt="" width="14" height="14">
-        Cambiar contraseña
-      </button>
-      <button id="export-data-btn" class="user-dropdown-item">
-        <img src="icons/download.svg" alt="" width="14" height="14">
-        Exportar datos
-      </button>
-      <button id="note-template-btn" class="user-dropdown-item">
-        <img src="icons/edit.svg" alt="" width="13.3" height="13.3">
-        Plantilla de notas
-      </button>
-      <button id="buscador-menu-btn" class="user-dropdown-item">
-        <img src="icons/search.svg" alt="" width="14" height="14">
-        Buscador
-      </button>
-      <button id="stats-menu-btn" class="user-dropdown-item">
-        <img src="icons/bar-chart.svg" alt="" width="14" height="14">
-        Estadísticas
-      </button>
-      <button id="advanced-options-btn" class="user-dropdown-item" style="display: none;">
-        <img src="icons/settings.svg" alt="" width="14" height="14">
-        Opciones avanzadas
-      </button>
-      <button id="delete-account-btn" class="user-dropdown-item" style="color: #ff3b30;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3 6 5 6 21 6"></polyline>
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          <line x1="10" y1="11" x2="10" y2="17"></line>
-          <line x1="14" y1="11" x2="14" y2="17"></line>
-        </svg>
-        Eliminar cuenta
-      </button>
-      <button id="logout-btn" class="user-dropdown-item">
-        <img src="icons/log-out.svg" alt="" width="14" height="14">
-        Cerrar sesión
-      </button>
+    // Evitar registrar el listener de click más de una vez. onAuthStateChange
+    // puede re-emitir SIGNED_IN (p. ej. al volver a la pestaña y refrescarse el
+    // token), lo que llamaría a setupUserMenu de nuevo y apilaría listeners; con
+    // un número par de ellos el dropdown se crea y se elimina al instante.
+    if (avatar.dataset.menuBound === 'true') return;
+    avatar.dataset.menuBound = 'true';
+
+    avatar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      let dropdown = document.getElementById('user-dropdown');
+      if (dropdown) {
+        const wasClickedSameAvatar = dropdown.parentNode === avatar;
+        dropdown.remove();
+        if (wasClickedSameAvatar) return;
+      }
+      dropdown = document.createElement('div');
+      dropdown.id = 'user-dropdown';
+      dropdown.innerHTML = `
+        <div class="user-dropdown-email">${currentUser.email}</div>
+        <hr class="user-dropdown-divider">
+        <button id="objetivos-menu-btn" class="user-dropdown-item">
+          <img src="icons/target.svg" alt="" width="14" height="14">
+          Objetivos
+        </button>
+        <button id="change-password-btn" class="user-dropdown-item">
+          <img src="icons/key.svg" alt="" width="14" height="14">
+          Cambiar contraseña
+        </button>
+        <button id="export-data-btn" class="user-dropdown-item">
+          <img src="icons/download.svg" alt="" width="14" height="14">
+          Exportar datos
+        </button>
+        <button id="note-template-btn" class="user-dropdown-item">
+          <img src="icons/edit.svg" alt="" width="13.3" height="13.3">
+          Plantilla de notas
+        </button>
+        <button id="buscador-menu-btn" class="user-dropdown-item">
+          <img src="icons/search.svg" alt="" width="14" height="14">
+          Buscador
+        </button>
+        <button id="stats-menu-btn" class="user-dropdown-item">
+          <img src="icons/bar-chart.svg" alt="" width="14" height="14">
+          Estadísticas
+        </button>
+        <button id="advanced-options-btn" class="user-dropdown-item" style="display: none;">
+          <img src="icons/settings.svg" alt="" width="14" height="14">
+          Opciones avanzadas
+        </button>
+        <button id="delete-account-btn" class="user-dropdown-item" style="color: #ff3b30;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+          </svg>
+          Eliminar cuenta
+        </button>
+        <button id="logout-btn" class="user-dropdown-item">
+          <img src="icons/log-out.svg" alt="" width="14" height="14">
+          Cerrar sesión
+        </button>
+      `;
+      avatar.appendChild(dropdown);
+
+      document.getElementById('objetivos-menu-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.remove();
+        const section = document.getElementById('objetivos-section');
+        if (section && !section.classList.contains('hidden')) {
+          closeObjetivosSection();
+        } else {
+          openObjetivosSection();
+        }
+      });
+
+      document.getElementById('change-password-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.remove();
+        openChangePasswordModal();
+      });
+
+      document.getElementById('export-data-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.remove();
+        exportUserDataToCSV();
+      });
+
+      document.getElementById('note-template-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.remove();
+        openNoteTemplateModal();
+      });
+
+      const buscadorMenuBtn = document.getElementById('buscador-menu-btn');
+      if (buscadorMenuBtn) {
+        buscadorMenuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          dropdown.remove();
+          openBuscadorModal();
+        });
+      }
+
+      const statsMenuBtn = document.getElementById('stats-menu-btn');
+      if (statsMenuBtn) {
+        statsMenuBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          dropdown.remove();
+          estadisticasGenerales(formatDate(new Date()));
+        });
+      }
+
+      document.getElementById('advanced-options-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.remove();
+        // TODO: abrir el panel de opciones avanzadas.
+      });
+
+      document.getElementById('delete-account-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.remove();
+        openDeleteAccountModal();
+      });
+
+      document.getElementById('logout-btn').addEventListener('click', () => {
+        intentionalLogout = true;
+        sb.auth.signOut();
+      });
+      setTimeout(() => {
+        document.addEventListener('click', () => {
+          const d = document.getElementById('user-dropdown');
+          if (d) d.remove();
+        }, { once: true });
+      }, 0);
+    });
+  });
+}
+
+// ─── Sección Objetivos ───────────────────────────────────────────────────────
+// Vista a pantalla completa con header propio (logo + avatar). Por ahora solo
+// se muestra/oculta; sin función adicional. El logo actúa como botón de volver.
+let objetivosBound = false;
+let expandedGoalIds = new Set();
+let editingParentGoalId = null;
+
+function openObjetivosSection() {
+  const section = document.getElementById('objetivos-section');
+  if (!section) return;
+  const avatarSpan = section.querySelector('.objetivos-user-avatar span');
+  if (avatarSpan && currentUser) {
+    avatarSpan.textContent = (currentUser.email || 'U')[0].toUpperCase();
+  }
+  section.classList.remove('hidden');
+
+  if (!objetivosBound) {
+    objetivosBound = true;
+    const logoBtn = document.getElementById('objetivos-logo-btn');
+    if (logoBtn) {
+      logoBtn.addEventListener('click', closeObjetivosSection);
+      logoBtn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeObjetivosSection(); }
+      });
+    }
+    setupObjetivosEventListeners();
+  }
+  renderObjetivos();
+}
+
+function closeObjetivosSection() {
+  const section = document.getElementById('objetivos-section');
+  if (section) section.classList.add('hidden');
+}
+
+// Creador/editor de objetivos
+async function saveObjetivosToStorage() {
+  if (!currentUser) return;
+  const prefsCacheKey = 'prefs_cache_' + currentUser.id;
+  
+  let prefs = {};
+  try {
+    const cachedPrefs = localStorage.getItem(prefsCacheKey);
+    if (cachedPrefs) prefs = JSON.parse(cachedPrefs);
+  } catch (e) {}
+  
+  prefs.objetivos = objetivos;
+  
+  try {
+    localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
+  } catch (e) {}
+  
+  await savePreferences(prefs);
+}
+
+const GRADO_LEVELS = {
+  1: 'primer grado',
+  2: 'segundo grado',
+  3: 'tercer grado',
+  4: 'cuarto grado'
+};
+
+function formatDateDMY(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : '';
+}
+
+function findGoalByIdRecursive(list, id) {
+  for (const item of list) {
+    if (item.id === id) return { node: item, parent: null };
+    if (item.subgoals && item.subgoals.length > 0) {
+      const found = findGoalByIdRecursive(item.subgoals, id);
+      if (found) {
+        return { node: found.node, parent: found.parent || item };
+      }
+    }
+  }
+  return null;
+}
+
+function renderGoalNode(obj, level) {
+  const containerEl = document.createElement('div');
+  const gradoClass = GRADO_LEVELS[level].replace(' ', '-');
+  containerEl.className = `objetivo-container ${gradoClass}`;
+  containerEl.dataset.goalId = obj.id;
+
+  const item = document.createElement('div');
+  item.className = 'objetivo-item';
+
+  // Triángulo desplegable (sólo niveles < 4, es decir, primer grado, segundo grado y tercer grado)
+  if (level < 4) {
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'objetivo-toggle-btn';
+    toggleBtn.innerHTML = `
+      <svg class="objetivo-toggle-icon ${expandedGoalIds.has(obj.id) ? 'expanded' : ''}" viewBox="0 0 24 24" width="12" height="12">
+        <path d="M8 5v14l11-7z" fill="currentColor"></path>
+      </svg>
     `;
-    avatar.appendChild(dropdown);
 
-    document.getElementById('change-password-btn').addEventListener('click', (e) => {
+    toggleBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      dropdown.remove();
-      openChangePasswordModal();
+      const icon = toggleBtn.querySelector('.objetivo-toggle-icon');
+      const subList = containerEl.querySelector('.objetivo-subgoals-list');
+      if (expandedGoalIds.has(obj.id)) {
+        expandedGoalIds.delete(obj.id);
+        icon.classList.remove('expanded');
+        subList.classList.add('hidden');
+      } else {
+        // Contraer hermanos del mismo nivel de jerarquía (mismo grado)
+        if (level === 1) {
+          objetivos.forEach(sibling => {
+            if (sibling.id !== obj.id) {
+              expandedGoalIds.delete(sibling.id);
+            }
+          });
+        } else {
+          const foundData = findGoalByIdRecursive(objetivos, obj.id);
+          const parent = foundData ? foundData.parent : null;
+          if (parent && parent.subgoals) {
+            parent.subgoals.forEach(sibling => {
+              if (sibling.id !== obj.id) {
+                expandedGoalIds.delete(sibling.id);
+              }
+            });
+          }
+        }
+        expandedGoalIds.add(obj.id);
+      }
+      renderObjetivos();
     });
 
-    document.getElementById('export-data-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.remove();
-      exportUserDataToCSV();
-    });
+    item.appendChild(toggleBtn);
+  } else {
+    // Espaciador para alinear con los niveles superiores (cuarto grado no se despliega)
+    const spacer = document.createElement('div');
+    spacer.className = 'objetivo-toggle-spacer';
+    spacer.style.width = '20px';
+    spacer.style.flexShrink = '0';
+    item.appendChild(spacer);
+  }
 
-    document.getElementById('note-template-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.remove();
-      openNoteTemplateModal();
-    });
+  // Columna Título
+  const titleCol = document.createElement('div');
+  titleCol.className = 'goal-title-col';
+  titleCol.textContent = obj.title;
 
-    const buscadorMenuBtn = document.getElementById('buscador-menu-btn');
-    if (buscadorMenuBtn) {
-      buscadorMenuBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        dropdown.remove();
-        openBuscadorModal();
+  // Columna Inicio
+  const inicioCol = document.createElement('div');
+  inicioCol.className = 'goal-date-col';
+  inicioCol.textContent = obj.startDate ? formatDateDMY(obj.startDate) : '-';
+
+  // Columna Fin
+  const finCol = document.createElement('div');
+  finCol.className = 'goal-date-col';
+  finCol.textContent = obj.endDate ? formatDateDMY(obj.endDate) : '-';
+
+  // Visualización compacta en móviles
+  const mobileDates = document.createElement('div');
+  mobileDates.className = 'goal-mobile-dates';
+  const startText = obj.startDate ? formatDateDMY(obj.startDate) : 'Sin inicio';
+  const endText = obj.endDate ? formatDateDMY(obj.endDate) : 'Sin fin';
+  mobileDates.textContent = `${startText} • ${endText}`;
+
+  item.appendChild(titleCol);
+  item.appendChild(inicioCol);
+  item.appendChild(finCol);
+  item.appendChild(mobileDates);
+  
+  // Control de click vs drag (para todos los grados)
+  let wasDragging = false;
+  containerEl.addEventListener('dragstart', (e) => {
+    e.stopPropagation();
+    wasDragging = true;
+  });
+  containerEl.addEventListener('dragend', (e) => {
+    e.stopPropagation();
+    setTimeout(() => { wasDragging = false; }, 50);
+  });
+  containerEl.addEventListener('touchstart', (e) => {
+    if (e.target.closest('.objetivo-subgoals-list')) return;
+    wasDragging = false;
+  }, { passive: true });
+  containerEl.addEventListener('touchmove', (e) => {
+    if (e.target.closest('.objetivo-subgoals-list')) return;
+    wasDragging = true;
+  }, { passive: true });
+  
+  item.addEventListener('click', () => {
+    if (wasDragging) return;
+    let parentId = null;
+    if (level > 1) {
+      const foundData = findGoalByIdRecursive(objetivos, obj.id);
+      parentId = foundData && foundData.parent ? foundData.parent.id : null;
+    }
+    openObjetivoModal(obj.id, level, parentId);
+  });
+  
+  containerEl.appendChild(item);
+
+  // Lista de Subobjetivos (sólo grados < cuarto grado)
+  if (level < 4) {
+    const subList = document.createElement('div');
+    subList.className = 'objetivo-subgoals-list' + (expandedGoalIds.has(obj.id) ? '' : ' hidden');
+
+    if (obj.subgoals && obj.subgoals.length > 0) {
+      obj.subgoals.forEach(sub => {
+        const subNode = renderGoalNode(sub, level + 1);
+        subList.appendChild(subNode);
       });
     }
 
-    const statsMenuBtn = document.getElementById('stats-menu-btn');
-    if (statsMenuBtn) {
-      statsMenuBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        dropdown.remove();
-        estadisticasGenerales(formatDate(new Date()));
-      });
+    // Botón "+ Añadir" para subobjetivos
+    const createSubBtn = document.createElement('div');
+    createSubBtn.className = 'subgoal-create-btn';
+    createSubBtn.textContent = '+ Añadir';
+    if (level < 3) {
+      createSubBtn.style.marginLeft = '24px'; // Alinear con el texto de los subobjetivos
+    }
+    createSubBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openObjetivoModal(null, level + 1, obj.id);
+    });
+    subList.appendChild(createSubBtn);
+
+    containerEl.appendChild(subList);
+  }
+
+  return containerEl;
+}
+
+function renderObjetivos() {
+  const container = document.getElementById('objetivos-lista');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (objetivos.length === 0) {
+    const createBtn = document.createElement('div');
+    createBtn.className = 'objetivo-create-btn';
+    createBtn.textContent = '+ Añadir';
+    createBtn.style.marginLeft = '24px';
+    createBtn.addEventListener('click', () => openObjetivoModal(null, 1));
+    container.appendChild(createBtn);
+  } else {
+    // Renderizar objetivos de primer grado
+    objetivos.forEach(obj => {
+      const node = renderGoalNode(obj, 1);
+      container.appendChild(node);
+    });
+
+    const createBtn = document.createElement('div');
+    createBtn.className = 'objetivo-create-btn';
+    createBtn.textContent = '+ Añadir';
+    createBtn.addEventListener('click', () => openObjetivoModal(null, 1));
+    container.appendChild(createBtn);
+
+    setupObjetivosDragAndDrop(container);
+  }
+}
+
+function updateObjetivoDateConstraints() {
+  const startInput = document.getElementById('objetivo-input-start-date');
+  const endInput = document.getElementById('objetivo-input-end-date');
+  if (!startInput || !endInput) return;
+
+  const startVal = startInput.value;
+  const endVal = endInput.value;
+
+  if (startVal) {
+    endInput.min = startVal;
+    if (endVal && endVal < startVal) {
+      endInput.value = startVal;
+      updateDateOverlay(endInput);
+    }
+  } else {
+    endInput.removeAttribute('min');
+  }
+
+  if (endVal) {
+    startInput.max = endVal;
+    if (startVal && startVal > endVal) {
+      startInput.value = endVal;
+      updateDateOverlay(startInput);
+    }
+  } else {
+    startInput.removeAttribute('max');
+  }
+}
+
+function openObjetivoModal(id, targetLevel = 1, parentId = null) {
+  editingObjetivoId = id;
+  editingParentGoalId = parentId;
+  const modal = document.getElementById('objetivo-modal');
+  const modalTitle = modal.querySelector('.modal-header h2');
+  const input = document.getElementById('objetivo-input-title');
+  const deleteBtn = document.getElementById('delete-objetivo-btn');
+  const startInput = document.getElementById('objetivo-input-start-date');
+  const endInput = document.getElementById('objetivo-input-end-date');
+
+  if (id === null) {
+    modalTitle.textContent = targetLevel > 1 ? 'Nuevo sub-objetivo' : 'Nuevo objetivo';
+    input.value = '';
+    startInput.value = '';
+    endInput.value = '';
+    deleteBtn.classList.add('hidden');
+  } else {
+    modalTitle.textContent = targetLevel > 1 ? 'Editar sub-objetivo' : 'Editar objetivo';
+    const foundData = findGoalByIdRecursive(objetivos, id);
+    const obj = foundData ? foundData.node : null;
+    input.value = obj ? obj.title : '';
+    startInput.value = (obj && obj.startDate) ? obj.startDate : '';
+    endInput.value = (obj && obj.endDate) ? obj.endDate : '';
+    deleteBtn.classList.remove('hidden');
+  }
+
+  // Refrescar overlays de fecha
+  updateDateOverlay(startInput);
+  updateDateOverlay(endInput);
+
+  // Establecer restricciones de fecha min/max iniciales
+  updateObjetivoDateConstraints();
+
+  modal.classList.remove('hidden');
+  setTimeout(() => input.focus(), 50);
+}
+
+function setupObjetivosEventListeners() {
+  const saveBtn = document.getElementById('save-objetivo-btn');
+  const cancelBtn = document.getElementById('cancel-objetivo-btn');
+  const deleteBtn = document.getElementById('delete-objetivo-btn');
+  const input = document.getElementById('objetivo-input-title');
+  const modal = document.getElementById('objetivo-modal');
+  const startInput = document.getElementById('objetivo-input-start-date');
+  const endInput = document.getElementById('objetivo-input-end-date');
+  const startClearBtn = document.getElementById('objetivo-start-date-clear');
+  const endClearBtn = document.getElementById('objetivo-end-date-clear');
+
+  saveBtn.addEventListener('click', async () => {
+    const title = input.value.trim();
+    if (!title) return;
+
+    const startVal = startInput.value || null;
+    const endVal = endInput.value || null;
+
+    if (startVal && endVal && endVal < startVal) {
+      alert('La fecha de fin no puede ser anterior a la fecha de inicio.');
+      return;
     }
 
-    document.getElementById('advanced-options-btn').addEventListener('click', (e) => {
+    if (editingParentGoalId) {
+      // Guardar subobjetivo
+      const parentData = findGoalByIdRecursive(objetivos, editingParentGoalId);
+      const parent = parentData ? parentData.node : null;
+      if (parent) {
+        if (!parent.subgoals) parent.subgoals = [];
+        if (editingObjetivoId === null) {
+          parent.subgoals.push({
+            id: 'goal-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+            title: title,
+            startDate: startVal,
+            endDate: endVal,
+            subgoals: []
+          });
+        } else {
+          const sub = parent.subgoals.find(s => s.id === editingObjetivoId);
+          if (sub) {
+            sub.title = title;
+            sub.startDate = startVal;
+            sub.endDate = endVal;
+          }
+        }
+      }
+    } else {
+      // Guardar objetivo principal
+      if (editingObjetivoId === null) {
+        const newObj = {
+          id: 'goal-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+          title: title,
+          startDate: startVal,
+          endDate: endVal,
+          subgoals: []
+        };
+        objetivos.push(newObj);
+      } else {
+        const obj = objetivos.find(o => o.id === editingObjetivoId);
+        if (obj) {
+          obj.title = title;
+          obj.startDate = startVal;
+          obj.endDate = endVal;
+        }
+      }
+    }
+
+    modal.classList.add('hidden');
+    renderObjetivos();
+    await saveObjetivosToStorage();
+  });
+
+  cancelBtn.addEventListener('click', () => {
+    modal.classList.add('hidden');
+  });
+
+  deleteBtn.addEventListener('click', async () => {
+    if (editingObjetivoId !== null) {
+      if (editingParentGoalId) {
+        const parentData = findGoalByIdRecursive(objetivos, editingParentGoalId);
+        const parent = parentData ? parentData.node : null;
+        if (parent && parent.subgoals) {
+          parent.subgoals = parent.subgoals.filter(s => s.id !== editingObjetivoId);
+        }
+      } else {
+        objetivos = objetivos.filter(o => o.id !== editingObjetivoId);
+      }
+      modal.classList.add('hidden');
+      renderObjetivos();
+      await saveObjetivosToStorage();
+    }
+  });
+
+  // Escuchar cambios de fecha para actualizar restricciones min/max
+  startInput.addEventListener('change', updateObjetivoDateConstraints);
+  startInput.addEventListener('input', updateObjetivoDateConstraints);
+  endInput.addEventListener('change', updateObjetivoDateConstraints);
+  endInput.addEventListener('input', updateObjetivoDateConstraints);
+
+  // Limpiar fechas manualmente
+  startClearBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    startInput.value = '';
+    updateDateOverlay(startInput);
+    updateObjetivoDateConstraints();
+  });
+
+  endClearBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    endInput.value = '';
+    updateDateOverlay(endInput);
+    updateObjetivoDateConstraints();
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveBtn.click();
+    }
+  });
+}
+
+function setupObjetivosDragAndDrop(container) {
+  let dragItem = null;
+  let dragGoalId = null;
+  let ghost = null;
+  let offsetY = 0;
+  let touchTimer = null;
+  let touchDragging = false;
+
+  let lastIndicatorEl = null;
+  let lastIndicatorClass = null;
+
+  let lastClientY = null;
+  let scrollInterval = null;
+  let scrollSpeed = 0;
+
+  function stopAutoScroll() {
+    if (scrollInterval) {
+      clearInterval(scrollInterval);
+      scrollInterval = null;
+    }
+  }
+
+  function handleAutoScroll(clientY) {
+    const rect = container.getBoundingClientRect();
+    const EDGE = 35;
+    const MAX_SPEED = 8;
+    
+    let speed = 0;
+    if (clientY < rect.top + EDGE) {
+      const intensity = Math.min(1, (rect.top + EDGE - clientY) / EDGE);
+      speed = -MAX_SPEED * intensity;
+    } else if (clientY > rect.bottom - EDGE) {
+      const intensity = Math.min(1, (clientY - (rect.bottom - EDGE)) / EDGE);
+      speed = MAX_SPEED * intensity;
+    }
+
+    if (speed === 0) {
+      stopAutoScroll();
+      return;
+    }
+
+    scrollSpeed = speed;
+
+    if (!scrollInterval) {
+      scrollInterval = setInterval(() => {
+        container.scrollTop += scrollSpeed;
+        if (lastClientY !== null) {
+          updateObjetivosDragIndicator(lastClientY);
+        }
+      }, 16);
+    }
+  }
+
+  // Obtener los elementos hermanos directos del mismo nivel
+  const items = () => {
+    if (!dragItem) return [];
+    return [...dragItem.parentElement.querySelectorAll(':scope > .objetivo-container')];
+  };
+
+  function clearObjetivosIndicators() {
+    if (!dragItem) return;
+    dragItem.parentElement.querySelectorAll(':scope > .objetivo-container').forEach(el => {
+      el.classList.remove('drag-before-indicator', 'drag-after-indicator');
+    });
+    lastIndicatorEl = null;
+    lastIndicatorClass = null;
+  }
+
+  function updateObjetivosDragIndicator(y) {
+    if (!dragItem) return;
+    const others = items().filter(el => el !== dragItem);
+    if (others.length === 0) return;
+
+    let targetEl = null;
+    let targetClass = '';
+
+    for (const el of others) {
+      const r = el.getBoundingClientRect();
+      if (y < r.top + r.height / 2) {
+        targetEl = el;
+        targetClass = 'drag-before-indicator';
+        break;
+      }
+    }
+
+    if (!targetEl) {
+      targetEl = others[others.length - 1];
+      targetClass = 'drag-after-indicator';
+    }
+
+    if (lastIndicatorEl === targetEl && lastIndicatorClass === targetClass) {
+      return;
+    }
+
+    clearObjetivosIndicators();
+
+    if (targetEl) {
+      targetEl.classList.add(targetClass);
+    }
+    lastIndicatorEl = targetEl;
+    lastIndicatorClass = targetClass;
+  }
+
+  function commitOrder() {
+    const orderedIds = items().map(el => el.dataset.goalId);
+    const foundData = findGoalByIdRecursive(objetivos, dragGoalId);
+    if (foundData) {
+      const parent = foundData.parent;
+      if (parent) {
+        // Reordenar subobjetivos del padre correspondiente
+        parent.subgoals.sort((a, b) => orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id));
+      } else {
+        // Reordenar objetivos principales (primer grado)
+        objetivos.sort((a, b) => orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id));
+      }
+      saveObjetivosToStorage();
+    }
+  }
+
+  container.querySelectorAll('.objetivo-container').forEach(item => {
+    item.setAttribute('draggable', 'true');
+    item.addEventListener('dragstart', (e) => {
       e.stopPropagation();
-      dropdown.remove();
-      // TODO: abrir el panel de opciones avanzadas.
+      const closestContainer = e.target.closest('.objetivo-container');
+      if (closestContainer !== item) {
+        return;
+      }
+      // Cancelar el arrastre si se inicia en el propio contenedor de subobjetivos (como en el botón "+ Añadir")
+      if (e.target.closest('.objetivo-subgoals-list') && e.target.closest('.objetivo-subgoals-list').parentElement === item) {
+        e.preventDefault();
+        return;
+      }
+      dragItem = item;
+      dragGoalId = item.dataset.goalId;
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      try { e.dataTransfer.setData('text/plain', dragGoalId); } catch (err) {}
+    });
+    
+    item.addEventListener('dragend', () => {
+      if (dragItem) dragItem.classList.remove('dragging');
+      clearObjetivosIndicators();
+      stopAutoScroll();
+      dragItem = null;
+      dragGoalId = null;
+      lastClientY = null;
     });
 
-    document.getElementById('delete-account-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.remove();
-      openDeleteAccountModal();
-    });
+    // Touch events para dispositivos móviles
+    item.addEventListener('touchstart', (e) => {
+      const closestContainer = e.target.closest('.objetivo-container');
+      if (closestContainer !== item) {
+        return;
+      }
+      if (e.target.closest('.objetivo-subgoals-list') && e.target.closest('.objetivo-subgoals-list').parentElement === item) {
+        return;
+      }
+      const touch = e.touches[0];
+      touchTimer = setTimeout(() => {
+        touchDragging = true;
+        dragItem = item;
+        dragGoalId = item.dataset.goalId;
+        item.classList.add('dragging');
+        if (navigator.vibrate) navigator.vibrate(40);
+        const r = item.getBoundingClientRect();
+        offsetY = touch.clientY - r.top;
+        ghost = item.cloneNode(true);
+        // Eliminar subobjetivos del fantasma para un arrastre compacto
+        const ghostSublist = ghost.querySelector('.objetivo-subgoals-list');
+        if (ghostSublist) ghostSublist.remove();
 
-    document.getElementById('logout-btn').addEventListener('click', () => {
-      intentionalLogout = true;
-      sb.auth.signOut();
+        ghost.classList.add('objetivo-drag-ghost');
+        ghost.style.position = 'fixed';
+        ghost.style.left = r.left + 'px';
+        ghost.style.top = r.top + 'px';
+        ghost.style.width = r.width + 'px';
+        ghost.style.pointerEvents = 'none';
+        ghost.style.zIndex = '10000';
+        document.body.appendChild(ghost);
+        item.style.opacity = '0.3';
+      }, 250);
+    }, { passive: true });
+
+    item.addEventListener('touchmove', (e) => {
+      if (!touchDragging) {
+        if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+        return;
+      }
+      e.preventDefault();
+      const touch = e.touches[0];
+      if (ghost) ghost.style.top = (touch.clientY - offsetY) + 'px';
+      lastClientY = touch.clientY;
+      updateObjetivosDragIndicator(touch.clientY);
+      handleAutoScroll(touch.clientY);
+    }, { passive: false });
+
+    const endTouch = () => {
+      if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+      stopAutoScroll();
+      lastClientY = null;
+      if (touchDragging) {
+        if (ghost) { ghost.remove(); ghost = null; }
+        if (dragItem) {
+          dragItem.style.opacity = '';
+          dragItem.classList.remove('dragging');
+          if (lastIndicatorEl) {
+            if (lastIndicatorClass === 'drag-before-indicator') {
+              dragItem.parentElement.insertBefore(dragItem, lastIndicatorEl);
+            } else if (lastIndicatorClass === 'drag-after-indicator') {
+              dragItem.parentElement.insertBefore(dragItem, lastIndicatorEl.nextSibling);
+            }
+          }
+        }
+        clearObjetivosIndicators();
+        commitOrder();
+        touchDragging = false;
+        dragItem = null;
+        dragGoalId = null;
+      }
+    };
+
+    item.addEventListener('touchend', endTouch);
+    item.addEventListener('touchcancel', endTouch);
+
+    item.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
     });
-    setTimeout(() => {
-      document.addEventListener('click', () => {
-        const d = document.getElementById('user-dropdown');
-        if (d) d.remove();
-      }, { once: true });
-    }, 0);
+  });
+
+  container.addEventListener('dragover', (e) => {
+    if (!dragItem) return;
+    e.preventDefault();
+    lastClientY = e.clientY;
+    updateObjetivosDragIndicator(e.clientY);
+    handleAutoScroll(e.clientY);
+  });
+
+  container.addEventListener('dragleave', (e) => {
+    if (container.contains(e.relatedTarget)) return;
+    clearObjetivosIndicators();
+    stopAutoScroll();
+  });
+
+  container.addEventListener('drop', (e) => {
+    e.preventDefault();
+    stopAutoScroll();
+    if (!dragItem) return;
+
+    if (lastIndicatorEl) {
+      if (lastIndicatorClass === 'drag-before-indicator') {
+        dragItem.parentElement.insertBefore(dragItem, lastIndicatorEl);
+      } else if (lastIndicatorClass === 'drag-after-indicator') {
+        dragItem.parentElement.insertBefore(dragItem, lastIndicatorEl.nextSibling);
+      }
+    }
+    clearObjetivosIndicators();
+    commitOrder();
   });
 }
 
@@ -801,12 +1532,14 @@ async function initAuth() {
       document.body.classList.add('not-logged-in');
       resetApp(wasIntentional);
       showAuthScreen();
-      const avatar = document.querySelector('.user-avatar');
-      if (avatar) {
-        avatar.querySelector('span').textContent = 'U';
+      const avatars = document.querySelectorAll('.user-avatar');
+      avatars.forEach(avatar => {
+        const span = avatar.querySelector('span');
+        if (span) span.textContent = 'U';
         avatar.title = 'Perfil de usuario';
         avatar.classList.remove('active');
-      }
+        delete avatar.dataset.menuBound;
+      });
     }
   });
 }
@@ -1008,6 +1741,8 @@ let tags = [];
 let notes = {};
 // Plantilla de notas: una nota global del usuario, sin día asignado.
 let noteTemplate = '';
+let objetivos = [];
+let editingObjetivoId = null;
 let currentWeekStart = new Date(); // Monday of the currently viewed week
 let selectedTaskId = null;
 let selectedDayDate = null; // Used for pre-filling date on new task
@@ -1686,6 +2421,7 @@ async function startApp(user) {
       const parsedPrefs = JSON.parse(cachedPrefs);
       notes = parsedPrefs.notes || {};
       noteTemplate = parsedPrefs.noteTemplate || '';
+      objetivos = parsedPrefs.objetivos || [];
       statsCustomColors = parsedPrefs.statsCustomColors || {};
       statsCustomNames = parsedPrefs.statsCustomNames || {};
       statsMergedTasks = parsedPrefs.statsMergedTasks || {};
@@ -1705,6 +2441,7 @@ async function startApp(user) {
   if (prefs) {
     notes = prefs.notes || {};
     noteTemplate = prefs.noteTemplate || '';
+    objetivos = prefs.objetivos || [];
     statsCustomColors = prefs.statsCustomColors || {};
     statsCustomNames = prefs.statsCustomNames || {};
     statsMergedTasks = prefs.statsMergedTasks || {};
@@ -1920,6 +2657,7 @@ function resetApp(clearCache = false) {
   tasks = [];
   tags = [];
   notes = {};
+  objetivos = [];
   undoStack = [];
   redoStack = [];
   selectedTaskId = null;
@@ -13554,6 +14292,23 @@ function setupEventListeners() {
       const success = redo();
       if (success) {
         showHistoryNotification('Cambio rehecho con éxito', 'redo');
+      }
+    }
+
+    // Alternar entre sección principal y sección objetivos con la tecla "o"
+    if (e.key.toLowerCase() === 'o') {
+      if (isInputActive) return;
+      const activeModals = document.querySelectorAll('.modal-backdrop:not(.hidden)');
+      if (activeModals.length > 0) return;
+
+      e.preventDefault();
+      const section = document.getElementById('objetivos-section');
+      if (section) {
+        if (section.classList.contains('hidden')) {
+          openObjetivosSection();
+        } else {
+          closeObjetivosSection();
+        }
       }
     }
 
