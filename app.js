@@ -4040,6 +4040,20 @@ function initForce24Time() {
     input.addEventListener('change', () => updateDateOverlay(input));
     updateDateOverlay(input); // estado inicial
   });
+
+  // Permitir escribir y abrir el selector simultáneamente al cliquear el wrapper
+  document.querySelectorAll('.date-input-wrapper').forEach(wrapper => {
+    wrapper.addEventListener('click', (e) => {
+      if (e.target.closest('.date-calendar-icon, .time-clear-btn, .time-bell-btn')) return;
+      const input = wrapper.querySelector('input[type="date"]');
+      if (input && !input.disabled) {
+        input.focus();
+        if (typeof input.showPicker === 'function') {
+          try { input.showPicker(); } catch (_) {}
+        }
+      }
+    });
+  });
 }
 
 // ─── Sistema de alarmas ───────────────────────────────────────────────────────
