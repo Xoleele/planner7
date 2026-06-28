@@ -1044,9 +1044,9 @@ function renderGoalNode(obj, level) {
   mobileDates.textContent = `${startText} • ${endText}`;
 
   item.appendChild(titleCol);
+  item.appendChild(durCol);
   item.appendChild(inicioCol);
   item.appendChild(finCol);
-  item.appendChild(durCol);
   item.appendChild(mobileDates);
   
   // Control de click vs drag (para todos los grados)
