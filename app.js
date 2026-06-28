@@ -923,6 +923,8 @@ function renderGoalNode(obj, level) {
   // Evitar que el clic en la celda abra el modal
   inicioCol.addEventListener('click', (e) => {
     e.stopPropagation();
+    // Si la fecha no es editable (objetivo con subobjetivos), avisar.
+    if (isParent) showModeToast('Cálculo automático');
   });
 
   if (!isParent) {
@@ -971,6 +973,8 @@ function renderGoalNode(obj, level) {
 
   finCol.addEventListener('click', (e) => {
     e.stopPropagation();
+    // El FIN siempre se calcula automaticamente (hoja: inicio+duracion; padre: rango).
+    showModeToast('Cálculo automático');
   });
 
   // La fecha de FIN siempre es de solo lectura: se calcula automaticamente a

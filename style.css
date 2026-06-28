@@ -1160,7 +1160,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 /* Celdas de fecha calculadas en la lista (atenuadas) */
-.goal-date-col.goal-date-auto {
+/* Fechas automaticas (objetivos con subobjetivos o FIN calculado): gris.
+   Mayor especificidad para ganar sobre el color base negro. */
+.objetivo-item .goal-date-col.goal-date-auto,
+.subgoal-item .goal-date-col.goal-date-auto {
   color: var(--text-muted, #86868b);
 }
 
@@ -5859,30 +5862,35 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 }
 
 .objetivos-table-header .col-title {
-  flex: 3;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
+/* Ancho fijo para que las fechas/duracion queden en un eje vertical comun,
+   sin importar la indentacion por jerarquia de cada fila. */
 .objetivos-table-header .col-date {
-  flex: 1;
+  flex: 0 0 90px;
   text-align: center;
 }
 
 .objetivos-table-header .col-duration {
-  flex: 1;
+  flex: 0 0 80px;
   text-align: center;
 }
 
 .objetivo-item .goal-title-col {
-  flex: 3;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .objetivo-item .goal-date-col {
-  flex: 1;
+  flex: 0 0 90px;
   font-size: 12.5px;
-  color: var(--text-muted);
+  /* Fechas editables en negro; las automaticas se sobreescriben mas abajo a gris */
+  color: var(--text-main, #111111);
   text-align: center;
   position: relative;
   display: flex;
@@ -5892,7 +5900,7 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 }
 
 .objetivo-item .goal-duration-col {
-  flex: 1;
+  flex: 0 0 80px;
   font-size: 12.5px;
   color: var(--text-muted);
   text-align: center;
