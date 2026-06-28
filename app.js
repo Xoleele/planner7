@@ -1252,6 +1252,16 @@ function renderGanttChart() {
 }
 
 function drawGanttBars(rows, header, rowsEl, listContainer, range) {
+  // Igualar la altura de la zona de barras a la de la lista de objetivos, para
+  // que el scroll vertical comun (objetivos-body) abarque todas las filas y las
+  // barras dispongan de espacio (son position:absolute).
+  const listaEl = document.getElementById('objetivos-lista');
+  if (listaEl) {
+    // +16px de holgura para que la barra de scroll horizontal nativa no tape
+    // la ultima fila de barras.
+    rowsEl.style.height = (listaEl.offsetHeight + 16) + 'px';
+  }
+
   const rowsRect = rowsEl.getBoundingClientRect();
 
   if (range) {
@@ -1266,7 +1276,8 @@ function drawGanttBars(rows, header, rowsEl, listContainer, range) {
     if (ganttScrollX > maxScroll) ganttScrollX = maxScroll;
     if (ganttScrollX < 0) ganttScrollX = 0;
 
-    // Lienzos internos desplazables (uno para header, otro para barras)
+    // El header se desplaza por transform (no tiene barra propia); las filas
+    // usan el scroll horizontal NATIVO de .gantt-rows (barra visible).
     const headerTrack = document.createElement('div');
     headerTrack.className = 'gantt-header-track';
     headerTrack.style.width = width + 'px';
@@ -1275,7 +1286,6 @@ function drawGanttBars(rows, header, rowsEl, listContainer, range) {
     const rowsTrack = document.createElement('div');
     rowsTrack.className = 'gantt-rows-track';
     rowsTrack.style.width = width + 'px';
-    rowsTrack.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
 
     // Marcas de la línea del tiempo
     const ticks = [];
@@ -1330,13 +1340,29 @@ function drawGanttBars(rows, header, rowsEl, listContainer, range) {
 
     header.appendChild(headerTrack);
     rowsEl.appendChild(rowsTrack);
+
+    // Posicion horizontal nativa de las filas + sincronizar cabecera.
+    rowsEl.scrollLeft = ganttScrollX;
+    headerTrack.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
+
+    // Al arrastrar la barra horizontal nativa de .gantt-rows, mover el header.
+    if (!rowsEl.dataset.ganttHScrollBound) {
+      rowsEl.dataset.ganttHScrollBound = '1';
+      rowsEl.addEventListener('scroll', () => {
+        ganttScrollX = rowsEl.scrollLeft;
+        const ht = document.querySelector('.gantt-header-track');
+        if (ht) ht.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
+      }, { passive: true });
+    }
   }
 }
 
 // Aplica el desplazamiento horizontal actual sin recalcular todo el gantt
 function applyGanttScroll() {
-  const tracks = document.querySelectorAll('.gantt-header-track, .gantt-rows-track');
-  tracks.forEach(t => { t.style.transform = 'translateX(' + (-ganttScrollX) + 'px)'; });
+  const rowsEl = document.getElementById('gantt-rows');
+  if (rowsEl) rowsEl.scrollLeft = ganttScrollX;
+  const ht = document.querySelector('.gantt-header-track');
+  if (ht) ht.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
 }
 
 function updateObjetivoDateConstraints() {
@@ -1770,15 +1796,9 @@ function setupObjetivosEventListeners() {
     if (el) el.addEventListener('input', updateObjetivoHslPreview);
   });
 
-  // Mantener el Gantt alineado con la lista al hacer scroll o al redimensionar
-  const listContainer = document.getElementById('objetivos-list-container') ||
-    document.querySelector('.objetivos-list-container');
-  if (listContainer && !listContainer.dataset.ganttScrollBound) {
-    listContainer.dataset.ganttScrollBound = '1';
-    listContainer.addEventListener('scroll', () => {
-      if (typeof renderGanttChart === 'function') renderGanttChart();
-    }, { passive: true });
-  }
+  // El scroll vertical ahora es comun (objetivos-body): lista y barras se
+  // mueven juntas por CSS, sin necesidad de re-renderizar el Gantt al scrollear.
+  // Solo recalculamos al redimensionar (mas abajo).
   if (!window.__ganttResizeBound) {
     window.__ganttResizeBound = true;
     let rt = null;

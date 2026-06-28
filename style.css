@@ -5587,8 +5587,12 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .objetivos-body {
   display: flex;
   flex: 1;
-  overflow: hidden;
+  /* Scroll vertical UNICO de toda la seccion: la barra queda a la derecha
+     del Gantt y mueve a la vez la lista de objetivos y las barras. */
+  overflow-y: auto;
+  overflow-x: hidden;
   gap: 32px;
+  align-items: flex-start;
 }
 
 .objetivos-panel {
@@ -5600,10 +5604,17 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   flex-direction: column;
   padding: 16px 24px 16px 0;
   box-sizing: border-box;
+  align-self: stretch;
 }
 
 .objetivos-panel-header {
-  margin-bottom: 16px;
+  /* Cabecera fija arriba al hacer scroll. Usamos padding (no margin) para que
+     el fondo cubra todo el espacio y nada se cuele por debajo. */
+  padding-bottom: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background-color: var(--bg-app, #ffffff);
 }
 
 .objetivos-panel-header h3 {
@@ -5617,7 +5628,9 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 
 .objetivos-list-container {
   flex: 1;
-  overflow-y: auto;
+  /* El scroll vertical ahora vive en .objetivos-body (comun a lista + Gantt),
+     asi que este contenedor crece con su contenido. */
+  overflow: visible;
 }
 
 .objetivos-lista {
@@ -5670,26 +5683,32 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 
 .objetivos-content-placeholder {
   flex: 1;
+  align-self: stretch;
+  min-width: 0;
 }
 
 /* ===== Carta Gantt de Objetivos ===== */
 .objetivos-gantt {
-  height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* Sin recorte vertical: crece con el contenido dentro del scroller comun.
+     El recorte horizontal lo gestiona .gantt-rows. */
+  overflow: visible;
   padding-top: 16px;
   box-sizing: border-box;
 }
 
 /* Cabecera con la línea del tiempo */
 .gantt-timeline-header {
-  position: relative;
+  position: sticky;
+  top: 16px;
+  z-index: 2;
   height: 28px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border-light);
   margin-bottom: 8px;
   overflow: hidden;
+  background-color: var(--bg-app, #ffffff);
 }
 
 .gantt-tick {
@@ -5719,8 +5738,10 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 /* Zona de filas/barras */
 .gantt-rows {
   position: relative;
-  flex: 1;
-  overflow: hidden;
+  /* Altura fijada por JS para igualar la altura de la lista de objetivos.
+     Barra de scroll horizontal nativa visible; el vertical es comun. */
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 /* Lienzos internos desplazables (header y filas) */
@@ -5830,6 +5851,11 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   border-bottom: 1.5px solid var(--border-light);
   margin-bottom: 8px;
   user-select: none;
+  /* Fija debajo del titulo "Objetivos" al hacer scroll */
+  position: sticky;
+  top: 38px;
+  z-index: 2;
+  background-color: var(--bg-app, #ffffff);
 }
 
 .objetivos-table-header .col-title {
