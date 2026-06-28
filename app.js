@@ -1164,6 +1164,8 @@ function renderGanttChart() {
     document.querySelector('.objetivos-list-container');
   if (!gantt || !header || !rowsEl || !listContainer) return;
 
+  ensureGanttWheelBound();
+
   header.innerHTML = '';
   rowsEl.innerHTML = '';
 
@@ -1229,11 +1231,11 @@ function renderGanttChart() {
   const totalDays = (rangeEnd - rangeStart) / DAY;
   const scale = totalDays <= 70 ? 'week' : 'month';
 
-  // Ancho del lienzo por densidad fija de px/día. Si el resultado es menor que el
-  // panel visible, se usa el ancho del panel (no hay nada que desplazar).
+  // Ancho del lienzo por densidad fija de px/día. Se garantiza que siempre sea
+  // más ancho que el panel para poder navegar la línea de tiempo a los lados.
   const viewportWidth = rowsEl.getBoundingClientRect().width || 1;
-  const pxPerDay = scale === 'week' ? 16 : 5; // semanas más "abiertas", meses más compactos
-  const contentWidth = Math.max(totalDays * pxPerDay, viewportWidth);
+  const pxPerDay = scale === 'week' ? 24 : 9; // semanas más "abiertas", meses más compactos
+  const contentWidth = Math.max(totalDays * pxPerDay, viewportWidth * 1.6);
 
   drawGanttBars(rows, header, rowsEl, listContainer, { rangeStart, rangeEnd, scale, contentWidth, viewportWidth });
 }
@@ -1599,24 +1601,28 @@ function setupObjetivosEventListeners() {
   }
 
   // Ctrl + rueda sobre el Gantt: desplazar horizontalmente por la línea de tiempo
+  ensureGanttWheelBound();
+}
+
+// Monta (una sola vez) el handler de Ctrl + rueda sobre el Gantt.
+function ensureGanttWheelBound() {
   const ganttEl = document.getElementById('objetivos-gantt');
-  if (ganttEl && !ganttEl.dataset.ganttWheelBound) {
-    ganttEl.dataset.ganttWheelBound = '1';
-    ganttEl.addEventListener('wheel', (e) => {
-      if (!e.ctrlKey) return; // sin Ctrl, comportamiento normal
-      e.preventDefault();
-      const rowsEl = document.getElementById('gantt-rows');
-      const viewportWidth = rowsEl ? rowsEl.getBoundingClientRect().width : 0;
-      const maxScroll = Math.max(0, ganttContentWidth - viewportWidth);
-      if (maxScroll <= 0) return; // nada que desplazar
-      // Usar el delta dominante (rueda vertical u horizontal)
-      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      ganttScrollX += delta;
-      if (ganttScrollX < 0) ganttScrollX = 0;
-      if (ganttScrollX > maxScroll) ganttScrollX = maxScroll;
-      applyGanttScroll();
-    }, { passive: false });
-  }
+  if (!ganttEl || ganttEl.dataset.ganttWheelBound) return;
+  ganttEl.dataset.ganttWheelBound = '1';
+  ganttEl.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return; // sin Ctrl, comportamiento normal
+    e.preventDefault(); // evita el zoom del navegador
+    const rowsEl = document.getElementById('gantt-rows');
+    const viewportWidth = rowsEl ? rowsEl.getBoundingClientRect().width : 0;
+    const maxScroll = Math.max(0, ganttContentWidth - viewportWidth);
+    if (maxScroll <= 0) return; // nada que desplazar
+    // Usar el delta dominante (rueda vertical u horizontal)
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    ganttScrollX += delta;
+    if (ganttScrollX < 0) ganttScrollX = 0;
+    if (ganttScrollX > maxScroll) ganttScrollX = maxScroll;
+    applyGanttScroll();
+  }, { passive: false });
 }
 
 function setupObjetivosDragAndDrop(container) {
@@ -9445,7 +9451,7 @@ function habitDoneOnDate(dStr) {
   return tasks.some(task => {
     if ((task.tagId || 'default') !== generalStatsHabitTag) return false;
     if (!checkTaskOccurrence(task, dateObj)) return false;
-    return task.isRecurrent
+    return (task.recurrence && task.recurrence.enabled)
       ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
       : !!task.completed;
   });
@@ -9576,7 +9582,7 @@ function topTagByCompletedDaysInRange(fromStr, toStr) {
     const dateObj = new Date(dStr + 'T12:00:00');
     const tagsDone = new Set();
     tasks.forEach(task => {
-      const done = task.isRecurrent
+      const done = (task.recurrence && task.recurrence.enabled)
         ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
         : !!task.completed;
       if (!done) return;
@@ -9752,10 +9758,10 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       const mins = getTaskDurationMinutes(task);
       if (mins === null || mins <= 0) return;
       
-      const isCompleted = task.isRecurrent
+      const isCompleted = (task.recurrence && task.recurrence.enabled)
         ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
         : !!task.completed;
-        
+
       if (statsStatusFilter === 'completed' && !isCompleted) return;
       if (statsStatusFilter === 'uncompleted' && isCompleted) return;
       
