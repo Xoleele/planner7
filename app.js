@@ -829,6 +829,15 @@ function findGoalByIdRecursive(list, id) {
   return null;
 }
 
+// Devuelve el objetivo de primer grado (raíz) al que pertenece el id dado.
+function findRootGoalById(id) {
+  for (const root of objetivos) {
+    if (root.id === id) return root;
+    if (findGoalByIdRecursive(root.subgoals || [], id)) return root;
+  }
+  return null;
+}
+
 function renderGoalNode(obj, level) {
   const containerEl = document.createElement('div');
   const gradoClass = GRADO_LEVELS[level].replace(' ', '-');
@@ -1197,10 +1206,12 @@ function renderGanttChart() {
     const found = findGoalByIdRecursive(objetivos, r.id);
     const obj = found ? found.node : null;
     const eff = getEffectiveGoalDates(obj);
+    const root = findRootGoalById(r.id);
     return {
       el: r.el,
       start: parseGoalDate(eff.startDate),
-      end: parseGoalDate(eff.endDate)
+      end: parseGoalDate(eff.endDate),
+      color: getGoalColor(root).bg
     };
   });
 
@@ -1313,6 +1324,7 @@ function drawGanttBars(rows, header, rowsEl, listContainer, range) {
       bar.style.left = Math.min(x1, x2) + 'px';
       bar.style.width = Math.max(Math.abs(x2 - x1), 6) + 'px';
       bar.style.top = centerY + 'px';
+      if (r.color) bar.style.backgroundColor = r.color;
       rowsTrack.appendChild(bar);
     });
 
@@ -1359,6 +1371,130 @@ function updateObjetivoDateConstraints() {
 function setObjetivoStatus(status) {
   const statusInput = document.getElementById('objetivo-input-status');
   if (statusInput) statusInput.value = status;
+}
+
+// --- Selector de color de objetivos (solo primer grado) ---
+
+// Devuelve el objeto de color {bg,text,border} de un objetivo de primer grado.
+// Si tiene customColor lo usa; si no, usa su colorIndex en la paleta.
+function getGoalColor(goal) {
+  if (!goal) return DEFAULT_COLORS[0];
+  if (goal.customColor && goal.customColor.bg) return goal.customColor;
+  const idx = (typeof goal.colorIndex === 'number') ? goal.colorIndex : 0;
+  return DEFAULT_COLORS[idx % DEFAULT_COLORS.length] || DEFAULT_COLORS[0];
+}
+
+// Primer índice de la paleta no usado por otro objetivo de primer grado.
+// Si todos están ocupados, recicla desde 0 (basado en el conteo de objetivos).
+function getNextFreeGoalColorIndex() {
+  const used = new Set();
+  objetivos.forEach(o => {
+    if (!o.customColor && typeof o.colorIndex === 'number') {
+      used.add(o.colorIndex % DEFAULT_COLORS.length);
+    }
+  });
+  for (let i = 0; i < DEFAULT_COLORS.length; i++) {
+    if (!used.has(i)) return i;
+  }
+  return objetivos.length % DEFAULT_COLORS.length;
+}
+
+function updateObjetivoColorSwatch() {
+  const swatch = document.getElementById('objetivo-color-swatch');
+  if (!swatch) return;
+  const color = objetivoCustomColor || DEFAULT_COLORS[objetivoColorIndex] || DEFAULT_COLORS[0];
+  swatch.style.backgroundColor = color.bg;
+}
+
+function buildObjetivoColorPalette() {
+  const container = document.getElementById('objetivo-color-palette-grid');
+  if (!container) return;
+  container.innerHTML = '';
+
+  DEFAULT_COLORS.forEach((color, idx) => {
+    const circle = document.createElement('div');
+    circle.className = 'color-circle';
+    circle.style.backgroundColor = color.bg;
+    circle.style.borderColor = color.border;
+    circle.dataset.index = idx;
+
+    if (idx === objetivoColorIndex && !objetivoCustomColor) {
+      circle.classList.add('selected');
+    }
+
+    circle.addEventListener('click', () => {
+      container.querySelectorAll('.color-circle').forEach(c => c.classList.remove('selected'));
+      circle.classList.add('selected');
+      objetivoColorIndex = idx;
+      objetivoCustomColor = null;
+      hideObjetivoHslPicker();
+      updateObjetivoColorSwatch();
+    });
+
+    container.appendChild(circle);
+  });
+
+  // Botón '+' para color personalizado (HSL)
+  const addBtn = document.createElement('div');
+  addBtn.className = 'color-circle color-circle-add';
+  addBtn.title = 'Color personalizado';
+  addBtn.innerHTML = '<span class="color-add-plus">+</span>';
+  if (objetivoCustomColor) addBtn.classList.add('selected');
+  addBtn.addEventListener('click', () => {
+    let startBg = null;
+    if (objetivoCustomColor) {
+      startBg = objetivoCustomColor.bg;
+    } else if (DEFAULT_COLORS[objetivoColorIndex]) {
+      startBg = DEFAULT_COLORS[objetivoColorIndex].bg;
+    }
+    if (startBg) {
+      const [h, s, l] = hexToHsl(startBg);
+      const hEl = document.getElementById('objetivo-hsl-h'), sEl = document.getElementById('objetivo-hsl-s'), lEl = document.getElementById('objetivo-hsl-l');
+      if (hEl) hEl.value = h;
+      if (sEl) sEl.value = s;
+      if (lEl) lEl.value = l;
+    }
+    container.querySelectorAll('.color-circle').forEach(c => c.classList.remove('selected'));
+    addBtn.classList.add('selected');
+    showObjetivoHslPicker();
+  });
+  container.appendChild(addBtn);
+}
+
+function updateObjetivoHslPreview() {
+  const h = +document.getElementById('objetivo-hsl-h').value;
+  const s = +document.getElementById('objetivo-hsl-s').value;
+  const l = +document.getElementById('objetivo-hsl-l').value;
+  const hex = hslToHex(h, s, l);
+  objetivoCustomColor = { bg: hex, text: '#ffffff', border: hex };
+  const prev = document.getElementById('objetivo-hsl-preview');
+  const val = document.getElementById('objetivo-hsl-value');
+  if (prev) prev.style.backgroundColor = hex;
+  if (val) val.textContent = `${hex.toUpperCase()}  (H ${h}, S ${s}, L ${l})`;
+  updateObjetivoColorSwatch();
+}
+
+function showObjetivoHslPicker() {
+  const picker = document.getElementById('objetivo-hsl-picker');
+  if (picker) picker.classList.remove('hidden');
+  updateObjetivoHslPreview();
+}
+
+function hideObjetivoHslPicker() {
+  const picker = document.getElementById('objetivo-hsl-picker');
+  if (picker) picker.classList.add('hidden');
+}
+
+function toggleObjetivoColorDropdown(show) {
+  const dd = document.getElementById('objetivo-color-dropdown');
+  if (!dd) return;
+  if (show === undefined) show = dd.classList.contains('hidden');
+  if (show) {
+    buildObjetivoColorPalette();
+    dd.classList.remove('hidden');
+  } else {
+    dd.classList.add('hidden');
+  }
 }
 
 function openObjetivoModal(id, targetLevel = 1, parentId = null) {
@@ -1417,6 +1553,35 @@ function openObjetivoModal(id, targetLevel = 1, parentId = null) {
     if (autoNote) autoNote.classList.add('hidden');
     if (startClear) startClear.style.display = '';
     if (endClear) endClear.style.display = '';
+  }
+
+  // Selector de color: solo para objetivos de primer grado (sin padre)
+  const colorGroup = document.getElementById('objetivo-color-group');
+  const isFirstGrade = (targetLevel === 1 && !parentId);
+  if (colorGroup) {
+    if (isFirstGrade) {
+      colorGroup.classList.remove('hidden');
+      colorGroup.style.display = '';
+      // Inicializar estado del color a partir del objetivo (o por defecto)
+      if (editObj && editObj.customColor && editObj.customColor.bg) {
+        objetivoCustomColor = editObj.customColor;
+        objetivoColorIndex = (typeof editObj.colorIndex === 'number') ? editObj.colorIndex : 0;
+      } else if (editObj && typeof editObj.colorIndex === 'number') {
+        objetivoColorIndex = editObj.colorIndex;
+        objetivoCustomColor = null;
+      } else {
+        // Nuevo objetivo, o uno antiguo sin color: primer color libre
+        objetivoColorIndex = getNextFreeGoalColorIndex();
+        objetivoCustomColor = null;
+      }
+      hideObjetivoHslPicker();
+      toggleObjetivoColorDropdown(false);
+      updateObjetivoColorSwatch();
+    } else {
+      colorGroup.classList.add('hidden');
+      colorGroup.style.display = 'none';
+      toggleObjetivoColorDropdown(false);
+    }
   }
 
   // Refrescar overlays de fecha
@@ -1503,6 +1668,8 @@ function setupObjetivosEventListeners() {
           endDate: endVal,
           description: descVal,
           status: statusVal,
+          colorIndex: objetivoColorIndex,
+          customColor: objetivoCustomColor || null,
           subgoals: []
         };
         objetivos.push(newObj);
@@ -1510,6 +1677,8 @@ function setupObjetivosEventListeners() {
         const obj = objetivos.find(o => o.id === editingObjetivoId);
         if (obj) {
           obj.title = title;
+          obj.colorIndex = objetivoColorIndex;
+          obj.customColor = objetivoCustomColor || null;
           // Si tiene sub-objetivos, las fechas son automáticas (se descartan las manuales)
           if (goalHasChildren(obj)) {
             obj.startDate = null;
@@ -1578,6 +1747,27 @@ function setupObjetivosEventListeners() {
       e.preventDefault();
       saveBtn.click();
     }
+  });
+
+  // Selector de color de objetivos: abrir/cerrar el desplegable
+  const colorTrigger = document.getElementById('objetivo-color-trigger');
+  const colorDropdown = document.getElementById('objetivo-color-dropdown');
+  if (colorTrigger) {
+    colorTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleObjetivoColorDropdown();
+    });
+  }
+  if (colorDropdown) {
+    colorDropdown.addEventListener('click', (e) => e.stopPropagation());
+  }
+  // Cerrar el desplegable al hacer click fuera
+  document.addEventListener('click', () => toggleObjetivoColorDropdown(false));
+
+  // Sliders del color personalizado HSL
+  ['objetivo-hsl-h', 'objetivo-hsl-s', 'objetivo-hsl-l'].forEach(sid => {
+    const el = document.getElementById(sid);
+    if (el) el.addEventListener('input', updateObjetivoHslPreview);
   });
 
   // Mantener el Gantt alineado con la lista al hacer scroll o al redimensionar
@@ -2180,6 +2370,9 @@ let newTagPromptCallback = null;
 let newTagPromptName = "";
 let newTagPromptColorIndex = 0;
 let newTagPromptCustomColor = null;
+// Estado del selector de color del editor de objetivos (solo primer grado)
+let objetivoColorIndex = 0;       // índice de la paleta seleccionado
+let objetivoCustomColor = null;   // color HSL personalizado: { bg, text, border } o null
 let undoStack = []; // Pila para CTRL+Z
 let redoStack = []; // Pila para CTRL+Y
 let selectedOccurrenceDate = null; // Fecha específica de la ocurrencia seleccionada

@@ -4327,6 +4327,45 @@ body.not-logged-in .app-container {
   pointer-events: none;
 }
 
+/* Selector de color del editor de objetivos */
+.objetivo-color-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background-color: var(--bg-card, #ffffff);
+  border: 1.5px solid var(--border-light);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-main);
+}
+.objetivo-color-trigger:hover {
+  border-color: var(--text-secondary, #888);
+}
+.objetivo-color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+.objetivo-color-caret {
+  color: var(--text-secondary, #888);
+  flex-shrink: 0;
+}
+.objetivo-color-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  background-color: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  padding: 14px;
+  min-width: 220px;
+}
+
 .hsl-picker {
   margin-top: 12px;
   padding-top: 12px;
