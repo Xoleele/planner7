@@ -384,6 +384,7 @@
             <div class="col-title">Objetivo</div>
             <div class="col-date">INICIO</div>
             <div class="col-date">FIN</div>
+            <div class="col-duration">DURACIÓN</div>
           </div>
           <div class="objetivos-list-container">
             <div id="objetivos-lista" class="objetivos-lista"></div>
@@ -495,6 +496,11 @@
               </button>
             </div>
           </div>
+        </div>
+        <!-- Duración del objetivo (solo hojas: el FIN se calcula automaticamente) -->
+        <div class="form-group" id="objetivo-duration-group" style="margin-top: 16px;">
+          <label for="objetivo-input-duration">DURACIÓN</label>
+          <input type="text" id="objetivo-input-duration" placeholder="Ej: 2d, 5s, 5s2d" autocomplete="off">
         </div>
       </div>
       <div class="modal-footer" style="background-color: transparent; border-top: none; padding: 20px 24px 24px;">

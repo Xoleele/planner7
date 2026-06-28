@@ -951,6 +951,9 @@ function renderGoalNode(obj, level) {
       }
 
       obj.startDate = newVal;
+      // Si la hoja tiene duracion, el fin se recalcula automaticamente.
+      const durD = getLeafDurationDays(obj);
+      obj.endDate = (newVal && durD) ? computeLeafEndDate(newVal, durD) : null;
       await saveObjetivosToStorage();
       renderObjetivos();
     });
@@ -970,34 +973,63 @@ function renderGoalNode(obj, level) {
     e.stopPropagation();
   });
 
-  if (!isParent) {
-    const finInput = document.createElement('input');
-    finInput.type = 'date';
-    finInput.value = obj.endDate || '';
-    finInput.className = 'goal-inline-date-input';
+  // La fecha de FIN siempre es de solo lectura: se calcula automaticamente a
+  // partir del inicio + la duracion (hojas) o del rango de descendientes (padres).
+  finCol.classList.add('goal-date-auto');
 
-    finInput.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (typeof finInput.showPicker === 'function') {
-        try { finInput.showPicker(); } catch(_) {}
-      }
-    });
+  // === Columna DURACION ===
+  const durCol = document.createElement('div');
+  durCol.className = 'goal-duration-col' + (isParent ? ' goal-duration-auto' : '');
+  durCol.style.position = 'relative';
+  durCol.addEventListener('click', (e) => e.stopPropagation());
 
-    finInput.addEventListener('change', async (e) => {
-      const newVal = e.target.value || null;
+  if (isParent) {
+    // Padre: duracion total calculada del rango efectivo (solo lectura).
+    let totalDays = null;
+    if (effDates.startDate && effDates.endDate) {
+      const a = parseGoalDate(effDates.startDate), b = parseGoalDate(effDates.endDate);
+      if (a && b) totalDays = Math.round((b - a) / 86400000) + 1;
+    }
+    const durText = document.createElement('span');
+    durText.textContent = totalDays ? formatDuration(totalDays) : '-';
+    durCol.appendChild(durText);
+  } else {
+    // Hoja: input de texto editable (2d, 5s, 5s2d).
+    const durInput = document.createElement('input');
+    durInput.type = 'text';
+    durInput.className = 'goal-inline-duration-input';
+    durInput.placeholder = '-';
+    const curDays = getLeafDurationDays(obj);
+    durInput.value = curDays ? formatDuration(curDays) : '';
+    durInput.addEventListener('click', (e) => e.stopPropagation());
 
-      // Validar restricción: fin no menor a inicio
-      if (newVal && obj.startDate && newVal < obj.startDate) {
-        alert('La fecha de fin no puede ser anterior a la fecha de inicio.');
-        finInput.value = obj.endDate || '';
+    const commitDuration = async () => {
+      const parsed = parseDurationText(durInput.value);
+      if (durInput.value.trim() === '') {
+        // Vacio: se borra la duracion (y el fin calculado)
+        obj.durationDays = null;
+        obj.endDate = null;
+        await saveObjetivosToStorage();
+        renderObjetivos();
         return;
       }
-
-      obj.endDate = newVal;
+      if (parsed === null) {
+        alert('Formato de duracion no valido. Usa por ejemplo: 2d, 5s, 5s2d.');
+        durInput.value = curDays ? formatDuration(curDays) : '';
+        return;
+      }
+      obj.durationDays = parsed;
+      // Recalcular y guardar el fin si hay inicio
+      obj.endDate = obj.startDate ? computeLeafEndDate(obj.startDate, parsed) : null;
       await saveObjetivosToStorage();
       renderObjetivos();
+    };
+
+    durInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); durInput.blur(); }
     });
-    finCol.appendChild(finInput);
+    durInput.addEventListener('blur', commitDuration);
+    durCol.appendChild(durInput);
   }
 
   // Visualización compacta en móviles
@@ -1010,6 +1042,7 @@ function renderGoalNode(obj, level) {
   item.appendChild(titleCol);
   item.appendChild(inicioCol);
   item.appendChild(finCol);
+  item.appendChild(durCol);
   item.appendChild(mobileDates);
   
   // Control de click vs drag (para todos los grados)
@@ -1119,6 +1152,60 @@ function parseGoalDate(v) {
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
 
+// --- Duracion (dias / semanas) ---
+// Parsea texto como "2d", "5s", "5s2d" (orden flexible) -> total de dias.
+// Acepta espacios y mayusculas. Devuelve null si no hay nada valido.
+function parseDurationText(text) {
+  if (text === null || text === undefined) return null;
+  const t = String(text).trim().toLowerCase().replace(/\s+/g, '');
+  if (t === '') return null;
+  // Solo se permiten numeros seguidos de 's' (semanas) o 'd' (dias)
+  if (!/^(\d+[sd])+$/.test(t)) return null;
+  let days = 0;
+  const re = /(\d+)([sd])/g;
+  let m;
+  while ((m = re.exec(t)) !== null) {
+    const n = parseInt(m[1], 10);
+    days += (m[2] === 's') ? n * 7 : n;
+  }
+  return days > 0 ? days : null;
+}
+
+// Formatea un total de dias a texto normalizado. Solo se usan semanas cuando la
+// duracion es multiplo EXACTO de 7 (14 -> "2s"); en cualquier otro caso se
+// expresa en dias totales (16 -> "16d", 30 -> "30d").
+function formatDuration(days) {
+  if (!days || days <= 0) return '';
+  if (days % 7 === 0) return (days / 7) + 's';
+  return days + 'd';
+}
+
+// Duracion en dias de un objetivo HOJA. Prioriza durationDays; si no existe pero
+// hay startDate+endDate (datos antiguos), la deriva (inclusiva). Si no, null.
+function getLeafDurationDays(obj) {
+  if (!obj) return null;
+  if (typeof obj.durationDays === 'number' && obj.durationDays > 0) return obj.durationDays;
+  const sd = parseGoalDate(obj.startDate);
+  const ed = parseGoalDate(obj.endDate);
+  if (sd && ed) {
+    const diff = Math.round((ed - sd) / 86400000) + 1; // inclusivo
+    return diff > 0 ? diff : null;
+  }
+  return null;
+}
+
+// Fecha de fin (YYYY-MM-DD) de una hoja a partir de inicio + duracion (inclusivo).
+function computeLeafEndDate(startDate, durationDays) {
+  const sd = parseGoalDate(startDate);
+  if (!sd || !durationDays || durationDays <= 0) return null;
+  const ed = new Date(sd.getTime());
+  ed.setDate(ed.getDate() + (durationDays - 1)); // inclusivo: dia de inicio cuenta
+  const y = ed.getFullYear();
+  const mo = String(ed.getMonth() + 1).padStart(2, '0');
+  const da = String(ed.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
+}
+
 // Un objetivo es "hoja" si no tiene sub-objetivos dentro
 function goalHasChildren(obj) {
   return !!(obj && obj.subgoals && obj.subgoals.length > 0);
@@ -1132,9 +1219,18 @@ function getEffectiveGoalDates(obj) {
   if (!obj) return { startDate: null, endDate: null };
 
   if (!goalHasChildren(obj)) {
+    // Hoja: el fin se calcula desde inicio + duracion (si hay). Compatibilidad:
+    // si no hay duracion pero si endDate antiguo, se usa ese.
+    const durDays = getLeafDurationDays(obj);
+    let end = null;
+    if (obj.startDate && durDays) {
+      end = computeLeafEndDate(obj.startDate, durDays);
+    } else {
+      end = obj.endDate || null;
+    }
     return {
       startDate: obj.startDate || null,
-      endDate: obj.endDate || null
+      endDate: end
     };
   }
 
@@ -1533,6 +1629,7 @@ function openObjetivoModal(id, targetLevel = 1, parentId = null) {
   const startInput = document.getElementById('objetivo-input-start-date');
   const endInput = document.getElementById('objetivo-input-end-date');
   const descInput = document.getElementById('objetivo-input-description');
+  const durInput = document.getElementById('objetivo-input-duration');
 
   let editObj = null;
   if (id === null) {
@@ -1541,6 +1638,7 @@ function openObjetivoModal(id, targetLevel = 1, parentId = null) {
     startInput.value = '';
     endInput.value = '';
     if (descInput) descInput.value = '';
+    if (durInput) durInput.value = '';
     setObjetivoStatus('sin_comenzar');
     deleteBtn.classList.add('hidden');
   } else {
@@ -1552,33 +1650,45 @@ function openObjetivoModal(id, targetLevel = 1, parentId = null) {
     startInput.value = (obj && obj.startDate) ? obj.startDate : '';
     endInput.value = (obj && obj.endDate) ? obj.endDate : '';
     if (descInput) descInput.value = (obj && obj.description) ? obj.description : '';
+    if (durInput) {
+      const dDays = getLeafDurationDays(obj);
+      durInput.value = dDays ? formatDuration(dDays) : '';
+    }
     setObjetivoStatus((obj && obj.status) ? obj.status : 'sin_comenzar');
     deleteBtn.classList.remove('hidden');
   }
 
-  // Si el objetivo tiene sub-objetivos, sus fechas son automáticas (solo lectura)
+  // El FIN siempre es de solo lectura (calculado). La DURACION solo es editable
+  // en hojas; los padres tienen inicio/fin/duracion automaticos.
   const isParent = goalHasChildren(editObj);
   const datesRow = document.getElementById('objetivo-dates-row');
   const autoNote = document.getElementById('objetivo-dates-auto-note');
   const startClear = document.getElementById('objetivo-start-date-clear');
   const endClear = document.getElementById('objetivo-end-date-clear');
+  const durGroup = document.getElementById('objetivo-duration-group');
+  // El fin nunca se edita a mano
+  endInput.disabled = true;
+  if (endClear) endClear.style.display = 'none';
   if (isParent) {
     const eff = getEffectiveGoalDates(editObj);
     startInput.value = eff.startDate || '';
     endInput.value = eff.endDate || '';
     startInput.disabled = true;
-    endInput.disabled = true;
     if (datesRow) datesRow.classList.add('objetivo-dates-locked');
     if (autoNote) autoNote.classList.remove('hidden');
     if (startClear) startClear.style.display = 'none';
-    if (endClear) endClear.style.display = 'none';
+    if (durGroup) durGroup.classList.add('hidden'); // padre: sin campo de duracion
   } else {
     startInput.disabled = false;
-    endInput.disabled = false;
+    // El fin de la hoja se muestra calculado desde inicio+duracion
+    const dDays = getLeafDurationDays(editObj);
+    endInput.value = (editObj && editObj.startDate && dDays)
+      ? computeLeafEndDate(editObj.startDate, dDays)
+      : (endInput.value || '');
     if (datesRow) datesRow.classList.remove('objetivo-dates-locked');
     if (autoNote) autoNote.classList.add('hidden');
     if (startClear) startClear.style.display = '';
-    if (endClear) endClear.style.display = '';
+    if (durGroup) durGroup.classList.remove('hidden');
   }
 
   // Selector de color: solo para objetivos de primer grado (sin padre)
@@ -1637,16 +1747,23 @@ function setupObjetivosEventListeners() {
     if (!title) return;
 
     const startVal = startInput.value || null;
-    const endVal = endInput.value || null;
     const descInput = document.getElementById('objetivo-input-description');
     const statusInput = document.getElementById('objetivo-input-status');
+    const durInputEl = document.getElementById('objetivo-input-duration');
     const descVal = descInput ? descInput.value.trim() : '';
     const statusVal = statusInput ? statusInput.value : 'sin_comenzar';
 
-    if (startVal && endVal && endVal < startVal) {
-      alert('La fecha de fin no puede ser anterior a la fecha de inicio.');
-      return;
+    // Duracion escrita en el modal (solo aplica a hojas). Validar formato.
+    let durDays = null;
+    if (durInputEl && durInputEl.value.trim() !== '') {
+      durDays = parseDurationText(durInputEl.value);
+      if (durDays === null) {
+        alert('Formato de duracion no valido. Usa por ejemplo: 2d, 5s, 5s2d.');
+        return;
+      }
     }
+    // El fin de una hoja se calcula desde inicio + duracion.
+    const endVal = (startVal && durDays) ? computeLeafEndDate(startVal, durDays) : null;
 
     if (editingParentGoalId) {
       // Guardar subobjetivo
@@ -1663,6 +1780,7 @@ function setupObjetivosEventListeners() {
             title: title,
             startDate: startVal,
             endDate: endVal,
+            durationDays: durDays,
             description: descVal,
             status: statusVal,
             subgoals: []
@@ -1675,8 +1793,10 @@ function setupObjetivosEventListeners() {
             if (goalHasChildren(sub)) {
               sub.startDate = null;
               sub.endDate = null;
+              sub.durationDays = null;
             } else {
               sub.startDate = startVal;
+              sub.durationDays = durDays;
               sub.endDate = endVal;
             }
             sub.description = descVal;
@@ -1692,6 +1812,7 @@ function setupObjetivosEventListeners() {
           title: title,
           startDate: startVal,
           endDate: endVal,
+          durationDays: durDays,
           description: descVal,
           status: statusVal,
           colorIndex: objetivoColorIndex,
@@ -1709,8 +1830,10 @@ function setupObjetivosEventListeners() {
           if (goalHasChildren(obj)) {
             obj.startDate = null;
             obj.endDate = null;
+            obj.durationDays = null;
           } else {
             obj.startDate = startVal;
+            obj.durationDays = durDays;
             obj.endDate = endVal;
           }
           obj.description = descVal;

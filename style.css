@@ -5867,6 +5867,11 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   text-align: center;
 }
 
+.objetivos-table-header .col-duration {
+  flex: 1;
+  text-align: center;
+}
+
 .objetivo-item .goal-title-col {
   flex: 3;
   overflow: hidden;
@@ -5884,6 +5889,47 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   align-items: center;
   justify-content: center;
   min-height: 24px;
+}
+
+.objetivo-item .goal-duration-col {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  text-align: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+}
+
+/* Duracion calculada de un padre (solo lectura) */
+.objetivo-item .goal-duration-col.goal-duration-auto {
+  font-style: italic;
+  opacity: 0.85;
+}
+
+/* Input de texto editable de la duracion (hojas) */
+.goal-inline-duration-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 0;
+}
+.goal-inline-duration-input:focus {
+  color: var(--text-main, #111111);
+  background-color: rgba(0,0,0,0.03);
+  border-radius: 4px;
+}
+.goal-inline-duration-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
 }
 
 .goal-inline-date-input {
@@ -5915,6 +5961,21 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   box-shadow: none !important;
   padding: 0;
   text-align: center;
+}
+
+/* Campo de duracion del modal */
+#objetivo-input-duration {
+  width: 100%;
+  font-size: 15px;
+  padding: 8px 0;
+  border: none;
+  border-bottom: 1.5px solid var(--border-light);
+  outline: none;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+#objetivo-input-duration:focus {
+  border-bottom-color: var(--text-main, #111111);
 }
 
 /* Eliminar borde del envoltorio y ajustar alineación en el modal de objetivos */
@@ -5949,7 +6010,8 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   gap: 4px;
 }
 
-.mobile-mode .objetivo-item .goal-date-col {
+.mobile-mode .objetivo-item .goal-date-col,
+.mobile-mode .objetivo-item .goal-duration-col {
   display: none;
 }
 
@@ -6026,6 +6088,9 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
+}
+.mobile-mode .subgoal-item .goal-duration-col {
+  display: none;
 }
 .mobile-mode .subgoal-item .goal-date-col {
   display: none;
