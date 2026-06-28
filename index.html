@@ -394,6 +394,19 @@
         <div class="objetivos-panel">
           <div class="objetivos-panel-header">
             <h3>Objetivos</h3>
+            <div class="objetivos-estado-wrapper">
+              <button type="button" id="objetivos-estado-btn" class="objetivo-create-btn objetivos-estado-btn">
+                Estado: <span id="objetivos-estado-current">Todos</span>
+              </button>
+              <div id="objetivos-estado-dropdown" class="objetivos-estado-dropdown hidden">
+                <div class="objetivos-estado-option" data-status="todos">Todos</div>
+                <div class="objetivos-estado-option" data-status="sin_comenzar">Sin comenzar</div>
+                <div class="objetivos-estado-option" data-status="en_proceso">En proceso</div>
+                <div class="objetivos-estado-option" data-status="finalizado">Finalizado</div>
+                <div class="objetivos-estado-option" data-status="cancelado">Cancelado</div>
+                <div class="objetivos-estado-option" data-status="pausado">Pausado</div>
+              </div>
+            </div>
           </div>
           <div class="objetivos-table-header">
             <div class="col-title">TÍTULO</div>
@@ -404,11 +417,19 @@
           <div class="objetivos-list-container">
             <div id="objetivos-lista" class="objetivos-lista"></div>
           </div>
+          <!-- Boton + Añadir fijo en la parte inferior del panel -->
+          <div class="objetivos-panel-footer">
+            <div id="objetivos-add-btn" class="objetivo-create-btn">+ Añadir</div>
+          </div>
         </div>
         <div class="objetivos-content-placeholder">
           <div id="objetivos-gantt" class="objetivos-gantt">
             <div class="gantt-timeline-header" id="gantt-timeline-header"></div>
             <div class="gantt-rows" id="gantt-rows"></div>
+            <!-- Barra de scroll horizontal fija en la parte inferior -->
+            <div class="gantt-hscroll" id="gantt-hscroll">
+              <div class="gantt-hscroll-spacer" id="gantt-hscroll-spacer"></div>
+            </div>
           </div>
         </div>
       </div>

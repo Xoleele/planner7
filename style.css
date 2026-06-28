@@ -5621,6 +5621,52 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   top: 0;
   z-index: 3;
   background-color: var(--bg-app, #ffffff);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Filtro de estado (boton + desplegable) */
+.objetivos-estado-wrapper {
+  position: relative;
+}
+/* Mismo texto que el titulo OBJETIVOS */
+.objetivos-estado-btn {
+  /* Misma tipografia que el boton '+ Añadir' */
+  font-size: 14px;
+  font-weight: 600;
+  gap: 4px;
+}
+.objetivos-estado-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  background-color: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  padding: 6px;
+  min-width: 160px;
+}
+.objetivos-estado-dropdown.hidden {
+  display: none;
+}
+.objetivos-estado-option {
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--text-main, #1a1a1a);
+  user-select: none;
+}
+.objetivos-estado-option:hover {
+  background-color: #f2f2f7;
+}
+.objetivos-estado-option.selected {
+  font-weight: 600;
+  background-color: #f2f2f7;
 }
 
 .objetivos-panel-header h3 {
@@ -5637,6 +5683,16 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   /* El scroll vertical ahora vive en .objetivos-body (comun a lista + Gantt),
      asi que este contenedor crece con su contenido. */
   overflow: visible;
+}
+
+/* Footer del panel: boton '+ Añadir' fijo abajo (sticky) */
+.objetivos-panel-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background-color: var(--bg-app, #ffffff);
+  padding-top: 10px;
+  margin-left: 16px; /* Alinear con el inicio de los titulos (primer grado) */
 }
 
 .objetivos-lista {
@@ -5745,9 +5801,25 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .gantt-rows {
   position: relative;
   /* Altura fijada por JS para igualar la altura de la lista de objetivos.
-     Barra de scroll horizontal nativa visible; el vertical es comun. */
-  overflow-x: auto;
+     El scroll horizontal lo gestiona la barra externa fija abajo (.gantt-hscroll). */
+  overflow-x: hidden;
   overflow-y: visible;
+}
+
+/* Barra de scroll horizontal del Gantt, fija en la parte inferior */
+.gantt-hscroll {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background-color: var(--bg-app, #ffffff);
+  /* Altura suficiente para que la barra de scroll sea visible y arrastrable */
+  min-height: 14px;
+  margin-top: 4px;
+}
+.gantt-hscroll-spacer {
+  height: 1px;
 }
 
 /* Lienzos internos desplazables (header y filas) */

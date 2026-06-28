@@ -1153,6 +1153,7 @@ function renderGoalNode(obj, level) {
 
     if (obj.subgoals && obj.subgoals.length > 0) {
       obj.subgoals.forEach(sub => {
+        if (!goalMatchesStatusFilter(sub, objetivosStatusFilter)) return;
         const subNode = renderGoalNode(sub, level + 1);
         subList.appendChild(subNode);
       });
@@ -1179,6 +1180,29 @@ function renderGoalNode(obj, level) {
   return containerEl;
 }
 
+// Etiquetas legibles de los estados de objetivo.
+const OBJ_STATUS_LABELS = {
+  todos: 'Todos',
+  sin_comenzar: 'Sin comenzar',
+  en_proceso: 'En proceso',
+  finalizado: 'Finalizado',
+  cancelado: 'Cancelado',
+  pausado: 'Pausado'
+};
+// Estado actualmente filtrado ('todos' = sin filtro).
+let objetivosStatusFilter = 'todos';
+
+// Indica si un objetivo coincide con el filtro, considerando descendientes:
+// se muestra la rama si el objetivo o cualquiera de sus subobjetivos coincide.
+function goalMatchesStatusFilter(obj, status) {
+  if (status === 'todos') return true;
+  if ((obj.status || 'sin_comenzar') === status) return true;
+  if (obj.subgoals && obj.subgoals.length) {
+    return obj.subgoals.some(sub => goalMatchesStatusFilter(sub, status));
+  }
+  return false;
+}
+
 function renderObjetivos() {
   const container = document.getElementById('objetivos-lista');
   if (!container) return;
@@ -1192,25 +1216,14 @@ function renderObjetivos() {
   }
 
   if (objetivos.length === 0) {
-    const createBtn = document.createElement('div');
-    createBtn.className = 'objetivo-create-btn';
-    createBtn.textContent = '+ Añadir';
-    createBtn.style.marginLeft = '16px'; // Alinear exactamente con el icono de triángulo (primer grado)
-    createBtn.addEventListener('click', () => openObjetivoModal(null, 1));
-    container.appendChild(createBtn);
+    // Lista vacia: el boton '+ Añadir' fijo de la parte inferior se encarga de crear.
   } else {
-    // Renderizar objetivos de primer grado
+    // Renderizar objetivos de primer grado (aplicando filtro de estado por rama)
     objetivos.forEach(obj => {
+      if (!goalMatchesStatusFilter(obj, objetivosStatusFilter)) return;
       const node = renderGoalNode(obj, 1);
       container.appendChild(node);
     });
-
-    const createBtn = document.createElement('div');
-    createBtn.className = 'objetivo-create-btn';
-    createBtn.textContent = '+ Añadir';
-    createBtn.style.marginLeft = '16px'; // Alinear exactamente con el icono de triángulo (primer grado)
-    createBtn.addEventListener('click', () => openObjetivoModal(null, 1));
-    container.appendChild(createBtn);
 
     setupObjetivosDragAndDrop(container);
   }
@@ -1514,28 +1527,39 @@ function drawGanttBars(rows, header, rowsEl, listContainer, range) {
     header.appendChild(headerTrack);
     rowsEl.appendChild(rowsTrack);
 
-    // Posicion horizontal nativa de las filas + sincronizar cabecera.
-    rowsEl.scrollLeft = ganttScrollX;
+    // Header y filas se desplazan por transform; la barra externa (fija abajo)
+    // es la que el usuario arrastra.
+    rowsTrack.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
     headerTrack.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
 
-    // Al arrastrar la barra horizontal nativa de .gantt-rows, mover el header.
-    if (!rowsEl.dataset.ganttHScrollBound) {
-      rowsEl.dataset.ganttHScrollBound = '1';
-      rowsEl.addEventListener('scroll', () => {
-        ganttScrollX = rowsEl.scrollLeft;
-        const ht = document.querySelector('.gantt-header-track');
-        if (ht) ht.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
-      }, { passive: true });
+    // Ajustar la barra de scroll horizontal externa (sticky abajo).
+    const hbar = document.getElementById('gantt-hscroll');
+    const spacer = document.getElementById('gantt-hscroll-spacer');
+    if (hbar && spacer) {
+      spacer.style.width = width + 'px';
+      hbar.scrollLeft = ganttScrollX;
+      if (!hbar.dataset.ganttHScrollBound) {
+        hbar.dataset.ganttHScrollBound = '1';
+        hbar.addEventListener('scroll', () => {
+          ganttScrollX = hbar.scrollLeft;
+          const rt = document.querySelector('.gantt-rows-track');
+          const ht = document.querySelector('.gantt-header-track');
+          if (rt) rt.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
+          if (ht) ht.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
+        }, { passive: true });
+      }
     }
   }
 }
 
 // Aplica el desplazamiento horizontal actual sin recalcular todo el gantt
 function applyGanttScroll() {
-  const rowsEl = document.getElementById('gantt-rows');
-  if (rowsEl) rowsEl.scrollLeft = ganttScrollX;
+  const rt = document.querySelector('.gantt-rows-track');
   const ht = document.querySelector('.gantt-header-track');
+  if (rt) rt.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
   if (ht) ht.style.transform = 'translateX(' + (-ganttScrollX) + 'px)';
+  const hbar = document.getElementById('gantt-hscroll');
+  if (hbar) hbar.scrollLeft = ganttScrollX;
 }
 
 function updateObjetivoDateConstraints() {
@@ -2008,6 +2032,42 @@ function setupObjetivosEventListeners() {
         if (typeof renderGanttChart === 'function') renderGanttChart();
       }, 100);
     });
+  }
+
+  // Boton '+ Añadir' fijo (crea objetivo de primer grado)
+  const addFixedBtn = document.getElementById('objetivos-add-btn');
+  if (addFixedBtn && !addFixedBtn.dataset.bound) {
+    addFixedBtn.dataset.bound = '1';
+    addFixedBtn.addEventListener('click', () => openObjetivoModal(null, 1));
+  }
+
+  // --- Filtro de ESTADO (boton desplegable) ---
+  const estadoBtn = document.getElementById('objetivos-estado-btn');
+  const estadoDropdown = document.getElementById('objetivos-estado-dropdown');
+  const estadoCurrent = document.getElementById('objetivos-estado-current');
+  if (estadoBtn && estadoDropdown && !estadoBtn.dataset.bound) {
+    estadoBtn.dataset.bound = '1';
+    const refreshSelected = () => {
+      estadoDropdown.querySelectorAll('.objetivos-estado-option').forEach(opt => {
+        opt.classList.toggle('selected', opt.dataset.status === objetivosStatusFilter);
+      });
+    };
+    estadoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const willShow = estadoDropdown.classList.contains('hidden');
+      if (willShow) refreshSelected();
+      estadoDropdown.classList.toggle('hidden');
+    });
+    estadoDropdown.addEventListener('click', (e) => {
+      const opt = e.target.closest('.objetivos-estado-option');
+      if (!opt) return;
+      e.stopPropagation();
+      objetivosStatusFilter = opt.dataset.status || 'todos';
+      if (estadoCurrent) estadoCurrent.textContent = OBJ_STATUS_LABELS[objetivosStatusFilter] || 'Todos';
+      estadoDropdown.classList.add('hidden');
+      renderObjetivos();
+    });
+    document.addEventListener('click', () => estadoDropdown.classList.add('hidden'));
   }
 
   // Ctrl + rueda sobre el Gantt: desplazar horizontalmente por la línea de tiempo
