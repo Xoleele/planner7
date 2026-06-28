@@ -169,7 +169,8 @@ html:not(.mobile-mode) .app-container {
   color: var(--text-main) !important;
 }
 
-#today-btn {
+#today-btn,
+#today-btn-obj {
   font-size: 12px;
   font-weight: 600;
   /* Sin recuadro. El texto "Hoy" se centra; la línea gris izquierda la dibuja un
@@ -200,7 +201,8 @@ html:not(.mobile-mode) .app-container {
 }
 
 /* Línea gris vertical a la izquierda del botón. */
-#today-btn::before {
+#today-btn::before,
+#today-btn-obj::before {
   content: '';
   position: absolute;
   left: 0;
@@ -210,7 +212,8 @@ html:not(.mobile-mode) .app-container {
   background-color: #d1d1d6;
 }
 
-#today-btn:hover {
+#today-btn:hover,
+#today-btn-obj:hover {
   background-color: #f2f2f7;
 }
 
@@ -5915,6 +5918,28 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .objetivo-item .goal-duration-col.goal-duration-auto {
   font-style: italic;
   opacity: 0.85;
+}
+
+/* Input de texto editable de la fecha de inicio (hojas), escrita por teclado */
+.goal-inline-date-text {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--text-main, #111111);
+  text-align: center;
+  padding: 0;
+}
+.goal-inline-date-text:focus {
+  background-color: rgba(0,0,0,0.03);
+  border-radius: 4px;
+}
+.goal-inline-date-text::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
 }
 
 /* Input de texto editable de la duracion (hojas) */

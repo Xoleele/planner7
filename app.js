@@ -816,6 +816,52 @@ function formatDateDMY(v) {
   return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : '';
 }
 
+// Parsea una fecha escrita a mano en formatos tipicos (dia/mes/anio).
+// Acepta separadores  / - . espacio  o digitos pegados (ddmmaa / ddmmaaaa).
+// Ejemplos: "3/4/26", "03-04-2026", "03.04", "030426", "3 4 2026".
+// Si falta el anio, completa con el actual. Anio de 2 digitos -> 20xx.
+// Devuelve 'YYYY-MM-DD' o null si no es una fecha valida.
+function parseDateInput(text) {
+  if (text === null || text === undefined) return null;
+  let t = String(text).trim();
+  if (t === '') return null;
+
+  let d, mo, y;
+  // 1) Con separadores  / - . o espacios
+  const sep = t.split(/[\/\-.\s]+/).filter(x => x !== '');
+  if (sep.length >= 2 && sep.every(x => /^\d+$/.test(x))) {
+    d = parseInt(sep[0], 10);
+    mo = parseInt(sep[1], 10);
+    y = (sep.length >= 3) ? parseInt(sep[2], 10) : null;
+  } else if (/^\d+$/.test(t)) {
+    // 2) Solo digitos pegados: ddmm, ddmmaa, ddmmaaaa
+    if (t.length === 4) {            // ddmm
+      d = +t.slice(0,2); mo = +t.slice(2,4); y = null;
+    } else if (t.length === 6) {     // ddmmaa
+      d = +t.slice(0,2); mo = +t.slice(2,4); y = +t.slice(4,6);
+    } else if (t.length === 8) {     // ddmmaaaa
+      d = +t.slice(0,2); mo = +t.slice(2,4); y = +t.slice(4,8);
+    } else {
+      return null;
+    }
+  } else {
+    return null;
+  }
+
+  if (!Number.isFinite(d) || !Number.isFinite(mo)) return null;
+  if (y === null || Number.isNaN(y)) y = new Date().getFullYear();
+  if (y < 100) y += 2000;            // anio 2 digitos -> 20xx
+
+  // Validacion estricta (rechaza 45/13, 31/02, etc.)
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+
+  const mm = String(mo).padStart(2, '0');
+  const dd = String(d).padStart(2, '0');
+  return `${y}-${mm}-${dd}`;
+}
+
 function findGoalByIdRecursive(list, id) {
   for (const item of list) {
     if (item.id === id) return { node: item, parent: null };
@@ -916,10 +962,6 @@ function renderGoalNode(obj, level) {
   inicioCol.className = 'goal-date-col' + (isParent ? ' goal-date-auto' : '');
   inicioCol.style.position = 'relative';
 
-  const inicioText = document.createElement('span');
-  inicioText.textContent = dispStart ? formatDateDMY(dispStart) : '-';
-  inicioCol.appendChild(inicioText);
-
   // Evitar que el clic en la celda abra el modal
   inicioCol.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -927,38 +969,62 @@ function renderGoalNode(obj, level) {
     if (isParent) showModeToast('Cálculo automático');
   });
 
-  if (!isParent) {
+  if (isParent) {
+    // Padre: fecha calculada, solo lectura.
+    const inicioText = document.createElement('span');
+    inicioText.textContent = dispStart ? formatDateDMY(dispStart) : '-';
+    inicioCol.appendChild(inicioText);
+  } else {
+    // Hoja: input de TEXTO editable por teclado en formatos tipicos
+    // (dd/mm, dd/mm/yy, dd/mm/yyyy, con / - . o digitos pegados).
     const inicioInput = document.createElement('input');
-    inicioInput.type = 'date';
-    inicioInput.value = obj.startDate || '';
-    inicioInput.className = 'goal-inline-date-input';
+    inicioInput.type = 'text';
+    inicioInput.className = 'goal-inline-date-text';
+    inicioInput.placeholder = '-';
+    inicioInput.value = obj.startDate ? formatDateDMY(obj.startDate) : '';
+    inicioInput.addEventListener('click', (e) => e.stopPropagation());
 
-    // Evitar abrir el modal de objetivos y abrir picker
-    inicioInput.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (typeof inicioInput.showPicker === 'function') {
-        try { inicioInput.showPicker(); } catch(_) {}
-      }
-    });
-
-    // Guardar cambios al cambiar de fecha
-    inicioInput.addEventListener('change', async (e) => {
-      const newVal = e.target.value || null;
-
-      // Validar restricción: fin no menor a inicio
-      if (newVal && obj.endDate && obj.endDate < newVal) {
-        alert('La fecha de inicio no puede ser posterior a la fecha de fin.');
-        inicioInput.value = obj.startDate || '';
+    const commitInicio = async () => {
+      const raw = inicioInput.value.trim();
+      if (raw === '') {
+        // Vacio: borrar fecha de inicio (y el fin calculado)
+        if (obj.startDate !== null) {
+          obj.startDate = null;
+          obj.endDate = null;
+          await saveObjetivosToStorage();
+          renderObjetivos();
+        } else {
+          inicioInput.value = '';
+        }
         return;
       }
-
-      obj.startDate = newVal;
+      const parsed = parseDateInput(raw);
+      if (!parsed) {
+        // Invalido: revertir silenciosamente al valor anterior
+        inicioInput.value = obj.startDate ? formatDateDMY(obj.startDate) : '';
+        return;
+      }
+      // Validar restriccion: inicio no posterior al fin (si fin es manual antiguo)
+      if (obj.endDate && obj.endDate < parsed && !getLeafDurationDays(obj)) {
+        inicioInput.value = obj.startDate ? formatDateDMY(obj.startDate) : '';
+        return;
+      }
+      obj.startDate = parsed;
       // Si la hoja tiene duracion, el fin se recalcula automaticamente.
       const durD = getLeafDurationDays(obj);
-      obj.endDate = (newVal && durD) ? computeLeafEndDate(newVal, durD) : null;
+      obj.endDate = (parsed && durD) ? computeLeafEndDate(parsed, durD) : obj.endDate;
       await saveObjetivosToStorage();
       renderObjetivos();
+    };
+
+    inicioInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); inicioInput.blur(); }
+      else if (e.key === 'Escape') {
+        inicioInput.value = obj.startDate ? formatDateDMY(obj.startDate) : '';
+        inicioInput.blur();
+      }
     });
+    inicioInput.addEventListener('blur', commitInicio);
     inicioCol.appendChild(inicioInput);
   }
 
@@ -1117,6 +1183,13 @@ function renderObjetivos() {
   const container = document.getElementById('objetivos-lista');
   if (!container) return;
   container.innerHTML = '';
+
+  // Navegador (decorativo): mostrar la fecha de hoy en el label.
+  const navLabel = document.getElementById('week-range-label-obj');
+  if (navLabel) {
+    const hoy = new Date();
+    navLabel.textContent = hoy.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
 
   if (objetivos.length === 0) {
     const createBtn = document.createElement('div');
