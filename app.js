@@ -13382,44 +13382,35 @@ function updateHabitTagRowVisibility() {
 let datePickerCurrentMonth = new Date();
 
 function toggleCustomDatePicker() {
-  const dropdowns = document.querySelectorAll('.custom-calendar-dropdown');
-  if (dropdowns.length === 0) return;
-  const isHidden = dropdowns[0].classList.contains('hidden');
+  const dropdown = document.getElementById('custom-calendar-dropdown');
+  if (!dropdown) return;
+  const isHidden = dropdown.classList.contains('hidden');
   if (isHidden) {
     datePickerCurrentMonth = new Date(currentWeekStart);
     renderCustomDatePicker();
-    dropdowns.forEach(d => d.classList.remove('hidden'));
+    dropdown.classList.remove('hidden');
     document.addEventListener('click', closeDatePickerOnOutsideClick);
   } else {
-    dropdowns.forEach(d => d.classList.add('hidden'));
+    dropdown.classList.add('hidden');
     document.removeEventListener('click', closeDatePickerOnOutsideClick);
   }
 }
 
 function closeDatePickerOnOutsideClick(e) {
-  const dropdowns = document.querySelectorAll('.custom-calendar-dropdown');
-  const labels = document.querySelectorAll('.week-range-label');
-  
-  let clickedInsideDropdown = false;
-  dropdowns.forEach(d => {
-    if (d.contains(e.target)) clickedInsideDropdown = true;
-  });
-  
-  let clickedInsideLabel = false;
-  labels.forEach(l => {
-    if (l.contains(e.target)) clickedInsideLabel = true;
-  });
-  
-  if (!clickedInsideDropdown && !clickedInsideLabel) {
-    dropdowns.forEach(d => d.classList.add('hidden'));
+  const dropdown = document.getElementById('custom-calendar-dropdown');
+  const trigger = document.getElementById('datepicker-trigger'); // puede no existir
+  const label = document.getElementById('week-range-label');
+  const outsideTrigger = !trigger || !trigger.contains(e.target);
+  if (dropdown && !dropdown.contains(e.target) && outsideTrigger && label && !label.contains(e.target)) {
+    dropdown.classList.add('hidden');
     document.removeEventListener('click', closeDatePickerOnOutsideClick);
   }
 }
 
 function renderCustomDatePicker() {
-  const containers = document.querySelectorAll('.custom-calendar-days');
-  const monthLabels = document.querySelectorAll('.custom-calendar-month-year');
-  if (containers.length === 0 || monthLabels.length === 0) return;
+  const container = document.getElementById('custom-calendar-days');
+  const monthLabel = document.getElementById('custom-calendar-month-year');
+  if (!container || !monthLabel) return;
 
   const year = datePickerCurrentMonth.getFullYear();
   const month = datePickerCurrentMonth.getMonth();
@@ -13428,9 +13419,9 @@ function renderCustomDatePicker() {
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
   ];
-  monthLabels.forEach(monthLabel => {
-    monthLabel.textContent = `${monthNames[month]} ${year}`;
-  });
+  monthLabel.textContent = `${monthNames[month]} ${year}`;
+
+  container.innerHTML = '';
 
   const firstDay = new Date(year, month, 1);
   let startDay = firstDay.getDay();
@@ -13443,29 +13434,25 @@ function renderCustomDatePicker() {
     ? (cronogramaActive ? (cronogramaMobileDate || new Date()) : (getMobileVisibleDate() || new Date()))
     : null;
 
-  containers.forEach(container => {
-    container.innerHTML = '';
+  // Prev month padding
+  for (let i = startDay - 1; i >= 0; i--) {
+    const dayNum = prevMonthTotalDays - i;
+    const dayDiv = createDatePickerDayElement(dayNum, new Date(year, month - 1, dayNum), true, mobileVisibleDate);
+    container.appendChild(dayDiv);
+  }
 
-    // Prev month padding
-    for (let i = startDay - 1; i >= 0; i--) {
-      const dayNum = prevMonthTotalDays - i;
-      const dayDiv = createDatePickerDayElement(dayNum, new Date(year, month - 1, dayNum), true, mobileVisibleDate);
-      container.appendChild(dayDiv);
-    }
+  // Current month
+  for (let i = 1; i <= totalDays; i++) {
+    const dayDiv = createDatePickerDayElement(i, new Date(year, month, i), false, mobileVisibleDate);
+    container.appendChild(dayDiv);
+  }
 
-    // Current month
-    for (let i = 1; i <= totalDays; i++) {
-      const dayDiv = createDatePickerDayElement(i, new Date(year, month, i), false, mobileVisibleDate);
-      container.appendChild(dayDiv);
-    }
-
-    // Next month padding
-    const remainingCells = 42 - container.children.length;
-    for (let i = 1; i <= remainingCells; i++) {
-      const dayDiv = createDatePickerDayElement(i, new Date(year, month + 1, i), true, mobileVisibleDate);
-      container.appendChild(dayDiv);
-    }
-  });
+  // Next month padding
+  const remainingCells = 42 - container.children.length;
+  for (let i = 1; i <= remainingCells; i++) {
+    const dayDiv = createDatePickerDayElement(i, new Date(year, month + 1, i), true, mobileVisibleDate);
+    container.appendChild(dayDiv);
+  }
 }
 
 function createDatePickerDayElement(dayNum, dateObj, isOtherMonth, mobileVisibleDate = null) {
@@ -13512,7 +13499,7 @@ function createDatePickerDayElement(dayNum, dateObj, isOtherMonth, mobileVisible
       currentWeekStart = getMondayOf(dateObj);
       renderWeeklyCalendar();
     }
-    document.querySelectorAll('.custom-calendar-dropdown').forEach(d => d.classList.add('hidden'));
+    document.getElementById('custom-calendar-dropdown').classList.add('hidden');
     document.removeEventListener('click', closeDatePickerOnOutsideClick);
   });
 
