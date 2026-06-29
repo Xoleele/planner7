@@ -2095,6 +2095,95 @@ function ensureGanttWheelBound() {
   }, { passive: false });
 }
 
+// ─── Helpers de jerarquía para el drag & drop de objetivos ──────────────────
+// Profundidad relativa de un subárbol: 0 si es hoja, 1 si tiene hijos hoja,
+// etc. Sirve para validar el límite de 4 grados: un nodo soltado en el grado G
+// solo cabe si G + profundidad(subárbol) <= 4 (MAX_GOAL_LEVEL).
+const MAX_GOAL_LEVEL = 4;
+
+function getGoalSubtreeDepth(obj) {
+  if (!obj || !obj.subgoals || obj.subgoals.length === 0) return 0;
+  let max = 0;
+  for (const sub of obj.subgoals) {
+    const d = getGoalSubtreeDepth(sub);
+    if (d + 1 > max) max = d + 1;
+  }
+  return max;
+}
+
+// ¿`ancestorId` es el propio nodo o un ancestro de `nodeId`? Se usa para impedir
+// soltar un objetivo dentro de sí mismo o de su propio subárbol.
+function isGoalSelfOrDescendant(rootList, ancestorId, nodeId) {
+  if (ancestorId === nodeId) return true;
+  const found = findGoalByIdRecursive(rootList, ancestorId);
+  if (!found) return false;
+  const node = found.node;
+  if (!node.subgoals) return false;
+  const walk = (list) => {
+    for (const n of list) {
+      if (n.id === nodeId) return true;
+      if (n.subgoals && walk(n.subgoals)) return true;
+    }
+    return false;
+  };
+  return walk(node.subgoals);
+}
+
+// Quita un nodo (por id) de donde esté en el árbol y lo devuelve. Si su antiguo
+// padre se queda sin hijos, vuelve a ser hoja (subgoals = []).
+function detachGoalById(id) {
+  // Primer grado
+  const rootIdx = objetivos.findIndex(o => o.id === id);
+  if (rootIdx !== -1) {
+    return objetivos.splice(rootIdx, 1)[0];
+  }
+  // Recursivo dentro de subgoals
+  const rec = (list) => {
+    for (const node of list) {
+      if (node.subgoals && node.subgoals.length) {
+        const i = node.subgoals.findIndex(s => s.id === id);
+        if (i !== -1) {
+          const removed = node.subgoals.splice(i, 1)[0];
+          // El padre que se queda sin hijos vuelve a ser hoja.
+          if (node.subgoals.length === 0) node.subgoals = [];
+          return removed;
+        }
+        const deeper = rec(node.subgoals);
+        if (deeper) return deeper;
+      }
+    }
+    return null;
+  };
+  return rec(objetivos);
+}
+
+// Inserta `node` como hijo de `parentId` (o en primer grado si parentId es null)
+// en la posición `index`. Si el padre destino era hoja, descarta sus fechas
+// manuales (un padre tiene fechas calculadas, no propias).
+function insertGoalNode(node, parentId, index) {
+  if (parentId === null) {
+    const i = Math.max(0, Math.min(index, objetivos.length));
+    objetivos.splice(i, 0, node);
+    return;
+  }
+  const found = findGoalByIdRecursive(objetivos, parentId);
+  if (!found) {
+    // Salvaguarda: si no se encuentra el padre, va a primer grado.
+    objetivos.push(node);
+    return;
+  }
+  const parent = found.node;
+  if (!parent.subgoals) parent.subgoals = [];
+  // El padre pasa de hoja a contenedor: sus fechas/duración pasan a calcularse.
+  if (parent.subgoals.length === 0) {
+    parent.startDate = null;
+    parent.endDate = null;
+    parent.durationDays = null;
+  }
+  const i = Math.max(0, Math.min(index, parent.subgoals.length));
+  parent.subgoals.splice(i, 0, node);
+}
+
 function setupObjetivosDragAndDrop(container) {
   let dragItem = null;
   let dragGoalId = null;
@@ -2103,8 +2192,8 @@ function setupObjetivosDragAndDrop(container) {
   let touchTimer = null;
   let touchDragging = false;
 
-  let lastIndicatorEl = null;
-  let lastIndicatorClass = null;
+  // Destino calculado actual del drop: { parentId, index, level } o null.
+  let currentDropTarget = null;
 
   let lastClientY = null;
   let scrollInterval = null;
@@ -2148,70 +2237,204 @@ function setupObjetivosDragAndDrop(container) {
     }
   }
 
-  // Obtener los elementos hermanos directos del mismo nivel
-  const items = () => {
-    if (!dragItem) return [];
-    return [...dragItem.parentElement.querySelectorAll(':scope > .objetivo-container')];
-  };
+  // ── Línea guía (drop-line) reutilizable, posicionada con indentación ───────
+  // En lugar de marcar before/after sobre un hermano (lo anterior), usamos un
+  // único elemento absoluto cuya posición vertical Y horizontal (indentación)
+  // refleja el HUECO y el GRADO destino. Así se ve a qué nivel caería, como en
+  // los editores de árbol.
+  let dropLine = null;
+  function getDropLine() {
+    if (!dropLine) {
+      dropLine = document.createElement('div');
+      dropLine.className = 'objetivo-drop-line';
+      container.appendChild(dropLine);
+    }
+    return dropLine;
+  }
 
   function clearObjetivosIndicators() {
-    if (!dragItem) return;
-    dragItem.parentElement.querySelectorAll(':scope > .objetivo-container').forEach(el => {
-      el.classList.remove('drag-before-indicator', 'drag-after-indicator');
+    if (dropLine) dropLine.style.display = 'none';
+    currentDropTarget = null;
+  }
+
+  // Construye, en orden vertical, la lista de filas visibles del árbol con su
+  // metadato (id, nivel, rect del .objetivo-item). Excluye al propio elemento
+  // arrastrado y a todo su subárbol (no se puede soltar dentro de sí mismo).
+  function getVisibleRows() {
+    const rows = [];
+    const all = container.querySelectorAll('.objetivo-container');
+    all.forEach(cont => {
+      const id = cont.dataset.goalId;
+      // El item directo (la fila), no los de subniveles.
+      const itemEl = cont.querySelector(':scope > .objetivo-item');
+      if (!itemEl) return;
+      // ¿Está visible? Oculto si algún ancestro es una sublista colapsada.
+      const hiddenAncestor = cont.parentElement
+        ? cont.parentElement.closest('.objetivo-subgoals-list.hidden')
+        : null;
+      if (hiddenAncestor && container.contains(hiddenAncestor)) return;
+      // Nivel a partir de la clase de grado.
+      let level = 1;
+      if (cont.classList.contains('segundo-grado')) level = 2;
+      else if (cont.classList.contains('tercer-grado')) level = 3;
+      else if (cont.classList.contains('cuarto-grado')) level = 4;
+      // Saltar el arrastrado y su subárbol.
+      if (dragGoalId && isGoalSelfOrDescendant(objetivos, dragGoalId, id)) return;
+      const isExpandedParent = cont.querySelector(':scope > .objetivo-subgoals-list:not(.hidden)') !== null
+        && (() => {
+          const f = findGoalByIdRecursive(objetivos, id);
+          return f && goalHasChildren(f.node);
+        })();
+      rows.push({ id, level, el: cont, itemEl, rect: itemEl.getBoundingClientRect(), isExpandedParent });
     });
-    lastIndicatorEl = null;
-    lastIndicatorClass = null;
+    return rows;
+  }
+
+  // Profundidad del subárbol arrastrado (para el límite de 4 grados).
+  function draggedSubtreeDepth() {
+    const f = findGoalByIdRecursive(objetivos, dragGoalId);
+    return f ? getGoalSubtreeDepth(f.node) : 0;
+  }
+
+  // Dado un punto Y, calcula el HUECO destino entre filas visibles y, a partir
+  // del nivel más profundo visible alrededor de ese hueco, determina padre,
+  // índice y grado destino. Devuelve null si no hay destino válido.
+  //
+  // Reglas (acordadas):
+  //  · El grado lo da SOLO la posición vertical: el hueco toma el nivel más
+  //    profundo visible en ese punto.
+  //  · Entre un padre desplegado y su primer hijo → primer hijo de ese padre.
+  //  · Al final de un sub-bloque → último hijo de ese sub-bloque.
+  //  · Arriba del primer objetivo / debajo de un nodo de nivel alto → ese nivel.
+  //  · Límite 4 grados: si el subárbol no cabe, se RECHAZA (devuelve null).
+  function computeDropTarget(y) {
+    const rows = getVisibleRows();
+    if (rows.length === 0) {
+      // Lista vacía tras excluir el arrastrado: soltar a primer grado al final.
+      return { parentId: null, index: objetivos.length, level: 1, lineY: null, lineLevel: 1 };
+    }
+
+    // Encontrar la fila "anterior" (la última cuyo centro queda por encima de y).
+    let prevIdx = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i].rect;
+      if (y >= r.top + r.height / 2) prevIdx = i;
+      else break;
+    }
+
+    const prev = prevIdx >= 0 ? rows[prevIdx] : null;   // fila justo arriba del hueco
+    const next = rows[prevIdx + 1] || null;             // fila justo debajo del hueco
+
+    const depth = draggedSubtreeDepth();
+    // grado máximo en el que cabe el arrastrado: level + depth <= MAX
+    const maxLevelAllowed = MAX_GOAL_LEVEL - depth;
+
+    // Nivel candidato = nivel más profundo visible alrededor del hueco.
+    // - Si la fila anterior es un padre desplegado, el hueco que le sigue es el
+    //   de su primer hijo: nivel = prev.level + 1.
+    // - En otro caso, el nivel del hueco es el de la fila anterior (prev.level),
+    //   salvo el hueco inicial (sin prev), que es nivel 1.
+    let level;
+    let parentId;
+    let index;
+
+    if (!prev) {
+      // Hueco al principio de toda la lista → primer grado, al inicio.
+      level = 1;
+      parentId = null;
+      index = 0;
+    } else if (prev.isExpandedParent && next && next.level === prev.level + 1) {
+      // Entre un padre desplegado y su primer hijo → primer hijo del padre.
+      level = prev.level + 1;
+      parentId = prev.id;
+      index = 0;
+    } else {
+      // El hueco hereda el nivel de la fila anterior (último hijo del bloque,
+      // o hermano siguiente al mismo nivel).
+      level = prev.level;
+      const f = findGoalByIdRecursive(objetivos, prev.id);
+      parentId = f && f.parent ? f.parent.id : null;
+      // Índice: justo después de prev dentro de su lista de hermanos.
+      const siblings = parentId ? findGoalByIdRecursive(objetivos, parentId).node.subgoals : objetivos;
+      index = siblings.findIndex(s => s.id === prev.id) + 1;
+    }
+
+    // Límite de 4 grados: si no cabe a este nivel, RECHAZAR el destino.
+    if (level > maxLevelAllowed) return null;
+
+    // Datos para dibujar la guía (Y entre prev y next; X según el nivel).
+    let lineY;
+    if (next) {
+      lineY = (prev ? (prev.rect.bottom) : next.rect.top) ;
+      lineY = next.rect.top - 3;
+    } else if (prev) {
+      lineY = prev.rect.bottom + 3;
+    } else {
+      lineY = null;
+    }
+
+    return { parentId, index, level, lineY, lineLevel: level, prevId: prev ? prev.id : null };
+  }
+
+  // Indentación en px del borde izquierdo de la guía según el nivel destino.
+  // Cada nivel añade ~32px (margen 20 de la sublista + 12 de padding) respecto
+  // al contenedor; aproximamos con la posición real del primer elemento de ese
+  // nivel si existe, o un cálculo lineal.
+  function levelIndentPx(level) {
+    // 16px base del primer grado + 32px por cada nivel extra.
+    return 12 + (level - 1) * 32;
   }
 
   function updateObjetivosDragIndicator(y) {
     if (!dragItem) return;
-    const others = items().filter(el => el !== dragItem);
-    if (others.length === 0) return;
+    const target = computeDropTarget(y);
+    currentDropTarget = target;
 
-    let targetEl = null;
-    let targetClass = '';
-
-    for (const el of others) {
-      const r = el.getBoundingClientRect();
-      if (y < r.top + r.height / 2) {
-        targetEl = el;
-        targetClass = 'drag-before-indicator';
-        break;
-      }
+    const line = getDropLine();
+    if (!target || target.lineY === null) {
+      // Sin destino válido (p.ej. excede el límite de grados): ocultar guía.
+      if (!target) { line.style.display = 'none'; return; }
     }
 
-    if (!targetEl) {
-      targetEl = others[others.length - 1];
-      targetClass = 'drag-after-indicator';
-    }
-
-    if (lastIndicatorEl === targetEl && lastIndicatorClass === targetClass) {
-      return;
-    }
-
-    clearObjetivosIndicators();
-
-    if (targetEl) {
-      targetEl.classList.add(targetClass);
-    }
-    lastIndicatorEl = targetEl;
-    lastIndicatorClass = targetClass;
+    const contRect = container.getBoundingClientRect();
+    const top = (target.lineY !== null ? target.lineY : contRect.top) - contRect.top + container.scrollTop;
+    line.style.display = 'block';
+    line.style.top = top + 'px';
+    line.style.left = levelIndentPx(target.lineLevel) + 'px';
+    line.style.right = '6px';
   }
 
-  function commitOrder() {
-    const orderedIds = items().map(el => el.dataset.goalId);
-    const foundData = findGoalByIdRecursive(objetivos, dragGoalId);
-    if (foundData) {
-      const parent = foundData.parent;
-      if (parent) {
-        // Reordenar subobjetivos del padre correspondiente
-        parent.subgoals.sort((a, b) => orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id));
-      } else {
-        // Reordenar objetivos principales (primer grado)
-        objetivos.sort((a, b) => orderedIds.indexOf(a.id) - orderedIds.indexOf(b.id));
-      }
-      saveObjetivosToStorage();
+  // Aplica el destino calculado al MODELO de árbol (mover de padre + reordenar),
+  // respetando el subárbol del arrastrado. Sustituye al antiguo commitOrder.
+  function commitDrop() {
+    if (!currentDropTarget) return;
+    const { parentId, index } = currentDropTarget;
+    // Seguridad extra: no soltar dentro de sí mismo o su subárbol.
+    if (parentId && isGoalSelfOrDescendant(objetivos, dragGoalId, parentId)) return;
+
+    // Posición original del nodo (su padre actual y su índice entre hermanos),
+    // para corregir el índice de inserción si origen y destino comparten lista.
+    const orig = findGoalByIdRecursive(objetivos, dragGoalId);
+    const origParentId = orig && orig.parent ? orig.parent.id : null;
+    const origSiblings = origParentId
+      ? findGoalByIdRecursive(objetivos, origParentId).node.subgoals
+      : objetivos;
+    const origIndex = origSiblings.findIndex(s => s.id === dragGoalId);
+
+    const node = detachGoalById(dragGoalId);
+    if (!node) return;
+
+    // Si el nodo se mueve dentro de la MISMA lista y estaba antes del punto de
+    // inserción, al quitarlo todos los posteriores se corren una posición: hay
+    // que restar 1 al índice destino para que caiga donde el usuario lo ve.
+    let insertIndex = index;
+    const sameList = (parentId === origParentId);
+    if (sameList && origIndex !== -1 && origIndex < index) {
+      insertIndex = index - 1;
     }
+
+    insertGoalNode(node, parentId, insertIndex);
+    saveObjetivosToStorage();
   }
 
   container.querySelectorAll('.objetivo-container').forEach(item => {
@@ -2237,6 +2460,7 @@ function setupObjetivosDragAndDrop(container) {
     item.addEventListener('dragend', () => {
       if (dragItem) dragItem.classList.remove('dragging');
       clearObjetivosIndicators();
+      if (dropLine) { dropLine.remove(); dropLine = null; }
       stopAutoScroll();
       dragItem = null;
       dragGoalId = null;
@@ -2300,19 +2524,15 @@ function setupObjetivosDragAndDrop(container) {
         if (dragItem) {
           dragItem.style.opacity = '';
           dragItem.classList.remove('dragging');
-          if (lastIndicatorEl) {
-            if (lastIndicatorClass === 'drag-before-indicator') {
-              dragItem.parentElement.insertBefore(dragItem, lastIndicatorEl);
-            } else if (lastIndicatorClass === 'drag-after-indicator') {
-              dragItem.parentElement.insertBefore(dragItem, lastIndicatorEl.nextSibling);
-            }
-          }
         }
+        const hadTarget = !!currentDropTarget;
+        commitDrop();
         clearObjetivosIndicators();
-        commitOrder();
+        if (dropLine) { dropLine.remove(); dropLine = null; }
         touchDragging = false;
         dragItem = null;
         dragGoalId = null;
+        if (hadTarget) renderObjetivos();
       }
     };
 
@@ -2343,15 +2563,16 @@ function setupObjetivosDragAndDrop(container) {
     stopAutoScroll();
     if (!dragItem) return;
 
-    if (lastIndicatorEl) {
-      if (lastIndicatorClass === 'drag-before-indicator') {
-        dragItem.parentElement.insertBefore(dragItem, lastIndicatorEl);
-      } else if (lastIndicatorClass === 'drag-after-indicator') {
-        dragItem.parentElement.insertBefore(dragItem, lastIndicatorEl.nextSibling);
-      }
-    }
+    const hadTarget = !!currentDropTarget;
+    commitDrop();
     clearObjetivosIndicators();
-    commitOrder();
+    if (dropLine) { dropLine.remove(); dropLine = null; }
+    if (dragItem) dragItem.classList.remove('dragging');
+    dragItem = null;
+    dragGoalId = null;
+    lastClientY = null;
+    // Re-render para reflejar la nueva jerarquía en el DOM.
+    if (hadTarget) renderObjetivos();
   });
 }
 

@@ -5727,6 +5727,33 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  position: relative; /* ancla la línea guía de drag (.objetivo-drop-line) */
+}
+
+/* Línea guía del drag jerárquico de objetivos. Se posiciona por JS (top/left)
+   según el HUECO y el GRADO destino; su indentación izquierda indica el nivel
+   al que caería el objetivo, como en VS Code / Notion. */
+.objetivo-drop-line {
+  position: absolute;
+  height: 3px;
+  background-color: var(--text-main);
+  border-radius: var(--radius-full);
+  z-index: 30;
+  box-shadow: 0 0 0 1px var(--bg-card);
+  pointer-events: none;
+  display: none;
+}
+.objetivo-drop-line::before {
+  /* Punto redondo a la izquierda, estilo editor de árbol. */
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--text-main);
 }
 
 .objetivo-item {
