@@ -1567,31 +1567,26 @@ function setupObjetivosDragAndDrop(container) {
   //  · Arriba del primer objetivo / debajo de un nodo de nivel alto → ese nivel.
   //  · Límite 4 grados: si el subárbol no cabe, se RECHAZA (devuelve null).
   function computeDropTarget(y) {
-    const allRows = getVisibleRows(); // incluye el arrastrado (marcado isDragged)
-    const logicRows = allRows.filter(r => !r.isDragged); // para el destino lógico
-    if (logicRows.length === 0) {
-      return { parentId: null, index: objetivos.length, level: 1, lineY: null, lineLevel: 1 };
+    // Filas que QUEDARÁN tras soltar (se excluye el arrastrado y su subárbol).
+    // Sobre estas se calcula TANTO el hueco visual (dónde va la línea) COMO el
+    // destino lógico: así ambos coinciden siempre. El arrastrado se ignora por
+    // completo, como si ya no estuviera — es lo que el usuario verá al soltar.
+    const rows = getVisibleRows().filter(r => !r.isDragged);
+    if (rows.length === 0) {
+      return { parentId: null, index: objetivos.length, level: 1, lineY: null, lineLevel: 1, lineLeft: null };
     }
 
-    // ── Hueco VISUAL: entre las dos filas físicamente adyacentes alrededor de y.
-    let vPrevIdx = -1;
-    for (let i = 0; i < allRows.length; i++) {
-      const r = allRows[i].rect;
-      if (y >= r.top + r.height / 2) vPrevIdx = i;
-      else break;
-    }
-    const visualPrev = vPrevIdx >= 0 ? allRows[vPrevIdx] : null;
-    const visualNext = allRows[vPrevIdx + 1] || null;
-
-    // ── Hueco LÓGICO: filas adyacentes ignorando el arrastrado/su subárbol.
+    // Elegir el hueco: `prev` = última fila cuyo CENTRO queda por encima del
+    // cursor; `next` = la siguiente. Esto define un único hueco entre dos filas
+    // (o el extremo superior/inferior).
     let prevIdx = -1;
-    for (let i = 0; i < logicRows.length; i++) {
-      const r = logicRows[i].rect;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i].rect;
       if (y >= r.top + r.height / 2) prevIdx = i;
       else break;
     }
-    const prev = prevIdx >= 0 ? logicRows[prevIdx] : null;
-    const next = logicRows[prevIdx + 1] || null;
+    const prev = prevIdx >= 0 ? rows[prevIdx] : null;
+    const next = rows[prevIdx + 1] || null;
 
     const depth = draggedSubtreeDepth();
     const maxLevelAllowed = MAX_GOAL_LEVEL - depth;
@@ -1615,19 +1610,33 @@ function setupObjetivosDragAndDrop(container) {
     // Límite de 4 grados: si no cabe a este nivel, RECHAZAR el destino.
     if (level > maxLevelAllowed) return null;
 
-    // ── Posición VISUAL de la línea (Y en el punto medio del hueco físico real).
-    let lineY;
-    if (visualPrev && visualNext) lineY = (visualPrev.rect.bottom + visualNext.rect.top) / 2;
-    else if (visualNext) lineY = visualNext.rect.top;
-    else if (visualPrev) lineY = visualPrev.rect.bottom;
-    else lineY = null;
+    // ── Y de la línea: el hueco FÍSICO real bajo el cursor. Se calcula con TODAS
+    //    las filas visibles (incluido el arrastrado, que sigue ocupando espacio).
+    //    Se elige el HUECO (espacio entre dos filas consecutivas, o los extremos)
+    //    cuyo punto medio esté más cerca del cursor. Esto coincide exactamente con
+    //    lo que se ve en pantalla y maneja bien que el cursor caiga DENTRO de una
+    //    fila o en cualquier hueco, incluido alrededor del elemento arrastrado.
+    const visualRows = getVisibleRows(); // todas, en orden vertical
+    const gapYs = [];
+    if (visualRows.length) {
+      gapYs.push(visualRows[0].rect.top - 3); // hueco superior (antes de la 1ª)
+      for (let i = 0; i < visualRows.length - 1; i++) {
+        gapYs.push((visualRows[i].rect.bottom + visualRows[i + 1].rect.top) / 2);
+      }
+      gapYs.push(visualRows[visualRows.length - 1].rect.bottom + 3); // hueco inferior
+    }
+    let lineY = null, bestD = Infinity;
+    for (const gy of gapYs) {
+      const d = Math.abs(gy - y);
+      if (d < bestD) { bestD = d; lineY = gy; }
+    }
 
-    // X (indentación): borde izquierdo de una fila REAL del nivel destino.
+    // ── X (indentación): borde izquierdo de una fila real del nivel destino.
     let lineLeft = null;
-    const atLevel = logicRows.find(r => r.level === level);
+    const atLevel = rows.find(r => r.level === level);
     if (atLevel) lineLeft = atLevel.rect.left;
-    else if (visualNext) lineLeft = visualNext.rect.left;
-    else if (visualPrev) lineLeft = visualPrev.rect.left;
+    else if (next) lineLeft = next.rect.left;
+    else if (prev) lineLeft = prev.rect.left;
 
     return { parentId, index, level, lineY, lineLevel: level, lineLeft, prevId: prev ? prev.id : null };
   }
@@ -1650,16 +1659,27 @@ function setupObjetivosDragAndDrop(container) {
       return;
     }
 
-    // El contenedor tiene position:relative pero NO es el que scrollea (el scroll
-    // vive en .objetivos-body). Por eso posicionamos la línea respecto al rect
-    // del propio contenedor en viewport: top/left = (coord viewport) - (rect del
-    // contenedor). No se suma scrollTop del contenedor (siempre 0).
-    const contRect = container.getBoundingClientRect();
-    const top = target.lineY - contRect.top;
-    const left = (target.lineLeft !== null && target.lineLeft !== undefined)
-      ? (target.lineLeft - contRect.left)
-      : levelIndentPx(target.lineLevel);
+    // La línea es position:absolute, así que su top/left CSS se miden desde su
+    // offsetParent (el ancestro posicionado más cercano), NO desde el viewport.
+    // target.lineY/lineLeft vienen de getBoundingClientRect (coords de viewport).
+    // Para convertir viewport → coordenadas del offsetParent restamos el rect del
+    // offsetParent. Esto es robusto ante scroll de cualquier ancestro: ambos
+    // rects están en el mismo sistema (viewport) en el mismo frame, y su resta
+    // da la posición correcta dentro del offsetParent. Hacer la línea visible
+    // ANTES de leer su offsetParent garantiza que offsetParent no sea null.
     line.style.display = 'block';
+    const op = line.offsetParent || container;
+    const opRect = op.getBoundingClientRect();
+    // Restamos también el borde del offsetParent: offsetTop/left se miden desde
+    // el borde interior (padding-box), y getBoundingClientRect incluye el borde.
+    const opStyle = getComputedStyle(op);
+    const borderTop = parseFloat(opStyle.borderTopWidth) || 0;
+    const borderLeft = parseFloat(opStyle.borderLeftWidth) || 0;
+
+    const top = target.lineY - opRect.top - borderTop;
+    const left = (target.lineLeft !== null && target.lineLeft !== undefined)
+      ? (target.lineLeft - opRect.left - borderLeft)
+      : levelIndentPx(target.lineLevel);
     line.style.top = top + 'px';
     line.style.left = left + 'px';
     line.style.right = '6px';
