@@ -1531,12 +1531,17 @@ function setupObjetivosDragAndDrop(container) {
       else if (cont.classList.contains('tercer-grado')) level = 3;
       else if (cont.classList.contains('cuarto-grado')) level = 4;
       const isDragged = !!(dragGoalId && isGoalSelfOrDescendant(objetivos, dragGoalId, id));
-      const isExpandedParent = cont.querySelector(':scope > .objetivo-subgoals-list:not(.hidden)') !== null
-        && (() => {
-          const f = findGoalByIdRecursive(objetivos, id);
-          return f && goalHasChildren(f.node);
-        })();
-      rows.push({ id, level, el: cont, itemEl, rect: itemEl.getBoundingClientRect(), isExpandedParent, isDragged });
+      // ¿La sublista de este objetivo está visible (desplegado)?
+      const sublistVisible = cont.querySelector(':scope > .objetivo-subgoals-list:not(.hidden)') !== null;
+      const f0 = findGoalByIdRecursive(objetivos, id);
+      const hasChildren = f0 && goalHasChildren(f0.node);
+      // Padre desplegado CON hijos visibles (regla "primer hijo" clásica).
+      const isExpandedParent = sublistVisible && hasChildren;
+      // Desplegado SIN hijos pero que puede tenerlos (nivel < 4): soltar justo
+      // debajo de su fila lo mete DENTRO como primer hijo. Si está contraído,
+      // NO entra (queda como hermano).
+      const isExpandedEmpty = sublistVisible && !hasChildren && level < MAX_GOAL_LEVEL;
+      rows.push({ id, level, el: cont, itemEl, rect: itemEl.getBoundingClientRect(), isExpandedParent, isExpandedEmpty, isDragged });
     });
     return rows;
   }
@@ -1596,6 +1601,11 @@ function setupObjetivosDragAndDrop(container) {
       level = 1; parentId = null; index = 0;
     } else if (prev.isExpandedParent && next && next.level === prev.level + 1) {
       // Entre un padre desplegado y su primer hijo → primer hijo del padre.
+      level = prev.level + 1; parentId = prev.id; index = 0;
+    } else if (prev.isExpandedEmpty) {
+      // Soltar justo debajo de un objetivo DESPLEGADO pero SIN hijos → entra
+      // dentro como su primer (y único) hijo. (Si estuviera contraído, este
+      // caso no se activa y queda como hermano, vía la rama `else`.)
       level = prev.level + 1; parentId = prev.id; index = 0;
     } else {
       // El hueco hereda el nivel de la fila anterior (último hijo del bloque o
