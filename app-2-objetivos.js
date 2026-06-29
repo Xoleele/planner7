@@ -1507,14 +1507,17 @@ function setupObjetivosDragAndDrop(container) {
   }
 
   // Construye, en orden vertical, la lista de filas visibles del árbol con su
-  // metadato (id, nivel, rect del .objetivo-item). Excluye al propio elemento
-  // arrastrado y a todo su subárbol (no se puede soltar dentro de sí mismo).
+  // metadato (id, nivel, rect del .objetivo-item, si es padre desplegado, y si
+  // pertenece al arrastrado/su subárbol). Por defecto NO excluye nada: incluye
+  // TODAS las filas visibles (el arrastrado sigue ocupando espacio en pantalla),
+  // marcándolas con `isDragged`. Así un mismo recorrido sirve para posicionar la
+  // línea (huecos físicamente adyacentes) y para decidir el destino (saltando
+  // las filas marcadas isDragged).
   function getVisibleRows() {
     const rows = [];
     const all = container.querySelectorAll('.objetivo-container');
     all.forEach(cont => {
       const id = cont.dataset.goalId;
-      // El item directo (la fila), no los de subniveles.
       const itemEl = cont.querySelector(':scope > .objetivo-item');
       if (!itemEl) return;
       // ¿Está visible? Oculto si algún ancestro es una sublista colapsada.
@@ -1527,14 +1530,13 @@ function setupObjetivosDragAndDrop(container) {
       if (cont.classList.contains('segundo-grado')) level = 2;
       else if (cont.classList.contains('tercer-grado')) level = 3;
       else if (cont.classList.contains('cuarto-grado')) level = 4;
-      // Saltar el arrastrado y su subárbol.
-      if (dragGoalId && isGoalSelfOrDescendant(objetivos, dragGoalId, id)) return;
+      const isDragged = !!(dragGoalId && isGoalSelfOrDescendant(objetivos, dragGoalId, id));
       const isExpandedParent = cont.querySelector(':scope > .objetivo-subgoals-list:not(.hidden)') !== null
         && (() => {
           const f = findGoalByIdRecursive(objetivos, id);
           return f && goalHasChildren(f.node);
         })();
-      rows.push({ id, level, el: cont, itemEl, rect: itemEl.getBoundingClientRect(), isExpandedParent });
+      rows.push({ id, level, el: cont, itemEl, rect: itemEl.getBoundingClientRect(), isExpandedParent, isDragged });
     });
     return rows;
   }
@@ -1545,9 +1547,17 @@ function setupObjetivosDragAndDrop(container) {
     return f ? getGoalSubtreeDepth(f.node) : 0;
   }
 
-  // Dado un punto Y, calcula el HUECO destino entre filas visibles y, a partir
-  // del nivel más profundo visible alrededor de ese hueco, determina padre,
-  // índice y grado destino. Devuelve null si no hay destino válido.
+  // Dado un punto Y, calcula el HUECO destino y, a partir del nivel más profundo
+  // visible alrededor de ese hueco, determina padre, índice y grado destino.
+  // Devuelve también la posición de la línea guía. null si no hay destino válido.
+  //
+  // CLAVE: el hueco se elige sobre TODAS las filas visibles (incluido el
+  // arrastrado, que sigue ocupando espacio), de modo que `visualPrev`/`visualNext`
+  // son filas físicamente ADYACENTES y la línea cae en el punto medio real entre
+  // sus rectángulos. Para el DESTINO lógico se usan `prev`/`next`, que son las
+  // filas adyacentes IGNORANDO el arrastrado y su subárbol (no se puede soltar
+  // dentro de sí mismo). Separar ambos evita el desfase de ±la altura de la fila
+  // arrastrada que se veía antes.
   //
   // Reglas (acordadas):
   //  · El grado lo da SOLO la posición vertical: el hueco toma el nivel más
@@ -1557,53 +1567,47 @@ function setupObjetivosDragAndDrop(container) {
   //  · Arriba del primer objetivo / debajo de un nodo de nivel alto → ese nivel.
   //  · Límite 4 grados: si el subárbol no cabe, se RECHAZA (devuelve null).
   function computeDropTarget(y) {
-    const rows = getVisibleRows();
-    if (rows.length === 0) {
-      // Lista vacía tras excluir el arrastrado: soltar a primer grado al final.
+    const allRows = getVisibleRows(); // incluye el arrastrado (marcado isDragged)
+    const logicRows = allRows.filter(r => !r.isDragged); // para el destino lógico
+    if (logicRows.length === 0) {
       return { parentId: null, index: objetivos.length, level: 1, lineY: null, lineLevel: 1 };
     }
 
-    // Encontrar la fila "anterior" (la última cuyo centro queda por encima de y).
+    // ── Hueco VISUAL: entre las dos filas físicamente adyacentes alrededor de y.
+    let vPrevIdx = -1;
+    for (let i = 0; i < allRows.length; i++) {
+      const r = allRows[i].rect;
+      if (y >= r.top + r.height / 2) vPrevIdx = i;
+      else break;
+    }
+    const visualPrev = vPrevIdx >= 0 ? allRows[vPrevIdx] : null;
+    const visualNext = allRows[vPrevIdx + 1] || null;
+
+    // ── Hueco LÓGICO: filas adyacentes ignorando el arrastrado/su subárbol.
     let prevIdx = -1;
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i].rect;
+    for (let i = 0; i < logicRows.length; i++) {
+      const r = logicRows[i].rect;
       if (y >= r.top + r.height / 2) prevIdx = i;
       else break;
     }
-
-    const prev = prevIdx >= 0 ? rows[prevIdx] : null;   // fila justo arriba del hueco
-    const next = rows[prevIdx + 1] || null;             // fila justo debajo del hueco
+    const prev = prevIdx >= 0 ? logicRows[prevIdx] : null;
+    const next = logicRows[prevIdx + 1] || null;
 
     const depth = draggedSubtreeDepth();
-    // grado máximo en el que cabe el arrastrado: level + depth <= MAX
     const maxLevelAllowed = MAX_GOAL_LEVEL - depth;
 
-    // Nivel candidato = nivel más profundo visible alrededor del hueco.
-    // - Si la fila anterior es un padre desplegado, el hueco que le sigue es el
-    //   de su primer hijo: nivel = prev.level + 1.
-    // - En otro caso, el nivel del hueco es el de la fila anterior (prev.level),
-    //   salvo el hueco inicial (sin prev), que es nivel 1.
-    let level;
-    let parentId;
-    let index;
-
+    let level, parentId, index;
     if (!prev) {
-      // Hueco al principio de toda la lista → primer grado, al inicio.
-      level = 1;
-      parentId = null;
-      index = 0;
+      level = 1; parentId = null; index = 0;
     } else if (prev.isExpandedParent && next && next.level === prev.level + 1) {
       // Entre un padre desplegado y su primer hijo → primer hijo del padre.
-      level = prev.level + 1;
-      parentId = prev.id;
-      index = 0;
+      level = prev.level + 1; parentId = prev.id; index = 0;
     } else {
-      // El hueco hereda el nivel de la fila anterior (último hijo del bloque,
-      // o hermano siguiente al mismo nivel).
+      // El hueco hereda el nivel de la fila anterior (último hijo del bloque o
+      // hermano siguiente al mismo nivel).
       level = prev.level;
       const f = findGoalByIdRecursive(objetivos, prev.id);
       parentId = f && f.parent ? f.parent.id : null;
-      // Índice: justo después de prev dentro de su lista de hermanos.
       const siblings = parentId ? findGoalByIdRecursive(objetivos, parentId).node.subgoals : objetivos;
       index = siblings.findIndex(s => s.id === prev.id) + 1;
     }
@@ -1611,29 +1615,19 @@ function setupObjetivosDragAndDrop(container) {
     // Límite de 4 grados: si no cabe a este nivel, RECHAZAR el destino.
     if (level > maxLevelAllowed) return null;
 
-    // Datos para dibujar la guía: la Y es el PUNTO MEDIO del hueco entre la fila
-    // anterior (prev) y la siguiente (next). En los extremos (solo hay una de
-    // las dos) usamos el borde correspondiente de esa única fila.
+    // ── Posición VISUAL de la línea (Y en el punto medio del hueco físico real).
     let lineY;
-    if (prev && next) {
-      lineY = (prev.rect.bottom + next.rect.top) / 2;
-    } else if (next) {
-      // Hueco al principio de la lista (no hay prev): justo encima de la 1ª fila.
-      lineY = next.rect.top;
-    } else if (prev) {
-      // Hueco al final de la lista (no hay next): justo debajo de la última fila.
-      lineY = prev.rect.bottom;
-    } else {
-      lineY = null;
-    }
+    if (visualPrev && visualNext) lineY = (visualPrev.rect.bottom + visualNext.rect.top) / 2;
+    else if (visualNext) lineY = visualNext.rect.top;
+    else if (visualPrev) lineY = visualPrev.rect.bottom;
+    else lineY = null;
 
-    // X (indentación): usamos el borde izquierdo REAL de una fila que ya esté en
-    // el nivel destino, para que la guía se alinee exactamente con ese nivel.
+    // X (indentación): borde izquierdo de una fila REAL del nivel destino.
     let lineLeft = null;
-    if (next && next.level === level) lineLeft = next.rect.left;
-    else if (prev && prev.level === level) lineLeft = prev.rect.left;
-    else if (next) lineLeft = next.rect.left;       // primer hijo de padre desplegado
-    else if (prev) lineLeft = prev.rect.left;
+    const atLevel = logicRows.find(r => r.level === level);
+    if (atLevel) lineLeft = atLevel.rect.left;
+    else if (visualNext) lineLeft = visualNext.rect.left;
+    else if (visualPrev) lineLeft = visualPrev.rect.left;
 
     return { parentId, index, level, lineY, lineLevel: level, lineLeft, prevId: prev ? prev.id : null };
   }
