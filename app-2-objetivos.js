@@ -1659,26 +1659,28 @@ function setupObjetivosDragAndDrop(container) {
       return;
     }
 
-    // La línea es position:absolute, así que su top/left CSS se miden desde su
-    // offsetParent (el ancestro posicionado más cercano), NO desde el viewport.
-    // target.lineY/lineLeft vienen de getBoundingClientRect (coords de viewport).
-    // Para convertir viewport → coordenadas del offsetParent restamos el rect del
-    // offsetParent. Esto es robusto ante scroll de cualquier ancestro: ambos
-    // rects están en el mismo sistema (viewport) en el mismo frame, y su resta
-    // da la posición correcta dentro del offsetParent. Hacer la línea visible
-    // ANTES de leer su offsetParent garantiza que offsetParent no sea null.
+    // La línea es position:absolute; su top/left CSS se miden desde su
+    // offsetParent, en coordenadas SIN escalar. Pero toda la app vive dentro de
+    // un `.app-container` con `transform: scale(0.9)` en escritorio, así que los
+    // valores de getBoundingClientRect (target.lineY/lineLeft, opRect) vienen
+    // ESCALADOS (px reales de pantalla). Para que el `top`/`left` que asignamos
+    // caigan en el sitio correcto tras aplicarse el scale, hay que dividir la
+    // distancia (en px de pantalla) por el factor de escala.
+    //
+    // El factor se obtiene comparando el ancho con escala (rect) y sin escala
+    // (offsetWidth) del offsetParent. Robusto: si no hay scale, factor = 1.
     line.style.display = 'block';
     const op = line.offsetParent || container;
     const opRect = op.getBoundingClientRect();
-    // Restamos también el borde del offsetParent: offsetTop/left se miden desde
-    // el borde interior (padding-box), y getBoundingClientRect incluye el borde.
+    const scale = (op.offsetWidth > 0) ? (opRect.width / op.offsetWidth) : 1;
     const opStyle = getComputedStyle(op);
-    const borderTop = parseFloat(opStyle.borderTopWidth) || 0;
+    const borderTop = parseFloat(opStyle.borderTopWidth) || 0;   // px sin escalar
     const borderLeft = parseFloat(opStyle.borderLeftWidth) || 0;
 
-    const top = target.lineY - opRect.top - borderTop;
+    // (coord viewport − borde superior del offsetParent en viewport) / scale.
+    const top = (target.lineY - opRect.top) / scale - borderTop;
     const left = (target.lineLeft !== null && target.lineLeft !== undefined)
-      ? (target.lineLeft - opRect.left - borderLeft)
+      ? (target.lineLeft - opRect.left) / scale - borderLeft
       : levelIndentPx(target.lineLevel);
     line.style.top = top + 'px';
     line.style.left = left + 'px';
