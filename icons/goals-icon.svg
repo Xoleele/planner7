@@ -1,0 +1,23 @@
+<svg
+   width="32"
+   height="32"
+   viewBox="22.70 63.50 160.87 160.47"
+   xmlns="http://www.w3.org/2000/svg">
+  <g transform="matrix(0.26458333,0,0,0.26458333,35.430176,-85.76166)">
+    <path
+      d="m 395.52777,646.5383 a 257.89062,257.89062 0 1 0 82.12022,83.13053"
+      style="fill:none;stroke:#000000;stroke-width:50;stroke-linecap:round;stroke-linejoin:round"
+    />
+    <path
+      d="m 366.43976,867.39246 a 110.62333,110.62333 0 0 0 -221.24665,0 110.62333,110.62333 0 0 0 221.24665,0 z"
+      style="fill:none;stroke:#000000;stroke-width:50;stroke-linecap:round;stroke-linejoin:round"
+    />
+    <path style="fill:none;stroke:#000000;stroke-width:50;stroke-linecap:round;stroke-linejoin:round" d="m 255.125,868.083 89.667,-88.937"/>
+    <path style="fill:none;stroke:#000000;stroke-width:50;stroke-linecap:round;stroke-linejoin:round" d="m 434.365,690.302 h 80.157"/>
+    <path style="fill:none;stroke:#000000;stroke-width:50;stroke-linecap:round;stroke-linejoin:round" d="m 514.522,690.302 -83.219,88.844"/>
+    <path style="fill:none;stroke:#000000;stroke-width:50;stroke-linecap:round;stroke-linejoin:round" d="M 431.303,779.146 H 344.792"/>
+    <path style="fill:none;stroke:#000000;stroke-width:50;stroke-linecap:round;stroke-linejoin:round" d="m 434.365,690.302 0.655,-80.155"/>
+    <path style="fill:none;stroke:#000000;stroke-width:50;stroke-linecap:round;stroke-linejoin:round" d="m 435.02,610.147 -89.521,82.491"/>
+    <path style="fill:none;stroke:#000000;stroke-width:50;stroke-linecap:round;stroke-linejoin:round" d="m 345.499,692.638 -0.707,86.508"/>
+  </g>
+</svg>

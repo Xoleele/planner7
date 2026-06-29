@@ -851,8 +851,10 @@ input[type="date"][data-force-ddmmyy]:focus ~ .date-ddmmyy-overlay {
 .date-input-wrapper:not(.has-calendar) .date-ddmmyy-overlay {
   left: 8px;
 }
-/* Placeholder cuando no hay fecha (tarea archivada). */
-.date-ddmmyy-overlay:empty::before {
+/* Placeholder cuando no hay fecha (tarea archivada). Solo aplica al campo de
+   FECHA del editor de tareas; en el modal de objetivos un campo vacío debe
+   quedar en blanco, no mostrar "Archivado". */
+.date-ddmmyy-overlay[data-for="task-input-date"]:empty::before {
   content: "Archivado";
   color: #000000;
   opacity: 1;
@@ -1160,6 +1162,21 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   opacity: 0.6;
   cursor: not-allowed;
   background-color: #f5f5f7;
+}
+
+/* Campos de fecha calculados (solo lectura) del modal de objetivos: usan el
+   mismo selector que tareas, pero al estar deshabilitados se muestran
+   atenuados y con el icono de calendario inerte, para indicar que la fecha
+   se ve pero no se puede modificar. */
+#objetivo-modal .date-input-wrapper:has(input[type="date"]:disabled) {
+  background-color: #f5f5f7;
+}
+#objetivo-modal .date-input-wrapper:has(input[type="date"]:disabled) .date-calendar-icon {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+#objetivo-modal .date-input-wrapper:has(input[type="date"]:disabled) .date-ddmmyy-overlay {
+  color: var(--text-muted, #86868b);
 }
 
 /* Celdas de fecha calculadas en la lista (atenuadas) */
@@ -6094,23 +6111,10 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   border-bottom-color: var(--text-main, #111111);
 }
 
-/* Eliminar borde del envoltorio y ajustar alineación en el modal de objetivos */
-#objetivo-modal .date-input-wrapper {
-  border: none !important;
-  box-shadow: none !important;
-  background-color: transparent !important;
-  padding-left: 0 !important;
-}
-
-#objetivo-modal .date-input-wrapper input[type="date"] {
-  padding-left: 0 !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-
-#objetivo-modal .date-input-wrapper .date-ddmmyy-overlay {
-  left: 0 !important;
-}
+/* El selector de fecha del modal de objetivos reutiliza tal cual los estilos
+   del selector del editor de tareas (.date-input-wrapper.has-calendar): mismo
+   borde, icono de calendario a la izquierda y overlay DD/MM/AA. No se anula
+   nada aquí a propósito, para que sea idéntico al de tareas. */
 
 .goal-mobile-dates {
   display: none;
