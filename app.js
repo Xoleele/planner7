@@ -2362,26 +2362,36 @@ function setupObjetivosDragAndDrop(container) {
     // Límite de 4 grados: si no cabe a este nivel, RECHAZAR el destino.
     if (level > maxLevelAllowed) return null;
 
-    // Datos para dibujar la guía (Y entre prev y next; X según el nivel).
+    // Datos para dibujar la guía: la Y es el PUNTO MEDIO del hueco entre la fila
+    // anterior (prev) y la siguiente (next). En los extremos (solo hay una de
+    // las dos) usamos el borde correspondiente de esa única fila.
     let lineY;
-    if (next) {
-      lineY = (prev ? (prev.rect.bottom) : next.rect.top) ;
-      lineY = next.rect.top - 3;
+    if (prev && next) {
+      lineY = (prev.rect.bottom + next.rect.top) / 2;
+    } else if (next) {
+      // Hueco al principio de la lista (no hay prev): justo encima de la 1ª fila.
+      lineY = next.rect.top;
     } else if (prev) {
-      lineY = prev.rect.bottom + 3;
+      // Hueco al final de la lista (no hay next): justo debajo de la última fila.
+      lineY = prev.rect.bottom;
     } else {
       lineY = null;
     }
 
-    return { parentId, index, level, lineY, lineLevel: level, prevId: prev ? prev.id : null };
+    // X (indentación): usamos el borde izquierdo REAL de una fila que ya esté en
+    // el nivel destino, para que la guía se alinee exactamente con ese nivel.
+    let lineLeft = null;
+    if (next && next.level === level) lineLeft = next.rect.left;
+    else if (prev && prev.level === level) lineLeft = prev.rect.left;
+    else if (next) lineLeft = next.rect.left;       // primer hijo de padre desplegado
+    else if (prev) lineLeft = prev.rect.left;
+
+    return { parentId, index, level, lineY, lineLevel: level, lineLeft, prevId: prev ? prev.id : null };
   }
 
-  // Indentación en px del borde izquierdo de la guía según el nivel destino.
-  // Cada nivel añade ~32px (margen 20 de la sublista + 12 de padding) respecto
-  // al contenedor; aproximamos con la posición real del primer elemento de ese
-  // nivel si existe, o un cálculo lineal.
+  // Indentación de respaldo (solo si no hay una fila real del nivel destino de
+  // la que medir el borde izquierdo): base 12px + 32px por nivel extra.
   function levelIndentPx(level) {
-    // 16px base del primer grado + 32px por cada nivel extra.
     return 12 + (level - 1) * 32;
   }
 
@@ -2393,14 +2403,22 @@ function setupObjetivosDragAndDrop(container) {
     const line = getDropLine();
     if (!target || target.lineY === null) {
       // Sin destino válido (p.ej. excede el límite de grados): ocultar guía.
-      if (!target) { line.style.display = 'none'; return; }
+      line.style.display = 'none';
+      return;
     }
 
+    // El contenedor tiene position:relative pero NO es el que scrollea (el scroll
+    // vive en .objetivos-body). Por eso posicionamos la línea respecto al rect
+    // del propio contenedor en viewport: top/left = (coord viewport) - (rect del
+    // contenedor). No se suma scrollTop del contenedor (siempre 0).
     const contRect = container.getBoundingClientRect();
-    const top = (target.lineY !== null ? target.lineY : contRect.top) - contRect.top + container.scrollTop;
+    const top = target.lineY - contRect.top;
+    const left = (target.lineLeft !== null && target.lineLeft !== undefined)
+      ? (target.lineLeft - contRect.left)
+      : levelIndentPx(target.lineLevel);
     line.style.display = 'block';
     line.style.top = top + 'px';
-    line.style.left = levelIndentPx(target.lineLevel) + 'px';
+    line.style.left = left + 'px';
     line.style.right = '6px';
   }
 
