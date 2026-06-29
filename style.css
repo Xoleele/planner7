@@ -5743,18 +5743,6 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   pointer-events: none;
   display: none;
 }
-.objetivo-drop-line::before {
-  /* Punto redondo a la izquierda, estilo editor de árbol. */
-  content: '';
-  position: absolute;
-  left: -4px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: var(--text-main);
-}
 
 .objetivo-item {
   display: flex;
