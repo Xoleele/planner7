@@ -1501,7 +1501,7 @@ function createTaskCard(task, occurrenceDate) {
     // animación— para que no aparezca con retraso. La decisión se pasa luego a
     // toggleTaskCompletion para que no lo vuelva a abrir.
     let endTimeChoice = null;
-    if (!isCurrentlyCompleted && AUTO_SET_END_TIME_ON_COMPLETE && task.endTime && ASK_END_TIME_CONFLICT) {
+    if (!isCurrentlyCompleted && autoSetEndTimeOnComplete && task.endTime && ASK_END_TIME_CONFLICT) {
       endTimeChoice = await askEndTimeConflict(task.endTime, currentTimeHHMM());
       if (endTimeChoice === 'cancel') {
         card.style.pointerEvents = '';

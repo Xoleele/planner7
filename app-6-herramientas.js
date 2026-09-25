@@ -2595,7 +2595,7 @@ async function toggleTaskCompletion(task, occurrenceDate, preResolvedEndTimeChoi
   // Si la función está activada y la tarea pasa a completada, se rellena su hora
   // de fin con la hora actual. Si ya tenía una hora de fin, se pregunta al
   // usuario qué hacer. Aplica con o sin hora de inicio.
-  if (AUTO_SET_END_TIME_ON_COMPLETE && nowCompleted) {
+  if (autoSetEndTimeOnComplete && nowCompleted) {
     const nowStr = currentTimeHHMM();
     if (task.endTime) {
       // Ya hay hora de fin: usar la decisión que el llamador ya obtuvo del

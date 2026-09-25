@@ -755,6 +755,30 @@
     </div>
   </div>
 
+  <!-- MODAL: AJUSTES -->
+  <div id="settings-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Ajustes</h2>
+        <button class="close-modal-btn" data-modal="settings-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+          <label for="setting-auto-end-time" style="cursor: pointer;">
+            <div>Hora de fin al completar</div>
+            <div style="font-size: 12px; opacity: 0.6; margin-top: 2px;">Al marcar una tarea sin hora de fin como completada, se le pone la hora actual.</div>
+          </label>
+          <label class="switch" style="flex-shrink: 0;">
+            <input type="checkbox" id="setting-auto-end-time">
+            <span class="slider round"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: BUSCADOR -->
   <div id="buscador-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">

@@ -40,11 +40,11 @@ let welcomeShownThisSession = false; // evita repetir el panel de bienvenida al 
 
 // ─── Configuración de funciones ──────────────────────────────────────────────
 // Al marcar una tarea como COMPLETADA, se rellena automáticamente su "hora de
-// fin" con la hora actual. Si la tarea ya tenía hora de fin, se pregunta al
-// usuario (Cancelar / Mantener / Sobrescribir). Para DESHABILITAR esta función
-// por completo, basta con poner este flag en false.
-// (En el futuro esto se conectará a una opción de configuración en la interfaz.)
-const AUTO_SET_END_TIME_ON_COMPLETE = true;
+// fin" con la hora actual (si ya tenía una, ver ASK_END_TIME_CONFLICT).
+// Se activa/desactiva en el menú del avatar > Ajustes y se guarda en las
+// preferencias del usuario (preferences.autoSetEndTimeOnComplete).
+// Por defecto está DESACTIVADA.
+let autoSetEndTimeOnComplete = false;
 
 // Cuando la tarea YA tiene hora de fin, normalmente se abre un aviso para que el
 // usuario elija (Cancelar / Conservar / Sobrescribir). Con este flag en false,
@@ -600,6 +600,39 @@ function translateAuthError(msg) {
   return map[msg] || msg;
 }
 
+// ─── Ajustes (menú del avatar) ───────────────────────────────────────────────
+// Cada opción se aplica al instante y se guarda en preferences (Supabase) y en
+// el caché local de preferencias.
+function openSettingsModal() {
+  const modal = document.getElementById('settings-modal');
+  const toggle = document.getElementById('setting-auto-end-time');
+  if (!modal || !toggle) return;
+  toggle.checked = autoSetEndTimeOnComplete;
+  if (toggle.dataset.bound !== 'true') {
+    toggle.dataset.bound = 'true';
+    toggle.addEventListener('change', () => {
+      autoSetEndTimeOnComplete = toggle.checked;
+      saveSettingPreference('autoSetEndTimeOnComplete', autoSetEndTimeOnComplete);
+    });
+  }
+  modal.classList.remove('hidden');
+}
+
+async function saveSettingPreference(key, value) {
+  if (!currentUser) return;
+  const prefsCacheKey = 'prefs_cache_' + currentUser.id;
+  let prefs = {};
+  try {
+    const cachedPrefs = localStorage.getItem(prefsCacheKey);
+    if (cachedPrefs) prefs = JSON.parse(cachedPrefs);
+  } catch (e) {}
+  prefs[key] = value;
+  try {
+    localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
+  } catch (e) {}
+  await savePreferences(prefs);
+}
+
 function setupUserMenu() {
   const avatar = document.querySelector('.user-avatar');
   if (!avatar || !currentUser) return;
@@ -643,9 +676,9 @@ function setupUserMenu() {
         <img src="icons/bar-chart.svg" alt="" width="14" height="14">
         Estadísticas
       </button>
-      <button id="advanced-options-btn" class="user-dropdown-item" style="display: none;">
+      <button id="settings-menu-btn" class="user-dropdown-item">
         <img src="icons/settings.svg" alt="" width="14" height="14">
-        Opciones avanzadas
+        Ajustes
       </button>
       <button id="delete-account-btn" class="user-dropdown-item" style="color: #ff3b30;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -699,10 +732,10 @@ function setupUserMenu() {
       });
     }
 
-    document.getElementById('advanced-options-btn').addEventListener('click', (e) => {
+    document.getElementById('settings-menu-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       dropdown.remove();
-      // TODO: abrir el panel de opciones avanzadas.
+      openSettingsModal();
     });
 
     document.getElementById('delete-account-btn').addEventListener('click', (e) => {

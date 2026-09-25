@@ -945,6 +945,7 @@ async function startApp(user) {
       if (parsedPrefs.statsColorMode) statsColorMode = parsedPrefs.statsColorMode;
       if (parsedPrefs.generalStatsChartType) generalStatsChartType = parsedPrefs.generalStatsChartType;
       if (parsedPrefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...parsedPrefs.copyOptions };
+      autoSetEndTimeOnComplete = parsedPrefs.autoSetEndTimeOnComplete === true;
     }
   } catch (e) {
     console.warn('No se pudo leer el caché local de preferencias:', e);
@@ -964,6 +965,7 @@ async function startApp(user) {
     if (prefs.statsColorMode) statsColorMode = prefs.statsColorMode;
     if (prefs.generalStatsChartType) generalStatsChartType = prefs.generalStatsChartType;
     if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
+    autoSetEndTimeOnComplete = prefs.autoSetEndTimeOnComplete === true;
     activeTimerState = prefs.activeTimer || null;
     try {
       localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
