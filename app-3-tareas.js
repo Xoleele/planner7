@@ -169,7 +169,8 @@ function stopNowLineClock() {
 // ─────────────────────────────────────────────────────────────────────────
 
 const CR_HOUR_HEIGHT = 60;   // px por hora (= 1px por minuto)
-const CR_SNAP_MIN = 15;      // granularidad del arrastre vertical
+const CR_SNAP_MIN = 10;        // granularidad al DESPLAZAR tareas (arrastre vertical / soltar)
+const CR_CREATE_SNAP_MIN = 30; // granularidad de la hora de inicio al CREAR con clic
 
 // Reescribe el rango "HH:MM - HH:MM" al inicio de la descripción por uno nuevo,
 // preservando el resto del texto exactamente como estaba. Si por algún motivo
@@ -510,8 +511,8 @@ function applyCronogramaDragMove(clientX, clientY) {
   // Esto mantiene el bloque exactamente bajo el cursor (sin saltos al empezar).
   const deltaPx = clientY - crDrag.grabClientY; // 1px = 1min
   const orig = crDrag.originalStartMin;
-  // Snap en pasos de 30 min RELATIVOS al inicio original de la tarea: si empieza
-  // a las 9:14, los valores posibles son 8:44, 9:14, 9:44, ... (conserva los
+  // Snap en pasos de CR_SNAP_MIN (10 min) RELATIVOS al inicio original: si empieza
+  // a las 9:14, los valores posibles son 9:04, 9:14, 9:24, ... (conserva los
   // minutos originales en lugar de cuadrar a :00/:30).
   const steps = Math.round(deltaPx / CR_SNAP_MIN);
   let startMin = orig + steps * CR_SNAP_MIN;

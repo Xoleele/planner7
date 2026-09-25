@@ -755,11 +755,11 @@
     </div>
   </div>
 
-  <!-- MODAL: AJUSTES -->
+  <!-- MODAL: PREFERENCIAS -->
   <div id="settings-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">
       <div class="modal-header">
-        <h2>Ajustes</h2>
+        <h2>Preferencias</h2>
         <button class="close-modal-btn" data-modal="settings-modal">
           <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
         </button>
@@ -774,6 +774,17 @@
             <input type="checkbox" id="setting-auto-end-time">
             <span class="slider round"></span>
           </label>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 20px;">
+          <label for="setting-default-duration">
+            <div>Duración por defecto</div>
+            <div style="font-size: 12px; opacity: 0.6; margin-top: 2px;">Duración de una tarea nueva creada con clic en la línea de tiempo.</div>
+          </label>
+          <select id="setting-default-duration" style="flex-shrink: 0;">
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+            <option value="60">1 h</option>
+          </select>
         </div>
       </div>
     </div>

@@ -41,10 +41,24 @@ let welcomeShownThisSession = false; // evita repetir el panel de bienvenida al 
 // ─── Configuración de funciones ──────────────────────────────────────────────
 // Al marcar una tarea como COMPLETADA, se rellena automáticamente su "hora de
 // fin" con la hora actual (si ya tenía una, ver ASK_END_TIME_CONFLICT).
-// Se activa/desactiva en el menú del avatar > Ajustes y se guarda en las
+// Se activa/desactiva en el menú del avatar > Preferencias y se guarda en las
 // preferencias del usuario (preferences.autoSetEndTimeOnComplete).
 // Por defecto está DESACTIVADA.
 let autoSetEndTimeOnComplete = false;
+
+// Duración (min) de una tarea nueva creada con clic en el modo línea de tiempo.
+// Se elige en Preferencias (15, 30 o 60) y se guarda en
+// preferences.defaultTaskDurationMin. Por defecto, 1 hora.
+const DEFAULT_TASK_DURATION_OPTIONS = [15, 30, 60];
+let defaultTaskDurationMin = 60;
+
+// Lee de un objeto de preferencias los valores de la sección Preferencias.
+function applyUserSettingsFromPrefs(prefs) {
+  if (!prefs) return;
+  autoSetEndTimeOnComplete = prefs.autoSetEndTimeOnComplete === true;
+  const d = Number(prefs.defaultTaskDurationMin);
+  defaultTaskDurationMin = DEFAULT_TASK_DURATION_OPTIONS.includes(d) ? d : 60;
+}
 
 // Cuando la tarea YA tiene hora de fin, normalmente se abre un aviso para que el
 // usuario elija (Cancelar / Conservar / Sobrescribir). Con este flag en false,
@@ -600,32 +614,56 @@ function translateAuthError(msg) {
   return map[msg] || msg;
 }
 
-// ─── Ajustes (menú del avatar) ───────────────────────────────────────────────
-// Cada opción se aplica al instante y se guarda en preferences (Supabase) y en
-// el caché local de preferencias.
+// ─── Preferencias (menú del avatar) ──────────────────────────────────────────
+// Cada opción se aplica al instante y se guarda en la CUENTA del usuario
+// (tabla user_data.preferences en Supabase), así se conserva al borrar la caché
+// o al cambiar de dispositivo. El caché local solo acelera el arranque.
 function openSettingsModal() {
   const modal = document.getElementById('settings-modal');
   const toggle = document.getElementById('setting-auto-end-time');
-  if (!modal || !toggle) return;
+  const durationSel = document.getElementById('setting-default-duration');
+  if (!modal || !toggle || !durationSel) return;
   toggle.checked = autoSetEndTimeOnComplete;
-  if (toggle.dataset.bound !== 'true') {
-    toggle.dataset.bound = 'true';
+  durationSel.value = String(defaultTaskDurationMin);
+  if (modal.dataset.bound !== 'true') {
+    modal.dataset.bound = 'true';
     toggle.addEventListener('change', () => {
       autoSetEndTimeOnComplete = toggle.checked;
       saveSettingPreference('autoSetEndTimeOnComplete', autoSetEndTimeOnComplete);
+    });
+    durationSel.addEventListener('change', () => {
+      const d = Number(durationSel.value);
+      if (!DEFAULT_TASK_DURATION_OPTIONS.includes(d)) return;
+      defaultTaskDurationMin = d;
+      saveSettingPreference('defaultTaskDurationMin', d);
     });
   }
   modal.classList.remove('hidden');
 }
 
+// Guarda UNA preferencia en la cuenta. Parte de las preferencias actuales de la
+// nube (no del caché local, que puede estar vacío tras borrar la caché) para no
+// pisar el resto (notas, plantilla, etc.).
 async function saveSettingPreference(key, value) {
   if (!currentUser) return;
   const prefsCacheKey = 'prefs_cache_' + currentUser.id;
-  let prefs = {};
+  let prefs = null;
   try {
-    const cachedPrefs = localStorage.getItem(prefsCacheKey);
-    if (cachedPrefs) prefs = JSON.parse(cachedPrefs);
+    const { data, error } = await sb.from('user_data').select('preferences').eq('user_id', currentUser.id).maybeSingle();
+    if (!error) prefs = data?.preferences ?? {};
   } catch (e) {}
+  if (!prefs) {
+    // Sin conexión: usar el caché local; si tampoco hay, no guardar en la nube
+    // para no sobrescribir las preferencias con un objeto incompleto.
+    try {
+      const cachedPrefs = localStorage.getItem(prefsCacheKey);
+      if (cachedPrefs) prefs = JSON.parse(cachedPrefs);
+    } catch (e) {}
+    if (!prefs) {
+      console.warn('saveSettingPreference: sin preferencias base; no se guardó', key);
+      return;
+    }
+  }
   prefs[key] = value;
   try {
     localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
@@ -678,7 +716,7 @@ function setupUserMenu() {
       </button>
       <button id="settings-menu-btn" class="user-dropdown-item">
         <img src="icons/settings.svg" alt="" width="14" height="14">
-        Ajustes
+        Preferencias
       </button>
       <button id="delete-account-btn" class="user-dropdown-item" style="color: #ff3b30;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

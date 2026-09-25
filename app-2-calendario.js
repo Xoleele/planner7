@@ -945,7 +945,7 @@ async function startApp(user) {
       if (parsedPrefs.statsColorMode) statsColorMode = parsedPrefs.statsColorMode;
       if (parsedPrefs.generalStatsChartType) generalStatsChartType = parsedPrefs.generalStatsChartType;
       if (parsedPrefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...parsedPrefs.copyOptions };
-      autoSetEndTimeOnComplete = parsedPrefs.autoSetEndTimeOnComplete === true;
+      applyUserSettingsFromPrefs(parsedPrefs);
     }
   } catch (e) {
     console.warn('No se pudo leer el caché local de preferencias:', e);
@@ -965,7 +965,7 @@ async function startApp(user) {
     if (prefs.statsColorMode) statsColorMode = prefs.statsColorMode;
     if (prefs.generalStatsChartType) generalStatsChartType = prefs.generalStatsChartType;
     if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
-    autoSetEndTimeOnComplete = prefs.autoSetEndTimeOnComplete === true;
+    applyUserSettingsFromPrefs(prefs);
     activeTimerState = prefs.activeTimer || null;
     try {
       localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
@@ -3253,24 +3253,24 @@ function handleCronogramaEmptyClick(colEl, clickMin) {
   // ── HORA DE INICIO ─────────────────────────────────────────────────────────
   // Si hay una tarea anterior cuyo FIN está a menos de 1 h del punto del clic,
   // la nueva tarea arranca pegada a ella: fin anterior + GAP_MIN.
-  // En caso contrario, se redondea el punto del clic al cuarto de hora hacia
-  // abajo (15:58 → 15:45, 15:11 → 15:00).
+  // En caso contrario, se redondea el punto del clic a la media hora hacia
+  // abajo (15:58 → 15:30, 15:11 → 15:00).
   let startMin;
   if (prevEnd !== null && (clickMin - prevEnd) < 60) {
     startMin = prevEnd + GAP_MIN;
   } else {
-    startMin = Math.floor(clickMin / 15) * 15;
+    startMin = Math.floor(clickMin / CR_CREATE_SNAP_MIN) * CR_CREATE_SNAP_MIN;
   }
 
   // ── HORA DE FIN ────────────────────────────────────────────────────────────
   // Si existe una tarea siguiente y el hueco (inicio → inicio de la siguiente)
   // es menor o igual a 2 h, la nueva termina justo antes: inicio siguiente − GAP_MIN.
-  // Si no, duración por defecto de 1 h.
+  // Si no, la duración por defecto elegida en Preferencias (15 min, 30 min o 1 h).
   let endMin;
   if (nextStart !== null && (nextStart - startMin) <= 120) {
     endMin = nextStart - GAP_MIN;
   } else {
-    endMin = startMin + 60;
+    endMin = startMin + defaultTaskDurationMin;
   }
 
   // Salvaguarda: el fin nunca antes que el inicio (huecos diminutos).
@@ -3408,9 +3408,9 @@ function cronogramaClickToMinutes(col, clientY) {
 }
 
 // Suelta una tarea (arrastrada con HTML5 desde el maletín o el planner) sobre una
-// columna del horario. La hora de inicio se ajusta al múltiplo de 30 min más
-// cercano (00:00, 00:30, …). La duración es la que ya tenga la tarea (si tiene
-// inicio+fin definidos) o, por defecto, 1 hora. `isCopy` crea un clon en lugar
+// columna del horario. La hora de inicio se ajusta al múltiplo de CR_SNAP_MIN
+// (10 min) más cercano. La duración es la que ya tenga la tarea (si tiene
+// inicio+fin definidos) o, si no, la duración por defecto de Preferencias. `isCopy` crea un clon en lugar
 // de mover. Funciona tanto para tareas del maletín (sin fecha) como del planner.
 function dropTaskOnCronograma(taskId, colEl, clientY, isCopy) {
   const task = tasks.find(t => t.id === taskId);
@@ -3418,15 +3418,15 @@ function dropTaskOnCronograma(taskId, colEl, clientY, isCopy) {
   const dateStr = colEl.dataset.date;
   if (!dateStr) return;
 
-  // Minuto del día ajustado al intervalo de 15 min más cercano.
+  // Minuto del día ajustado al intervalo de desplazamiento más cercano.
   const rawMin = cronogramaClickToMinutes(colEl, clientY);
-  let startMin = Math.round(rawMin / 15) * 15;
-  startMin = Math.max(0, Math.min(1440 - 15, startMin));
+  let startMin = Math.round(rawMin / CR_SNAP_MIN) * CR_SNAP_MIN;
+  startMin = Math.max(0, Math.min(1440 - CR_SNAP_MIN, startMin));
 
   // Duración: la que ya tenga la tarea (por horas inicio+fin, o por la duración
   // escrita en su descripción), o 1 h por defecto si no tiene ninguna.
   let durationMin = getTaskDurationMinutes(task);
-  if (!durationMin || durationMin <= 0) durationMin = 60;
+  if (!durationMin || durationMin <= 0) durationMin = defaultTaskDurationMin;
 
   const toHHMM = (min) => {
     const m = ((min % 1440) + 1440) % 1440;
