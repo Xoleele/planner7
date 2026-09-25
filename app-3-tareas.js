@@ -520,9 +520,6 @@ function applyCronogramaDragMove(clientX, clientY) {
   // bajar a la franja válida más cercana por arriba/abajo si se sale.
   while (startMin < 0) startMin += CR_SNAP_MIN;
   while (startMin > 1440 - CR_SNAP_MIN) startMin -= CR_SNAP_MIN;
-  // Si el inicio cae sobre otra tarea, se coloca justo al terminar esa tarea.
-  const snapped = snapStartAfterTaskBelow(targetCol.dataset.date, startMin, crDrag.task && crDrag.task.id);
-  if (snapped < 1440) startMin = snapped;
   crDrag.newStartMin = startMin;
 
   // Mover visualmente el bloque (alto fijo = duración, recortado a fin de día).
@@ -640,9 +637,13 @@ function commitCronogramaDragResult(drag) {
     return;
   }
 
-  const newStartMin = drag.newStartMin;
-  const newEndMin = newStartMin + drag.durationMin; // puede superar 1440 (cruza medianoche)
   const newDateStr = drag.targetColEl ? drag.targetColEl.dataset.date : null;
+  // Al SOLTAR (no durante el arrastre): si el inicio cae sobre otra tarea, la
+  // tarea empieza justo cuando termina esa (encadenando si hay varias seguidas).
+  let newStartMin = drag.newStartMin;
+  const snappedStart = snapStartAfterTaskBelow(newDateStr || drag.task.date, newStartMin, drag.task.id);
+  if (snappedStart < 1440) newStartMin = snappedStart;
+  const newEndMin = newStartMin + drag.durationMin; // puede superar 1440 (cruza medianoche)
 
   // ── CTRL/CMD → COPIAR (crear un clon independiente) ────────────────────────
   if (drag.copy) {

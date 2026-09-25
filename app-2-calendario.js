@@ -3447,7 +3447,7 @@ function getVisibleTaskRangesForDate(dateStr, excludeTaskId) {
   return ranges;
 }
 
-// Al arrastrar una tarea en el horario: si su nueva hora de inicio cae SOBRE
+// Al SOLTAR una tarea arrastrada en el horario: si su nueva hora de inicio cae SOBRE
 // otra tarea, el inicio pasa a la hora de fin de esa tarea (se encadena si ahí
 // empieza otra tarea que también la cubre). Devuelve el inicio ajustado.
 function snapStartAfterTaskBelow(dateStr, startMin, excludeTaskId) {
