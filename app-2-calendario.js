@@ -3728,7 +3728,7 @@ function buildCronogramaMobileHours() {
 
 // ─── Línea de inicio del cronómetro ──────────────────────────────────────────
 // Mientras hay un cronómetro activo, el horario muestra una línea ROJA
-// parpadeante en su hora de inicio (la efectiva: si el usuario la editó, esa),
+// fija en su hora de inicio (la efectiva: si el usuario la editó, esa),
 // con el mismo grosor y ancho que la línea de hora actual. Se dibuja en el día
 // en que empezó el cronómetro, solo si ese día está en pantalla.
 function getTimerStartLineInfo() {
