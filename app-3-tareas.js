@@ -3045,11 +3045,11 @@ function syncEndTimeEnabled() {
 //  · Con los 3 definidos: cambiar la Duración mantiene el Inicio y mueve el Fin;
 //    cambiar el Inicio mantiene la Duración y mueve el Fin; cambiar el Fin
 //    recalcula la Duración.
-//  · Si el usuario BORRA uno de los 3, queda vacío y ya no se rellena solo al
-//    cambiar los otros. Así se pueden borrar 2 o los 3 parámetros.
-//  · Pero si hay 2 definidos y el 3º está vacío, el 3º se completa en cuanto el
-//    usuario hace clic en su campo vacío, y también al guardar (con 2 datos el
-//    3º se deduce: una tarea nunca se guarda con solo 2 de los 3).
+//  · Si el usuario BORRA uno de los 3, queda vacío en ese momento (no se rellena
+//    al instante), para poder borrar también un 2º o el 3º parámetro.
+//  · Si hay 2 definidos y el 3º está vacío, el 3º se vuelve a completar en cuanto
+//    el usuario cambia alguno de los otros 2, hace clic en el campo vacío o guarda
+//    (con 2 datos el 3º se deduce: una tarea nunca se guarda con solo 2 de los 3).
 // La Duración se muestra como HH:MM (horas:minutos), con el mismo selector que
 // las horas.
 let taskTimeClearedFields = new Set(); // 'start' | 'end' | 'duration'
@@ -3119,7 +3119,9 @@ function onTaskTimeFieldEdited(field) {
   const e = hhmmToMinutes(endEl.value);
   const dRaw = hhmmToMinutes(durEl.value);
   const d = (dRaw !== null && dRaw > 0) ? dRaw : null;
-  const canFill = (f) => !taskTimeClearedFields.has(f);
+  // Cualquier cambio en un campo vuelve a completar el que falte (aunque el
+  // usuario lo hubiera borrado antes): borrar solo sirve para vaciar 2 o 3.
+  const canFill = () => true;
 
   if (field === 'duration') {
     if (d === null) return;
