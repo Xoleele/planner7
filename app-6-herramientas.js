@@ -60,6 +60,8 @@ function setTimerButtonActive(active) {
   const btn = document.getElementById('timer-btn');
   if (!btn) return;
   btn.classList.toggle('timer-active', !!active);
+  // Línea roja de inicio del cronómetro en el horario.
+  if (typeof refreshTimerStartLine === 'function') refreshTimerStartLine();
 }
 
 function setTimerSelectTagValue(tagId) {
@@ -1443,6 +1445,7 @@ function setupEventListeners() {
         timerStartEdited = true;
         renderTimerTick();
         saveActiveTimerState();
+        refreshTimerStartLine();
       }
     });
     // Clic de ratón → abre el selector nativo. Teclear (con el campo enfocado)

@@ -5525,3 +5525,13 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .mobile-mode #task-modal .task-times-row .task-duration-group {
   flex: 0 0 calc(50% - 4px);
 }
+
+/* Línea de inicio del cronómetro: mismo grosor y ancho que la línea de hora
+   actual (.cr-now-line), pero en rojo y parpadeando. */
+.cr-now-line.cr-timer-start-line,
+.cr-now-line.cr-timer-start-line::before {
+  background-color: #ff3b30;
+}
+.cr-now-line.cr-timer-start-line {
+  animation: timerBlink 1.5s ease-in-out infinite;
+}

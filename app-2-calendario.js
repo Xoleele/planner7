@@ -3631,6 +3631,11 @@ function renderCronograma() {
     } else {
       stopNowLineClock();
     }
+    // Línea roja de inicio del cronómetro (si su día está en pantalla).
+    const timerInfo = getTimerStartLineInfo();
+    if (timerInfo && dayDates.some(d => formatDate(d) === timerInfo.dateStr)) {
+      grid.appendChild(createTimerStartLineEl(timerInfo, false));
+    }
   }
 }
 
@@ -3672,6 +3677,11 @@ function buildCronogramaMobileDayCol(date, todayStr) {
   colEl.className = 'cr-day-col cr-mobile-grid' + (isToday ? ' today' : '');
   colEl.dataset.date = formatDate(date);
   renderCronogramaDayBlocks(colEl, date);
+  // Línea roja de inicio del cronómetro dentro de la tarjeta de su día.
+  const timerInfo = getTimerStartLineInfo();
+  if (timerInfo && timerInfo.dateStr === colEl.dataset.date) {
+    colEl.appendChild(createTimerStartLineEl(timerInfo, true));
+  }
   canvas.appendChild(colEl);
 
   body.appendChild(canvas);
@@ -3714,6 +3724,45 @@ function buildCronogramaMobileHours() {
   hours.appendChild(endLabel);
 
   return hours;
+}
+
+// ─── Línea de inicio del cronómetro ──────────────────────────────────────────
+// Mientras hay un cronómetro activo, el horario muestra una línea ROJA
+// parpadeante en su hora de inicio (la efectiva: si el usuario la editó, esa),
+// con el mismo grosor y ancho que la línea de hora actual. Se dibuja en el día
+// en que empezó el cronómetro, solo si ese día está en pantalla.
+function getTimerStartLineInfo() {
+  if (typeof timerStartTime === 'undefined' || !timerStartTime) return null;
+  const start = (typeof getEffectiveStartDate === 'function') ? getEffectiveStartDate() : timerStartTime;
+  if (!start || isNaN(start.getTime())) return null;
+  return {
+    dateStr: formatDate(start),
+    minutes: start.getHours() * 60 + start.getMinutes() + start.getSeconds() / 60
+  };
+}
+
+function createTimerStartLineEl(info, isMobileCard) {
+  const line = document.createElement('div');
+  line.className = 'cr-now-line cr-timer-start-line' + (isMobileCard ? ' cr-now-line-mobile' : '');
+  line.style.top = info.minutes + 'px';
+  line.title = 'Inicio del cronómetro';
+  return line;
+}
+
+// Vuelve a colocar la línea tras iniciar/parar el cronómetro o editar su hora
+// de inicio, sin re-renderizar todo el horario.
+function refreshTimerStartLine() {
+  document.querySelectorAll('.cr-timer-start-line').forEach(el => el.remove());
+  const info = getTimerStartLineInfo();
+  if (!info) return;
+  if (isMobile()) {
+    const host = document.querySelector(`#cr-mobile-track .cr-mobile-grid[data-date="${info.dateStr}"]`);
+    if (host) host.appendChild(createTimerStartLineEl(info, true));
+    return;
+  }
+  const grid = document.getElementById('cronograma-grid');
+  if (!grid || !grid.querySelector(`.cr-day-col[data-date="${info.dateStr}"]`)) return;
+  grid.appendChild(createTimerStartLineEl(info, false));
 }
 
 // Coloca la línea de hora actual en el horario móvil. Ahora se monta DENTRO de
