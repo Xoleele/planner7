@@ -1052,6 +1052,9 @@ function setupEventListeners() {
     const isBriefcase = document.getElementById('task-in-briefcase-checkbox').checked;
     const date = isBriefcase ? "" : document.getElementById('task-input-date').value;
 
+    // Si hay 2 de los 3 parámetros (inicio / fin / duración), completar el 3º.
+    completeTaskTimeFieldsBeforeSave();
+
     // Hora de inicio / fin desde los campos del editor. Ambas son OPCIONALES e
     // INDEPENDIENTES: se puede definir un fin sin inicio (y viceversa).
     const startInputEl = document.getElementById('task-input-start');

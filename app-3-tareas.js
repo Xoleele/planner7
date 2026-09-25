@@ -3045,9 +3045,11 @@ function syncEndTimeEnabled() {
 //  · Con los 3 definidos: cambiar la Duración mantiene el Inicio y mueve el Fin;
 //    cambiar el Inicio mantiene la Duración y mueve el Fin; cambiar el Fin
 //    recalcula la Duración.
-//  · Si el usuario BORRA uno de los 3, queda vacío y ya no se rellena solo
-//    mientras el editor siga abierto (aunque cambie los otros), para que siempre
-//    se pueda borrar. Vuelve a participar si el usuario lo escribe de nuevo.
+//  · Si el usuario BORRA uno de los 3, queda vacío y ya no se rellena solo al
+//    cambiar los otros. Así se pueden borrar 2 o los 3 parámetros.
+//  · Pero si hay 2 definidos y el 3º está vacío, el 3º se completa en cuanto el
+//    usuario hace clic en su campo vacío, y también al guardar (con 2 datos el
+//    3º se deduce: una tarea nunca se guarda con solo 2 de los 3).
 // La Duración se muestra como HH:MM (horas:minutos), con el mismo selector que
 // las horas.
 let taskTimeClearedFields = new Set(); // 'start' | 'end' | 'duration'
@@ -3146,6 +3148,37 @@ function onTaskTimeFieldEdited(field) {
   syncAlarmCheckboxState();
 }
 
+// Si `field` está vacío y los otros 2 están definidos, lo deduce de ellos.
+// Devuelve true si lo completó.
+function fillTaskTimeFieldFromOthers(field) {
+  const startEl = taskFieldEl('start');
+  const endEl = taskFieldEl('end');
+  const durEl = taskFieldEl('duration');
+  if (!startEl || !endEl || !durEl) return false;
+  const el = taskFieldEl(field);
+  if (!el || el.disabled || el.value) return false;
+  const s = hhmmToMinutes(startEl.value);
+  const e = hhmmToMinutes(endEl.value);
+  const dRaw = hhmmToMinutes(durEl.value);
+  const d = (dRaw !== null && dRaw > 0) ? dRaw : null;
+  let value = '';
+  if (field === 'end' && s !== null && d !== null) value = wrapMinutesToHHMM(s + d);
+  else if (field === 'start' && e !== null && d !== null) value = wrapMinutesToHHMM(e - d);
+  else if (field === 'duration' && s !== null && e !== null) value = durationMinutesToField(diffStartEndMinutes(s, e));
+  if (!value) return false;
+  el.value = value;
+  taskTimeClearedFields.delete(field);
+  syncEndTimeEnabled();
+  updateDurationDisplay();
+  syncAlarmCheckboxState();
+  return true;
+}
+
+// Antes de guardar: completar el parámetro que falte si hay 2 definidos.
+function completeTaskTimeFieldsBeforeSave() {
+  ['start', 'end', 'duration'].forEach(fillTaskTimeFieldFromOthers);
+}
+
 // Enlaza los eventos de los 3 campos (se llama una vez al iniciar la app).
 function setupTaskTimeFieldsLogic() {
   ['start', 'end', 'duration'].forEach(field => {
@@ -3153,6 +3186,9 @@ function setupTaskTimeFieldsLogic() {
     if (!el) return;
     el.addEventListener('input', () => onTaskTimeFieldEdited(field));
     el.addEventListener('change', () => onTaskTimeFieldEdited(field));
+    // Clic en el campo vacío → se completa si los otros 2 están definidos.
+    el.addEventListener('focus', () => fillTaskTimeFieldFromOthers(field));
+    el.addEventListener('click', () => fillTaskTimeFieldFromOthers(field));
   });
   // Botones ✕ de cada campo (el vaciado lo hace el handler genérico).
   [['task-start-clear', 'start'], ['task-end-clear', 'end'], ['task-duration-clear', 'duration']]
