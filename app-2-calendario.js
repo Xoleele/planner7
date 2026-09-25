@@ -2601,6 +2601,83 @@ function getTodaysAlarmOccurrences() {
   return result;
 }
 
+// ─── Autocompletar tareas de hoy cuya hora de fin ya pasó ────────────────────
+// Las tareas (o la ocurrencia de hoy de una recurrente) con hora de fin igual o
+// menor a la hora actual se marcan como completadas solas. Cada ocurrencia se
+// autocompleta UNA sola vez: se anota en task.autoCompleted[fecha] = horaFin, así
+// si el usuario la desmarca a mano no se vuelve a marcar (salvo que cambie su
+// hora de fin). Las tareas que cruzan medianoche (terminan mañana) se ignoran.
+let autoCompleteTimer = null;
+
+function autoCompletePastTasks() {
+  if (!Array.isArray(tasks) || tasks.length === 0) return;
+  // No tocar nada mientras el usuario arrastra una tarea; se reintenta luego.
+  if (document.querySelector('.dragging')) return;
+
+  const now = new Date();
+  const todayStr = formatDate(now);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  let changed = false;
+
+  tasks.forEach(task => {
+    if (!task || !task.endTime || !task.date) return;
+    if (!checkTaskOccurrence(task, now)) return;
+
+    let endMin;
+    if (task.startTime) {
+      const range = getTaskTimeRange(task);
+      if (!range || range.crossesMidnight) return;
+      endMin = range.endMin;
+    } else {
+      endMin = hhmmToMinutes(task.endTime);
+      if (endMin == null) return;
+    }
+    if (endMin > nowMin) return;
+
+    // ¿Ya se autocompletó esta ocurrencia con esta misma hora de fin?
+    const marks = (task.autoCompleted && typeof task.autoCompleted === 'object') ? task.autoCompleted : {};
+    if (marks[todayStr] === task.endTime) return;
+
+    const isRecurring = !!(task.recurrence && task.recurrence.enabled);
+    const alreadyDone = isRecurring
+      ? !!(task.completedOccurrences && task.completedOccurrences.includes(todayStr))
+      : !!task.completed;
+
+    // Anotar la marca (solo se conserva la de hoy para no acumular basura).
+    task.autoCompleted = { [todayStr]: task.endTime };
+    changed = true;
+    if (alreadyDone) return;
+
+    if (isRecurring) {
+      if (!task.completedOccurrences) task.completedOccurrences = [];
+      task.completedOccurrences.push(todayStr);
+    } else {
+      task.completed = true;
+    }
+
+    // Igual que al completar a mano: mandarla al final de las tareas del día.
+    const others = tasks.filter(t => t.id !== task.id && checkTaskOccurrence(t, now));
+    if (others.length > 0) {
+      const positions = others.map(t => getEffectivePosition(t, todayStr));
+      setEffectivePosition(task, todayStr, Math.max(...positions) + 10);
+    }
+  });
+
+  if (!changed) return;
+  saveTasksToStorage();
+  renderWeeklyCalendar();
+}
+
+// Revisa ahora y luego cada 30 s (y al volver a la pestaña).
+function startAutoCompleteClock() {
+  autoCompletePastTasks();
+  if (autoCompleteTimer) return;
+  autoCompleteTimer = setInterval(autoCompletePastTasks, 30000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') autoCompletePastTasks();
+  });
+}
+
 function initAlarms() {
   // Pedir permiso de notificaciones (no bloquea el resto).
   if ('Notification' in window && Notification.permission === 'default') {
@@ -2611,6 +2688,7 @@ function initAlarms() {
 
 // Recalcula alarmas vencidas (modal) y programa las futuras de hoy (timers).
 function refreshAlarms() {
+  startAutoCompleteClock();
   alarmTimers.forEach(clearTimeout);
   alarmTimers = [];
 
