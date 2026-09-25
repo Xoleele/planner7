@@ -69,6 +69,18 @@ function applyUserSettingsFromPrefs(prefs) {
   defaultTaskDurationMin = DEFAULT_TASK_DURATION_OPTIONS.includes(d) ? d : 60;
   showTaskDescriptions = prefs.showTaskDescriptions !== false;
   applyTaskDescriptionVisibility();
+  // Estadísticas diarias: grupos ocultos (globales, todos los días).
+  if (typeof statsHiddenGroups !== 'undefined') {
+    statsHiddenGroups.clear();
+    (Array.isArray(prefs.statsHiddenGroups) ? prefs.statsHiddenGroups : []).forEach(n => statsHiddenGroups.add(n));
+  }
+  // Fusiones de estadísticas antiguas (por día) → globales. Se aplica sobre los
+  // mapas ya cargados desde estas mismas preferencias.
+  if (typeof normalizeStatsMergesToGlobal === 'function') {
+    if (normalizeStatsMergesToGlobal() && typeof saveStatsMergePreferences === 'function') {
+      saveStatsMergePreferences();
+    }
+  }
 }
 
 // Cuando la tarea YA tiene hora de fin, normalmente se abre un aviso para que el

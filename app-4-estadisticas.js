@@ -1,6 +1,51 @@
 // ─── Estadísticas Diarias ────────────────────────────────────────────────────
 let currentDailyStatsDate = null;
 let excludedStatsActivitiesMap = new Map();
+
+// ─── Estadísticas diarias: ajustes GLOBALES (todos los días) ──────────────────
+// La visibilidad de actividades/tareas y las fusiones hechas en las estadísticas
+// diarias se aplican a TODOS los días (no solo al día donde se hicieron) y se
+// guardan en la cuenta (preferences), así se conservan al borrar la caché o al
+// cambiar de dispositivo.
+//  · statsHiddenGroups: nombres de grupos ocultos (preferences.statsHiddenGroups).
+//  · Fusiones: claves "*_<grupo>" en statsMergedTasks / statsMergedActivities
+//    (antes eran "<fecha>_<grupo>"; se convierten a globales automáticamente).
+const STATS_GLOBAL_PREFIX = '*_';
+let statsHiddenGroups = new Set();
+
+// Convierte las fusiones antiguas por día ("YYYY-MM-DD_x") a globales ("*_x").
+// Devuelve true si cambió algo.
+function normalizeStatsMergesToGlobal() {
+  let changed = false;
+  [statsMergedTasks, statsMergedActivities].forEach(map => {
+    Object.keys(map).forEach(key => {
+      const m = key.match(/^\d{4}-\d{2}-\d{2}_(.*)$/);
+      if (!m) return;
+      const gKey = STATS_GLOBAL_PREFIX + m[1];
+      if (!(gKey in map)) map[gKey] = map[key];
+      delete map[key];
+      changed = true;
+    });
+  });
+  return changed;
+}
+
+// Resuelve (recursivamente) el destino de una fusión global.
+function resolveStatsMerge(map, key) {
+  let k = key;
+  for (let i = 0; i < 10 && map[STATS_GLOBAL_PREFIX + k] !== undefined; i++) {
+    const next = map[STATS_GLOBAL_PREFIX + k];
+    if (next === k) break;
+    k = next;
+  }
+  return k;
+}
+
+function saveStatsHiddenGroups() {
+  if (typeof saveSettingPreferences === 'function') {
+    saveSettingPreferences({ statsHiddenGroups: [...statsHiddenGroups] });
+  }
+}
 let activeStatsPrefix = 'daily-stats';
 let generalStatsDateRange = null;
 
@@ -214,6 +259,8 @@ function getStatsModalHTML(prefix) {
 }
 
 function getExcludedSetForDate(dateStr) {
+  // Estadísticas diarias (clave = una fecha): ocultos GLOBALES, iguales en todos los días.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return statsHiddenGroups;
   if (!excludedStatsActivitiesMap.has(dateStr)) {
     excludedStatsActivitiesMap.set(dateStr, new Set());
   }
@@ -911,13 +958,9 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       const mins = occ.mins;
       let tagId = task.tagId || 'default';
 
-      // Resolver fusión de actividades del día (recursiva): si esta actividad se
+      // Resolver fusión de actividades (global, recursiva): si esta actividad se
       // combinó en otra, sumamos en la actividad destino.
-      let iter = 0;
-      while (statsMergedActivities[`${dStr}_${tagId}`] && iter < 10) {
-        tagId = statsMergedActivities[`${dStr}_${tagId}`];
-        iter++;
-      }
+      tagId = resolveStatsMerge(statsMergedActivities, tagId);
 
       const tag = tags.find(t => t.id === tagId) || tags.find(t => t.id === 'default');
       const name = tag ? tag.name : 'Por defecto';
@@ -943,13 +986,7 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       const originalName = task.title || '(Sin título)';
 
       // Resolver nombre combinado recursivamente
-      let name = originalName;
-      const maxIterations = 10;
-      let iter = 0;
-      while (statsMergedTasks[`${dStr}_${name}`] && iter < maxIterations) {
-        name = statsMergedTasks[`${dStr}_${name}`];
-        iter++;
-      }
+      const name = resolveStatsMerge(statsMergedTasks, originalName);
 
       if (!grouped[name]) {
         // Buscar el tagId de la tarea destino para mantener su color original
@@ -991,6 +1028,15 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       if (statsCustomColors[customColorKey]) {
         customColor = statsCustomColors[customColorKey];
       }
+    }
+    // Color fijado por una fusión (global, para todos los días).
+    if (!customColor && statsCustomColors[STATS_GLOBAL_PREFIX + group.name]) {
+      customColor = statsCustomColors[STATS_GLOBAL_PREFIX + group.name];
+    }
+    if (customColor) {
+      // ya resuelto
+    } else if (typeof dateParam === 'string') {
+      // sin color personalizado para este día
     } else {
       for (let occ of group.occurrences) {
         const customColorKey = `${occ.dateStr}_${group.name}`;
@@ -1335,6 +1381,8 @@ function renderDailyStatsPanel(panelEl, dateParam) {
           } else {
             excludedSet.add(group.name);
           }
+          // Diarias: la visibilidad es global y se guarda en la cuenta.
+          if (excludedSet === statsHiddenGroups) saveStatsHiddenGroups();
           renderDailyStatsPanel(panelEl, dateParam);
         }
       });
@@ -2505,23 +2553,14 @@ async function resetStatsTaskEdit() {
 
 // ─── Funciones de Fusión de Tareas en Estadísticas ──────────────────────────
 function saveStatsMergePreferences() {
-  if (currentUser) {
-    const prefsCacheKey = 'prefs_cache_' + currentUser.id;
-    let prefs = {};
-    try {
-      const cached = localStorage.getItem(prefsCacheKey);
-      if (cached) prefs = JSON.parse(cached);
-    } catch(e) {}
-    
-    prefs.statsMergedTasks = statsMergedTasks;
-    prefs.statsMergedActivities = statsMergedActivities;
-    prefs.statsCustomColors = statsCustomColors;
-
-    try {
-      localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
-    } catch(e) {}
-
-    savePreferences(prefs);
+  // Guardar en la cuenta partiendo de las preferencias de la nube (no pisa el
+  // resto aunque la caché local esté vacía).
+  if (currentUser && typeof saveSettingPreferences === 'function') {
+    saveSettingPreferences({
+      statsMergedTasks,
+      statsMergedActivities,
+      statsCustomColors
+    });
   }
 }
 
@@ -2538,17 +2577,17 @@ function toggleStatsMergeMode() {
     mergeBtn.classList.remove('active');
     
     if (currentDailyStatsDate) {
-      const prefix = `${currentDailyStatsDate}_`;
+      // Las fusiones son globales: se deshacen todas (en todos los días), junto
+      // con cualquier resto antiguo guardado por día y los colores de fusión.
+      const isMergeKey = (key) => key.startsWith(STATS_GLOBAL_PREFIX) || /^\d{4}-\d{2}-\d{2}_/.test(key);
       Object.keys(statsMergedTasks).forEach(key => {
-        if (key.startsWith(prefix)) {
-          delete statsMergedTasks[key];
-        }
+        if (isMergeKey(key)) delete statsMergedTasks[key];
       });
-      // También deshacer las fusiones de actividades de este día.
       Object.keys(statsMergedActivities).forEach(key => {
-        if (key.startsWith(prefix)) {
-          delete statsMergedActivities[key];
-        }
+        if (isMergeKey(key)) delete statsMergedActivities[key];
+      });
+      Object.keys(statsCustomColors).forEach(key => {
+        if (key.startsWith(STATS_GLOBAL_PREFIX)) delete statsCustomColors[key];
       });
 
       saveStatsMergePreferences();
@@ -2595,16 +2634,17 @@ function handleStatsMergeClick(group, tr) {
 
     // Fusionar el grupo actual en el primero seleccionado, sumando duraciones y
     // manteniendo el nombre y el color del primero. Cada modo usa su propio mapa.
+    // Fusión GLOBAL: se aplica a todos los días.
     if (byActivity) {
-      statsMergedActivities[`${currentDailyStatsDate}_${groupKey}`] = statsMergeFirstSelected;
+      statsMergedActivities[STATS_GLOBAL_PREFIX + groupKey] = statsMergeFirstSelected;
     } else {
-      statsMergedTasks[`${currentDailyStatsDate}_${groupKey}`] = statsMergeFirstSelected;
+      statsMergedTasks[STATS_GLOBAL_PREFIX + groupKey] = statsMergeFirstSelected;
     }
 
     // Fijar el color del primer grupo seleccionado como color personalizado del
     // grupo fusionado (keyed por NOMBRE, que es como lo lee el render), para que
     // no se reasigne un color aleatorio/distinto al recalcular.
-    const firstColorKey = `${currentDailyStatsDate}_${statsMergeFirstName}`;
+    const firstColorKey = STATS_GLOBAL_PREFIX + statsMergeFirstName;
     if (statsMergeFirstColor && !statsCustomColors[firstColorKey]) {
       statsCustomColors[firstColorKey] = {
         bg: statsMergeFirstColor.bg,
