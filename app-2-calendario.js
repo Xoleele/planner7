@@ -2970,16 +2970,17 @@ function buildCronogramaHeader(date, dayNameUpper, isToday) {
 //   < 45 min      → solo el rectángulo, sin texto.
 //   45 – 59 min   → solo el título.
 //   ≥ 60 min      → título + descripción (recortada con "…" según la altura).
-// Duración mínima (min) para que una tarea se DIBUJE como bloque en el horario.
+// Duración mínima (min) para que una tarea se DIBUJE como bloque en el horario:
+// se muestran las tareas de 5 minutos o más.
 // La misma regla se usa al buscar la tarea anterior/siguiente al crear con clic,
 // para que toda tarea visible cuente como vecina.
-const CR_MIN_BLOCK_MIN = 15;
+const CR_MIN_BLOCK_MIN = 5;
 
 function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isCompleted, tag, task, occurrenceDate, isTail) {
   // Reglas de contenido por duración (horario, escritorio y móvil por igual):
-  //   < 15 min            → el bloque NO se muestra en absoluto (return null).
-  //   15–25 min           → solo el color, con los extremos izq/der redondeados (píldora).
-  //   15–39 min           → solo el color (sin texto y sin checkbox).
+  //   < 5 min             → el bloque NO se muestra en absoluto (return null).
+  //   5–25 min            → solo el color, con los extremos izq/der redondeados (píldora).
+  //   5–39 min            → solo el color (sin texto y sin checkbox).
   //   40–59 min           → título + checkbox, centrados verticalmente.
   //   60–74 min           → título + hora (sin descripción).
   //   >= 75 min           → título + hora + descripción (los 3 juntos).
@@ -2994,8 +2995,9 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
     block.style.setProperty('--tag-text', tag.color.text);
     block.style.setProperty('--tag-border', tag.color.border);
   }
-  // Posición y tamaño (1px = 1 minuto).
-  const heightPx = Math.max(bottomMin - topMin, 16);
+  // Posición y tamaño (1px = 1 minuto). Las tareas cortas (< 16 min) usan su
+  // altura REAL para no tapar visualmente la tarea que viene justo después.
+  const heightPx = Math.max(bottomMin - topMin, Math.min(16, durationMin));
   block.style.top = topMin + 'px';
   block.style.height = heightPx + 'px';
   // Guardar el rango REAL (minutos) para distinguir clics dentro de la tarea de
@@ -3057,9 +3059,9 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
     }
   }
 
-  // Por debajo de 40 min: solo color (sin texto). (El <15 ya salió antes.)
+  // Por debajo de 40 min: solo color (sin texto). (Las < 5 min ya salieron antes.)
   if (durationMin < 40) {
-    // Tareas cortas (15–25 min): extremos izquierdo y derecho totalmente
+    // Tareas cortas (5–25 min): extremos izquierdo y derecho totalmente
     // redondeados (forma de píldora) para distinguirlas visualmente.
     if (durationMin <= 25) {
       block.classList.add('cr-block-pill');
@@ -3221,8 +3223,6 @@ function handleCronogramaEmptyClick(colEl, clickMin) {
     // Solo cuentan las tareas que SÍ se dibujan como bloque (≥ CR_MIN_BLOCK_MIN).
     // Las más cortas no aparecen en el horario, así que su franja es espacio
     // vacío clicable; si las incluyéramos, crearían "zonas muertas" invisibles.
-    // (Antes aquí se exigían 25 min mientras se dibujaban desde 15: las tareas
-    // de 15–24 min se veían pero no se detectaban como tarea anterior.)
     if ((range.endMin - range.startMin) < CR_MIN_BLOCK_MIN) return;
     addRange(range.startMin, range.endMin);
   });

@@ -284,7 +284,7 @@ function syncCronogramaCopyGhost() {
     ghost.style.zIndex = '';
     ghost.style.top = crDrag.originTopPx + 'px';
     const h = Math.min(crDrag.originTopPx + crDrag.durationMin, 1440) - crDrag.originTopPx;
-    ghost.style.height = Math.max(h, 16) + 'px';
+    ghost.style.height = Math.max(h, Math.min(16, crDrag.durationMin)) + 'px';
     // Restaurar el rango horario original en el texto del fantasma (el bloque
     // arrastrado puede mostrar el rango nuevo en vivo).
     const tEl = ghost.querySelector('.cr-task-time');
@@ -525,7 +525,7 @@ function applyCronogramaDragMove(clientX, clientY) {
   // Mover visualmente el bloque (alto fijo = duración, recortado a fin de día).
   crDrag.block.style.top = startMin + 'px';
   const visibleEnd = Math.min(startMin + crDrag.durationMin, 1440);
-  crDrag.block.style.height = Math.max(visibleEnd - startMin, 16) + 'px';
+  crDrag.block.style.height = Math.max(visibleEnd - startMin, Math.min(16, crDrag.durationMin)) + 'px';
 
   // Actualizar EN VIVO el rango horario mostrado en el bloque (elemento dedicado
   // .cr-task-time), p. ej. "13:00 - 15:00" → "13:30 - 15:30", SIN guardar. El
