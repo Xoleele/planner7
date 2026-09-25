@@ -1,7 +1,7 @@
-// IMPORTANTE: sube este número de versión cada vez que cambies app.js, style.css
+// IMPORTANTE: sube este número de versión cada vez que cambies los app-*.js, style.css
 // o index.html. Al cambiar, el navegador activará un service worker nuevo, borrará
 // el caché viejo y servirá los archivos actualizados.
-const CACHE_VERSION = 'v35';
+const CACHE_VERSION = 'v36';
 const CACHE_NAME = 'planner7-' + CACHE_VERSION;
 
 // Archivos de código de la app: siempre se intenta traer la versión más reciente
@@ -9,7 +9,12 @@ const CACHE_NAME = 'planner7-' + CACHE_VERSION;
 const APP_SHELL = [
   '/',
   '/index.html',
-  '/app.js',
+  '/app-1-core.js',
+  '/app-2-calendario.js',
+  '/app-3-tareas.js',
+  '/app-4-estadisticas.js',
+  '/app-5-etiquetas.js',
+  '/app-6-herramientas.js',
   '/style.css',
   '/manifest.json'
 ];
@@ -71,7 +76,7 @@ function isAppShellRequest(url) {
   return (
     path === '/' ||
     path.endsWith('/index.html') ||
-    path.endsWith('/app.js') ||
+    /\/app-\d+-[a-z-]+\.js$/.test(path) ||
     path.endsWith('/style.css') ||
     path.endsWith('/manifest.json')
   );

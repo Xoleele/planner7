@@ -1236,6 +1236,13 @@
 
   <!-- Supabase desde CDN (no requiere bundler) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="app.js?v=20260626"></script>
+  <!-- La app esta dividida en varios archivos que se cargan EN ORDEN (mismo ambito
+       global, comportamiento identico a un solo archivo). El orden importa. -->
+  <script src="app-1-core.js?v=20260925"></script>
+  <script src="app-2-calendario.js?v=20260925"></script>
+  <script src="app-3-tareas.js?v=20260925"></script>
+  <script src="app-4-estadisticas.js?v=20260925"></script>
+  <script src="app-5-etiquetas.js?v=20260925"></script>
+  <script src="app-6-herramientas.js?v=20260925"></script>
 </body>
 </html>
