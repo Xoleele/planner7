@@ -3540,7 +3540,10 @@ function hideCronogramaDropPreview() {
 }
 
 // Al terminar cualquier arrastre HTML5 (soltado fuera, Esc…), quitar la vista previa.
-document.addEventListener('dragend', () => hideCronogramaDropPreview());
+document.addEventListener('dragend', () => {
+  hideCronogramaDropPreview();
+  if (typeof stopCronogramaDragFollower === 'function') stopCronogramaDragFollower();
+});
 
 function dropTaskOnCronograma(taskId, colEl, clientY, isCopy) {
   const task = tasks.find(t => t.id === taskId);

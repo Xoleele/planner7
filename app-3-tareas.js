@@ -1986,9 +1986,55 @@ function handleDragStart(e) {
   e.dataTransfer.setData('text/plain', draggedTaskId);
   e.dataTransfer.effectAllowed = 'copyMove';
   document.body.classList.add('dragging-active');
+  // Escritorio en modo Línea de tiempo: sustituir la imagen nativa de arrastre
+  // por una tarjeta propia, que se oculta sobre el horario (ahí se ve la vista
+  // previa del bloque). Así no se ven dos previsualizaciones a la vez.
+  if (cronogramaActive && !isMobile()) startCronogramaDragFollower(this, e);
+}
+
+// ── Tarjeta que sigue al cursor al arrastrar (HTML5) en modo Línea de tiempo ──
+let crDragFollower = null;
+let crDragFollowerOffset = { x: 0, y: 0 };
+
+function startCronogramaDragFollower(card, e) {
+  stopCronogramaDragFollower();
+  // Imagen de arrastre nativa invisible.
+  const blank = document.createElement('div');
+  blank.style.cssText = 'position:fixed;top:-100px;left:-100px;width:1px;height:1px;opacity:0;';
+  document.body.appendChild(blank);
+  try { e.dataTransfer.setDragImage(blank, 0, 0); } catch (_) {}
+  setTimeout(() => blank.remove(), 0);
+
+  const r = card.getBoundingClientRect();
+  crDragFollowerOffset = { x: e.clientX - r.left, y: e.clientY - r.top };
+  const f = card.cloneNode(true);
+  f.classList.remove('dragging');
+  f.classList.add('cr-drag-follower');
+  f.removeAttribute('id');
+  f.style.width = r.width + 'px';
+  f.style.left = r.left + 'px';
+  f.style.top = r.top + 'px';
+  document.body.appendChild(f);
+  crDragFollower = f;
+  document.addEventListener('dragover', moveCronogramaDragFollower);
+}
+
+function moveCronogramaDragFollower(e) {
+  if (!crDragFollower) return;
+  crDragFollower.style.left = (e.clientX - crDragFollowerOffset.x) + 'px';
+  crDragFollower.style.top = (e.clientY - crDragFollowerOffset.y) + 'px';
+  // Sobre una columna del horario se ve la vista previa del bloque: ocultar la tarjeta.
+  const overTimeline = !!(e.target && e.target.closest && e.target.closest('#cronograma-grid .cr-day-col'));
+  crDragFollower.style.visibility = overTimeline ? 'hidden' : '';
+}
+
+function stopCronogramaDragFollower() {
+  document.removeEventListener('dragover', moveCronogramaDragFollower);
+  if (crDragFollower) { crDragFollower.remove(); crDragFollower = null; }
 }
 
 function handleDragEnd() {
+  stopCronogramaDragFollower();
   this.classList.remove('dragging');
   
   // Reset style modifications if it was placed in body

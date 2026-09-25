@@ -5618,3 +5618,15 @@ body.cr-placing #cronograma-grid .cr-day-col {
 .mobile-mode .task-placement-banner .btn {
   flex: 1 1 0;
 }
+
+/* Tarjeta que sigue al cursor al arrastrar desde Archivados en modo Línea de
+   tiempo (sustituye la imagen nativa del navegador). */
+.task-card.cr-drag-follower {
+  position: fixed;
+  z-index: 5000;
+  pointer-events: none;
+  opacity: 0.9;
+  margin: 0;
+  box-shadow: var(--shadow-lg);
+  transform: rotate(1deg);
+}
