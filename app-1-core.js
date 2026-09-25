@@ -615,37 +615,72 @@ function translateAuthError(msg) {
 }
 
 // ─── Preferencias (menú del avatar) ──────────────────────────────────────────
-// Cada opción se aplica al instante y se guarda en la CUENTA del usuario
-// (tabla user_data.preferences en Supabase), así se conserva al borrar la caché
-// o al cambiar de dispositivo. El caché local solo acelera el arranque.
+// Los cambios NO se aplican hasta pulsar "Guardar". "Cancelar", la X o el clic
+// fuera cierran sin aplicar (al reabrir se muestran los valores vigentes).
+// Se guardan en la CUENTA del usuario (tabla user_data.preferences en Supabase),
+// así se conservan al borrar la caché o al cambiar de dispositivo. El caché
+// local solo acelera el arranque.
 function openSettingsModal() {
   const modal = document.getElementById('settings-modal');
   const toggle = document.getElementById('setting-auto-end-time');
   const durationSel = document.getElementById('setting-default-duration');
   if (!modal || !toggle || !durationSel) return;
+  // Mostrar los valores vigentes (descarta lo que no se guardó la vez anterior).
   toggle.checked = autoSetEndTimeOnComplete;
   durationSel.value = String(defaultTaskDurationMin);
+  modal.querySelectorAll('.settings-info').forEach(el => el.classList.add('hidden'));
+  modal.querySelectorAll('.settings-info-btn').forEach(b => b.classList.remove('active'));
   if (modal.dataset.bound !== 'true') {
     modal.dataset.bound = 'true';
-    toggle.addEventListener('change', () => {
-      autoSetEndTimeOnComplete = toggle.checked;
-      saveSettingPreference('autoSetEndTimeOnComplete', autoSetEndTimeOnComplete);
+    // Icono (i): muestra/oculta la explicación de cada preferencia.
+    modal.querySelectorAll('.settings-info-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const info = document.getElementById(btn.dataset.info);
+        if (!info) return;
+        const willShow = info.classList.contains('hidden');
+        modal.querySelectorAll('.settings-info').forEach(el => el.classList.add('hidden'));
+        modal.querySelectorAll('.settings-info-btn').forEach(b => b.classList.remove('active'));
+        if (willShow) { info.classList.remove('hidden'); btn.classList.add('active'); }
+      });
     });
-    durationSel.addEventListener('change', () => {
-      const d = Number(durationSel.value);
-      if (!DEFAULT_TASK_DURATION_OPTIONS.includes(d)) return;
-      defaultTaskDurationMin = d;
-      saveSettingPreference('defaultTaskDurationMin', d);
-    });
+    document.getElementById('settings-cancel-btn').addEventListener('click', closeSettingsModal);
+    document.getElementById('settings-save-btn').addEventListener('click', saveSettingsModal);
   }
   modal.classList.remove('hidden');
 }
 
-// Guarda UNA preferencia en la cuenta. Parte de las preferencias actuales de la
+function closeSettingsModal() {
+  const modal = document.getElementById('settings-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+// Aplica los valores del panel y los guarda en la cuenta.
+function saveSettingsModal() {
+  const toggle = document.getElementById('setting-auto-end-time');
+  const durationSel = document.getElementById('setting-default-duration');
+  const changes = {};
+  if (toggle) {
+    autoSetEndTimeOnComplete = toggle.checked;
+    changes.autoSetEndTimeOnComplete = autoSetEndTimeOnComplete;
+  }
+  if (durationSel) {
+    const d = Number(durationSel.value);
+    if (DEFAULT_TASK_DURATION_OPTIONS.includes(d)) {
+      defaultTaskDurationMin = d;
+      changes.defaultTaskDurationMin = d;
+    }
+  }
+  closeSettingsModal();
+  saveSettingPreferences(changes);
+}
+
+// Guarda preferencias en la cuenta. Parte de las preferencias actuales de la
 // nube (no del caché local, que puede estar vacío tras borrar la caché) para no
 // pisar el resto (notas, plantilla, etc.).
-async function saveSettingPreference(key, value) {
-  if (!currentUser) return;
+async function saveSettingPreferences(changes) {
+  if (!currentUser || !changes) return;
   const prefsCacheKey = 'prefs_cache_' + currentUser.id;
   let prefs = null;
   try {
@@ -660,11 +695,11 @@ async function saveSettingPreference(key, value) {
       if (cachedPrefs) prefs = JSON.parse(cachedPrefs);
     } catch (e) {}
     if (!prefs) {
-      console.warn('saveSettingPreference: sin preferencias base; no se guardó', key);
+      console.warn('saveSettingPreferences: sin preferencias base; no se guardó', changes);
       return;
     }
   }
-  prefs[key] = value;
+  Object.assign(prefs, changes);
   try {
     localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
   } catch (e) {}

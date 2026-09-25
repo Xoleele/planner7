@@ -765,27 +765,34 @@
         </button>
       </div>
       <div class="modal-body">
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px;">
-          <label for="setting-auto-end-time" style="cursor: pointer;">
-            <div>Hora de fin al completar</div>
-            <div style="font-size: 12px; opacity: 0.6; margin-top: 2px;">Al marcar una tarea sin hora de fin como completada, se le pone la hora actual.</div>
-          </label>
+        <div class="settings-row">
+          <div class="settings-label">
+            <label for="setting-auto-end-time">Hora de fin al completar</label>
+            <button type="button" class="settings-info-btn" data-info="info-auto-end-time" aria-label="Más información"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
+          </div>
           <label class="switch" style="flex-shrink: 0;">
             <input type="checkbox" id="setting-auto-end-time">
             <span class="slider round"></span>
           </label>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 20px;">
-          <label for="setting-default-duration">
-            <div>Duración por defecto</div>
-            <div style="font-size: 12px; opacity: 0.6; margin-top: 2px;">Duración de una tarea nueva creada con clic en la línea de tiempo.</div>
-          </label>
+        <div id="info-auto-end-time" class="settings-info hidden">Al marcar como completada una tarea que no tiene hora de fin, se le pone la hora actual como hora de fin.</div>
+
+        <div class="settings-row">
+          <div class="settings-label">
+            <label for="setting-default-duration">Duración por defecto</label>
+            <button type="button" class="settings-info-btn" data-info="info-default-duration" aria-label="Más información"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
+          </div>
           <select id="setting-default-duration" style="flex-shrink: 0;">
             <option value="15">15 min</option>
             <option value="30">30 min</option>
             <option value="60">1 h</option>
           </select>
         </div>
+        <div id="info-default-duration" class="settings-info hidden">Duración que tendrá una tarea nueva al crearla con un clic en la línea de tiempo.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="settings-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="settings-save-btn">Guardar</button>
       </div>
     </div>
   </div>
