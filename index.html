@@ -445,7 +445,7 @@
           </div>
         </div>
 
-        <div class="form-row">
+        <div class="form-row task-times-row">
           <div class="form-group flex-1 task-time-group">
             <label for="task-input-start">Inicio</label>
             <div class="time-input-wrapper has-clock has-bell">
@@ -471,6 +471,19 @@
               <input type="time" id="task-input-end" lang="es-ES" data-force24>
               <span class="time-24-overlay" data-for="task-input-end" aria-hidden="true"></span>
               <button type="button" class="time-clear-btn" id="task-end-clear" data-target="task-input-end" title="Sin hora" aria-label="Quitar hora de fin">
+                <img src="icons/close.svg" alt="Quitar" width="14" height="14">
+              </button>
+            </div>
+          </div>
+          <div class="form-group flex-1 task-time-group task-duration-group">
+            <label for="task-input-duration">Duración</label>
+            <div class="time-input-wrapper has-clock">
+              <button type="button" class="field-icon-btn task-duration-icon" data-target="task-input-duration" aria-label="Elegir duración">
+                <img src="icons/timer.svg" alt="" width="13" height="13">
+              </button>
+              <input type="time" id="task-input-duration" lang="es-ES" data-force24>
+              <span class="time-24-overlay" data-for="task-input-duration" aria-hidden="true"></span>
+              <button type="button" class="time-clear-btn" id="task-duration-clear" data-target="task-input-duration" title="Sin duración" aria-label="Quitar duración">
                 <img src="icons/close.svg" alt="Quitar" width="14" height="14">
               </button>
             </div>

@@ -2447,15 +2447,18 @@ function applyAdjacentAffectations(affectations) {
 
 // Duración (minutos) de una tarea para estadísticas/sumas.
 // Prioridad: (1) si la tarea tiene hora de inicio + fin definidas, se usa esa
-// duración; (2) en caso contrario, se usa la duración escrita al inicio de la
-// descripción ("1h", "20 min", "1 hora 20 minutos", …). null si no hay ninguna.
+// duración; (2) en caso contrario, el campo "Duración" del editor (task.duration).
+// null si no hay ninguna.
+// NOTA: la duración escrita al inicio de la DESCRIPCIÓN ("1h", "20 min", …) quedó
+// DESACTIVADA para no competir con el campo Duración (parseDurationFromDescription
+// ya no se usa).
 function getTaskDurationMinutes(task) {
   const r = getTaskTimeRange(task);
   if (r) {
     return (r.crossesMidnight ? r.rawEndMin + 1440 : r.rawEndMin) - r.startMin;
   }
-  const parsed = parseDurationFromDescription(task && task.description);
-  return parsed ? parsed.minutes : null;
+  const d = task ? Number(task.duration) : NaN;
+  return (Number.isFinite(d) && d > 0) ? Math.round(d) : null;
 }
 
 // ─── Alarma: detectar la hora de inicio al comienzo de la descripcion ─────────

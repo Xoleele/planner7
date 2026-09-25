@@ -2826,6 +2826,9 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
     document.getElementById('days-selector-group').classList.remove('hidden');
   }
 
+  // Campo Duración: valor inicial según inicio/fin o la duración guardada.
+  syncDurationFieldOnOpen(selectedTaskId ? tasks.find(t => t.id === selectedTaskId) : null);
+
   // Show Modal
   modal.classList.remove('hidden');
   updateRecurrenceHint();
@@ -3032,6 +3035,157 @@ function syncEndTimeEnabled() {
   endEl.disabled = false;
   endEl.style.opacity = '1';
   endEl.style.cursor = '';
+}
+
+// ─── Inicio / Fin / Duración en el editor de tareas ─────────────────────────
+// Reglas:
+//  · Inicio + Fin → se calcula la Duración.
+//  · Puede haber Duración sin Inicio ni Fin.
+//  · Con Duración, al poner Inicio se completa el Fin (y al poner Fin, el Inicio).
+//  · Con los 3 definidos: cambiar la Duración mantiene el Inicio y mueve el Fin;
+//    cambiar el Inicio mantiene la Duración y mueve el Fin; cambiar el Fin
+//    recalcula la Duración.
+//  · Si el usuario BORRA uno de los 3, queda vacío y ya no se rellena solo
+//    mientras el editor siga abierto (aunque cambie los otros), para que siempre
+//    se pueda borrar. Vuelve a participar si el usuario lo escribe de nuevo.
+// La Duración se muestra como HH:MM (horas:minutos), con el mismo selector que
+// las horas.
+let taskTimeClearedFields = new Set(); // 'start' | 'end' | 'duration'
+
+const TASK_TIME_FIELD_IDS = {
+  start: 'task-input-start',
+  end: 'task-input-end',
+  duration: 'task-input-duration'
+};
+
+function taskFieldEl(field) {
+  return document.getElementById(TASK_TIME_FIELD_IDS[field]);
+}
+
+// Minutos → "HH:MM" dentro del día (0..1439), con vuelta por medianoche.
+function wrapMinutesToHHMM(min) {
+  const m = ((Math.round(min) % 1440) + 1440) % 1440;
+  return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
+// Duración en minutos → "HH:MM" para el campo (máx. 23:59). '' si no hay.
+function durationMinutesToField(min) {
+  if (!Number.isFinite(min) || min <= 0) return '';
+  const m = Math.min(Math.round(min), 1439);
+  return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+}
+
+// Minutos entre inicio y fin (si fin <= inicio, termina al día siguiente).
+function diffStartEndMinutes(startMin, endMin) {
+  let d = endMin - startMin;
+  if (d <= 0) d += 1440;
+  return d;
+}
+
+// Al abrir el editor: olvidar los campos borrados y fijar la Duración inicial.
+function syncDurationFieldOnOpen(task) {
+  taskTimeClearedFields = new Set();
+  const durEl = taskFieldEl('duration');
+  if (!durEl) return;
+  const s = hhmmToMinutes(taskFieldEl('start') && taskFieldEl('start').value);
+  const e = hhmmToMinutes(taskFieldEl('end') && taskFieldEl('end').value);
+  if (s !== null && e !== null) {
+    durEl.value = durationMinutesToField(diffStartEndMinutes(s, e));
+  } else if (task && Number(task.duration) > 0) {
+    durEl.value = durationMinutesToField(Number(task.duration));
+  } else {
+    durEl.value = '';
+  }
+}
+
+// El usuario cambió uno de los 3 campos: completar el que corresponda.
+function onTaskTimeFieldEdited(field) {
+  const startEl = taskFieldEl('start');
+  const endEl = taskFieldEl('end');
+  const durEl = taskFieldEl('duration');
+  if (!startEl || !endEl || !durEl) return;
+  const el = taskFieldEl(field);
+
+  // Campo vaciado por el usuario: queda vacío y no se vuelve a rellenar solo.
+  if (!el.value) {
+    taskTimeClearedFields.add(field);
+    return;
+  }
+  taskTimeClearedFields.delete(field);
+
+  const s = hhmmToMinutes(startEl.value);
+  const e = hhmmToMinutes(endEl.value);
+  const dRaw = hhmmToMinutes(durEl.value);
+  const d = (dRaw !== null && dRaw > 0) ? dRaw : null;
+  const canFill = (f) => !taskTimeClearedFields.has(f);
+
+  if (field === 'duration') {
+    if (d === null) return;
+    if (s !== null) {
+      if (canFill('end')) endEl.value = wrapMinutesToHHMM(s + d);
+    } else if (e !== null) {
+      if (canFill('start')) startEl.value = wrapMinutesToHHMM(e - d);
+    }
+  } else if (field === 'start') {
+    if (d !== null && (e !== null || canFill('end'))) {
+      // Mantener la duración y mover/poner el fin.
+      if (canFill('end')) endEl.value = wrapMinutesToHHMM(s + d);
+    } else if (e !== null && canFill('duration')) {
+      durEl.value = durationMinutesToField(diffStartEndMinutes(s, e));
+    }
+  } else if (field === 'end') {
+    if (s !== null) {
+      if (canFill('duration')) durEl.value = durationMinutesToField(diffStartEndMinutes(s, e));
+    } else if (d !== null && canFill('start')) {
+      startEl.value = wrapMinutesToHHMM(e - d);
+    }
+  }
+
+  syncEndTimeEnabled();
+  updateDurationDisplay();
+  syncAlarmCheckboxState();
+}
+
+// Enlaza los eventos de los 3 campos (se llama una vez al iniciar la app).
+function setupTaskTimeFieldsLogic() {
+  ['start', 'end', 'duration'].forEach(field => {
+    const el = taskFieldEl(field);
+    if (!el) return;
+    el.addEventListener('input', () => onTaskTimeFieldEdited(field));
+    el.addEventListener('change', () => onTaskTimeFieldEdited(field));
+  });
+  // Botones ✕ de cada campo (el vaciado lo hace el handler genérico).
+  [['task-start-clear', 'start'], ['task-end-clear', 'end'], ['task-duration-clear', 'duration']]
+    .forEach(([btnId, field]) => {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        const el = taskFieldEl(field);
+        if (el) el.value = '';
+        taskTimeClearedFields.add(field);
+      });
+    });
+  // Icono del campo Duración: enfoca el campo / abre el selector (móvil).
+  const durIcon = document.querySelector('.task-duration-icon');
+  if (durIcon) {
+    durIcon.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const el = taskFieldEl('duration');
+      if (!el || el.disabled) return;
+      if (isMobile() && typeof el.showPicker === 'function') {
+        try { el.showPicker(); return; } catch (_) {}
+      }
+      el.focus();
+    });
+  }
+}
+
+// Duración (minutos) del campo del editor, o null si está vacío.
+function getDurationFieldMinutes() {
+  const el = taskFieldEl('duration');
+  const m = el ? hhmmToMinutes(el.value) : null;
+  return (m !== null && m > 0) ? m : null;
 }
 
 // Duration Calculator

@@ -640,6 +640,7 @@ function setupEventListeners() {
   if (!isMobile()) {
     setupTimeMaskInput(taskStartInput);
     setupTimeMaskInput(taskEndInput);
+    setupTimeMaskInput(document.getElementById('task-input-duration'));
   }
 
   if (taskStartInput) {
@@ -680,6 +681,9 @@ function setupEventListeners() {
       syncAlarmCheckboxState();
     });
   });
+
+  // Inicio / Fin / Duración: completado automático entre los 3 campos.
+  setupTaskTimeFieldsLogic();
 
   // Botón ✕ del campo de TÍTULO: borra todo lo escrito y deja el foco en el campo.
   const titleClearBtn = document.getElementById('task-title-clear');
@@ -1055,9 +1059,10 @@ function setupEventListeners() {
     const startTime = (startInputEl && startInputEl.value) ? startInputEl.value : null;
     const endTime = (endInputEl && endInputEl.value) ? endInputEl.value : null;
 
-    // Duración (minutos) a partir de inicio/fin (soporta cruce de medianoche).
-    let duration = null;
-    if (startTime && endTime) {
+    // Duración (minutos): la del campo Duración; si está vacío pero hay inicio
+    // y fin, se calcula de ellos (soporta cruce de medianoche).
+    let duration = getDurationFieldMinutes();
+    if (duration === null && startTime && endTime) {
       const [sh, sm] = startTime.split(':').map(Number);
       const [eh, em] = endTime.split(':').map(Number);
       let diff = (eh * 60 + em) - (sh * 60 + sm);

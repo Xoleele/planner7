@@ -5513,3 +5513,15 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   margin: -2px 0 6px;
 }
 .settings-info.hidden { display: none; }
+
+/* Editor de tareas en móvil: INICIO y FIN en una fila y DURACIÓN debajo (a media
+   anchura), porque los 3 campos juntos no caben con sus iconos. */
+.mobile-mode #task-modal .task-times-row {
+  flex-wrap: wrap;
+}
+.mobile-mode #task-modal .task-times-row .task-time-group {
+  flex: 1 1 calc(50% - 4px);
+}
+.mobile-mode #task-modal .task-times-row .task-duration-group {
+  flex: 0 0 calc(50% - 4px);
+}
