@@ -5576,3 +5576,45 @@ body.cr-placing #cronograma-grid .cr-day-col {
   outline: 2px dashed var(--text-main);
   outline-offset: -2px;
 }
+
+/* Móvil: la vista previa de "colocar tarea" se puede arrastrar con el dedo. */
+.cr-task-block.cr-placement-ghost.cr-placement-ghost-m {
+  pointer-events: auto;
+  touch-action: none;
+  opacity: 0.75;
+  z-index: 25;
+}
+.cr-task-block.cr-placement-ghost.dragging-ghost {
+  opacity: 0.9;
+  box-shadow: var(--shadow-lg);
+}
+/* Botones del aviso sobre fondo oscuro. */
+.task-placement-banner .btn-secondary {
+  background: transparent;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+}
+.task-placement-banner .task-placement-ok {
+  background: #ffffff;
+  color: var(--text-main);
+  border: 1px solid #ffffff;
+}
+/* Móvil: texto arriba y botones abajo, a todo el ancho. */
+.mobile-mode .task-placement-banner {
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  transform: none;
+  max-width: none;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  font-size: 13.5px;
+}
+.mobile-mode .task-placement-banner span {
+  flex: 1 1 100%;
+  white-space: nowrap;
+}
+.mobile-mode .task-placement-banner .btn {
+  flex: 1 1 0;
+}

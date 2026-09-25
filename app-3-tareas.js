@@ -1734,11 +1734,24 @@ function startTaskPlacement(task, occurrenceDate) {
     occurrenceDate: occurrenceDate || task.date || null,
     durationMin,
     title: task.title || 'Tarea sin título',
-    tag
+    tag,
+    ghostStartMin: taskPlacementSnap(9 * 60) // móvil: posición de la vista previa
   };
-  if (!cronogramaActive) toggleCronograma();
   document.body.classList.add('cr-placing');
+  if (!cronogramaActive) toggleCronograma();
+  else if (isMobile()) renderCronograma();
   showTaskPlacementBanner();
+  if (isMobile()) {
+    // Móvil: la tarea se muestra en el horario (en la zona visible) y se puede
+    // arrastrar o mover con un toque; "Colocar" confirma.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!taskPlacement) return;
+      const body = document.querySelector('.cr-mobile-day-body');
+      const viewTop = body ? body.scrollTop : crMobileVScroll;
+      const viewH = body ? body.clientHeight : 400;
+      setMobilePlacementGhostStart(viewTop + viewH / 3);
+    }));
+  }
   document.addEventListener('keydown', onTaskPlacementKey);
   document.addEventListener('click', swallowTaskPlacementClick, true);
 }
@@ -1773,13 +1786,23 @@ function showTaskPlacementBanner() {
   banner.id = 'task-placement-banner';
   banner.className = 'task-placement-banner';
   const text = document.createElement('span');
-  text.textContent = (isMobile() ? 'Toca' : 'Haz clic en') + ' la línea de tiempo para colocar «' + taskPlacement.title + '»';
+  text.textContent = isMobile()
+    ? 'Arrastra «' + taskPlacement.title + '» o toca una hora'
+    : 'Haz clic en la línea de tiempo para colocar «' + taskPlacement.title + '»';
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'btn btn-secondary';
   btn.textContent = 'Cancelar';
   btn.addEventListener('click', (e) => { e.stopPropagation(); endTaskPlacement(); });
   banner.append(text, btn);
+  if (isMobile()) {
+    const ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'btn btn-primary task-placement-ok';
+    ok.textContent = 'Colocar';
+    ok.addEventListener('click', (e) => { e.stopPropagation(); confirmMobileTaskPlacement(); });
+    banner.appendChild(ok);
+  }
   document.body.appendChild(banner);
 }
 
@@ -1814,9 +1837,96 @@ function updateTaskPlacementGhost(col, rawMin) {
   ghost.style.height = Math.min(taskPlacement.durationMin, 1440 - startMin) + 'px';
 }
 
-function removeTaskPlacementGhost() {
+// Vista previa de escritorio (la que sigue al cursor).
+function removeDesktopPlacementGhost() {
   const ghost = document.getElementById('task-placement-ghost');
   if (ghost) ghost.remove();
+}
+
+// Todas las vistas previas (escritorio y móvil).
+function removeTaskPlacementGhost() {
+  removeDesktopPlacementGhost();
+  document.querySelectorAll('.cr-placement-ghost-m').forEach(g => g.remove());
+}
+
+// ── Móvil: vista previa de la tarea en cada tarjeta-día del carrusel ─────────
+// Se añade una copia del bloque en cada día precargado (así se ve en el día que
+// esté en pantalla al deslizar). Todas comparten la hora taskPlacement.ghostStartMin.
+function createMobilePlacementGhost() {
+  const p = taskPlacement;
+  const ghost = document.createElement('div');
+  ghost.className = 'cr-task-block cr-placement-ghost cr-placement-ghost-m';
+  if (p.tag && p.tag.color) {
+    ghost.style.setProperty('--tag-bg', p.tag.color.bg);
+    ghost.style.setProperty('--tag-text', p.tag.color.text);
+    ghost.style.setProperty('--tag-border', p.tag.color.border);
+  }
+  const t = document.createElement('div');
+  t.className = 'cr-task-title';
+  t.textContent = p.title;
+  ghost.appendChild(t);
+  positionMobilePlacementGhost(ghost);
+  attachMobilePlacementGhostDrag(ghost);
+  return ghost;
+}
+
+function positionMobilePlacementGhost(ghost) {
+  const p = taskPlacement;
+  if (!p) return;
+  const s = p.ghostStartMin;
+  ghost.style.top = s + 'px';
+  ghost.style.height = Math.max(Math.min(p.durationMin, 1440 - s), 5) + 'px';
+}
+
+// Fija la hora de la vista previa (ajustada a 30 min) y la aplica a todas las copias.
+function setMobilePlacementGhostStart(rawMin) {
+  if (!taskPlacement) return;
+  taskPlacement.ghostStartMin = taskPlacementSnap(rawMin);
+  document.querySelectorAll('.cr-placement-ghost-m').forEach(positionMobilePlacementGhost);
+}
+
+// Arrastrar la vista previa con el dedo (vertical). El scroll del horario se
+// bloquea mientras se arrastra el bloque.
+function attachMobilePlacementGhostDrag(ghost) {
+  let grabOffset = 0;
+  let dragging = false;
+  ghost.addEventListener('touchstart', (e) => {
+    if (!taskPlacement || e.touches.length !== 1) return;
+    const col = ghost.parentElement;
+    if (!col) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragging = true;
+    grabOffset = cronogramaClickToMinutes(col, e.touches[0].clientY) - taskPlacement.ghostStartMin;
+    ghost.classList.add('dragging-ghost');
+  }, { passive: false });
+  ghost.addEventListener('touchmove', (e) => {
+    if (!dragging || !taskPlacement) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const col = ghost.parentElement;
+    if (!col) return;
+    setMobilePlacementGhostStart(cronogramaClickToMinutes(col, e.touches[0].clientY) - grabOffset);
+  }, { passive: false });
+  const stop = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    ghost.classList.remove('dragging-ghost');
+    if (e) e.stopPropagation();
+  };
+  ghost.addEventListener('touchend', stop);
+  ghost.addEventListener('touchcancel', stop);
+}
+
+// Botón "Colocar" (móvil): coloca la tarea en el día que está en pantalla, a la
+// hora de la vista previa.
+function confirmMobileTaskPlacement() {
+  if (!taskPlacement) return;
+  const track = document.getElementById('cr-mobile-track');
+  const card = track ? getCenteredCronogramaCol(track) : null;
+  const col = card ? card.querySelector('.cr-mobile-grid') : null;
+  if (!col) return;
+  placeTaskAt(col, taskPlacement.ghostStartMin);
 }
 
 // Coloca la tarea en el día de la columna y a la hora elegida, y la completa.

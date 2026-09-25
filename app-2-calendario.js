@@ -3209,7 +3209,12 @@ function renderCronogramaDayBlocks(colEl, date) {
 // fin de la tarea anterior + 1 min, fin = inicio de la tarea siguiente − 1 min.
 function handleCronogramaEmptyClick(colEl, clickMin) {
   // Modo "colocar tarea" (long-press en el checkbox): el clic la coloca aquí.
-  if (taskPlacement) { placeTaskAt(colEl, clickMin); return; }
+  if (taskPlacement) {
+    // Móvil: el toque mueve la vista previa; se confirma con "Colocar".
+    if (isMobile()) setMobilePlacementGhostStart(clickMin);
+    else placeTaskAt(colEl, clickMin);
+    return;
+  }
   const dateStr = colEl.dataset.date;
   if (!dateStr) return;
   const date = new Date(dateStr + 'T00:00:00');
@@ -3331,6 +3336,8 @@ function setupCronogramaClickDelegation() {
     // cubra ese minuto. Así, pinchar donde se ve vacío siempre abre el creador,
     // y desaparecen las "zonas muertas" que producían las tareas solapadas.
     if (e.target.closest('.cr-task-block') && !taskPlacement) return;
+    // La vista previa móvil de "colocar tarea" gestiona su propio arrastre.
+    if (e.target.closest('.cr-placement-ghost-m')) return;
 
     // Localizar la columna-día bajo el cursor. Las capas decorativas
     // (líneas/etiquetas de hora, línea de "ahora") tienen pointer-events:none,
@@ -3388,10 +3395,12 @@ function setupCronogramaClickDelegation() {
     if (!taskPlacement || e.pointerType === 'touch') return;
     const col = document.elementsFromPoint(e.clientX, e.clientY)
       .find(el => el.classList && el.classList.contains('cr-day-col') && el.closest('#cronograma-grid'));
-    if (!col) { removeTaskPlacementGhost(); return; }
+    if (!col) { removeDesktopPlacementGhost(); return; }
     updateTaskPlacementGhost(col, cronogramaClickToMinutes(col, e.clientY));
   });
-  grid.addEventListener('pointerleave', () => { if (taskPlacement) removeTaskPlacementGhost(); });
+  grid.addEventListener('pointerleave', (e) => {
+    if (taskPlacement && e.pointerType !== 'touch') removeDesktopPlacementGhost();
+  });
 }
 
 // Anula el PRÓXIMO click que dispare el navegador (el "click fantasma" sintético
@@ -3735,6 +3744,8 @@ function buildCronogramaMobileDayCol(date, todayStr) {
   colEl.className = 'cr-day-col cr-mobile-grid' + (isToday ? ' today' : '');
   colEl.dataset.date = formatDate(date);
   renderCronogramaDayBlocks(colEl, date);
+  // Colocando una tarea (long-press en el checkbox): vista previa en cada día.
+  if (taskPlacement) colEl.appendChild(createMobilePlacementGhost());
   // Línea roja de inicio del cronómetro dentro de la tarjeta de su día.
   const timerInfo = getTimerStartLineInfo();
   if (timerInfo && timerInfo.dateStr === colEl.dataset.date) {
