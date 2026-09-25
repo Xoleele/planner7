@@ -2970,6 +2970,11 @@ function buildCronogramaHeader(date, dayNameUpper, isToday) {
 //   < 45 min      → solo el rectángulo, sin texto.
 //   45 – 59 min   → solo el título.
 //   ≥ 60 min      → título + descripción (recortada con "…" según la altura).
+// Duración mínima (min) para que una tarea se DIBUJE como bloque en el horario.
+// La misma regla se usa al buscar la tarea anterior/siguiente al crear con clic,
+// para que toda tarea visible cuente como vecina.
+const CR_MIN_BLOCK_MIN = 15;
+
 function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isCompleted, tag, task, occurrenceDate, isTail) {
   // Reglas de contenido por duración (horario, escritorio y móvil por igual):
   //   < 15 min            → el bloque NO se muestra en absoluto (return null).
@@ -2979,7 +2984,7 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   //   60–74 min           → título + hora (sin descripción).
   //   >= 75 min           → título + hora + descripción (los 3 juntos).
   const durationMin = bottomMin - topMin;
-  if (durationMin < 15) return null;
+  if (durationMin < CR_MIN_BLOCK_MIN) return null;
 
   const block = document.createElement('div');
   block.className = 'cr-task-block' + (isTail ? ' cr-tail' : '');
@@ -3157,7 +3162,7 @@ function renderCronogramaDayBlocks(colEl, date) {
       startMin, endMin, title, task.description,
       isTaskCompleted(task, dateStr), tag, task, dateStr
     );
-    if (!block) return; // tareas < 25 min no se dibujan
+    if (!block) return; // tareas < CR_MIN_BLOCK_MIN no se dibujan
     colEl.appendChild(block);
     count++;
   });
@@ -3183,7 +3188,7 @@ function renderCronogramaDayBlocks(colEl, date) {
       0, tailEnd, title, task.description,
       isTaskCompleted(task, prevDateStr), tag, task, prevDateStr, true
     );
-    if (!block) return; // colas < 25 min no se dibujan
+    if (!block) return; // colas < CR_MIN_BLOCK_MIN no se dibujan
     colEl.appendChild(block);
     count++;
   });
@@ -3213,10 +3218,12 @@ function handleCronogramaEmptyClick(colEl, clickMin) {
     if (tag && tag.visible === false) return;
     const range = getTaskTimeRange(task);
     if (!range) return;
-    // Solo cuentan las tareas que SÍ se dibujan como bloque (≥ 25 min). Las más
-    // cortas no aparecen en el horario, así que su franja es espacio vacío
-    // clicable; si las incluyéramos, crearían "zonas muertas" invisibles.
-    if ((range.endMin - range.startMin) < 25) return;
+    // Solo cuentan las tareas que SÍ se dibujan como bloque (≥ CR_MIN_BLOCK_MIN).
+    // Las más cortas no aparecen en el horario, así que su franja es espacio
+    // vacío clicable; si las incluyéramos, crearían "zonas muertas" invisibles.
+    // (Antes aquí se exigían 25 min mientras se dibujaban desde 15: las tareas
+    // de 15–24 min se veían pero no se detectaban como tarea anterior.)
+    if ((range.endMin - range.startMin) < CR_MIN_BLOCK_MIN) return;
     addRange(range.startMin, range.endMin);
   });
 
@@ -3227,7 +3234,7 @@ function handleCronogramaEmptyClick(colEl, clickMin) {
     if (tag && tag.visible === false) return;
     const range = getTaskTimeRange(task);
     if (!range || !range.crossesMidnight) return;
-    if (range.rawEndMin < 25) return; // cola < 25 min: no se dibuja
+    if (range.rawEndMin < CR_MIN_BLOCK_MIN) return; // cola corta: no se dibuja
     addRange(0, range.rawEndMin); // cola: 00:00 → rawEndMin
   });
 
