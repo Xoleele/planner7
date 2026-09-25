@@ -5535,3 +5535,10 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .cr-now-line.cr-timer-start-line {
   animation: timerBlink 1.5s ease-in-out infinite;
 }
+
+/* Preferencias > Mostrar descripción de tareas (desactivado): se ocultan las
+   descripciones en las tarjetas del planner y en los bloques del horario. */
+body.hide-task-desc .task-card-desc,
+body.hide-task-desc .cr-task-desc {
+  display: none !important;
+}

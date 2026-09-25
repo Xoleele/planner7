@@ -52,12 +52,23 @@ let autoSetEndTimeOnComplete = false;
 const DEFAULT_TASK_DURATION_OPTIONS = [15, 30, 60];
 let defaultTaskDurationMin = 60;
 
+// Mostrar u ocultar la descripción de las tareas en el planner y en el horario.
+// Se elige en Preferencias (preferences.showTaskDescriptions). Por defecto, se muestra.
+let showTaskDescriptions = true;
+
+// Aplica la visibilidad de las descripciones (clase en <body>, ver style.css).
+function applyTaskDescriptionVisibility() {
+  document.body.classList.toggle('hide-task-desc', !showTaskDescriptions);
+}
+
 // Lee de un objeto de preferencias los valores de la sección Preferencias.
 function applyUserSettingsFromPrefs(prefs) {
   if (!prefs) return;
   autoSetEndTimeOnComplete = prefs.autoSetEndTimeOnComplete === true;
   const d = Number(prefs.defaultTaskDurationMin);
   defaultTaskDurationMin = DEFAULT_TASK_DURATION_OPTIONS.includes(d) ? d : 60;
+  showTaskDescriptions = prefs.showTaskDescriptions !== false;
+  applyTaskDescriptionVisibility();
 }
 
 // Cuando la tarea YA tiene hora de fin, normalmente se abre un aviso para que el
@@ -624,10 +635,12 @@ function openSettingsModal() {
   const modal = document.getElementById('settings-modal');
   const toggle = document.getElementById('setting-auto-end-time');
   const durationSel = document.getElementById('setting-default-duration');
+  const descToggle = document.getElementById('setting-show-desc');
   if (!modal || !toggle || !durationSel) return;
   // Mostrar los valores vigentes (descarta lo que no se guardó la vez anterior).
   toggle.checked = autoSetEndTimeOnComplete;
   durationSel.value = String(defaultTaskDurationMin);
+  if (descToggle) descToggle.checked = showTaskDescriptions;
   modal.querySelectorAll('.settings-info').forEach(el => el.classList.add('hidden'));
   modal.querySelectorAll('.settings-info-btn').forEach(b => b.classList.remove('active'));
   if (modal.dataset.bound !== 'true') {
@@ -671,6 +684,12 @@ function saveSettingsModal() {
       defaultTaskDurationMin = d;
       changes.defaultTaskDurationMin = d;
     }
+  }
+  const descToggle = document.getElementById('setting-show-desc');
+  if (descToggle) {
+    showTaskDescriptions = descToggle.checked;
+    changes.showTaskDescriptions = showTaskDescriptions;
+    applyTaskDescriptionVisibility();
   }
   closeSettingsModal();
   saveSettingPreferences(changes);

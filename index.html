@@ -802,6 +802,18 @@
           </select>
         </div>
         <div id="info-default-duration" class="settings-info hidden">Duración que tendrá una tarea nueva al crearla con un clic en la línea de tiempo.</div>
+
+        <div class="settings-row">
+          <div class="settings-label">
+            <label for="setting-show-desc">Mostrar descripción de tareas</label>
+            <button type="button" class="settings-info-btn" data-info="info-show-desc" aria-label="Más información"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
+          </div>
+          <label class="switch" style="flex-shrink: 0;">
+            <input type="checkbox" id="setting-show-desc">
+            <span class="slider round"></span>
+          </label>
+        </div>
+        <div id="info-show-desc" class="settings-info hidden">Muestra u oculta el texto de la descripción en las tarjetas de tareas y en los bloques de la línea de tiempo. La descripción no se borra: sigue disponible al abrir la tarea.</div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="settings-cancel-btn">Cancelar</button>
