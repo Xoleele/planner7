@@ -3071,6 +3071,11 @@ async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null)
 
   const task = tasks[taskIndex];
 
+  // Al archivar se QUITAN la hora de inicio y de fin (no tienen sentido sin
+  // fecha), pero se conserva la DURACIÓN, para que al volver a colocarla en el
+  // horario ocupe lo mismo. La alarma depende de la hora de inicio: se apaga.
+  const keptDuration = getTaskDurationMinutes(task) || null;
+
   if (task.recurrence && task.recurrence.enabled && sourceDateStr) {
     // Es una tarea recurrente y se arrastró una ocurrencia específica.
     // 1. Agregar excepción a la tarea original.
@@ -3088,9 +3093,10 @@ async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null)
       description: task.description || '',
       tagId: task.tagId,
       date: '',
-      startTime: task.startTime || null,
-      endTime: task.endTime || null,
-      duration: task.duration || null,
+      startTime: null,
+      endTime: null,
+      duration: keptDuration,
+      alarm: false,
       recurrence: null
     };
 
@@ -3125,6 +3131,10 @@ async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null)
     // Tarea simple o arrastrada sin fecha de origen.
     task.date = ''; 
     task.recurrence = null;
+    task.startTime = null;
+    task.endTime = null;
+    task.duration = keptDuration;
+    task.alarm = false;
 
     const container = document.getElementById('briefcase-tasks-container');
     if (clientY !== null && container) {
