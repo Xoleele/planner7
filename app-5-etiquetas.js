@@ -854,6 +854,7 @@ function buildHabitTagSelectorOptions() {
     option.addEventListener('click', (e) => {
       e.stopPropagation();
       setHabitSelectTagValue(tag.id);
+      if (typeof rememberGeneralStatsHabitTag === 'function') rememberGeneralStatsHabitTag(tag.id);
       container.classList.add('hidden');
       renderGeneralStatsForRange();
     });
@@ -900,7 +901,11 @@ function updateHabitTagRowVisibility() {
         'habit-tag-select-input',
         'habit-tag-options-container',
         'habit-select-tag',
-        (tagId) => { setHabitSelectTagValue(tagId); renderGeneralStatsForRange(); }
+        (tagId) => {
+          setHabitSelectTagValue(tagId);
+          if (typeof rememberGeneralStatsHabitTag === 'function') rememberGeneralStatsHabitTag(tagId);
+          renderGeneralStatsForRange();
+        }
       );
       // Botón ✕: borra lo escrito y deja el campo listo para escribir desde 0.
       const clearBtn = document.getElementById('habit-tag-clear');

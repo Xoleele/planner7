@@ -74,6 +74,13 @@ function applyUserSettingsFromPrefs(prefs) {
     statsHiddenGroups.clear();
     (Array.isArray(prefs.statsHiddenGroups) ? prefs.statsHiddenGroups : []).forEach(n => statsHiddenGroups.add(n));
   }
+  // Estadísticas generales: elecciones de etiquetas guardadas.
+  if (typeof generalStatsHiddenTags !== 'undefined') {
+    generalStatsHiddenTags.clear();
+    (Array.isArray(prefs.generalStatsHiddenTags) ? prefs.generalStatsHiddenTags : []).forEach(n => generalStatsHiddenTags.add(n));
+    generalStatsSavedLineTags = Array.isArray(prefs.generalStatsLineTags) ? prefs.generalStatsLineTags.slice(0, 3) : null;
+    generalStatsSavedHabitTag = prefs.generalStatsHabitTag || null;
+  }
   // Fusiones de estadísticas antiguas (por día) → globales. Se aplica sobre los
   // mapas ya cargados desde estas mismas preferencias.
   if (typeof normalizeStatsMergesToGlobal === 'function') {

@@ -41,6 +41,39 @@ function resolveStatsMerge(map, key) {
   return k;
 }
 
+// ─── Estadísticas generales (menú de usuario): ajustes de ETIQUETAS guardados ──
+// Se guardan en la cuenta solo las elecciones relacionadas con etiquetas:
+//  · generalStatsHiddenTags: etiquetas ocultas en la lista (todas las vistas/periodos).
+//  · generalStatsLineTags:   etiquetas elegidas en el gráfico Lineal (máx. 3).
+//  · generalStatsHabitTag:   etiqueta elegida en Hábitos / Mapa de calor.
+// (Las fusiones de actividades ya son globales y se guardan aparte.)
+let generalStatsHiddenTags = new Set();
+let generalStatsSavedLineTags = null;  // null = sin elección guardada
+let generalStatsSavedHabitTag = null;  // null = sin elección guardada
+
+function saveGeneralStatsTagPrefs() {
+  if (typeof saveSettingPreferences !== 'function') return;
+  const changes = {
+    generalStatsHiddenTags: [...generalStatsHiddenTags]
+  };
+  if (generalStatsSavedLineTags) changes.generalStatsLineTags = [...generalStatsSavedLineTags];
+  if (generalStatsSavedHabitTag) changes.generalStatsHabitTag = generalStatsSavedHabitTag;
+  saveSettingPreferences(changes);
+}
+
+// El usuario cambió las etiquetas del gráfico Lineal.
+function rememberGeneralStatsLineTags() {
+  generalStatsSavedLineTags = [...lineStatsActiveTags];
+  saveGeneralStatsTagPrefs();
+}
+
+// El usuario eligió la etiqueta de Hábitos / Mapa de calor.
+function rememberGeneralStatsHabitTag(tagId) {
+  if (!tagId) return;
+  generalStatsSavedHabitTag = tagId;
+  saveGeneralStatsTagPrefs();
+}
+
 function saveStatsHiddenGroups() {
   if (typeof saveSettingPreferences === 'function') {
     saveSettingPreferences({ statsHiddenGroups: [...statsHiddenGroups] });
@@ -1093,7 +1126,8 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   });
   
   const rangeKey = typeof dateParam === 'string' ? dateParam : `range_${dateParam.from}_${dateParam.to}`;
-  const excludedSet = getExcludedSetForDate(rangeKey);
+  // Estadísticas generales: etiquetas ocultas globales (guardadas en la cuenta).
+  const excludedSet = prefix === 'general-stats' ? generalStatsHiddenTags : getExcludedSetForDate(rangeKey);
   const includedGroups = groupedList.filter(g => !excludedSet.has(g.name));
   const totalIncludedMins = includedGroups.reduce((sum, g) => sum + g.minutes, 0);
   
@@ -1366,12 +1400,14 @@ function renderDailyStatsPanel(panelEl, dateParam) {
         if (prefix === 'general-stats' && generalStatsChartType === 'lineal') {
           if (lineStatsActiveTags.includes(group.name)) {
             lineStatsActiveTags = lineStatsActiveTags.filter(t => t !== group.name);
+            rememberGeneralStatsLineTags();
             renderDailyStatsPanel(panelEl, dateParam);
           } else {
             if (lineStatsActiveTags.length >= 3) {
               showCenterToast('Puedes seleccionar un máximo de 3 actividades.');
             } else {
               lineStatsActiveTags.push(group.name);
+              rememberGeneralStatsLineTags();
               renderDailyStatsPanel(panelEl, dateParam);
             }
           }
@@ -1383,6 +1419,8 @@ function renderDailyStatsPanel(panelEl, dateParam) {
           }
           // Diarias: la visibilidad es global y se guarda en la cuenta.
           if (excludedSet === statsHiddenGroups) saveStatsHiddenGroups();
+          // Generales: etiquetas ocultas globales, guardadas en la cuenta.
+          if (excludedSet === generalStatsHiddenTags) saveGeneralStatsTagPrefs();
           renderDailyStatsPanel(panelEl, dateParam);
         }
       });
@@ -1700,9 +1738,16 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
         to: formatDate(endDate)
       };
       
-      // Reset active tags to let renderDailyStatsPanel select the top one dynamically
-      lineStatsActiveTags = [];
-      lineStatsNeedsAutoSelect = true;
+      // Etiquetas del gráfico lineal: las guardadas por el usuario (si siguen
+      // existiendo); si no, se deja que renderDailyStatsPanel elija la principal.
+      const savedLine = (generalStatsSavedLineTags || []).filter(n => tags.some(t => t.name === n));
+      if (generalStatsSavedLineTags && savedLine.length > 0) {
+        lineStatsActiveTags = savedLine.slice(0, 3);
+        lineStatsNeedsAutoSelect = false;
+      } else {
+        lineStatsActiveTags = [];
+        lineStatsNeedsAutoSelect = true;
+      }
     } else if (generalStatsChartType === 'habitos') {
       periodSelect.value = '100dias';
 
@@ -1715,9 +1760,14 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
         to: formatDate(endDate)
       };
 
-      // Etiqueta por defecto: la que más se repite (más días completados) en el rango.
-      const topTag = topTagByCompletedDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
-      if (topTag) generalStatsHabitTag = topTag;
+      // Etiqueta: la guardada por el usuario; si no hay, la que más se repite
+      // (más días completados) en el rango.
+      if (generalStatsSavedHabitTag && tags.some(t => t.id === generalStatsSavedHabitTag)) {
+        generalStatsHabitTag = generalStatsSavedHabitTag;
+      } else {
+        const topTag = topTagByCompletedDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
+        if (topTag) generalStatsHabitTag = topTag;
+      }
     } else if (generalStatsChartType === 'heatmap') {
       periodSelect.value = '12dias';
 
@@ -1730,9 +1780,14 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
         to: formatDate(endDate)
       };
 
-      // Etiqueta por defecto: la de mayor duración acumulada en estos 12 días.
-      const topTag = topTagByDurationInRange(generalStatsDateRange.from, generalStatsDateRange.to);
-      if (topTag) generalStatsHabitTag = topTag;
+      // Etiqueta: la guardada por el usuario; si no hay, la de mayor duración
+      // acumulada en estos 12 días.
+      if (generalStatsSavedHabitTag && tags.some(t => t.id === generalStatsSavedHabitTag)) {
+        generalStatsHabitTag = generalStatsSavedHabitTag;
+      } else {
+        const topTag = topTagByDurationInRange(generalStatsDateRange.from, generalStatsDateRange.to);
+        if (topTag) generalStatsHabitTag = topTag;
+      }
     } else {
       periodSelect.value = 'hoy';
       generalStatsDateRange = null;
