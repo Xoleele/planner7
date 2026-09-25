@@ -520,6 +520,9 @@ function applyCronogramaDragMove(clientX, clientY) {
   // bajar a la franja válida más cercana por arriba/abajo si se sale.
   while (startMin < 0) startMin += CR_SNAP_MIN;
   while (startMin > 1440 - CR_SNAP_MIN) startMin -= CR_SNAP_MIN;
+  // Si el inicio cae sobre otra tarea, se coloca justo al terminar esa tarea.
+  const snapped = snapStartAfterTaskBelow(targetCol.dataset.date, startMin, crDrag.task && crDrag.task.id);
+  if (snapped < 1440) startMin = snapped;
   crDrag.newStartMin = startMin;
 
   // Mover visualmente el bloque (alto fijo = duración, recortado a fin de día).
@@ -1668,19 +1671,18 @@ function createTaskCard(task, occurrenceDate) {
 // iniciar el cronómetro de esa tarea (tras confirmación). Funciona con ratón y
 // táctil. Si se dispara el long-press, se anula el click de completar que vendría
 // después. Reutilizable por las tarjetas del planner y los bloques del horario.
-const CHECKBOX_TIMER_LONGPRESS_MS = 1500;
+const CHECKBOX_TIMER_LONGPRESS_MS = 1500; // mantener presionado el checkbox → colocar en la línea de tiempo
 function attachCheckboxLongPressTimer(checkBtn, task, occurrenceDate) {
   let pressTimer = null;
   let longPressed = false;
 
   const start = () => {
     longPressed = false;
-    pressTimer = setTimeout(async () => {
+    pressTimer = setTimeout(() => {
       longPressed = true;
       pressTimer = null;
       if (navigator.vibrate) navigator.vibrate(40);
-      const ok = await askStartTimerForTask(task);
-      if (ok) startTimerForTask(task);
+      startTaskPlacement(task, occurrenceDate);
     }, CHECKBOX_TIMER_LONGPRESS_MS);
   };
   const cancel = () => {
@@ -1712,72 +1714,154 @@ function attachCheckboxLongPressTimer(checkBtn, task, occurrenceDate) {
   }, true); // captura: corre antes que el listener de completar
 }
 
-// Diálogo de confirmación antes de cronometrar una tarea desde su tarjeta.
-function askStartTimerForTask(task) {
-  return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'endtime-conflict-overlay';
-    const box = document.createElement('div');
-    box.className = 'endtime-conflict-box';
+// ─── Colocar tarea en la línea de tiempo (long-press en el checkbox) ─────────
+// Al mantener presionado el checkbox de una tarea en el modo Lista de tareas se
+// cambia al modo Línea de tiempo y el usuario elige dónde colocarla (clic/toque
+// en un día y hora, en intervalos de 30 min). Si la tarea no tiene duración, se
+// le asigna la duración por defecto de Preferencias. Al colocarla, queda
+// marcada como COMPLETADA. Esc o "Cancelar" abandonan sin cambios.
+const TASK_PLACEMENT_SNAP_MIN = 30;
+let taskPlacement = null; // { taskId, occurrenceDate, durationMin, title, tag }
 
-    const h = document.createElement('h3');
-    h.className = 'endtime-conflict-title';
-    h.textContent = 'Cronometrar tarea';
-
-    const p = document.createElement('p');
-    p.className = 'endtime-conflict-desc';
-    p.textContent = `Se iniciará el cronómetro para "${task.title || 'Tarea sin título'}" usando la hora actual como inicio. ¿Continuar?`;
-
-    const actions = document.createElement('div');
-    actions.className = 'endtime-conflict-actions';
-
-    const finish = (value) => {
-      document.removeEventListener('keydown', onKey);
-      overlay.remove();
-      resolve(value);
-    };
-    const onKey = (e) => { if (e.key === 'Escape') finish(false); };
-    document.addEventListener('keydown', onKey);
-
-    const btnCancel = document.createElement('button');
-    btnCancel.className = 'btn btn-secondary';
-    btnCancel.textContent = 'Cancelar';
-    btnCancel.addEventListener('click', () => finish(false));
-
-    const btnOk = document.createElement('button');
-    btnOk.className = 'btn btn-primary';
-    btnOk.textContent = 'Iniciar';
-    btnOk.addEventListener('click', () => finish(true));
-
-    actions.append(btnCancel, btnOk);
-    box.append(h, p, actions);
-    overlay.appendChild(box);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) finish(false); });
-    document.body.appendChild(overlay);
-  });
+function startTaskPlacement(task, occurrenceDate) {
+  if (!task) return;
+  let durationMin = getTaskDurationMinutes(task);
+  if (!durationMin || durationMin <= 0) durationMin = defaultTaskDurationMin;
+  const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+  taskPlacement = {
+    taskId: task.id,
+    occurrenceDate: occurrenceDate || task.date || null,
+    durationMin,
+    title: task.title || 'Tarea sin título',
+    tag
+  };
+  if (!cronogramaActive) toggleCronograma();
+  document.body.classList.add('cr-placing');
+  showTaskPlacementBanner();
+  document.addEventListener('keydown', onTaskPlacementKey);
+  document.addEventListener('click', swallowTaskPlacementClick, true);
 }
 
-// Inicia el cronómetro precargando el título y la etiqueta de la tarea, con la
-// hora actual como inicio (independientemente de la hora que tenga la tarea).
-function startTimerForTask(task) {
-  const titleInput = document.getElementById('timer-input-title');
-  const descInput = document.getElementById('timer-input-description');
-  const startInput = document.getElementById('timer-input-start');
-  if (titleInput) titleInput.value = task.title || '';
-  if (descInput) descInput.value = '';
-  if (startInput) startInput.value = ''; // openTimerModal la rellena con la hora real
-  setTimerSelectTagValue(task.tagId || 'default');
+function endTaskPlacement() {
+  taskPlacement = null;
+  document.body.classList.remove('cr-placing');
+  const banner = document.getElementById('task-placement-banner');
+  if (banner) banner.remove();
+  removeTaskPlacementGhost();
+  document.removeEventListener('keydown', onTaskPlacementKey);
+  // El click que sigue al pointerdown de colocación aún debe tragarse.
+  setTimeout(() => document.removeEventListener('click', swallowTaskPlacementClick, true), 400);
+}
 
-  timerSeconds = 0;
-  timerStartEdited = false;
-  const timerDisplayEl = document.getElementById('timer-display');
-  if (timerDisplayEl) timerDisplayEl.textContent = '00:00:00';
+function onTaskPlacementKey(e) {
+  if (e.key === 'Escape') endTaskPlacement();
+}
 
-  timerStartTime = new Date(); // hora actual como inicio
+// Mientras se coloca, los clics dentro del horario no abren tareas ni el creador.
+function swallowTaskPlacementClick(e) {
+  if (e.target.closest && e.target.closest('#cronograma-grid')) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+}
 
-  setTimerButtonActive(true);
-  openTimerModal();
-  saveActiveTimerState();
+function showTaskPlacementBanner() {
+  let banner = document.getElementById('task-placement-banner');
+  if (banner) banner.remove();
+  banner = document.createElement('div');
+  banner.id = 'task-placement-banner';
+  banner.className = 'task-placement-banner';
+  const text = document.createElement('span');
+  text.textContent = (isMobile() ? 'Toca' : 'Haz clic en') + ' la línea de tiempo para colocar «' + taskPlacement.title + '»';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-secondary';
+  btn.textContent = 'Cancelar';
+  btn.addEventListener('click', (e) => { e.stopPropagation(); endTaskPlacement(); });
+  banner.append(text, btn);
+  document.body.appendChild(banner);
+}
+
+// Inicio (min) ajustado a intervalos de 30 min hacia abajo, dentro del día.
+function taskPlacementSnap(rawMin) {
+  const s = Math.floor(rawMin / TASK_PLACEMENT_SNAP_MIN) * TASK_PLACEMENT_SNAP_MIN;
+  return Math.max(0, Math.min(1440 - TASK_PLACEMENT_SNAP_MIN, s));
+}
+
+// Vista previa (escritorio): bloque fantasma bajo el cursor.
+function updateTaskPlacementGhost(col, rawMin) {
+  if (!taskPlacement || !col) return;
+  let ghost = document.getElementById('task-placement-ghost');
+  if (!ghost) {
+    ghost = document.createElement('div');
+    ghost.id = 'task-placement-ghost';
+    ghost.className = 'cr-task-block cr-placement-ghost';
+    const tag = taskPlacement.tag;
+    if (tag && tag.color) {
+      ghost.style.setProperty('--tag-bg', tag.color.bg);
+      ghost.style.setProperty('--tag-text', tag.color.text);
+      ghost.style.setProperty('--tag-border', tag.color.border);
+    }
+    const t = document.createElement('div');
+    t.className = 'cr-task-title';
+    t.textContent = taskPlacement.title;
+    ghost.appendChild(t);
+  }
+  if (ghost.parentNode !== col) col.appendChild(ghost);
+  const startMin = taskPlacementSnap(rawMin);
+  ghost.style.top = startMin + 'px';
+  ghost.style.height = Math.min(taskPlacement.durationMin, 1440 - startMin) + 'px';
+}
+
+function removeTaskPlacementGhost() {
+  const ghost = document.getElementById('task-placement-ghost');
+  if (ghost) ghost.remove();
+}
+
+// Coloca la tarea en el día de la columna y a la hora elegida, y la completa.
+function placeTaskAt(colEl, rawMin) {
+  const p = taskPlacement;
+  if (!p || !colEl) return;
+  const task = tasks.find(t => t.id === p.taskId);
+  const dateStr = colEl.dataset.date;
+  if (!task || !dateStr) { endTaskPlacement(); return; }
+
+  const startMin = taskPlacementSnap(rawMin);
+  const startTime = wrapMinutesToHHMM(startMin);
+  const endTime = wrapMinutesToHHMM(startMin + p.durationMin);
+
+  pushToUndoStack();
+  let placed;
+  if (task.recurrence && task.recurrence.enabled && p.occurrenceDate) {
+    // Tarea recurrente: se separa SOLO esta ocurrencia como tarea independiente.
+    if (!task.recurrence.exceptions) task.recurrence.exceptions = [];
+    if (!task.recurrence.exceptions.includes(p.occurrenceDate)) {
+      task.recurrence.exceptions.push(p.occurrenceDate);
+    }
+    placed = {
+      id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      title: task.title, description: task.description, tagId: task.tagId,
+      alarm: task.alarm, recurrence: null,
+      date: dateStr, startTime, endTime, duration: p.durationMin,
+      completed: true
+    };
+    tasks.push(placed);
+  } else {
+    task.date = dateStr;
+    task.startTime = startTime;
+    task.endTime = endTime;
+    task.duration = p.durationMin;
+    task.completed = true;
+    placed = task;
+  }
+  adjustPositionForModifiedTime(placed);
+
+  endTaskPlacement();
+  saveTasksToStorage();
+  renderCronograma();
+  renderWeeklyCalendar();
+  if (typeof renderBriefcaseTasks === 'function') renderBriefcaseTasks();
+  if (typeof refreshAlarms === 'function') refreshAlarms();
 }
 
 // --- Drag and Drop Handlers ---

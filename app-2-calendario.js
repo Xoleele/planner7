@@ -2824,6 +2824,7 @@ function toggleCronograma() {
 
   cronogramaActive = !cronogramaActive;
   document.body.classList.toggle('cronograma-active', cronogramaActive);
+  if (!cronogramaActive && taskPlacement) endTaskPlacement();
   showModeToast(cronogramaActive ? 'Modo Línea de tiempo' : 'Modo Lista de tareas');
 
   // Recordar la vista elegida para la próxima vez que se abra la app.
@@ -3028,11 +3029,13 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
         // En móvil el arrastre se gestiona con touch + long-press (más abajo),
         // así que ignoramos los pointerdown táctiles para no duplicar el gesto.
         if (e.pointerType === 'touch') return;
+        if (taskPlacement) return; // colocando otra tarea: no arrastrar esta
         startCronogramaDrag(block, task, e);
       });
       // Móvil: long-press para iniciar el arrastre (deja intacto el scroll del
       // horario y el toque normal para abrir la tarea).
       block.addEventListener('touchstart', (e) => {
+        if (taskPlacement) return; // colocando otra tarea: no arrastrar esta
         startCronogramaTouch(block, task, e);
       }, { passive: false });
 
@@ -3056,8 +3059,6 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
         e.stopPropagation();
         toggleTaskCompletion(task, occurrenceDate || task.date);
       });
-      // Mantener presionado el checkbox 1.5s inicia el cronómetro de la tarea.
-      attachCheckboxLongPressTimer(checkBtn, task, occurrenceDate || task.date);
       block.appendChild(checkBtn);
     }
   }
@@ -3207,6 +3208,8 @@ function renderCronogramaDayBlocks(colEl, date) {
 // rodean el punto de clic es menor a 2 h, se predefinen las horas: inicio =
 // fin de la tarea anterior + 1 min, fin = inicio de la tarea siguiente − 1 min.
 function handleCronogramaEmptyClick(colEl, clickMin) {
+  // Modo "colocar tarea" (long-press en el checkbox): el clic la coloca aquí.
+  if (taskPlacement) { placeTaskAt(colEl, clickMin); return; }
   const dateStr = colEl.dataset.date;
   if (!dateStr) return;
   const date = new Date(dateStr + 'T00:00:00');
@@ -3327,7 +3330,7 @@ function setupCronogramaClickDelegation() {
     // una tarea — aunque por debajo exista una tarea solapada/oculta cuyo horario
     // cubra ese minuto. Así, pinchar donde se ve vacío siempre abre el creador,
     // y desaparecen las "zonas muertas" que producían las tareas solapadas.
-    if (e.target.closest('.cr-task-block')) return;
+    if (e.target.closest('.cr-task-block') && !taskPlacement) return;
 
     // Localizar la columna-día bajo el cursor. Las capas decorativas
     // (líneas/etiquetas de hora, línea de "ahora") tienen pointer-events:none,
@@ -3379,6 +3382,16 @@ function setupCronogramaClickDelegation() {
 
   // Si el toque se cancela (scroll, gesto del sistema), descartar el pendiente.
   grid.addEventListener('pointercancel', () => { crEmptyTapPending = null; });
+
+  // Colocar tarea (escritorio): vista previa bajo el cursor.
+  grid.addEventListener('pointermove', (e) => {
+    if (!taskPlacement || e.pointerType === 'touch') return;
+    const col = document.elementsFromPoint(e.clientX, e.clientY)
+      .find(el => el.classList && el.classList.contains('cr-day-col') && el.closest('#cronograma-grid'));
+    if (!col) { removeTaskPlacementGhost(); return; }
+    updateTaskPlacementGhost(col, cronogramaClickToMinutes(col, e.clientY));
+  });
+  grid.addEventListener('pointerleave', () => { if (taskPlacement) removeTaskPlacementGhost(); });
 }
 
 // Anula el PRÓXIMO click que dispare el navegador (el "click fantasma" sintético
@@ -3402,6 +3415,51 @@ function swallowNextGhostClick() {
 // Toque táctil pendiente en un espacio vacío del horario (entre pointerdown y
 // pointerup), para abrir el creador al soltar y evitar el click fantasma.
 let crEmptyTapPending = null;
+
+// Rangos [start, end) en minutos de las tareas DIBUJADAS en el horario de un día
+// (mismas reglas que al buscar vecinas al crear): ocurren ese día, su etiqueta
+// es visible y duran al menos CR_MIN_BLOCK_MIN. Incluye la cola de las tareas
+// del día anterior que cruzan medianoche. `excludeTaskId` se omite (p. ej. la
+// tarea que se está arrastrando).
+function getVisibleTaskRangesForDate(dateStr, excludeTaskId) {
+  const ranges = [];
+  if (!dateStr) return ranges;
+  const date = new Date(dateStr + 'T00:00:00');
+  const isVisibleTag = (task) => {
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    return !(tag && tag.visible === false);
+  };
+  tasks.forEach(task => {
+    if (task.id === excludeTaskId) return;
+    if (!checkTaskOccurrence(task, date) || !isVisibleTag(task)) return;
+    const range = getTaskTimeRange(task);
+    if (!range || (range.endMin - range.startMin) < CR_MIN_BLOCK_MIN) return;
+    ranges.push({ start: range.startMin, end: range.endMin });
+  });
+  const prevDate = addDays(date, -1);
+  tasks.forEach(task => {
+    if (task.id === excludeTaskId) return;
+    if (!checkTaskOccurrence(task, prevDate) || !isVisibleTag(task)) return;
+    const range = getTaskTimeRange(task);
+    if (!range || !range.crossesMidnight || range.rawEndMin < CR_MIN_BLOCK_MIN) return;
+    ranges.push({ start: 0, end: range.rawEndMin });
+  });
+  return ranges;
+}
+
+// Al arrastrar una tarea en el horario: si su nueva hora de inicio cae SOBRE
+// otra tarea, el inicio pasa a la hora de fin de esa tarea (se encadena si ahí
+// empieza otra tarea que también la cubre). Devuelve el inicio ajustado.
+function snapStartAfterTaskBelow(dateStr, startMin, excludeTaskId) {
+  const ranges = getVisibleTaskRangesForDate(dateStr, excludeTaskId);
+  let s = startMin;
+  for (let i = 0; i < 50; i++) {
+    const below = ranges.find(r => s >= r.start && s < r.end);
+    if (!below) break;
+    s = below.end;
+  }
+  return s;
+}
 
 // Convierte la coordenada Y del puntero (px de viewport) al MINUTO lógico dentro
 // de la columna (0..1440). Los bloques se posicionan con `top` en px LÓGICOS

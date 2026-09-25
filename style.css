@@ -5539,3 +5539,40 @@ body.hide-task-desc .task-card-desc,
 body.hide-task-desc .cr-task-desc {
   display: none !important;
 }
+
+/* Colocar tarea en la línea de tiempo (long-press en el checkbox). */
+.task-placement-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 10px 12px 10px 18px;
+  background: var(--text-main);
+  color: #ffffff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  font-size: 13.5px;
+}
+.task-placement-banner span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.task-placement-banner .btn {
+  flex-shrink: 0;
+}
+body.cr-placing #cronograma-grid .cr-day-col {
+  cursor: copy;
+}
+.cr-task-block.cr-placement-ghost {
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 6;
+  outline: 2px dashed var(--text-main);
+  outline-offset: -2px;
+}
