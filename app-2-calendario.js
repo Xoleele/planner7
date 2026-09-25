@@ -3489,21 +3489,68 @@ function cronogramaClickToMinutes(col, clientY) {
 // (10 min) más cercano. La duración es la que ya tenga la tarea (si tiene
 // inicio+fin definidos) o, si no, la duración por defecto de Preferencias. `isCopy` crea un clon en lugar
 // de mover. Funciona tanto para tareas del maletín (sin fecha) como del planner.
+// Hora de inicio (min) al soltar una tarea (del maletín) en el horario: el
+// intervalo de desplazamiento (CR_SNAP_MIN) más cercano al puntero.
+function cronogramaDropStartMin(colEl, clientY) {
+  const rawMin = cronogramaClickToMinutes(colEl, clientY);
+  const startMin = Math.round(rawMin / CR_SNAP_MIN) * CR_SNAP_MIN;
+  return Math.max(0, Math.min(1440 - CR_SNAP_MIN, startMin));
+}
+
+// Duración al soltar en el horario: la de la tarea o la de Preferencias.
+function cronogramaDropDurationMin(task) {
+  const d = getTaskDurationMinutes(task);
+  return (d && d > 0) ? d : defaultTaskDurationMin;
+}
+
+// Vista previa al arrastrar una tarea (desde Archivados) sobre el horario: el
+// mismo bloque punteado y semitransparente que al "colocar tarea" con el
+// checkbox, en la hora exacta donde quedará al soltar.
+function showCronogramaDropPreview(taskId, colEl, clientY) {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task || !colEl) { hideCronogramaDropPreview(); return; }
+  let ghost = document.getElementById('cr-drop-preview');
+  if (!ghost || ghost.dataset.taskId !== taskId) {
+    if (ghost) ghost.remove();
+    ghost = document.createElement('div');
+    ghost.id = 'cr-drop-preview';
+    ghost.dataset.taskId = taskId;
+    ghost.className = 'cr-task-block cr-placement-ghost';
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    if (tag && tag.color) {
+      ghost.style.setProperty('--tag-bg', tag.color.bg);
+      ghost.style.setProperty('--tag-text', tag.color.text);
+      ghost.style.setProperty('--tag-border', tag.color.border);
+    }
+    const t = document.createElement('div');
+    t.className = 'cr-task-title';
+    t.textContent = task.title || 'Tarea sin título';
+    ghost.appendChild(t);
+  }
+  if (ghost.parentNode !== colEl) colEl.appendChild(ghost);
+  const startMin = cronogramaDropStartMin(colEl, clientY);
+  const dur = cronogramaDropDurationMin(task);
+  ghost.style.top = startMin + 'px';
+  ghost.style.height = Math.max(Math.min(dur, 1440 - startMin), 5) + 'px';
+}
+
+function hideCronogramaDropPreview() {
+  const ghost = document.getElementById('cr-drop-preview');
+  if (ghost) ghost.remove();
+}
+
+// Al terminar cualquier arrastre HTML5 (soltado fuera, Esc…), quitar la vista previa.
+document.addEventListener('dragend', () => hideCronogramaDropPreview());
+
 function dropTaskOnCronograma(taskId, colEl, clientY, isCopy) {
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
   const dateStr = colEl.dataset.date;
   if (!dateStr) return;
 
-  // Minuto del día ajustado al intervalo de desplazamiento más cercano.
-  const rawMin = cronogramaClickToMinutes(colEl, clientY);
-  let startMin = Math.round(rawMin / CR_SNAP_MIN) * CR_SNAP_MIN;
-  startMin = Math.max(0, Math.min(1440 - CR_SNAP_MIN, startMin));
-
-  // Duración: la que ya tenga la tarea (por horas inicio+fin, o por la duración
-  // escrita en su descripción), o 1 h por defecto si no tiene ninguna.
-  let durationMin = getTaskDurationMinutes(task);
-  if (!durationMin || durationMin <= 0) durationMin = defaultTaskDurationMin;
+  hideCronogramaDropPreview();
+  const startMin = cronogramaDropStartMin(colEl, clientY);
+  const durationMin = cronogramaDropDurationMin(task);
 
   const toHHMM = (min) => {
     const m = ((min % 1440) + 1440) % 1440;
@@ -3670,10 +3717,13 @@ function renderCronograma() {
         e.preventDefault();
         e.dataTransfer.dropEffect = (e.ctrlKey || e.metaKey) ? 'copy' : 'move';
         colEl.classList.add('cr-drag-over');
+        showCronogramaDropPreview(draggedTaskId, colEl, e.clientY);
       });
       colEl.addEventListener('dragleave', (e) => {
         if (colEl.contains(e.relatedTarget)) return;
         colEl.classList.remove('cr-drag-over');
+        const g = document.getElementById('cr-drop-preview');
+        if (g && g.parentNode === colEl) hideCronogramaDropPreview();
       });
       colEl.addEventListener('drop', (e) => {
         e.preventDefault();

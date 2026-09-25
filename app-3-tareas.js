@@ -2461,6 +2461,17 @@ function updateDragTarget(clientX, clientY) {
     touchGhost.style.display = ghostDisplay;
   }
 
+  // Sobre el HORARIO: mostrar la vista previa del bloque (mismo estilo que al
+  // colocar con el checkbox) y ocultar la tarjeta flotante mientras tanto.
+  const crColUnder = (element && cronogramaActive) ? element.closest('.cr-day-col') : null;
+  if (crColUnder && touchDraggedTaskId) {
+    showCronogramaDropPreview(touchDraggedTaskId, crColUnder, clientY);
+    if (touchGhost) touchGhost.style.visibility = 'hidden';
+  } else {
+    hideCronogramaDropPreview();
+    if (touchGhost) touchGhost.style.visibility = '';
+  }
+
   const column = element ? element.closest('.day-column') : null;
   const overBriefcase = element ? element.closest('#briefcase-btn') : null;
   const overTrash = element ? element.closest('#trash-btn') : null;
@@ -2760,6 +2771,7 @@ function triggerEdgeDaySlide(dir) {
 }
 
 function cleanupDraggingUI() {
+  hideCronogramaDropPreview();
   if (touchGhost) {
     touchGhost.remove();
     touchGhost = null;
