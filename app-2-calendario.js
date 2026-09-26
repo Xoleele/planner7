@@ -2684,6 +2684,9 @@ function startAutoCompleteClock() {
 }
 
 function initAlarms() {
+  // Alarmas deshabilitadas temporalmente (ver ALARMS_ENABLED): ocultar la campana.
+  document.body.classList.toggle('alarms-disabled', !ALARMS_ENABLED);
+  if (!ALARMS_ENABLED) { refreshAlarms(); return; }
   // Pedir permiso de notificaciones (no bloquea el resto).
   if ('Notification' in window && Notification.permission === 'default') {
     try { Notification.requestPermission(); } catch (e) {}
@@ -2696,6 +2699,8 @@ function refreshAlarms() {
   startAutoCompleteClock();
   alarmTimers.forEach(clearTimeout);
   alarmTimers = [];
+  // Alarmas deshabilitadas temporalmente: no programar ni mostrar nada.
+  if (!ALARMS_ENABLED) { pendingAlarmQueue = []; return; }
 
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();

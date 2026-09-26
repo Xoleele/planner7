@@ -96,6 +96,12 @@ function applyUserSettingsFromPrefs(prefs) {
 // tarea se marca como completada sin interrupción. Poner en true para reactivar.
 const ASK_END_TIME_CONFLICT = false;
 
+// ALARMAS DESHABILITADAS TEMPORALMENTE. Con false: no se piden permisos de
+// notificación, no suenan ni se muestran avisos de alarma y se oculta la campana
+// del editor de tareas. Las alarmas ya configuradas en las tareas NO se borran:
+// al volver a poner true, siguen funcionando como antes.
+const ALARMS_ENABLED = false;
+
 
 // ─── Duration parser ─────────────────────────────────────────────────────────
 // Detecta una duración escrita al PRINCIPIO de la descripción. Reconoce:

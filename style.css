@@ -5630,3 +5630,15 @@ body.cr-placing #cronograma-grid .cr-day-col {
   box-shadow: var(--shadow-lg);
   transform: rotate(1deg);
 }
+
+/* Alarmas deshabilitadas temporalmente (ALARMS_ENABLED = false en app-1-core.js):
+   se oculta la campana del campo Inicio del editor. */
+body.alarms-disabled #task-alarm-bell {
+  display: none !important;
+}
+body.alarms-disabled .time-input-wrapper.has-bell input {
+  padding-right: 30px;
+}
+body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
+  right: 6px;
+}
