@@ -641,7 +641,20 @@ function commitCronogramaDragResult(drag) {
   // Al SOLTAR (no durante el arrastre): si el inicio cae sobre otra tarea, la
   // tarea empieza justo cuando termina esa (encadenando si hay varias seguidas).
   let newStartMin = drag.newStartMin;
-  const snappedStart = snapStartAfterTaskBelow(newDateStr || drag.task.date, newStartMin, drag.task.id);
+  // Excepción: si se suelta sobre la tarea que estaba PEGADA a la arrastrada (fin
+  // de una = inicio de la otra, con el margen de TOLERANCIA_ADYACENCIA_MIN), NO
+  // se ajusta: la tarea queda donde se soltó y el aviso de tareas adyacentes
+  // pregunta si modificar la vecina.
+  const origRange = getTaskTimeRange(drag.task);
+  const origDateStr = drag.sourceDate || drag.task.date;
+  const targetDateStr = newDateStr || drag.task.date;
+  const wasGluedTo = (r) => {
+    if (!origRange || r.tail || targetDateStr !== origDateStr) return false;
+    const tol = TOLERANCIA_ADYACENCIA_MIN;
+    return Math.abs(r.end - origRange.startMin) <= tol ||   // vecina anterior
+           Math.abs(r.start - origRange.endMin) <= tol;     // vecina siguiente
+  };
+  const snappedStart = snapStartAfterTaskBelow(targetDateStr, newStartMin, drag.task.id, wasGluedTo);
   if (snappedStart < 1440) newStartMin = snappedStart;
   const newEndMin = newStartMin + drag.durationMin; // puede superar 1440 (cruza medianoche)
 

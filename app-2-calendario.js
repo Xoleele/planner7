@@ -3443,7 +3443,7 @@ function getVisibleTaskRangesForDate(dateStr, excludeTaskId) {
     if (!checkTaskOccurrence(task, date) || !isVisibleTag(task)) return;
     const range = getTaskTimeRange(task);
     if (!range || (range.endMin - range.startMin) < CR_MIN_BLOCK_MIN) return;
-    ranges.push({ start: range.startMin, end: range.endMin });
+    ranges.push({ start: range.startMin, end: range.endMin, taskId: task.id });
   });
   const prevDate = addDays(date, -1);
   tasks.forEach(task => {
@@ -3451,7 +3451,7 @@ function getVisibleTaskRangesForDate(dateStr, excludeTaskId) {
     if (!checkTaskOccurrence(task, prevDate) || !isVisibleTag(task)) return;
     const range = getTaskTimeRange(task);
     if (!range || !range.crossesMidnight || range.rawEndMin < CR_MIN_BLOCK_MIN) return;
-    ranges.push({ start: 0, end: range.rawEndMin });
+    ranges.push({ start: 0, end: range.rawEndMin, taskId: task.id, tail: true });
   });
   return ranges;
 }
@@ -3459,8 +3459,12 @@ function getVisibleTaskRangesForDate(dateStr, excludeTaskId) {
 // Al SOLTAR una tarea arrastrada en el horario: si su nueva hora de inicio cae SOBRE
 // otra tarea, el inicio pasa a la hora de fin de esa tarea (se encadena si ahí
 // empieza otra tarea que también la cubre). Devuelve el inicio ajustado.
-function snapStartAfterTaskBelow(dateStr, startMin, excludeTaskId) {
-  const ranges = getVisibleTaskRangesForDate(dateStr, excludeTaskId);
+// `ignoreRange(r)` (opcional) permite descartar tareas concretas: p. ej. la que
+// estaba PEGADA a la tarea arrastrada, para que en ese caso se use el aviso de
+// tareas adyacentes en lugar de este ajuste.
+function snapStartAfterTaskBelow(dateStr, startMin, excludeTaskId, ignoreRange) {
+  const ranges = getVisibleTaskRangesForDate(dateStr, excludeTaskId)
+    .filter(r => !(ignoreRange && ignoreRange(r)));
   let s = startMin;
   for (let i = 0; i < 50; i++) {
     const below = ranges.find(r => s >= r.start && s < r.end);
