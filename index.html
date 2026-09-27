@@ -592,6 +592,14 @@
       </div>
 
       <div class="modal-body">
+        <!-- Buscador de actividades (filtra por nombre o palabra clave) -->
+        <div class="tags-search-wrapper">
+          <img src="icons/search.svg" alt="" width="14" height="14" class="tags-search-icon">
+          <input type="text" id="tags-search-input" placeholder="Buscar actividad…" autocomplete="off" aria-label="Buscar actividad">
+          <button type="button" id="tags-search-clear" class="tags-search-clear hidden" title="Borrar búsqueda" aria-label="Borrar búsqueda">
+            <img src="icons/close.svg" alt="" width="12" height="12">
+          </button>
+        </div>
         <!-- Lista de actividades existentes -->
         <div id="tags-list" class="tags-list-container">
           <!-- Las actividades existentes se listarán aquí -->

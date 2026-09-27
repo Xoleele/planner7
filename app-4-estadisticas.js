@@ -3047,6 +3047,27 @@ function exportUserDataToCSV() {
 
 function openTagsModal() {
   const modal = document.getElementById('tags-modal');
+  // Buscador: se vacía al abrir el panel y filtra la lista mientras se escribe.
+  const search = document.getElementById('tags-search-input');
+  const clearBtn = document.getElementById('tags-search-clear');
+  if (search) {
+    search.value = '';
+    if (clearBtn) clearBtn.classList.add('hidden');
+    if (search.dataset.bound !== 'true') {
+      search.dataset.bound = 'true';
+      search.addEventListener('input', () => {
+        if (clearBtn) clearBtn.classList.toggle('hidden', !search.value);
+        renderTagsList();
+      });
+      if (clearBtn) clearBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        search.value = '';
+        clearBtn.classList.add('hidden');
+        renderTagsList();
+        search.focus();
+      });
+    }
+  }
   renderTagsList();
   modal.classList.remove('hidden');
 }
@@ -3090,7 +3111,22 @@ function renderTagsList() {
   const container = document.getElementById('tags-list');
   container.innerHTML = '';
 
-  const displayTags = getOrderedTagsForDisplay();
+  // Filtro del buscador: coincide con el nombre o con alguna palabra clave
+  // (sin distinguir mayúsculas ni tildes).
+  const searchEl = document.getElementById('tags-search-input');
+  const query = normalizeForKeyword(searchEl ? searchEl.value : '');
+  const isFiltering = !!query;
+  const displayTags = getOrderedTagsForDisplay().filter(tag => {
+    if (!isFiltering) return true;
+    if (normalizeForKeyword(tag.name).includes(query)) return true;
+    const kws = Array.isArray(tag.keywords) ? tag.keywords : [];
+    return kws.some(k => normalizeForKeyword(k).includes(query));
+  });
+
+  if (isFiltering && displayTags.length === 0) {
+    container.innerHTML = '<div class="tags-search-empty">No hay actividades que coincidan.</div>';
+    return;
+  }
 
   displayTags.forEach(tag => {
     const item = document.createElement('div');
@@ -3100,7 +3136,8 @@ function renderTagsList() {
     // Handle de arrastre para reordenar (raton + tactil).
     // La etiqueta 'default' (Por defecto) queda fija arriba: sin handle, no se arrastra.
     // En modo alfabético no se permite arrastrar (la vista no es el orden real) ni se reserva espacio.
-    if (!tagsSortAlphabetical) {
+    // Mientras se busca tampoco se arrastra: la lista filtrada no es el orden completo.
+    if (!tagsSortAlphabetical && !isFiltering) {
       if (tag.id !== 'default') {
         item.classList.add('tag-item-draggable');
         const grip = document.createElement('button');
