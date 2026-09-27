@@ -4132,6 +4132,61 @@ body.not-logged-in .app-container {
   transition: none;
 }
 
+/* ── Archivados en ESCRITORIO: panel flotante y movible ──────────────────
+   Aparece centrado (mismo estilo que los demás paneles) y se arrastra desde
+   su cabecera. No bloquea el resto de la app: se puede seguir trabajando y
+   arrastrar tareas entre el panel y el calendario. La posición (left/top) la
+   pone app-2-calendario.js. */
+html:not(.mobile-mode) .briefcase-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  flex: none;
+  width: 381px; /* 340px + 12% */
+  max-width: calc(100vw - 16px);
+  height: min(560px, 80vh);
+  z-index: 900; /* sobre el calendario, bajo los modales (2000) y el menú */
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-lg);
+  transition: opacity 0.12s ease;
+  transform: none;
+}
+html:not(.mobile-mode) .briefcase-drawer.closed {
+  width: 381px; /* 340px + 12% */
+  max-width: calc(100vw - 16px);
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+html:not(.mobile-mode) .briefcase-drawer .drawer-header {
+  position: relative;
+  padding: 28px 24px 20px;     /* más aire arriba para los puntos de agarre */
+  min-height: unset;
+  cursor: move;
+}
+/* Puntos de agarre arriba al centro: indican que el panel se puede mover. */
+html:not(.mobile-mode) .briefcase-drawer .drawer-header::before {
+  content: "";
+  position: absolute;
+  top: 11px;
+  left: 50%;
+  transform: translateX(-50%) scale(1.35); /* puntos escalados como un todo */
+  transform-origin: center top;
+  width: 32px;                /* 5 columnas */
+  height: 8.8px;              /* 2 filas */
+  background-image: radial-gradient(circle, var(--text-muted) 1.2px, transparent 1.5px);
+  background-size: 6.4px 4.4px; /* separación entre puntos */
+  opacity: 0.55;
+  pointer-events: none;
+}
+html:not(.mobile-mode) .briefcase-drawer .drawer-header button {
+  cursor: pointer;
+}
+html:not(.mobile-mode) .briefcase-drawer.is-moving {
+  transition: none;
+  user-select: none;
+}
+
 /* --- Collapsible Completed Tasks Section --- */
 .completed-tasks-wrapper {
   margin-top: 0;

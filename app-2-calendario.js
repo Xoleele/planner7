@@ -1288,17 +1288,95 @@ function toggleBriefcaseDrawer() {
   const mobileBackdrop = document.getElementById('briefcase-mobile-backdrop');
   if (!drawer) return;
 
+  setupBriefcaseFloatingPanel(drawer);
   const isOpen = !drawer.classList.contains('closed');
   if (isOpen) {
     drawer.classList.add('closed');
     if (btn) btn.classList.remove('active-briefcase');
     if (mobileBackdrop) mobileBackdrop.classList.add('hidden');
   } else {
+    positionBriefcasePanel(drawer);
     drawer.classList.remove('closed');
     if (btn) btn.classList.add('active-briefcase');
     if (mobileBackdrop && isMobile()) mobileBackdrop.classList.remove('hidden');
     renderBriefcaseTasks();
   }
+}
+
+// ─── Archivados como panel flotante movible (escritorio) ─────────────────────
+// Posición elegida por el usuario (se recuerda en este navegador). null = centrado.
+let briefcasePanelPos = null;
+try {
+  const raw = localStorage.getItem('briefcasePanelPos');
+  if (raw) briefcasePanelPos = JSON.parse(raw);
+} catch (e) {}
+
+function clampBriefcasePos(drawer, left, top) {
+  const w = drawer.offsetWidth || 381;
+  const h = drawer.offsetHeight || 400;
+  const margin = 8;
+  return {
+    left: Math.min(Math.max(margin, left), Math.max(margin, window.innerWidth - w - margin)),
+    top: Math.min(Math.max(margin, top), Math.max(margin, window.innerHeight - h - margin))
+  };
+}
+
+// Coloca el panel: en móvil lo maneja el CSS (centrado); en escritorio, en la
+// posición guardada o centrado en la pantalla.
+function positionBriefcasePanel(drawer) {
+  if (isMobile()) {
+    drawer.style.left = '';
+    drawer.style.top = '';
+    return;
+  }
+  const w = drawer.offsetWidth || 381;
+  const h = drawer.offsetHeight || 400;
+  const base = briefcasePanelPos || {
+    left: (window.innerWidth - w) / 2,
+    top: (window.innerHeight - h) / 2
+  };
+  const p = clampBriefcasePos(drawer, base.left, base.top);
+  drawer.style.left = p.left + 'px';
+  drawer.style.top = p.top + 'px';
+}
+
+function setupBriefcaseFloatingPanel(drawer) {
+  if (!drawer || drawer.dataset.floating === 'true') return;
+  drawer.dataset.floating = 'true';
+  // Sacarlo del layout del planner para que position:fixed sea relativo a la
+  // ventana (ningún contenedor con overflow/transform lo recorta).
+  if (drawer.parentNode !== document.body) document.body.appendChild(drawer);
+
+  const header = drawer.querySelector('.drawer-header');
+  if (header) {
+    header.addEventListener('pointerdown', (e) => {
+      if (isMobile() || e.button !== 0) return;
+      if (e.target.closest('button')) return; // botones de la cabecera
+      e.preventDefault();
+      const rect = drawer.getBoundingClientRect();
+      const dx = e.clientX - rect.left;
+      const dy = e.clientY - rect.top;
+      drawer.classList.add('is-moving');
+      const onMove = (ev) => {
+        const p = clampBriefcasePos(drawer, ev.clientX - dx, ev.clientY - dy);
+        drawer.style.left = p.left + 'px';
+        drawer.style.top = p.top + 'px';
+      };
+      const onUp = () => {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        drawer.classList.remove('is-moving');
+        briefcasePanelPos = { left: parseFloat(drawer.style.left) || 0, top: parseFloat(drawer.style.top) || 0 };
+        try { localStorage.setItem('briefcasePanelPos', JSON.stringify(briefcasePanelPos)); } catch (e) {}
+      };
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+  }
+  // Si cambia el tamaño de la ventana, mantener el panel dentro de la pantalla.
+  window.addEventListener('resize', () => {
+    if (!drawer.classList.contains('closed')) positionBriefcasePanel(drawer);
+  });
 }
 
 function setSaveStatus(state) {
