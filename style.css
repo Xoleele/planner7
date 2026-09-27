@@ -61,6 +61,9 @@ html:not(.mobile-mode) .app-container {
   transform-origin: top left;
   width: 111.12%;
   height: 111.12vh;
+  /* El body es flex en columna de 100vh: sin esto el contenedor se encoge a
+     100vh y, tras el scale 0.9, quedaba un 10% de espacio en blanco abajo. */
+  flex-shrink: 0;
 }
 
 /* --- Layout Container --- */

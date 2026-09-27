@@ -3236,7 +3236,9 @@ function openArchiveListMenu(mode) {
     const manage = document.createElement('button');
     manage.type = 'button';
     manage.className = 'context-menu-item archive-list-manage';
-    manage.textContent = hasSubs ? 'Modificar subcategorías' : 'Crear subcategorías';
+    // Icono de carpeta para diferenciarla de las listas de arriba.
+    manage.innerHTML = '<img src="icons/folder-closed.svg" alt="" width="14" height="14" style="opacity: 0.6; flex-shrink: 0;">' +
+      '<span>' + (hasSubs ? 'Modificar subcategorías' : 'Crear subcategorías') + '</span>';
     manage.addEventListener('click', () => { closeArchiveListMenu(); openArchiveListsModal(); });
     menu.appendChild(manage);
   }
