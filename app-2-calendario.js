@@ -914,14 +914,29 @@ function openDayContextMenu(x, y, dayIndex) {
 // (del día de la tarea), o solo "Restablecer" si ya hay algo aislado.
 function openTaskContextMenu(x, y, task, dayIndex) {
   if (!task) return;
-  if (isAnyIsolationActive()) {
-    openIsolationContextMenu(x, y, 'Restablecer', resetIsolation);
-    return;
-  }
   const tagId = taskTagIdForIsolation(task);
-  const items = [{ label: 'Aislar actividad', action: () => isolateActivity(tagId) }];
-  if (Number.isFinite(dayIndex)) items.push({ label: 'Aislar día', action: () => isolateDay(dayIndex) });
+  let items;
+  if (isAnyIsolationActive()) {
+    items = [{ label: 'Restablecer', action: resetIsolation }];
+  } else {
+    items = [{ label: 'Aislar actividad', action: () => isolateActivity(tagId) }];
+    if (Number.isFinite(dayIndex)) items.push({ label: 'Aislar día', action: () => isolateDay(dayIndex) });
+  }
+  // Ocultar actividad: igual que apagar la bombilla en el panel de actividades
+  // (se guarda; se vuelve a mostrar desde ese panel).
+  items.push({ label: 'Ocultar actividad', action: () => hideActivityFromMenu(tagId) });
   openIsolationContextMenu(x, y, items);
+}
+
+function hideActivityFromMenu(tagId) {
+  const tag = tags.find(t => t.id === tagId);
+  if (!tag) return;
+  tag.visible = false;
+  // Si justo esa actividad estaba aislada, el aislamiento ya no tiene sentido.
+  if (isolatedTagId === tagId) isolatedTagId = null;
+  saveTagsToStorage();
+  if (typeof renderTagsList === 'function') renderTagsList();
+  renderWeeklyCalendar();
 }
 
 // Menú contextual con una o varias opciones: (x, y, label, action) o
