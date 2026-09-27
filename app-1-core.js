@@ -650,12 +650,36 @@ function translateAuthError(msg) {
   return map[msg] || msg;
 }
 
-// ─── Preferencias (menú del avatar) ──────────────────────────────────────────
+// ─── Configuración (antes "Preferencias", menú del avatar) ──────────────────────────────────────────
 // Los cambios NO se aplican hasta pulsar "Guardar". "Cancelar", la X o el clic
 // fuera cierran sin aplicar (al reabrir se muestran los valores vigentes).
 // Se guardan en la CUENTA del usuario (tabla user_data.preferences en Supabase),
 // así se conservan al borrar la caché o al cambiar de dispositivo. El caché
 // local solo acelera el arranque.
+// ─── Herramientas (menú del avatar) ──────────────────────────────────────────
+// Buscador, Plantilla de notas y Exportar datos. Cada opción cierra este panel
+// y abre la herramienta.
+function openToolsModal() {
+  const modal = document.getElementById('tools-modal');
+  if (!modal) return;
+  if (modal.dataset.bound !== 'true') {
+    modal.dataset.bound = 'true';
+    const bind = (id, fn) => {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', () => { closeToolsModal(); fn(); });
+    };
+    bind('tools-buscador-btn', () => openBuscadorModal());
+    bind('tools-note-template-btn', () => openNoteTemplateModal());
+    bind('tools-export-btn', () => exportUserDataToCSV());
+  }
+  modal.classList.remove('hidden');
+}
+
+function closeToolsModal() {
+  const modal = document.getElementById('tools-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
 function openSettingsModal() {
   const modal = document.getElementById('settings-modal');
   const toggle = document.getElementById('setting-auto-end-time');
@@ -684,6 +708,18 @@ function openSettingsModal() {
       });
     });
     document.getElementById('settings-cancel-btn').addEventListener('click', closeSettingsModal);
+    // Cuenta: se cierra Configuración (sin guardar cambios pendientes) y se abre
+    // el diálogo correspondiente.
+    const changePwdBtn = document.getElementById('settings-change-password-btn');
+    if (changePwdBtn) changePwdBtn.addEventListener('click', () => {
+      closeSettingsModal();
+      openChangePasswordModal();
+    });
+    const deleteAccBtn = document.getElementById('settings-delete-account-btn');
+    if (deleteAccBtn) deleteAccBtn.addEventListener('click', () => {
+      closeSettingsModal();
+      openDeleteAccountModal();
+    });
     document.getElementById('settings-save-btn').addEventListener('click', saveSettingsModal);
   }
   modal.classList.remove('hidden');
@@ -773,21 +809,11 @@ function setupUserMenu() {
     dropdown.innerHTML = `
       <div class="user-dropdown-email">${currentUser.email}</div>
       <hr class="user-dropdown-divider">
-      <button id="change-password-btn" class="user-dropdown-item">
-        <img src="icons/key.svg" alt="" width="14" height="14">
-        Cambiar contraseña
-      </button>
-      <button id="export-data-btn" class="user-dropdown-item">
-        <img src="icons/download.svg" alt="" width="14" height="14">
-        Exportar datos
-      </button>
-      <button id="note-template-btn" class="user-dropdown-item">
-        <img src="icons/edit.svg" alt="" width="13.3" height="13.3">
-        Plantilla de notas
-      </button>
-      <button id="buscador-menu-btn" class="user-dropdown-item">
-        <img src="icons/search.svg" alt="" width="14" height="14">
-        Buscador
+      <button id="tools-menu-btn" class="user-dropdown-item">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+        </svg>
+        Herramientas
       </button>
       <button id="stats-menu-btn" class="user-dropdown-item">
         <img src="icons/bar-chart.svg" alt="" width="14" height="14">
@@ -795,16 +821,7 @@ function setupUserMenu() {
       </button>
       <button id="settings-menu-btn" class="user-dropdown-item">
         <img src="icons/settings.svg" alt="" width="14" height="14">
-        Preferencias
-      </button>
-      <button id="delete-account-btn" class="user-dropdown-item" style="color: #ff3b30;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3 6 5 6 21 6"></polyline>
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          <line x1="10" y1="11" x2="10" y2="17"></line>
-          <line x1="14" y1="11" x2="14" y2="17"></line>
-        </svg>
-        Eliminar cuenta
+        Configuración
       </button>
       <button id="logout-btn" class="user-dropdown-item">
         <img src="icons/log-out.svg" alt="" width="14" height="14">
@@ -813,32 +830,11 @@ function setupUserMenu() {
     `;
     avatar.appendChild(dropdown);
 
-    document.getElementById('change-password-btn').addEventListener('click', (e) => {
+    document.getElementById('tools-menu-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       dropdown.remove();
-      openChangePasswordModal();
+      openToolsModal();
     });
-
-    document.getElementById('export-data-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.remove();
-      exportUserDataToCSV();
-    });
-
-    document.getElementById('note-template-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.remove();
-      openNoteTemplateModal();
-    });
-
-    const buscadorMenuBtn = document.getElementById('buscador-menu-btn');
-    if (buscadorMenuBtn) {
-      buscadorMenuBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        dropdown.remove();
-        openBuscadorModal();
-      });
-    }
 
     const statsMenuBtn = document.getElementById('stats-menu-btn');
     if (statsMenuBtn) {
@@ -853,12 +849,6 @@ function setupUserMenu() {
       e.stopPropagation();
       dropdown.remove();
       openSettingsModal();
-    });
-
-    document.getElementById('delete-account-btn').addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.remove();
-      openDeleteAccountModal();
     });
 
     document.getElementById('logout-btn').addEventListener('click', () => {

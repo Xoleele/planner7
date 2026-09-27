@@ -5522,7 +5522,44 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
    los define .task-modal-check-btn). */
 #task-complete-btn { display: flex !important; }
 
-/* --- Preferencias (menú del avatar) --- */
+/* --- Herramientas / Configuración: botones de opción tipo lista --- */
+.tools-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-action-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 10px 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  font-family: var(--font-primary);
+  transition: background 0.1s;
+}
+.settings-action-btn:hover { background: #f5f5f7; }
+.settings-action-btn.settings-danger { color: #ff3b30; }
+.settings-section-title {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+/* --- Configuración (menú del avatar) --- */
 .settings-row {
   display: flex;
   align-items: center;
