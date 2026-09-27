@@ -794,6 +794,13 @@ function setupUserMenu() {
           <span style="flex: 1; text-align: left;">Herramientas</span>
           <img src="icons/chevron-right.svg" alt="" width="12" height="12" style="opacity: 0.5;">
         </button>
+        <button id="shortcuts-menu-btn" class="user-dropdown-item desktop-only-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+            <path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M9 15h6"></path>
+          </svg>
+          Atajos del teclado
+        </button>
         <button id="settings-menu-btn" class="user-dropdown-item">
           <img src="icons/settings.svg" alt="" width="14" height="14">
           Configuración
@@ -859,6 +866,10 @@ function setupUserMenu() {
         fn();
       });
     };
+    bindTool('shortcuts-menu-btn', () => {
+      const m = document.getElementById('shortcuts-modal');
+      if (m) m.classList.remove('hidden');
+    });
     bindTool('buscador-menu-btn', () => openBuscadorModal());
     bindTool('note-template-btn', () => openNoteTemplateModal());
     bindTool('export-data-btn', () => exportUserData());

@@ -1377,6 +1377,13 @@ function setupEventListeners() {
         return;
       }
 
+      const shortcutsModal = document.getElementById('shortcuts-modal');
+      if (shortcutsModal && !shortcutsModal.classList.contains('hidden')) {
+        e.preventDefault();
+        shortcutsModal.classList.add('hidden');
+        return;
+      }
+
       const notesModal = document.getElementById('notes-modal');
       const isNotesModalOpen = notesModal && !notesModal.classList.contains('hidden');
       if (isNotesModalOpen) {
