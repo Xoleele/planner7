@@ -798,17 +798,17 @@ function setupUserMenu() {
           <img src="icons/settings.svg" alt="" width="14" height="14">
           Configuración
         </button>
-        <button id="logout-btn" class="user-dropdown-item">
-          <img src="icons/log-out.svg" alt="" width="14" height="14">
+        <button id="logout-btn" class="user-dropdown-item user-dropdown-danger">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
           Cerrar sesión
         </button>
       </div>
       <!-- Submenú Herramientas (reemplaza la vista principal en el mismo menú) -->
       <div class="user-dropdown-view hidden" data-view="tools">
-        <button id="tools-back-btn" class="user-dropdown-item user-dropdown-back">
-          <img src="icons/chevron-left.svg" alt="" width="12" height="12" style="opacity: 0.6;">
-          Herramientas
-        </button>
         <button id="stats-menu-btn" class="user-dropdown-item" title="Atajo: E">
           <img src="icons/bar-chart.svg" alt="" width="14" height="14">
           Estadísticas
@@ -824,6 +824,14 @@ function setupUserMenu() {
         <button id="export-data-btn" class="user-dropdown-item">
           <img src="icons/download.svg" alt="" width="14" height="14">
           Exportar datos
+        </button>
+        <button id="import-data-btn" class="user-dropdown-item">
+          <img src="icons/download.svg" alt="" width="14" height="14" style="transform: rotate(180deg);">
+          Importar datos
+        </button>
+        <button id="tools-back-btn" class="user-dropdown-item user-dropdown-back">
+          <img src="icons/chevron-left.svg" alt="" width="12" height="12" style="opacity: 0.6;">
+          Atrás
         </button>
       </div>
     `;
@@ -853,7 +861,8 @@ function setupUserMenu() {
     };
     bindTool('buscador-menu-btn', () => openBuscadorModal());
     bindTool('note-template-btn', () => openNoteTemplateModal());
-    bindTool('export-data-btn', () => exportUserDataToCSV());
+    bindTool('export-data-btn', () => exportUserData());
+    bindTool('import-data-btn', () => openImportUserDataPicker());
 
     const statsMenuBtn = document.getElementById('stats-menu-btn');
     if (statsMenuBtn) {

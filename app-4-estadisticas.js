@@ -2986,6 +2986,145 @@ function escapeCSV(val) {
   return str;
 }
 
+// ─── Exportar / Importar datos (JSON completo) ───────────────────────────────
+// "Exportar datos" descarga un archivo .json con TODO lo necesario para
+// recuperar la cuenta tal cual: tareas (con repeticiones, alarmas, orden…),
+// actividades (colores, palabras clave, visibilidad, orden) y preferencias
+// (notas, plantilla, configuración, ajustes de estadísticas…).
+// "Importar datos" carga ese archivo y REEMPLAZA los datos actuales de la cuenta.
+const PLANNER7_DATA_FORMAT = 'planner7-datos';
+const PLANNER7_DATA_VERSION = 1;
+
+async function exportUserData() {
+  if (!currentUser) return;
+  // Preferencias: las de la nube (las más completas); si no hay conexión, el caché.
+  let prefs = null;
+  try {
+    const { data, error } = await sb.from('user_data').select('preferences').eq('user_id', currentUser.id).maybeSingle();
+    if (!error) prefs = data?.preferences ?? {};
+  } catch (e) {}
+  if (!prefs) {
+    try {
+      const cached = localStorage.getItem('prefs_cache_' + currentUser.id);
+      prefs = cached ? JSON.parse(cached) : {};
+    } catch (e) { prefs = {}; }
+  }
+  prefs = { ...prefs };
+  delete prefs.activeTimer; // el cronómetro en curso no se exporta
+
+  const payload = {
+    format: PLANNER7_DATA_FORMAT,
+    version: PLANNER7_DATA_VERSION,
+    exportedAt: new Date().toISOString(),
+    account: currentUser.email || '',
+    tasks: tasks,
+    tags: tags,
+    preferences: prefs
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `planner7_datos_${formatDate(new Date())}.json`;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Abre el selector de archivo para importar.
+function openImportUserDataPicker() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.style.display = 'none';
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    input.remove();
+    if (file) await importUserDataFromFile(file);
+  });
+  document.body.appendChild(input);
+  input.click();
+}
+
+// Valida el contenido del archivo. Devuelve { tasks, tags, preferences } o un
+// string con el motivo del error.
+function validateImportedUserData(data) {
+  if (!data || typeof data !== 'object') return 'El archivo no tiene un formato válido.';
+  if (data.format !== PLANNER7_DATA_FORMAT) return 'Este archivo no es un archivo de datos de Planner7.';
+  if (typeof data.version !== 'number' || data.version > PLANNER7_DATA_VERSION) {
+    return 'Este archivo es de una versión más nueva de Planner7.';
+  }
+  if (!Array.isArray(data.tasks) || data.tasks.some(t => !t || typeof t !== 'object' || !t.id)) {
+    return 'Las tareas del archivo no son válidas.';
+  }
+  if (!Array.isArray(data.tags) || data.tags.length === 0 || data.tags.some(t => !t || !t.id || typeof t.name !== 'string')) {
+    return 'Las actividades del archivo no son válidas.';
+  }
+  const prefs = (data.preferences && typeof data.preferences === 'object' && !Array.isArray(data.preferences)) ? data.preferences : {};
+  return { tasks: data.tasks, tags: data.tags, preferences: prefs };
+}
+
+async function importUserDataFromFile(file) {
+  if (!currentUser) return;
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch (e) {
+    alert('No se pudo leer el archivo: no es un JSON válido.');
+    return;
+  }
+  const result = validateImportedUserData(parsed);
+  if (typeof result === 'string') { alert(result); return; }
+
+  const when = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString('es-CL') : 'fecha desconocida';
+  const ok = confirm(
+    `Importar datos exportados el ${when}` +
+    `${parsed.account ? ' (cuenta ' + parsed.account + ')' : ''}:\n` +
+    `• ${result.tasks.length} tareas\n• ${result.tags.length} actividades\n\n` +
+    'Esto REEMPLAZARÁ todos los datos actuales de tu cuenta (tareas, actividades, notas y preferencias). ' +
+    'No se puede deshacer. Si quieres conservar lo actual, exporta tus datos antes.\n\n¿Continuar?'
+  );
+  if (!ok) return;
+
+  const prefs = { ...result.preferences };
+  delete prefs.activeTimer;
+  const uid = currentUser.id;
+
+  try {
+    setSaveStatus('saving');
+    // 1. Tareas: subir las importadas y borrar de la nube las que no estén.
+    if (result.tasks.length > 0) {
+      await saveTasks(result.tasks); // lanza error si falla
+    } else {
+      const { error } = await sb.from('tasks').delete().eq('user_id', uid);
+      if (error) throw error;
+    }
+    // 2. Actividades y preferencias.
+    const { error: udError } = await sb.from('user_data')
+      .upsert({ user_id: uid, tags: result.tags, preferences: prefs }, { onConflict: 'user_id' });
+    if (udError) throw udError;
+  } catch (e) {
+    console.error('importUserData:', e);
+    setSaveStatus('offline');
+    alert('No se pudieron importar los datos (revisa tu conexión). Tus datos actuales pueden haber quedado a medias: vuelve a intentar la importación.');
+    return;
+  }
+
+  // 3. Cachés locales = lo importado (si no, al recargar se mezclarían con lo viejo).
+  try {
+    localStorage.setItem('tasks_cache_' + uid, JSON.stringify(result.tasks));
+    localStorage.setItem('tasks_pending_sync_' + uid, 'false');
+    localStorage.setItem('prefs_cache_' + uid, JSON.stringify(prefs));
+  } catch (e) {}
+  if (typeof resetSyncSnapshot === 'function') resetSyncSnapshot(result.tasks);
+
+  alert('Datos importados correctamente. La app se recargará.');
+  location.reload();
+}
+
+// Exportación antigua en CSV (para ver en Excel). Ya no está en el menú.
 function exportUserDataToCSV() {
   const csvRows = [];
   

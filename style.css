@@ -2702,11 +2702,16 @@ body.not-logged-in .app-container {
   font-family: var(--font-primary);
 }
 
-/* Botón "volver" del submenú Herramientas en el menú del avatar. */
+/* Botón "Atrás" (al final) del submenú Herramientas en el menú del avatar. */
 .user-dropdown-back {
   color: var(--text-muted);
   font-weight: 600;
-  border-bottom: 1px solid var(--border-light);
+  border-top: 1px solid var(--border-light);
+}
+
+/* Opción en rojo del menú del avatar (Cerrar sesión). */
+.user-dropdown-item.user-dropdown-danger {
+  color: #ff3b30;
 }
 
 .user-dropdown-item:hover {
