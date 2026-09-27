@@ -1259,13 +1259,19 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   }
   totalsWrapper.innerHTML = '';
 
-  // Ocultar/mostrar el botón de combinar si es un rango
+  // Botón de combinar: disponible en un día, y también en rangos cuando se ve el
+  // gráfico de barras (las fusiones de actividades son globales).
+  const isBarChartRange = prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas';
+  const mergeAllowed = dates.length <= 1 || isBarChartRange;
   const mergeBtn = document.getElementById(prefix + '-merge-btn');
   if (mergeBtn) {
-    if (dates.length > 1) {
-      mergeBtn.style.display = 'none';
-    } else {
-      mergeBtn.style.display = '';
+    mergeBtn.style.display = mergeAllowed ? '' : 'none';
+    if (!mergeAllowed && statsMergeModeActive && activeStatsPrefix === prefix) {
+      statsMergeModeActive = false;
+      statsMergeFirstSelected = '';
+      statsMergeFirstColor = null;
+      statsMergeFirstName = '';
+      mergeBtn.classList.remove('active');
     }
   }
 
@@ -1367,6 +1373,15 @@ function renderDailyStatsPanel(panelEl, dateParam) {
         tdName.style.cursor = 'pointer';
         tdPercent.style.cursor = 'pointer';
         tdDuration.style.cursor = 'pointer';
+      } else if (isBarChartRange) {
+        // Gráfico de barras (rango): el clic solo sirve para combinar actividades.
+        const handleMergeClick = () => {
+          if (statsMergeModeActive) handleStatsMergeClick(group, tr);
+        };
+        [tdName, tdPercent, tdDuration].forEach(td => {
+          td.addEventListener('click', handleMergeClick);
+          td.style.cursor = statsMergeModeActive ? 'pointer' : 'default';
+        });
       } else {
         tdName.style.cursor = 'default';
         tdPercent.style.cursor = 'default';
@@ -1669,14 +1684,14 @@ function updatePeriodSelectOptions() {
   
   if (generalStatsChartType === 'barras-apiladas') {
     periodSelect.innerHTML = `
-      <option value="semanal">Semanal</option>
       <option value="7dias">Últimos 7 días</option>
+      <option value="semanal">Semanal</option>
       <option value="personalizado">Personalizado</option>
     `;
-    if (currentVal === '7dias' || currentVal === 'personalizado') {
+    if (currentVal === 'semanal' || currentVal === 'personalizado') {
       periodSelect.value = currentVal;
     } else {
-      periodSelect.value = 'semanal';
+      periodSelect.value = '7dias';
     }
   } else if (generalStatsChartType === 'lineal') {
     periodSelect.innerHTML = `
@@ -1726,19 +1741,9 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
   const periodSelect = document.getElementById('general-stats-period-select');
   if (periodSelect) {
     if (generalStatsChartType === 'barras-apiladas') {
-      periodSelect.value = 'semanal';
-      
-      const curr = new Date(dateStr + 'T12:00:00');
-      const day = curr.getDay();
-      const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(curr.setDate(diff));
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      
-      generalStatsDateRange = {
-        from: formatDate(monday),
-        to: formatDate(sunday)
-      };
+      // Por defecto: últimos 7 días (sin contar hoy).
+      periodSelect.value = '7dias';
+      generalStatsDateRange = lastNDaysRange(7, dateStr);
     } else if (generalStatsChartType === 'lineal') {
       periodSelect.value = '10dias';
       
@@ -2603,7 +2608,7 @@ function toggleStatsMergeMode() {
     statsMergeFirstName = '';
     mergeBtn.classList.remove('active');
     
-    if (currentDailyStatsDate) {
+    if (currentDailyStatsDate || (activeStatsPrefix === 'general-stats' && generalStatsDateRange)) {
       // Las fusiones son globales: se deshacen todas (en todos los días), junto
       // con cualquier resto antiguo guardado por día y los colores de fusión.
       const isMergeKey = (key) => key.startsWith(STATS_GLOBAL_PREFIX) || /^\d{4}-\d{2}-\d{2}_/.test(key);
@@ -2618,7 +2623,7 @@ function toggleStatsMergeMode() {
       });
 
       saveStatsMergePreferences();
-      estadisticasDiarias(currentDailyStatsDate);
+      rerenderStatsAfterMerge();
     }
   } else {
     // Activar modo combinación
@@ -2628,9 +2633,10 @@ function toggleStatsMergeMode() {
     statsMergeFirstName = '';
     mergeBtn.classList.add('active');
     
-    // Quitar cualquier resaltado previo de fila
+    // Quitar cualquier resaltado previo de fila (y mostrar las filas clicables).
     getStatsEl('daily-stats-modal').querySelectorAll('.daily-stats-row').forEach(row => {
       row.classList.remove('merge-selected');
+      row.querySelectorAll('td').forEach(td => { if (td.style.cursor === 'default') td.style.cursor = 'pointer'; });
     });
   }
 }
@@ -2638,7 +2644,8 @@ function toggleStatsMergeMode() {
 function handleStatsMergeClick(group, tr) {
   // En modo "Por actividad" la identidad del grupo es su tagId; en modo "Por
   // título" es el nombre/título. Así la fusión funciona en ambos modos.
-  const byActivity = statsGroupBy === 'activity';
+  // Las estadísticas generales siempre agrupan por actividad.
+  const byActivity = activeStatsPrefix === 'general-stats' || statsGroupBy === 'activity';
   const groupKey = byActivity ? group.tagId : group.name;
 
   if (!statsMergeFirstSelected) {
@@ -2693,9 +2700,17 @@ function handleStatsMergeClick(group, tr) {
     saveStatsMergePreferences();
     
     // Re-renderizar
-    if (currentDailyStatsDate) {
-      estadisticasDiarias(currentDailyStatsDate);
-    }
+    rerenderStatsAfterMerge();
+  }
+}
+
+// Vuelve a dibujar las estadísticas activas tras combinar/deshacer: el rango de
+// las estadísticas generales (p. ej. gráfico de barras) o el día actual.
+function rerenderStatsAfterMerge() {
+  if (activeStatsPrefix === 'general-stats' && generalStatsDateRange) {
+    renderGeneralStatsForRange();
+  } else if (currentDailyStatsDate) {
+    estadisticasDiarias(currentDailyStatsDate);
   }
 }
 
