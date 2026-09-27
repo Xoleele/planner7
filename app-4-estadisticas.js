@@ -498,7 +498,9 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
           const segHeight = (mins / maxBarMinutes) * plotHeight;
           const y = currentY - segHeight;
 
-          const segTip = `${group.displayName || group.name} · ${minutesToReadable(mins)}`;
+          // 1ª línea: la actividad del segmento; 2ª: total de la barra (suma de
+          // todas las actividades visibles en ese día/semana/mes).
+          const segTip = `${group.displayName || group.name} · ${minutesToReadable(mins)}\nTotal: ${minutesToReadable(barTotals[idx])}`;
           svgParts.push(`<rect class="chart-slice" data-tooltip="${escapeHtmlAdj(segTip)}" x="${x}" y="${y}" width="${barWidth}" height="${segHeight}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.25" rx="0.3" />`);
 
           currentY = y;
@@ -1232,8 +1234,14 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       tooltip.textContent = text;
       tooltip.classList.add('visible');
       tooltip.style.left = `${e.clientX + window.scrollX}px`;
-      tooltip.style.top = `${e.clientY + window.scrollY - 28}px`;
-      tooltip.style.transform = 'translateX(-50%)';
+      if (text.includes('\n')) {
+        // Varias líneas: anclar el borde inferior sobre el cursor.
+        tooltip.style.top = `${e.clientY + window.scrollY - 10}px`;
+        tooltip.style.transform = 'translate(-50%, -100%)';
+      } else {
+        tooltip.style.top = `${e.clientY + window.scrollY - 28}px`;
+        tooltip.style.transform = 'translateX(-50%)';
+      }
     };
     slice.addEventListener('mouseenter', moveTip);
     slice.addEventListener('mousemove', moveTip);

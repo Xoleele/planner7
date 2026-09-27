@@ -5455,7 +5455,8 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   z-index: 10000;
   opacity: 0;
   transition: opacity 0.05s ease;
-  white-space: nowrap;
+  white-space: pre; /* una línea por "\n" (p. ej. actividad + total en barras) */
+  line-height: 1.4;
 }
 .stats-chart-tooltip.visible {
   opacity: 1;
