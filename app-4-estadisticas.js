@@ -1267,8 +1267,9 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   totalsWrapper.innerHTML = '';
 
   // Botón de combinar: disponible en un día, y también en rangos cuando se ve el
-  // gráfico de barras (las fusiones de actividades son globales).
-  const isBarChartRange = prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas';
+  // gráfico de barras o el lineal (las fusiones de actividades son globales).
+  const isBarChartRange = prefix === 'general-stats'
+    && (generalStatsChartType === 'barras-apiladas' || generalStatsChartType === 'lineal');
   const mergeAllowed = dates.length <= 1 || isBarChartRange;
   const mergeBtn = document.getElementById(prefix + '-merge-btn');
   if (mergeBtn) {
@@ -1381,7 +1382,8 @@ function renderDailyStatsPanel(panelEl, dateParam) {
         tdPercent.style.cursor = 'pointer';
         tdDuration.style.cursor = 'pointer';
       } else if (isBarChartRange) {
-        // Gráfico de barras (rango): el clic solo sirve para combinar actividades.
+        // Gráfico de barras / lineal (rango): el clic en la fila solo sirve para
+        // combinar actividades (el botón + sigue eligiendo las líneas).
         const handleMergeClick = () => {
           if (statsMergeModeActive) handleStatsMergeClick(group, tr);
         };
@@ -2680,6 +2682,15 @@ function handleStatsMergeClick(group, tr) {
       statsMergedActivities[STATS_GLOBAL_PREFIX + groupKey] = statsMergeFirstSelected;
     } else {
       statsMergedTasks[STATS_GLOBAL_PREFIX + groupKey] = statsMergeFirstSelected;
+    }
+
+    // Gráfico lineal: si la actividad absorbida estaba seleccionada como línea,
+    // su lugar lo ocupa la actividad destino (sin pasar el máximo de 3).
+    if (activeStatsPrefix === 'general-stats' && generalStatsChartType === 'lineal'
+        && lineStatsActiveTags.includes(group.name)) {
+      lineStatsActiveTags = lineStatsActiveTags.filter(n => n !== group.name);
+      if (!lineStatsActiveTags.includes(statsMergeFirstName)) lineStatsActiveTags.push(statsMergeFirstName);
+      rememberGeneralStatsLineTags();
     }
 
     // Fijar el color del primer grupo seleccionado como color personalizado del
