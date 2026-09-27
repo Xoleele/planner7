@@ -3346,6 +3346,10 @@ function durationMinutesToField(min) {
 //   "90" (minutos), "1h", "1h30m", "1h30", "1h 30min", "20m", "20 min",
 //   "1 hora", "2 horas", "1 hora 20 minutos", "1 hora y 20 minutos", "62 minutos".
 //   "1.5" NO es válido.
+// Duración máxima de una tarea: 23h59m. Lo que se escriba por encima se ajusta
+// a este máximo (p. ej. "30h" o "2000" → 23h59m).
+const MAX_TASK_DURATION_MIN = 1439;
+
 function isDurationTextField(el) {
   return !!el && el.type !== 'time';
 }
@@ -3367,7 +3371,8 @@ function parseDurationInput(text) {
       if (r && r.rawMatch.trim().length === t.length && !/:/.test(t)) min = r.minutes;
     }
   }
-  return (Number.isFinite(min) && min > 0) ? min : null;
+  if (!(Number.isFinite(min) && min > 0)) return null;
+  return Math.min(min, MAX_TASK_DURATION_MIN);
 }
 
 // Minutos del campo Duración (null si vacío o inválido).
@@ -3382,7 +3387,8 @@ function readDurationField(el) {
 function writeDurationField(el, min) {
   if (!el) return;
   if (isDurationTextField(el)) {
-    el.value = (Number.isFinite(min) && min > 0) ? minutesToReadable(Math.round(min)) : '';
+    el.value = (Number.isFinite(min) && min > 0)
+      ? minutesToReadable(Math.min(Math.round(min), MAX_TASK_DURATION_MIN)) : '';
     el.dataset.lastValid = el.value;
   } else {
     el.value = durationMinutesToField(min);
