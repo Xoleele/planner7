@@ -1685,6 +1685,20 @@ function lastNDaysRange(n, refDateStr) {
   return { from: formatDate(from), to: formatDate(end) };
 }
 
+// Pone como actividad de Hábitos / Mapa de calor la elegida por el usuario
+// (guardada en la cuenta). Si no hay elección guardada, la más frecuente del rango.
+function applySavedHabitTag() {
+  if (generalStatsSavedHabitTag && tags.some(t => t.id === generalStatsSavedHabitTag)) {
+    generalStatsHabitTag = generalStatsSavedHabitTag;
+  } else if (generalStatsDateRange) {
+    const topTag = generalStatsChartType === 'heatmap'
+      ? topTagByDurationInRange(generalStatsDateRange.from, generalStatsDateRange.to)
+      : topTagByCompletedDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
+    if (topTag) generalStatsHabitTag = topTag;
+  }
+  if (typeof setHabitSelectTagValue === 'function') setHabitSelectTagValue(generalStatsHabitTag);
+}
+
 function updatePeriodSelectOptions() {
   const periodSelect = document.getElementById('general-stats-period-select');
   if (!periodSelect) return;
@@ -1845,6 +1859,11 @@ function handleGeneralStatsPeriodChange() {
   } else if (val === '12dias' || val === '30dias' || val === '50dias' || val === '100dias') {
     const days = val === '12dias' ? 12 : (val === '50dias' ? 50 : (val === '100dias' ? 100 : 30));
     generalStatsDateRange = lastNDaysRange(days);
+    // Hábitos / Mapa de calor: usar la actividad guardada (en la cuenta) también
+    // al cambiar a estos gráficos desde otro, no solo al abrir las estadísticas.
+    if (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap') {
+      applySavedHabitTag();
+    }
     renderGeneralStatsForRange();
   } else if (val === 'personalizado') {
     openGeneralStatsCustomRangeModal();

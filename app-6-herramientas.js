@@ -588,6 +588,13 @@ function setupEventListeners() {
       if (isAnyOverlayOpen()) return;
       e.preventDefault();
       toggleCronograma();
+    } else if ((e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Atajo E: abrir Estadísticas, solo si no hay ninguna ventana abierta.
+      if (isAnyOverlayOpen()) return;
+      e.preventDefault();
+      const dd = document.getElementById('user-dropdown');
+      if (dd) dd.remove();
+      estadisticasGenerales(formatDate(new Date()));
     }
   });
 

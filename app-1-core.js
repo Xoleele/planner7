@@ -794,10 +794,6 @@ function setupUserMenu() {
           <span style="flex: 1; text-align: left;">Herramientas</span>
           <img src="icons/chevron-right.svg" alt="" width="12" height="12" style="opacity: 0.5;">
         </button>
-        <button id="stats-menu-btn" class="user-dropdown-item">
-          <img src="icons/bar-chart.svg" alt="" width="14" height="14">
-          Estadísticas
-        </button>
         <button id="settings-menu-btn" class="user-dropdown-item">
           <img src="icons/settings.svg" alt="" width="14" height="14">
           Configuración
@@ -812,6 +808,10 @@ function setupUserMenu() {
         <button id="tools-back-btn" class="user-dropdown-item user-dropdown-back">
           <img src="icons/chevron-left.svg" alt="" width="12" height="12" style="opacity: 0.6;">
           Herramientas
+        </button>
+        <button id="stats-menu-btn" class="user-dropdown-item" title="Atajo: E">
+          <img src="icons/bar-chart.svg" alt="" width="14" height="14">
+          Estadísticas
         </button>
         <button id="buscador-menu-btn" class="user-dropdown-item">
           <img src="icons/search.svg" alt="" width="14" height="14">
