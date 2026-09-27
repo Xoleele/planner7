@@ -1648,6 +1648,19 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
   }
 }
 
+// "Últimos N días": terminan AYER (el día actual no se considera). Si se pasa
+// una fecha de referencia pasada, el periodo termina en esa fecha.
+function lastNDaysRange(n, refDateStr) {
+  const yesterday = new Date();
+  yesterday.setHours(12, 0, 0, 0);
+  yesterday.setDate(yesterday.getDate() - 1);
+  let end = refDateStr ? new Date(refDateStr + 'T12:00:00') : new Date(yesterday);
+  if (end > yesterday) end = new Date(yesterday);
+  const from = new Date(end);
+  from.setDate(from.getDate() - (n - 1));
+  return { from: formatDate(from), to: formatDate(end) };
+}
+
 function updatePeriodSelectOptions() {
   const periodSelect = document.getElementById('general-stats-period-select');
   if (!periodSelect) return;
@@ -1729,14 +1742,7 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
     } else if (generalStatsChartType === 'lineal') {
       periodSelect.value = '10dias';
       
-      const endDate = new Date(dateStr + 'T12:00:00');
-      const startDate = new Date(endDate);
-      startDate.setDate(startDate.getDate() - 9);
-      
-      generalStatsDateRange = {
-        from: formatDate(startDate),
-        to: formatDate(endDate)
-      };
+      generalStatsDateRange = lastNDaysRange(10, dateStr);
       
       // Etiquetas del gráfico lineal: las guardadas por el usuario (si siguen
       // existiendo); si no, se deja que renderDailyStatsPanel elija la principal.
@@ -1751,14 +1757,7 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
     } else if (generalStatsChartType === 'habitos') {
       periodSelect.value = '100dias';
 
-      const endDate = new Date(dateStr + 'T12:00:00');
-      const startDate = new Date(endDate);
-      startDate.setDate(startDate.getDate() - 99);
-
-      generalStatsDateRange = {
-        from: formatDate(startDate),
-        to: formatDate(endDate)
-      };
+      generalStatsDateRange = lastNDaysRange(100, dateStr);
 
       // Etiqueta: la guardada por el usuario; si no hay, la que más se repite
       // (más días completados) en el rango.
@@ -1771,14 +1770,7 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
     } else if (generalStatsChartType === 'heatmap') {
       periodSelect.value = '12dias';
 
-      const endDate = new Date(dateStr + 'T12:00:00');
-      const startDate = new Date(endDate);
-      startDate.setDate(startDate.getDate() - 11);
-
-      generalStatsDateRange = {
-        from: formatDate(startDate),
-        to: formatDate(endDate)
-      };
+      generalStatsDateRange = lastNDaysRange(12, dateStr);
 
       // Etiqueta: la guardada por el usuario; si no hay, la de mayor duración
       // acumulada en estos 12 días.
@@ -1831,35 +1823,14 @@ function handleGeneralStatsPeriodChange() {
     };
     renderGeneralStatsForRange();
   } else if (val === '10dias') {
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
-    const from = new Date(today);
-    from.setDate(from.getDate() - 9);
-    generalStatsDateRange = {
-      from: formatDate(from),
-      to: formatDate(today)
-    };
+    generalStatsDateRange = lastNDaysRange(10);
     renderGeneralStatsForRange();
   } else if (val === '7dias') {
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
-    const from = new Date(today);
-    from.setDate(from.getDate() - 6);
-    generalStatsDateRange = {
-      from: formatDate(from),
-      to: formatDate(today)
-    };
+    generalStatsDateRange = lastNDaysRange(7);
     renderGeneralStatsForRange();
   } else if (val === '12dias' || val === '30dias' || val === '50dias' || val === '100dias') {
     const days = val === '12dias' ? 12 : (val === '50dias' ? 50 : (val === '100dias' ? 100 : 30));
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
-    const from = new Date(today);
-    from.setDate(from.getDate() - (days - 1));
-    generalStatsDateRange = {
-      from: formatDate(from),
-      to: formatDate(today)
-    };
+    generalStatsDateRange = lastNDaysRange(days);
     renderGeneralStatsForRange();
   } else if (val === 'personalizado') {
     openGeneralStatsCustomRangeModal();
@@ -1967,8 +1938,9 @@ function recordCustomRangeChange(field) {
   customRangeQueue = customRangeQueue.filter(f => f !== field);
   customRangeQueue.push(field);
   
-  const allFields = ['start', 'end', 'duration'];
-  const adjustedField = allFields.find(f => !customRangeQueue.includes(f));
+  // Ya no hay campo "Día de término" visible: el término siempre se calcula a
+  // partir del inicio y la cantidad de días.
+  const adjustedField = 'end';
   
   const startInput = document.getElementById('general-stats-custom-range-start');
   const endInput = document.getElementById('general-stats-custom-range-end');
