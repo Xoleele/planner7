@@ -740,6 +740,25 @@ function performTagDeletion(tagId, action) {
     );
   }
 
+  // Al reasignar, las palabras clave (tags) de la actividad eliminada pasan a la
+  // actividad destino, sin duplicar las que ya tenga.
+  if (action && action.reassignTo) {
+    const source = tags.find(t => t.id === tagId);
+    const srcKeywords = (source && Array.isArray(source.keywords)) ? source.keywords : [];
+    if (srcKeywords.length) {
+      tags = tags.map(t => {
+        if (t.id !== action.reassignTo) return t;
+        const merged = Array.isArray(t.keywords) ? [...t.keywords] : [];
+        const norms = new Set(merged.map(normalizeForKeyword));
+        srcKeywords.forEach(kw => {
+          const n = normalizeForKeyword(kw);
+          if (!norms.has(n)) { norms.add(n); merged.push(kw); }
+        });
+        return { ...t, keywords: merged };
+      });
+    }
+  }
+
   tags = tags.filter(t => t.id !== tagId);
   saveTagsToStorage();
   saveTasksToStorage();
