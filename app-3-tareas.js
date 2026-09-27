@@ -1484,7 +1484,15 @@ function createTaskCard(task, occurrenceDate) {
   // Evitar que mantener presionada la tarjeta abra el menu contextual del
   // navegador (Atras, Recargar, Inspeccionar...), que interfiere con el
   // gesto de arrastrar en movil.
-  card.addEventListener('contextmenu', (e) => e.preventDefault());
+  card.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    // Escritorio, tarjeta del planner: "Aislar actividad" / "Restablecer".
+    if (!isMobile() && card.closest('.planner-week-wrapper')) {
+      e.stopPropagation();
+      openTaskContextMenu(e.clientX, e.clientY, task);
+    }
+  });
+  if (isTaskHiddenByActivityIsolation(task)) card.classList.add('activity-hidden');
 
   // Checkbox Button
   const checkBtn = document.createElement('button');

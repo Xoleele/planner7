@@ -782,7 +782,7 @@ function setupDesktopColumns(targetWrapper = document) {
     });
   });
 
-  // Click derecho en una columna → menú contextual "Aislar día" / "Restablecer días"
+  // Click derecho en una columna → menú contextual "Aislar día" / "Restablecer"
   targetWrapper.querySelectorAll('.day-column').forEach(col => {
     col.addEventListener('contextmenu', (e) => {
       if (isMobile()) return;
@@ -832,15 +832,57 @@ function applyDayIsolation() {
       });
     }
   }
+
+  // Aislamiento de actividad (se reaplica tras cada render, igual que el de día).
+  applyActivityIsolation();
 }
 
 function isolateDay(dayIndex) {
+  // Solo una herramienta de aislamiento a la vez.
+  isolatedTagId = null;
   isolatedDay = dayIndex;
   applyDayIsolation();
 }
 
+// ─── Aislar actividad (escritorio) ───────────────────────────────────────────
+// Click derecho en una tarea → "Aislar actividad": se ocultan temporalmente las
+// tareas de las demás actividades (planner y horario). No se guarda: se pierde
+// al recargar la app o con "Restablecer". No se combina con "Aislar día".
+let isolatedTagId = null;
+
+function taskTagIdForIsolation(task) {
+  return (task && task.tagId) || 'default';
+}
+
+// ¿Debe ocultarse esta tarea por el aislamiento de actividad?
+function isTaskHiddenByActivityIsolation(task) {
+  return isolatedTagId !== null && !!task && taskTagIdForIsolation(task) !== isolatedTagId;
+}
+
+function applyActivityIsolation() {
+  const byId = new Map(tasks.map(t => [String(t.id), t]));
+  document.querySelectorAll('.planner-week-wrapper .task-card[data-id]').forEach(card => {
+    card.classList.toggle('activity-hidden', isTaskHiddenByActivityIsolation(byId.get(card.dataset.id)));
+  });
+  document.querySelectorAll('.cronograma-grid .cr-task-block[data-task-id]').forEach(block => {
+    block.classList.toggle('activity-hidden', isTaskHiddenByActivityIsolation(byId.get(block.dataset.taskId)));
+  });
+}
+
+function isolateActivity(tagId) {
+  isolatedDay = null; // solo una herramienta a la vez
+  isolatedTagId = tagId;
+  applyDayIsolation(); // también reaplica el aislamiento de actividad
+}
+
+function isAnyIsolationActive() {
+  return isolatedDay !== null || isolatedTagId !== null;
+}
+
+// Restablece cualquier aislamiento (día o actividad).
 function resetIsolation() {
   isolatedDay = null;
+  isolatedTagId = null;
   applyDayIsolation();
 }
 
@@ -860,6 +902,26 @@ function onOutsideContextMenu(e) {
 }
 
 function openDayContextMenu(x, y, dayIndex) {
+  if (isAnyIsolationActive()) {
+    // Ya hay algo aislado (día o actividad): la única opción es restablecer.
+    openIsolationContextMenu(x, y, 'Restablecer', resetIsolation);
+  } else {
+    openIsolationContextMenu(x, y, 'Aislar día', () => isolateDay(dayIndex));
+  }
+}
+
+// Click derecho en una tarea (escritorio): "Aislar actividad" o "Restablecer".
+function openTaskContextMenu(x, y, task) {
+  if (!task) return;
+  if (isAnyIsolationActive()) {
+    openIsolationContextMenu(x, y, 'Restablecer', resetIsolation);
+  } else {
+    const tagId = taskTagIdForIsolation(task);
+    openIsolationContextMenu(x, y, 'Aislar actividad', () => isolateActivity(tagId));
+  }
+}
+
+function openIsolationContextMenu(x, y, label, action) {
   closeDayContextMenu(); // cerrar cualquier menú previo
 
   const menu = document.createElement('div');
@@ -868,22 +930,11 @@ function openDayContextMenu(x, y, dayIndex) {
 
   const item = document.createElement('button');
   item.className = 'context-menu-item';
-
-  if (isolatedDay === null) {
-    // No hay día aislado: ofrecer aislar el día sobre el que se hizo click.
-    item.textContent = 'Aislar día';
-    item.addEventListener('click', () => {
-      isolateDay(dayIndex);
-      closeDayContextMenu();
-    });
-  } else {
-    // Ya hay un día aislado: la única opción es restablecer.
-    item.textContent = 'Restablecer días';
-    item.addEventListener('click', () => {
-      resetIsolation();
-      closeDayContextMenu();
-    });
-  }
+  item.textContent = label;
+  item.addEventListener('click', () => {
+    action();
+    closeDayContextMenu();
+  });
 
   menu.appendChild(item);
   document.body.appendChild(menu);
@@ -3022,6 +3073,17 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   // clics en el píxel sobrante cuando la altura visual se infla al mínimo (16px).
   block.dataset.topMin = String(topMin);
   block.dataset.bottomMin = String(bottomMin);
+  if (task) {
+    block.dataset.taskId = String(task.id);
+    if (isTaskHiddenByActivityIsolation(task)) block.classList.add('activity-hidden');
+    // Escritorio: click derecho → "Aislar actividad" / "Restablecer".
+    block.addEventListener('contextmenu', (e) => {
+      if (isMobile()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openTaskContextMenu(e.clientX, e.clientY, task);
+    });
+  }
 
   // Click en el bloque: abrir la tarea para editar (salvo click en el checkbox).
   // Un clic sobre un bloque VISIBLE siempre abre su tarea; los clics en espacio

@@ -379,6 +379,12 @@ html:not(.mobile-mode) .app-container {
   visibility: hidden;
 }
 
+/* Aislar actividad (escritorio): se ocultan las tareas de otras actividades. */
+.planner-week-wrapper .task-card.activity-hidden,
+.cronograma-grid .cr-task-block.activity-hidden {
+  display: none !important;
+}
+
 /* Menú contextual genérico (click derecho en una columna). */
 .context-menu {
   position: fixed;
