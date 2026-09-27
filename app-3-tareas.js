@@ -1419,7 +1419,11 @@ function createTaskCard(task, occurrenceDate) {
   // Se muestra el bloque de hora si hay inicio O fin (el fin puede ir solo).
   const hasDescText = task.description && task.description.trim() !== '';
 
-  if (task.startTime || task.endTime) {
+  // Se muestra si la tarea tiene hora de inicio, hora de fin O duración
+  // (p. ej. una tarea archivada o sin horas que solo tiene duración: "🕐 1h30m").
+  const cardDurMin = getTaskDurationMinutes(task);
+  // Si SOLO tiene hora de fin (sin inicio ni duración), no se muestra nada.
+  if (task.startTime || cardDurMin) {
     const timeBlock = document.createElement('div');
     timeBlock.className = 'task-card-time';
 
@@ -1434,12 +1438,12 @@ function createTaskCard(task, occurrenceDate) {
     timeText.textContent = formatTaskTimeText(task);
     timeBlock.appendChild(timeText);
 
-    // Duración entre paréntesis (solo si hay inicio + fin).
-    const dur = formatTaskDuration(task.startTime, task.endTime);
+    // Duración: entre paréntesis junto a la hora, o sola si no hay horas.
+    const dur = cardDurMin ? minutesToReadable(cardDurMin) : '';
     if (dur) {
       const durEl = document.createElement('span');
       durEl.className = 'task-card-time-dur';
-      durEl.textContent = ` (${dur})`;
+      durEl.textContent = timeText.textContent ? ` (${dur})` : dur;
       timeBlock.appendChild(durEl);
     }
 
