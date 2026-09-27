@@ -1434,6 +1434,55 @@ textarea {
   resize: vertical;
 }
 
+/* Editor de notas: títulos estilo Markdown ("# ") */
+.md-notes-editor {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 210px;
+  max-height: 60vh;
+  overflow-y: auto;
+  resize: vertical;
+  padding: 10px 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  font-family: var(--font-primary);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-main);
+  background-color: var(--bg-card);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  outline: none;
+  cursor: text;
+  position: relative;
+  -webkit-user-select: text;
+  user-select: text;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.md-notes-editor:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
+}
+
+.md-notes-editor.is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-muted);
+  pointer-events: none;
+  position: absolute;
+}
+
+.md-notes-editor .md-h1 {
+  font-weight: 700;
+  font-size: 1.2em;
+  line-height: 1.35;
+  margin: 0.6em 0 0.3em;
+}
+
+.md-notes-editor .md-h1:first-child {
+  margin-top: 0;
+}
+
 /* Duration Badge */
 .duration-badge {
   background-color: #f2f2f7;
@@ -2267,6 +2316,7 @@ input:checked + .slider:before {
   color: var(--text-main);
   text-align: left;
   cursor: text;
+  position: relative;
 }
 .custom-select-trigger-input:focus,
 .custom-select-trigger-input:focus-visible {

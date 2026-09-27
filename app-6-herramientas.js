@@ -845,7 +845,7 @@ function setupEventListeners() {
         } else {
           backdrop.classList.add('hidden');
         }
-      } else if (!e.target.closest('input, textarea, select, button, .custom-select-trigger, .color-circle')) {
+      } else if (!e.target.closest('input, textarea, select, button, [contenteditable], .custom-select-trigger, .color-circle')) {
         if (document.activeElement && typeof document.activeElement.blur === 'function') {
           document.activeElement.blur();
         }
@@ -2166,14 +2166,9 @@ function setupEventListeners() {
     notesTemplateBtn.addEventListener('click', () => {
       const ta = document.getElementById('notes-textarea');
       if (!ta) return;
-      const tpl = noteTemplate || '';
-      const start = ta.selectionStart ?? ta.value.length;
-      const end = ta.selectionEnd ?? ta.value.length;
-      ta.value = ta.value.slice(0, start) + tpl + ta.value.slice(end);
-      // Reposicionar el cursor justo después del texto pegado.
-      const pos = start + tpl.length;
-      ta.focus();
-      ta.setSelectionRange(pos, pos);
+      // Editor de notas (contenteditable): inserta en el cursor y lo deja
+      // justo después del texto pegado.
+      initMdNoteEditor(ta).insertText(noteTemplate || '');
       // Ocultar el botón hasta que la nota se cierre y se vuelva a abrir.
       notesTemplateBtn.style.display = 'none';
     });

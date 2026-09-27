@@ -3589,6 +3589,201 @@ function updateRecurrenceHint() {
   }
 }
 
+// ─── Editor de notas con títulos estilo Markdown ("# ") ─────────────────────
+// Las notas se guardan como texto plano, pero se editan en un <div contenteditable>
+// donde cada línea es un <div>. Si una línea empieza con "# " se muestra como
+// título (negrita, algo más grande y con aire arriba/abajo). Solo nivel 1.
+// El elemento expone .value (get/set) igual que un textarea, para no cambiar el
+// resto del código, y .insertText(txt) para pegar en la posición del cursor.
+function mdEscapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function mdIsHeadingLine(text) {
+  return /^# /.test(text);
+}
+
+// Texto de una línea (un <div> hijo). Un <br> suelto no cuenta como texto.
+function mdLineText(node) {
+  return (node.textContent || '').replace(/ /g, ' ');
+}
+
+function mdSetEditorValue(el, text) {
+  const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+  el.innerHTML = lines.map(l => `<div>${l ? mdEscapeHtml(l) : '<br>'}</div>`).join('');
+  mdRefreshEditor(el);
+}
+
+function mdGetEditorValue(el) {
+  mdNormalizeEditor(el);
+  return Array.from(el.children).map(mdLineText).join('\n');
+}
+
+// Offset del cursor dentro del texto plano (líneas unidas con \n).
+function mdGetCaretOffset(el) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return null;
+  const range = sel.getRangeAt(0);
+  const pre = document.createRange();
+  pre.selectNodeContents(el);
+  pre.setEnd(range.endContainer, range.endOffset);
+  // Contar texto + saltos de línea entre bloques.
+  const frag = pre.cloneContents();
+  const blocks = Array.from(frag.childNodes);
+  let offset = 0;
+  blocks.forEach((n, i) => {
+    offset += mdLineText(n).length;
+    if (i < blocks.length - 1) offset += 1;
+  });
+  return offset;
+}
+
+function mdSetCaretOffset(el, offset) {
+  const lines = Array.from(el.children);
+  let remaining = offset;
+  for (let i = 0; i < lines.length; i++) {
+    const len = mdLineText(lines[i]).length;
+    if (remaining <= len || i === lines.length - 1) {
+      const target = Math.min(remaining, len);
+      const walker = document.createTreeWalker(lines[i], NodeFilter.SHOW_TEXT);
+      let node, acc = 0;
+      const range = document.createRange();
+      let placed = false;
+      while ((node = walker.nextNode())) {
+        if (acc + node.length >= target) {
+          range.setStart(node, target - acc);
+          placed = true;
+          break;
+        }
+        acc += node.length;
+      }
+      if (!placed) range.setStart(lines[i], 0);
+      range.collapse(true);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+    remaining -= len + 1;
+  }
+}
+
+// Asegura que el editor contenga solo <div> de primer nivel (uno por línea).
+// El navegador a veces deja texto suelto (p. ej. al escribir en un editor vacío
+// o tras "seleccionar todo + borrar"); aquí se reempaqueta sin perder el cursor.
+function mdNormalizeEditor(el) {
+  const bad = Array.from(el.childNodes).some(n =>
+    n.nodeType !== 1 || n.tagName !== 'DIV' || n.querySelector('div, p, br:not(:last-child)'));
+  if (!bad && el.children.length) return;
+  const caret = mdGetCaretOffset(el);
+  // Reconstruir las líneas a partir del contenido actual.
+  const lines = [];
+  let cur = '';
+  const walk = (node) => {
+    if (node.nodeType === 3) { cur += node.nodeValue; return; }
+    if (node.nodeType !== 1) return;
+    if (node.tagName === 'BR') {
+      // El <br> final de un bloque con texto es solo "relleno" del navegador.
+      const parent = node.parentNode;
+      const isFiller = parent !== el && node === parent.lastChild && mdLineText(parent).length > 0;
+      if (!isFiller) { lines.push(cur); cur = ''; }
+      return;
+    }
+    const isBlock = /^(DIV|P|LI|H[1-6])$/.test(node.tagName);
+    if (isBlock && cur !== '') { lines.push(cur); cur = ''; }
+    const before = lines.length;
+    node.childNodes.forEach(walk);
+    if (isBlock && (cur !== '' || lines.length === before)) { lines.push(cur); cur = ''; }
+  };
+  el.childNodes.forEach(walk);
+  if (cur !== '' || !lines.length) lines.push(cur);
+  mdSetEditorValue(el, lines.join('\n'));
+  if (caret !== null) mdSetCaretOffset(el, caret);
+}
+
+// Marca como título cada línea que empieza con "# " y actualiza el placeholder.
+function mdRefreshEditor(el) {
+  Array.from(el.children).forEach(line => {
+    line.classList.toggle('md-h1', mdIsHeadingLine(mdLineText(line)));
+  });
+  const empty = el.children.length <= 1 && !mdLineText(el).length;
+  el.classList.toggle('is-empty', empty);
+}
+
+// Inserta texto plano (con saltos de línea) en el cursor, usando execCommand
+// para que Ctrl+Z nativo siga funcionando.
+function mdInsertPlainText(el, text) {
+  const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+  lines.forEach((line, i) => {
+    if (i > 0) document.execCommand('insertParagraph');
+    if (line) document.execCommand('insertText', false, line);
+  });
+  mdNormalizeEditor(el);
+  mdRefreshEditor(el);
+}
+
+function initMdNoteEditor(el) {
+  if (!el || el._mdEditor) return el;
+  el._mdEditor = true;
+  try { document.execCommand('defaultParagraphSeparator', false, 'div'); } catch (e) {}
+
+  Object.defineProperty(el, 'value', {
+    configurable: true,
+    get() { return mdGetEditorValue(el); },
+    set(v) { mdSetEditorValue(el, v); },
+  });
+
+  // Recordar la última selección dentro del editor (al pulsar un botón del
+  // encabezado el foco sale del editor y se perdería la posición).
+  el._mdLastRange = null;
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && el.contains(sel.anchorNode)) {
+      el._mdLastRange = sel.getRangeAt(0).cloneRange();
+    }
+  });
+
+  el.insertText = (text) => {
+    el.focus();
+    const sel = window.getSelection();
+    if (el._mdLastRange && el.contains(el._mdLastRange.startContainer)) {
+      sel.removeAllRanges();
+      sel.addRange(el._mdLastRange);
+    } else if (!sel.rangeCount || !el.contains(sel.anchorNode)) {
+      const r = document.createRange();
+      r.selectNodeContents(el.lastElementChild || el);
+      r.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+    mdInsertPlainText(el, text);
+  };
+
+  el.addEventListener('input', () => {
+    mdNormalizeEditor(el);
+    mdRefreshEditor(el);
+  });
+
+  // Shift+Enter se comporta como Enter normal (una línea = un bloque).
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      document.execCommand('insertParagraph');
+    }
+  });
+
+  // Pegar siempre como texto plano (sin formatos externos).
+  el.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    mdInsertPlainText(el, text);
+  });
+  el.addEventListener('drop', (e) => e.preventDefault());
+
+  if (!el.children.length) mdSetEditorValue(el, '');
+  return el;
+}
+
 // --- Daily Notes Modal & Management ---
 
 function openNotesModal(dateStr) {
@@ -3599,7 +3794,7 @@ function openNotesModal(dateStr) {
   const modal = document.getElementById('notes-modal');
   modal.dataset.date = dateStr;
   
-  const notesTextarea = document.getElementById('notes-textarea');
+  const notesTextarea = initMdNoteEditor(document.getElementById('notes-textarea'));
   notesTextarea.value = notes[dateStr] || '';
 
   // El botón de plantilla vuelve a mostrarse al abrir la nota, pero solo si el
@@ -3637,7 +3832,7 @@ async function saveNotesToStorage() {
 // ─── Plantilla de notas ──────────────────────────────────────────────────────
 function openNoteTemplateModal() {
   const modal = document.getElementById('note-template-modal');
-  const textarea = document.getElementById('note-template-textarea');
+  const textarea = initMdNoteEditor(document.getElementById('note-template-textarea'));
   if (!modal || !textarea) return;
   textarea.value = noteTemplate || '';
   modal.classList.remove('hidden');
