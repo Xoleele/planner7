@@ -4185,6 +4185,14 @@ html:not(.mobile-mode) .briefcase-drawer .drawer-header {
   flex-shrink: 0;
   margin-top: 2px;
 }
+/* "Archivados: <subcategoría>" largo: se recorta con "…" sin empujar la ✕. */
+.drawer-title-dropdown { min-width: 0; }
+.drawer-title-dropdown h3 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Desplegable del título de Archivados (listas / subcategorías). */
 .archive-list-menu {
@@ -4238,6 +4246,15 @@ html:not(.mobile-mode) .briefcase-drawer .drawer-header {
   gap: 8px;
 }
 .archive-sub-row input { flex: 1; }
+.archive-sub-grip {
+  margin-right: 0;
+  cursor: grab;
+  touch-action: none; /* táctil: arrastrar sin hacer scroll */
+}
+.archive-sub-grip:active { cursor: grabbing; }
+.archive-sub-row.is-reordering {
+  opacity: 0.6;
+}
 .archive-add-sub-btn {
   width: 100%;
   margin-top: 8px;

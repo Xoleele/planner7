@@ -3332,6 +3332,15 @@ function renderArchiveListsModal() {
   archiveDraft.subs.forEach((sub, idx) => {
     const row = document.createElement('div');
     row.className = 'archive-sub-row';
+    row.dataset.subId = sub.id;
+    // Handle para reordenar (mismo icono que en "Mis actividades").
+    const grip = document.createElement('button');
+    grip.type = 'button';
+    grip.className = 'tag-drag-handle archive-sub-grip';
+    grip.title = 'Arrastrar para reordenar';
+    grip.setAttribute('aria-label', 'Reordenar subcategoría');
+    grip.innerHTML = '<img src="icons/grip.svg" alt="" width="14" height="14">';
+    grip.addEventListener('pointerdown', (e) => startArchiveSubReorder(e, row));
     const input = document.createElement('input');
     input.type = 'text';
     input.value = sub.name;
@@ -3345,7 +3354,7 @@ function renderArchiveListsModal() {
     del.title = 'Eliminar subcategoría';
     del.innerHTML = '<img src="icons/trash.svg" alt="Eliminar" width="14" height="14">';
     del.addEventListener('click', () => requestArchiveSubDeletion(sub.id));
-    row.append(input, del);
+    row.append(grip, input, del);
     list.appendChild(row);
   });
   const addBtn = document.getElementById('archive-add-sub-btn');
@@ -3358,6 +3367,41 @@ function renderArchiveListsModal() {
   if (hint) hint.textContent = full
     ? `Llegaste al máximo de ${ARCHIVE_MAX_LISTS} listas (la principal + ${ARCHIVE_MAX_LISTS - 1} subcategorías).`
     : `Máximo ${ARCHIVE_MAX_LISTS} listas en total (la principal + ${ARCHIVE_MAX_LISTS - 1} subcategorías).`;
+}
+
+// Reordenar subcategorías arrastrando el handle (ratón y táctil). El nuevo
+// orden queda en el borrador y se aplica al pulsar Guardar.
+function startArchiveSubReorder(e, row) {
+  if (e.button !== undefined && e.button !== 0) return;
+  const list = document.getElementById('archive-subs-list');
+  if (!list || !archiveDraft) return;
+  e.preventDefault();
+  const grip = e.currentTarget;
+  try { grip.setPointerCapture(e.pointerId); } catch (_) {}
+  row.classList.add('is-reordering');
+  const onMove = (ev) => {
+    const rows = [...list.querySelectorAll('.archive-sub-row')];
+    const others = rows.filter(r => r !== row);
+    let before = null;
+    for (const r of others) {
+      const rect = r.getBoundingClientRect();
+      if (ev.clientY < rect.top + rect.height / 2) { before = r; break; }
+    }
+    if (before) { if (row.nextSibling !== before) list.insertBefore(row, before); }
+    else if (list.lastElementChild !== row) list.appendChild(row);
+  };
+  const onUp = () => {
+    grip.removeEventListener('pointermove', onMove);
+    grip.removeEventListener('pointerup', onUp);
+    grip.removeEventListener('pointercancel', onUp);
+    row.classList.remove('is-reordering');
+    const order = [...list.querySelectorAll('.archive-sub-row')].map(r => r.dataset.subId);
+    archiveDraft.subs.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+    renderArchiveListsModal();
+  };
+  grip.addEventListener('pointermove', onMove);
+  grip.addEventListener('pointerup', onUp);
+  grip.addEventListener('pointercancel', onUp);
 }
 
 let pendingArchiveDeleteId = null;
@@ -3465,10 +3509,15 @@ function renderBriefcaseTasks() {
   setupArchiveListsUI();
   syncArchiveListAssignments();
 
-  // Título del panel = nombre de la lista visible.
+  // Título del panel: "Archivados" sin subcategorías; con subcategorías,
+  // "Archivados: <nombre de la lista visible>" (también para la principal).
   const visibleList = getVisibleArchiveListId();
   const titleH = document.querySelector('#briefcase-title-btn h3');
-  if (titleH) titleH.textContent = archiveListName(visibleList);
+  if (titleH) {
+    titleH.textContent = archiveListsConfig.subs.length
+      ? `Archivados: ${archiveListName(visibleList)}`
+      : archiveListName(null);
+  }
 
   const briefcaseTasks = getArchivedTasksOfList(visibleList);
 
