@@ -474,10 +474,9 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
     let labelText = '';
     if (periodVal === 'semanal') {
       labelText = weeklyLabels[idx] || '';
-    } else if (unit === 'semanas') {
-      labelText = `Sem ${idx + 1}`;
-    } else if (unit === 'meses') {
-      labelText = `Mes ${idx + 1}`;
+    } else if (unit === 'semanas' || unit === 'meses') {
+      // Solo el número (1, 2, 3…): "Sem 1"/"Mes 1" quedaban apretados con 12 barras.
+      labelText = String(idx + 1);
     } else {
       const targetDateStr = dates[idx * daysPerBar];
       if (targetDateStr) {
