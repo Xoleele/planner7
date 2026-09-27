@@ -3271,6 +3271,38 @@ function setupArchiveListsUI() {
     if (!m || !m.classList.contains('is-drop')) openArchiveListMenu('drop');
   });
   titleBtn.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); });
+
+  // Basurero rojo del panel: visible solo mientras se arrastra una tarea
+  // archivada; al soltarla encima se elimina (con Ctrl+Z).
+  const dropTrash = document.getElementById('briefcase-drop-trash');
+  const drawerEl = document.getElementById('briefcase-drawer');
+  if (dropTrash && drawerEl) {
+    document.addEventListener('dragstart', () => {
+      const t = draggedTaskId ? tasks.find(x => x.id === draggedTaskId) : null;
+      if (t && !t.date) drawerEl.classList.add('archive-dragging');
+    });
+    document.addEventListener('dragend', () => {
+      drawerEl.classList.remove('archive-dragging');
+      dropTrash.classList.remove('drag-over');
+    });
+    dropTrash.addEventListener('dragover', (e) => {
+      if (!drawerEl.classList.contains('archive-dragging')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      dropTrash.classList.add('drag-over');
+    });
+    dropTrash.addEventListener('dragleave', () => dropTrash.classList.remove('drag-over'));
+    dropTrash.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropTrash.classList.remove('drag-over');
+      drawerEl.classList.remove('archive-dragging');
+      const id = draggedTaskId || e.dataTransfer.getData('text/plain');
+      if (id) deleteTask(id, '');
+      renderBriefcaseTasks();
+    });
+  }
   document.addEventListener('dragend', () => {
     const m = document.getElementById('archive-list-menu');
     if (m && m.classList.contains('is-drop')) closeArchiveListMenu();

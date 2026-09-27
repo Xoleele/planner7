@@ -4197,6 +4197,14 @@ html:not(.mobile-mode) .briefcase-drawer .drawer-header {
   white-space: nowrap;
 }
 
+/* Basurero rojo del panel de Archivados: solo durante el arrastre. */
+.briefcase-drop-trash { display: none !important; }
+.briefcase-drawer.archive-dragging .briefcase-drop-trash { display: flex !important; }
+.briefcase-drop-trash.drag-over {
+  background-color: rgba(255, 59, 48, 0.14) !important;
+  transform: scale(1.15);
+}
+
 /* Desplegable del título de Archivados (listas / subcategorías). */
 .archive-list-menu {
   position: absolute;
