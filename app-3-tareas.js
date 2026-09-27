@@ -1489,7 +1489,8 @@ function createTaskCard(task, occurrenceDate) {
     // Escritorio, tarjeta del planner: "Aislar actividad" / "Restablecer".
     if (!isMobile() && card.closest('.planner-week-wrapper')) {
       e.stopPropagation();
-      openTaskContextMenu(e.clientX, e.clientY, task);
+      const col = card.closest('.day-column');
+      openTaskContextMenu(e.clientX, e.clientY, task, col ? parseInt(col.dataset.day, 10) : NaN);
     }
   });
   if (isTaskHiddenByActivityIsolation(task)) card.classList.add('activity-hidden');

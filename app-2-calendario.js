@@ -910,33 +910,40 @@ function openDayContextMenu(x, y, dayIndex) {
   }
 }
 
-// Click derecho en una tarea (escritorio): "Aislar actividad" o "Restablecer".
-function openTaskContextMenu(x, y, task) {
+// Click derecho en una tarea (escritorio): "Aislar actividad" + "Aislar día"
+// (del día de la tarea), o solo "Restablecer" si ya hay algo aislado.
+function openTaskContextMenu(x, y, task, dayIndex) {
   if (!task) return;
   if (isAnyIsolationActive()) {
     openIsolationContextMenu(x, y, 'Restablecer', resetIsolation);
-  } else {
-    const tagId = taskTagIdForIsolation(task);
-    openIsolationContextMenu(x, y, 'Aislar actividad', () => isolateActivity(tagId));
+    return;
   }
+  const tagId = taskTagIdForIsolation(task);
+  const items = [{ label: 'Aislar actividad', action: () => isolateActivity(tagId) }];
+  if (Number.isFinite(dayIndex)) items.push({ label: 'Aislar día', action: () => isolateDay(dayIndex) });
+  openIsolationContextMenu(x, y, items);
 }
 
-function openIsolationContextMenu(x, y, label, action) {
+// Menú contextual con una o varias opciones: (x, y, label, action) o
+// (x, y, [{ label, action }, …]).
+function openIsolationContextMenu(x, y, labelOrItems, action) {
   closeDayContextMenu(); // cerrar cualquier menú previo
 
   const menu = document.createElement('div');
   menu.id = 'day-context-menu';
   menu.className = 'context-menu';
 
-  const item = document.createElement('button');
-  item.className = 'context-menu-item';
-  item.textContent = label;
-  item.addEventListener('click', () => {
-    action();
-    closeDayContextMenu();
+  const items = Array.isArray(labelOrItems) ? labelOrItems : [{ label: labelOrItems, action }];
+  items.forEach(({ label, action: act }) => {
+    const item = document.createElement('button');
+    item.className = 'context-menu-item';
+    item.textContent = label;
+    item.addEventListener('click', () => {
+      act();
+      closeDayContextMenu();
+    });
+    menu.appendChild(item);
   });
-
-  menu.appendChild(item);
   document.body.appendChild(menu);
 
   // Posicionar el menú evitando que se salga de la pantalla.
@@ -3081,7 +3088,8 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
       if (isMobile()) return;
       e.preventDefault();
       e.stopPropagation();
-      openTaskContextMenu(e.clientX, e.clientY, task);
+      const col = block.closest('.cr-day-col');
+      openTaskContextMenu(e.clientX, e.clientY, task, col ? parseInt(col.dataset.col, 10) : NaN);
     });
   }
 
