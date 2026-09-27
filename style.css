@@ -5564,10 +5564,26 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 }
 .settings-info.hidden { display: none; }
 
-/* Editor de tareas en móvil: INICIO y FIN en una fila y DURACIÓN debajo (a media
-   anchura), porque los 3 campos juntos no caben con sus iconos. */
-.mobile-mode #task-modal .task-times-row {
+/* Duración en escritorio: campo de texto libre ("1h30m"). */
+.time-input-wrapper input.duration-text-input {
+  cursor: text;
+  padding-left: 8px;
+}
+.time-input-wrapper input.duration-text-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+/* Editor de tareas: INICIO y FIN en una fila y DURACIÓN debajo (a media anchura).
+   En escritorio el gap del .form-row es 16px; en móvil se mantiene el de antes. */
+#task-modal .task-times-row {
   flex-wrap: wrap;
+}
+html:not(.mobile-mode) #task-modal .task-times-row .task-time-group {
+  flex: 1 1 calc(50% - 8px);
+}
+html:not(.mobile-mode) #task-modal .task-times-row .task-duration-group {
+  flex: 0 0 calc(50% - 8px);
 }
 .mobile-mode #task-modal .task-times-row .task-time-group {
   flex: 1 1 calc(50% - 4px);

@@ -3305,17 +3305,12 @@ function syncEndTimeEnabled() {
 
 // ─── Inicio / Fin / Duración en el editor de tareas ─────────────────────────
 // Reglas:
-//  · Inicio + Fin → se calcula la Duración.
-//  · Puede haber Duración sin Inicio ni Fin.
-//  · Con Duración, al poner Inicio se completa el Fin (y al poner Fin, el Inicio).
-//  · Con los 3 definidos: cambiar la Duración mantiene el Inicio y mueve el Fin;
-//    cambiar el Inicio mantiene la Duración y mueve el Fin; cambiar el Fin
-//    recalcula la Duración.
-//  · Si el usuario BORRA uno de los 3, queda vacío en ese momento (no se rellena
-//    al instante), para poder borrar también un 2º o el 3º parámetro.
-//  · Si hay 2 definidos y el 3º está vacío, el 3º se vuelve a completar en cuanto
-//    el usuario cambia alguno de los otros 2, hace clic en el campo vacío o guarda
-//    (con 2 datos el 3º se deduce: una tarea nunca se guarda con solo 2 de los 3).
+//  · Mientras se edita, solo se actualizan campos que YA tienen valor:
+//      - cambiar Inicio o Fin → se recalcula la Duración;
+//      - cambiar la Duración → se mueve el Fin (manteniendo el Inicio).
+//  · Un campo vacío NO se completa al escribir ni al hacer clic en él.
+//  · Al guardar (cerrar el editor con Aceptar), si hay 2 definidos y el 3º está
+//    vacío, el 3º se deduce de los otros 2.
 // La Duración se muestra como HH:MM (horas:minutos), con el mismo selector que
 // las horas.
 let taskTimeClearedFields = new Set(); // 'start' | 'end' | 'duration'
@@ -3343,6 +3338,84 @@ function durationMinutesToField(min) {
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 }
 
+// ─── Campo Duración: lectura/escritura según el dispositivo ──────────────────
+//  · Escritorio: campo de TEXTO. Se escribe en formatos libres y al salir del
+//    campo se muestra como "1h30m", "30m" o "2h".
+//  · Móvil: selector nativo de hora (HH:MM); el overlay lo muestra como "1h30m".
+// Formatos aceptados al escribir (escritorio):
+//   "90" (minutos), "1h", "1h30m", "1h30", "1h 30min", "20m", "20 min",
+//   "1 hora", "2 horas", "1 hora 20 minutos", "1 hora y 20 minutos", "62 minutos".
+//   "1.5" NO es válido.
+function isDurationTextField(el) {
+  return !!el && el.type !== 'time';
+}
+
+// Texto → minutos (> 0), o null si no es un formato válido.
+function parseDurationInput(text) {
+  const t = String(text || '').trim();
+  if (!t) return null;
+  let min = null;
+  if (/^\d+$/.test(t)) {
+    min = parseInt(t, 10);
+  } else {
+    const hm = t.match(/^(\d+)\s*h\s*(\d+)$/i); // "1h30"
+    if (hm) {
+      min = parseInt(hm[1], 10) * 60 + parseInt(hm[2], 10);
+    } else {
+      const r = parseDurationFromDescription(t);
+      // Debe calzar el texto COMPLETO y no ser un rango horario.
+      if (r && r.rawMatch.trim().length === t.length && !/:/.test(t)) min = r.minutes;
+    }
+  }
+  return (Number.isFinite(min) && min > 0) ? min : null;
+}
+
+// Minutos del campo Duración (null si vacío o inválido).
+function readDurationField(el) {
+  if (!el) return null;
+  if (isDurationTextField(el)) return parseDurationInput(el.value);
+  const m = hhmmToMinutes(el.value);
+  return (m !== null && m > 0) ? m : null;
+}
+
+// Escribe minutos en el campo Duración en el formato que corresponda.
+function writeDurationField(el, min) {
+  if (!el) return;
+  if (isDurationTextField(el)) {
+    el.value = (Number.isFinite(min) && min > 0) ? minutesToReadable(Math.round(min)) : '';
+    el.dataset.lastValid = el.value;
+  } else {
+    el.value = durationMinutesToField(min);
+  }
+}
+
+// Convierte el campo Duración en campo de texto (solo escritorio).
+function setupDurationTextInput(el) {
+  if (!el) return;
+  el.type = 'text';
+  el.removeAttribute('data-force24');
+  el.setAttribute('inputmode', 'text');
+  el.setAttribute('autocomplete', 'off');
+  el.placeholder = 'ej: 1h30m';
+  el.classList.add('duration-text-input');
+  const overlay = document.querySelector('.time-24-overlay[data-for="' + el.id + '"]');
+  if (overlay) { overlay.textContent = ''; overlay.style.display = 'none'; }
+  el.dataset.lastValid = el.value || '';
+  // Al salir del campo: normalizar a "1h30m"; si no es válido, volver al último
+  // valor válido (y recalcular con él).
+  el.addEventListener('blur', () => {
+    const raw = el.value.trim();
+    if (!raw) { el.dataset.lastValid = ''; return; }
+    const m = parseDurationInput(raw);
+    if (m !== null) {
+      writeDurationField(el, m);
+    } else {
+      el.value = el.dataset.lastValid || '';
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+}
+
 // Minutos entre inicio y fin (si fin <= inicio, termina al día siguiente).
 function diffStartEndMinutes(startMin, endMin) {
   let d = endMin - startMin;
@@ -3358,11 +3431,11 @@ function syncDurationFieldOnOpen(task) {
   const s = hhmmToMinutes(taskFieldEl('start') && taskFieldEl('start').value);
   const e = hhmmToMinutes(taskFieldEl('end') && taskFieldEl('end').value);
   if (s !== null && e !== null) {
-    durEl.value = durationMinutesToField(diffStartEndMinutes(s, e));
+    writeDurationField(durEl, diffStartEndMinutes(s, e));
   } else if (task && Number(task.duration) > 0) {
-    durEl.value = durationMinutesToField(Number(task.duration));
+    writeDurationField(durEl, Number(task.duration));
   } else {
-    durEl.value = '';
+    writeDurationField(durEl, null);
   }
 }
 
@@ -3383,31 +3456,16 @@ function onTaskTimeFieldEdited(field) {
 
   const s = hhmmToMinutes(startEl.value);
   const e = hhmmToMinutes(endEl.value);
-  const dRaw = hhmmToMinutes(durEl.value);
-  const d = (dRaw !== null && dRaw > 0) ? dRaw : null;
-  // Cualquier cambio en un campo vuelve a completar el que falte (aunque el
-  // usuario lo hubiera borrado antes): borrar solo sirve para vaciar 2 o 3.
-  const canFill = () => true;
+  const d = readDurationField(durEl);
 
-  if (field === 'duration') {
-    if (d === null) return;
-    if (s !== null) {
-      if (canFill('end')) endEl.value = wrapMinutesToHHMM(s + d);
-    } else if (e !== null) {
-      if (canFill('start')) startEl.value = wrapMinutesToHHMM(e - d);
+  // Solo se tocan campos que ya tienen valor; los vacíos se completan al guardar.
+  if (field === 'start' || field === 'end') {
+    if (s !== null && e !== null && d !== null) {
+      writeDurationField(durEl, diffStartEndMinutes(s, e));
     }
-  } else if (field === 'start') {
-    if (d !== null && (e !== null || canFill('end'))) {
-      // Mantener la duración y mover/poner el fin.
-      if (canFill('end')) endEl.value = wrapMinutesToHHMM(s + d);
-    } else if (e !== null && canFill('duration')) {
-      durEl.value = durationMinutesToField(diffStartEndMinutes(s, e));
-    }
-  } else if (field === 'end') {
-    if (s !== null) {
-      if (canFill('duration')) durEl.value = durationMinutesToField(diffStartEndMinutes(s, e));
-    } else if (d !== null && canFill('start')) {
-      startEl.value = wrapMinutesToHHMM(e - d);
+  } else if (field === 'duration') {
+    if (d !== null && s !== null && e !== null) {
+      endEl.value = wrapMinutesToHHMM(s + d);
     }
   }
 
@@ -3427,12 +3485,18 @@ function fillTaskTimeFieldFromOthers(field) {
   if (!el || el.disabled || el.value) return false;
   const s = hhmmToMinutes(startEl.value);
   const e = hhmmToMinutes(endEl.value);
-  const dRaw = hhmmToMinutes(durEl.value);
-  const d = (dRaw !== null && dRaw > 0) ? dRaw : null;
+  const d = readDurationField(durEl);
   let value = '';
   if (field === 'end' && s !== null && d !== null) value = wrapMinutesToHHMM(s + d);
   else if (field === 'start' && e !== null && d !== null) value = wrapMinutesToHHMM(e - d);
-  else if (field === 'duration' && s !== null && e !== null) value = durationMinutesToField(diffStartEndMinutes(s, e));
+  else if (field === 'duration' && s !== null && e !== null) {
+    writeDurationField(el, diffStartEndMinutes(s, e));
+    taskTimeClearedFields.delete(field);
+    syncEndTimeEnabled();
+    updateDurationDisplay();
+    syncAlarmCheckboxState();
+    return true;
+  }
   if (!value) return false;
   el.value = value;
   taskTimeClearedFields.delete(field);
@@ -3454,9 +3518,6 @@ function setupTaskTimeFieldsLogic() {
     if (!el) return;
     el.addEventListener('input', () => onTaskTimeFieldEdited(field));
     el.addEventListener('change', () => onTaskTimeFieldEdited(field));
-    // Clic en el campo vacío → se completa si los otros 2 están definidos.
-    el.addEventListener('focus', () => fillTaskTimeFieldFromOthers(field));
-    el.addEventListener('click', () => fillTaskTimeFieldFromOthers(field));
   });
   // Botones ✕ de cada campo (el vaciado lo hace el handler genérico).
   [['task-start-clear', 'start'], ['task-end-clear', 'end'], ['task-duration-clear', 'duration']]
@@ -3469,27 +3530,11 @@ function setupTaskTimeFieldsLogic() {
         taskTimeClearedFields.add(field);
       });
     });
-  // Icono del campo Duración: enfoca el campo / abre el selector (móvil).
-  const durIcon = document.querySelector('.task-duration-icon');
-  if (durIcon) {
-    durIcon.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      const el = taskFieldEl('duration');
-      if (!el || el.disabled) return;
-      if (isMobile() && typeof el.showPicker === 'function') {
-        try { el.showPicker(); return; } catch (_) {}
-      }
-      el.focus();
-    });
-  }
 }
 
 // Duración (minutos) del campo del editor, o null si está vacío.
 function getDurationFieldMinutes() {
-  const el = taskFieldEl('duration');
-  const m = el ? hhmmToMinutes(el.value) : null;
-  return (m !== null && m > 0) ? m : null;
+  return readDurationField(taskFieldEl('duration'));
 }
 
 // Duration Calculator

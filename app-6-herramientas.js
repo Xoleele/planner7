@@ -642,7 +642,8 @@ function setupEventListeners() {
   if (!isMobile()) {
     setupTimeMaskInput(taskStartInput);
     setupTimeMaskInput(taskEndInput);
-    setupTimeMaskInput(document.getElementById('task-input-duration'));
+    // Duración en escritorio: campo de texto libre ("1h30m", "90", "1 hora"…).
+    setupDurationTextInput(document.getElementById('task-input-duration'));
   }
 
   if (taskStartInput) {
@@ -657,7 +658,7 @@ function setupEventListeners() {
   }
 
   // Campos de hora: se puede ESCRIBIR con el teclado Y abrir el selector nativo (solo móvil).
-  [taskStartInput, taskEndInput].forEach(inp => {
+  [taskStartInput, taskEndInput, document.getElementById('task-input-duration')].forEach(inp => {
     if (!inp) return;
     inp.addEventListener('click', () => {
       if (inp.disabled) return;

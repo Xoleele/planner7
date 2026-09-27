@@ -2511,7 +2511,16 @@ function syncAlarmCheckboxState() {
 function updateTime24Overlay(input) {
   if (!input) return;
   const overlay = document.querySelector('.time-24-overlay[data-for="' + input.id + '"]');
-  if (overlay) overlay.textContent = input.value || '';
+  if (!overlay) return;
+  // Campo Duración: en móvil (selector de hora) se muestra como "1h30m"; en
+  // escritorio es un campo de texto propio y el overlay no se usa.
+  if (input.id === 'task-input-duration') {
+    if (input.type !== 'time') { overlay.textContent = ''; overlay.style.display = 'none'; return; }
+    const m = hhmmToMinutes(input.value);
+    overlay.textContent = (m !== null && m > 0) ? minutesToReadable(m) : '';
+    return;
+  }
+  overlay.textContent = input.value || '';
 }
 
 // El .value de un input type=date es siempre "YYYY-MM-DD" (estándar, no depende
