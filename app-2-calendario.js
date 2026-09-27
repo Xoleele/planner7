@@ -1369,13 +1369,29 @@ function setupBriefcaseFloatingPanel(drawer) {
   if (header) {
     header.addEventListener('pointerdown', (e) => {
       if (isMobile() || e.button !== 0) return;
-      if (e.target.closest('button')) return; // botones de la cabecera
-      e.preventDefault();
+      // Se puede arrastrar desde cualquier parte de la cabecera, incluidos el
+      // título y la ✕. Los demás botones (basureros) no mueven el panel.
+      const btn = e.target.closest('button');
+      const isDragButton = !btn || btn.id === 'briefcase-title-btn' || btn.id === 'close-briefcase-drawer';
+      if (!isDragButton) return;
+      // Sobre el fondo de la cabecera el arrastre empieza al instante; sobre el
+      // título o la ✕ solo si el puntero se mueve un poco (si no, es un clic).
+      if (!btn) e.preventDefault();
+      const startX = e.clientX, startY = e.clientY;
       const rect = drawer.getBoundingClientRect();
       const dx = e.clientX - rect.left;
       const dy = e.clientY - rect.top;
-      drawer.classList.add('is-moving');
+      let moving = !btn;
+      if (moving) drawer.classList.add('is-moving');
       const onMove = (ev) => {
+        if (!moving) {
+          if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
+          moving = true;
+          drawer.classList.add('is-moving');
+          const m = document.getElementById('archive-list-menu');
+          if (m && typeof closeArchiveListMenu === 'function') closeArchiveListMenu();
+        }
+        ev.preventDefault();
         const p = clampBriefcasePos(drawer, ev.clientX - dx, ev.clientY - dy);
         drawer.style.left = p.left + 'px';
         drawer.style.top = p.top + 'px';
@@ -1383,12 +1399,21 @@ function setupBriefcaseFloatingPanel(drawer) {
       const onUp = () => {
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+        if (!moving) return; // fue un clic normal (desplegar título / cerrar)
         drawer.classList.remove('is-moving');
         briefcasePanelPos = { left: parseFloat(drawer.style.left) || 0, top: parseFloat(drawer.style.top) || 0 };
         try { localStorage.setItem('briefcasePanelPos', JSON.stringify(briefcasePanelPos)); } catch (e) {}
+        // Tras arrastrar desde el título o la ✕, anular el clic que sigue.
+        if (btn) {
+          const swallow = (ce) => { ce.stopPropagation(); ce.preventDefault(); };
+          btn.addEventListener('click', swallow, { capture: true, once: true });
+          setTimeout(() => btn.removeEventListener('click', swallow, { capture: true }), 0);
+        }
       };
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
     });
   }
   // Si cambia el tamaño de la ventana, mantener el panel dentro de la pantalla.
