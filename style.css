@@ -2702,6 +2702,13 @@ body.not-logged-in .app-container {
   font-family: var(--font-primary);
 }
 
+/* Botón "volver" del submenú Herramientas en el menú del avatar. */
+.user-dropdown-back {
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-light);
+}
+
 .user-dropdown-item:hover {
   background: #f5f5f7;
 }
@@ -5568,12 +5575,7 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
    los define .task-modal-check-btn). */
 #task-complete-btn { display: flex !important; }
 
-/* --- Herramientas / Configuración: botones de opción tipo lista --- */
-.tools-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
+/* --- Configuración: botones de opción tipo lista --- */
 .settings-action-btn {
   width: 100%;
   background: none;

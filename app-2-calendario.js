@@ -915,13 +915,13 @@ function openDayContextMenu(x, y, dayIndex) {
 function openTaskContextMenu(x, y, task, dayIndex) {
   if (!task) return;
   const tagId = taskTagIdForIsolation(task);
-  let items;
+  // Con algo aislado (día o actividad), la ÚNICA opción es "Restablecer".
   if (isAnyIsolationActive()) {
-    items = [{ label: 'Restablecer', action: resetIsolation }];
-  } else {
-    items = [{ label: 'Aislar actividad', action: () => isolateActivity(tagId) }];
-    if (Number.isFinite(dayIndex)) items.push({ label: 'Aislar día', action: () => isolateDay(dayIndex) });
+    openIsolationContextMenu(x, y, 'Restablecer', resetIsolation);
+    return;
   }
+  const items = [{ label: 'Aislar actividad', action: () => isolateActivity(tagId) }];
+  if (Number.isFinite(dayIndex)) items.push({ label: 'Aislar día', action: () => isolateDay(dayIndex) });
   // Ocultar actividad: igual que apagar la bombilla en el panel de actividades
   // (se guarda; se vuelve a mostrar desde ese panel).
   items.push({ label: 'Ocultar actividad', action: () => hideActivityFromMenu(tagId) });

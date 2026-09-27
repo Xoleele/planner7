@@ -656,30 +656,6 @@ function translateAuthError(msg) {
 // Se guardan en la CUENTA del usuario (tabla user_data.preferences en Supabase),
 // así se conservan al borrar la caché o al cambiar de dispositivo. El caché
 // local solo acelera el arranque.
-// ─── Herramientas (menú del avatar) ──────────────────────────────────────────
-// Buscador, Plantilla de notas y Exportar datos. Cada opción cierra este panel
-// y abre la herramienta.
-function openToolsModal() {
-  const modal = document.getElementById('tools-modal');
-  if (!modal) return;
-  if (modal.dataset.bound !== 'true') {
-    modal.dataset.bound = 'true';
-    const bind = (id, fn) => {
-      const btn = document.getElementById(id);
-      if (btn) btn.addEventListener('click', () => { closeToolsModal(); fn(); });
-    };
-    bind('tools-buscador-btn', () => openBuscadorModal());
-    bind('tools-note-template-btn', () => openNoteTemplateModal());
-    bind('tools-export-btn', () => exportUserDataToCSV());
-  }
-  modal.classList.remove('hidden');
-}
-
-function closeToolsModal() {
-  const modal = document.getElementById('tools-modal');
-  if (modal) modal.classList.add('hidden');
-}
-
 function openSettingsModal() {
   const modal = document.getElementById('settings-modal');
   const toggle = document.getElementById('setting-auto-end-time');
@@ -809,32 +785,75 @@ function setupUserMenu() {
     dropdown.innerHTML = `
       <div class="user-dropdown-email">${currentUser.email}</div>
       <hr class="user-dropdown-divider">
-      <button id="tools-menu-btn" class="user-dropdown-item">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <!-- Vista principal del menú -->
+      <div class="user-dropdown-view" data-view="main">
+        <button id="tools-menu-btn" class="user-dropdown-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
         </svg>
-        Herramientas
-      </button>
-      <button id="stats-menu-btn" class="user-dropdown-item">
-        <img src="icons/bar-chart.svg" alt="" width="14" height="14">
-        Estadísticas
-      </button>
-      <button id="settings-menu-btn" class="user-dropdown-item">
-        <img src="icons/settings.svg" alt="" width="14" height="14">
-        Configuración
-      </button>
-      <button id="logout-btn" class="user-dropdown-item">
-        <img src="icons/log-out.svg" alt="" width="14" height="14">
-        Cerrar sesión
-      </button>
+          <span style="flex: 1; text-align: left;">Herramientas</span>
+          <img src="icons/chevron-right.svg" alt="" width="12" height="12" style="opacity: 0.5;">
+        </button>
+        <button id="stats-menu-btn" class="user-dropdown-item">
+          <img src="icons/bar-chart.svg" alt="" width="14" height="14">
+          Estadísticas
+        </button>
+        <button id="settings-menu-btn" class="user-dropdown-item">
+          <img src="icons/settings.svg" alt="" width="14" height="14">
+          Configuración
+        </button>
+        <button id="logout-btn" class="user-dropdown-item">
+          <img src="icons/log-out.svg" alt="" width="14" height="14">
+          Cerrar sesión
+        </button>
+      </div>
+      <!-- Submenú Herramientas (reemplaza la vista principal en el mismo menú) -->
+      <div class="user-dropdown-view hidden" data-view="tools">
+        <button id="tools-back-btn" class="user-dropdown-item user-dropdown-back">
+          <img src="icons/chevron-left.svg" alt="" width="12" height="12" style="opacity: 0.6;">
+          Herramientas
+        </button>
+        <button id="buscador-menu-btn" class="user-dropdown-item">
+          <img src="icons/search.svg" alt="" width="14" height="14">
+          Buscador
+        </button>
+        <button id="note-template-btn" class="user-dropdown-item">
+          <img src="icons/edit.svg" alt="" width="13.3" height="13.3">
+          Plantilla de notas
+        </button>
+        <button id="export-data-btn" class="user-dropdown-item">
+          <img src="icons/download.svg" alt="" width="14" height="14">
+          Exportar datos
+        </button>
+      </div>
     `;
     avatar.appendChild(dropdown);
 
+    // Herramientas: cambia el contenido del MISMO menú al submenú (sin ventana).
+    const showDropdownView = (name) => {
+      dropdown.querySelectorAll('.user-dropdown-view').forEach(v => {
+        v.classList.toggle('hidden', v.dataset.view !== name);
+      });
+    };
     document.getElementById('tools-menu-btn').addEventListener('click', (e) => {
       e.stopPropagation();
-      dropdown.remove();
-      openToolsModal();
+      showDropdownView('tools');
     });
+    document.getElementById('tools-back-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      showDropdownView('main');
+    });
+    const bindTool = (id, fn) => {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.remove();
+        fn();
+      });
+    };
+    bindTool('buscador-menu-btn', () => openBuscadorModal());
+    bindTool('note-template-btn', () => openNoteTemplateModal());
+    bindTool('export-data-btn', () => exportUserDataToCSV());
 
     const statsMenuBtn = document.getElementById('stats-menu-btn');
     if (statsMenuBtn) {
