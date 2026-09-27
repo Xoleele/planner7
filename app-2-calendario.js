@@ -1321,9 +1321,14 @@ try {
   if (raw) briefcasePanelPos = JSON.parse(raw);
 } catch (e) {}
 
+// Tamaño VISIBLE del panel (en escritorio está escalado al 90%).
+function briefcaseVisibleSize(drawer) {
+  const r = drawer.getBoundingClientRect();
+  return { w: r.width || 381, h: r.height || 400 };
+}
+
 function clampBriefcasePos(drawer, left, top) {
-  const w = drawer.offsetWidth || 381;
-  const h = drawer.offsetHeight || 400;
+  const { w, h } = briefcaseVisibleSize(drawer);
   const margin = 8;
   return {
     left: Math.min(Math.max(margin, left), Math.max(margin, window.innerWidth - w - margin)),
@@ -1339,8 +1344,7 @@ function positionBriefcasePanel(drawer) {
     drawer.style.top = '';
     return;
   }
-  const w = drawer.offsetWidth || 381;
-  const h = drawer.offsetHeight || 400;
+  const { w, h } = briefcaseVisibleSize(drawer);
   const base = briefcasePanelPos || {
     left: (window.innerWidth - w) / 2,
     top: (window.innerHeight - h) / 2

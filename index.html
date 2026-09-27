@@ -333,9 +333,11 @@
       <!-- Panel Lateral: Tareas Archivadas -->
       <aside id="briefcase-drawer" class="briefcase-drawer closed">
         <div class="drawer-header">
-          <div class="drawer-title-wrapper">
+          <!-- Título desplegable (la función del desplegable se agregará después). -->
+          <button type="button" id="briefcase-title-btn" class="drawer-title-wrapper drawer-title-dropdown" aria-haspopup="true" aria-expanded="false">
             <h3>Archivados</h3>
-          </div>
+            <svg class="drawer-title-caret" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M1 3h8L5 8z" fill="#000000"/></svg>
+          </button>
           <div style="display:flex; align-items:center; gap:4px;">
 <button id="briefcase-trash-btn" class="close-drawer-btn" aria-label="Eliminar todas las tareas archivadas" style="display:none;">
               <img src="icons/trash.svg" alt="Eliminar archivados" width="20" height="20">
