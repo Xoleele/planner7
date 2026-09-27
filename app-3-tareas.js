@@ -197,8 +197,10 @@ let crDrag = null;
 //   task:  la tarea
 //   e:     el evento pointerdown
 function startCronogramaDrag(block, task, e) {
-  // Solo botón principal y no sobre el checkbox.
+  // Solo botón principal y no sobre el checkbox. Con Shift no se arrastra:
+  // Shift+clic oculta la actividad.
   if (e.button !== 0) return;
+  if (e.shiftKey) return;
   if (e.target.closest('.task-check-btn')) return;
 
   const grid = document.getElementById('cronograma-grid');
@@ -1471,6 +1473,13 @@ function createTaskCard(task, occurrenceDate) {
       return;
     }
     e.stopPropagation();
+    // Escritorio: Shift+clic en una tarjeta del planner = "Ocultar actividad".
+    if (e.shiftKey && !isMobile() && card.closest('.planner-week-wrapper')) {
+      e.preventDefault();
+      clearShiftClickSelection();
+      hideActivityFromMenu(taskTagIdForIsolation(task));
+      return;
+    }
     openTaskModal(task.id, occurrenceDate);
   });
 

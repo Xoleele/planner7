@@ -3069,7 +3069,34 @@ function openTagsModal() {
     }
   }
   renderTagsList();
+  // Visibilidad al abrir: al cerrar el panel, si cambió, todo el lote de cambios
+  // se registra como UN solo paso de Ctrl+Z.
+  tagsModalVisSnapshot = captureTagVisibility();
+  watchTagsModalClose(modal);
   modal.classList.remove('hidden');
+}
+
+let tagsModalVisSnapshot = null;
+
+// Detecta el cierre del panel (X, clic fuera, Escape, pasar a editar…) sin
+// depender de cada forma de cerrarlo.
+function watchTagsModalClose(modal) {
+  if (!modal || modal.dataset.visWatch === 'true') return;
+  modal.dataset.visWatch = 'true';
+  new MutationObserver(() => {
+    if (modal.classList.contains('hidden')) commitTagsModalVisibilityUndo();
+  }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+}
+
+function commitTagsModalVisibilityUndo() {
+  const before = tagsModalVisSnapshot;
+  tagsModalVisSnapshot = null;
+  if (!before) return;
+  const changed = Object.keys(before).some(id => {
+    const t = tags.find(x => x.id === id);
+    return t && (t.visible !== false) !== before[id];
+  });
+  if (changed) pushUndoEntry({ tagVis: before });
 }
 
 // Abre la ventana aparte de crear/editar actividad y cierra el gestor de actividades.

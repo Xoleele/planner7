@@ -928,9 +928,16 @@ function openTaskContextMenu(x, y, task, dayIndex) {
   openIsolationContextMenu(x, y, items);
 }
 
+// Shift+clic selecciona texto en el navegador: se limpia esa selección.
+function clearShiftClickSelection() {
+  try { const sel = window.getSelection(); if (sel) sel.removeAllRanges(); } catch (_) {}
+}
+
 function hideActivityFromMenu(tagId) {
   const tag = tags.find(t => t.id === tagId);
-  if (!tag) return;
+  if (!tag || tag.visible === false) return;
+  // Ctrl+Z deshace este ocultamiento (uno por vez).
+  pushUndoEntry({ tagVis: captureTagVisibility([tagId]) });
   tag.visible = false;
   // Si justo esa actividad estaba aislada, el aislamiento ya no tiene sentido.
   if (isolatedTagId === tagId) isolatedTagId = null;
@@ -1401,45 +1408,91 @@ function saveTagsToStorage() {
 }
 
 // --- Undo/Redo System (CTRL+Z / CTRL+Y) ---
-function pushToUndoStack() {
-  // Guardamos una copia profunda del estado de las tareas
-  undoStack.push(JSON.stringify(tasks));
-  if (undoStack.length > 50) {
-    undoStack.shift(); // Limitar a 50 estados
+// Cada entrada de las pilas es un objeto con las partes del estado que guarda:
+//   { tasks: <json de tasks> }             → cambios en tareas (lo habitual)
+//   { tasks, tags: <json de tags> }        → borrar actividad (tareas + actividades)
+//   { tagVis: { tagId: bool, … } }         → cambios de visibilidad de actividades
+// (Las entradas antiguas eran un string con el json de tasks: se siguen aceptando.)
+const UNDO_LIMIT = 50;
+
+function normalizeUndoEntry(entry) {
+  return typeof entry === 'string' ? { tasks: entry } : entry;
+}
+
+// Visibilidad actual de las actividades indicadas (o de todas).
+function captureTagVisibility(ids) {
+  const vis = {};
+  tags.forEach(t => {
+    if (!ids || ids.includes(t.id)) vis[t.id] = t.visible !== false;
+  });
+  return vis;
+}
+
+// Estado ACTUAL con las mismas partes que `entry` (para la pila contraria).
+function captureStateLike(entry) {
+  const out = {};
+  if (entry.tasks !== undefined) out.tasks = JSON.stringify(tasks);
+  if (entry.tags !== undefined) out.tags = JSON.stringify(tags);
+  if (entry.tagVis !== undefined) out.tagVis = captureTagVisibility(Object.keys(entry.tagVis));
+  return out;
+}
+
+function applyUndoEntry(entry) {
+  let tagsChanged = false;
+  if (entry.tasks !== undefined) {
+    tasks = JSON.parse(entry.tasks);
+    saveTasksToStorage();
   }
-  // Al realizar una nueva acción, se limpia la pila de rehacer
+  if (entry.tags !== undefined) {
+    tags = JSON.parse(entry.tags);
+    tagsChanged = true;
+  }
+  if (entry.tagVis !== undefined) {
+    tags.forEach(t => {
+      if (Object.prototype.hasOwnProperty.call(entry.tagVis, t.id)) t.visible = entry.tagVis[t.id];
+    });
+    tagsChanged = true;
+  }
+  if (tagsChanged) {
+    saveTagsToStorage();
+    if (typeof buildTagSelectorOptions === 'function') buildTagSelectorOptions();
+    const tagsModal = document.getElementById('tags-modal');
+    if (tagsModal && !tagsModal.classList.contains('hidden') && typeof renderTagsList === 'function') {
+      renderTagsList();
+    }
+  }
+  renderWeeklyCalendar();
+}
+
+function pushLimited(stack, entry) {
+  stack.push(entry);
+  if (stack.length > UNDO_LIMIT) stack.shift();
+}
+
+// Registra una entrada de deshacer (y limpia la pila de rehacer).
+function pushUndoEntry(entry) {
+  pushLimited(undoStack, entry);
   redoStack = [];
+}
+
+function pushToUndoStack() {
+  // Copia profunda del estado de las tareas.
+  pushUndoEntry({ tasks: JSON.stringify(tasks) });
 }
 
 async function undo() {
   if (undoStack.length === 0) return false;
-
-  // Guardar el estado actual en la pila de rehacer antes de aplicar el cambio
-  redoStack.push(JSON.stringify(tasks));
-  if (redoStack.length > 50) {
-    redoStack.shift();
-  }
-
-  const previousState = JSON.parse(undoStack.pop());
-  tasks = previousState;
-  saveTasksToStorage();
-  renderWeeklyCalendar();
+  const entry = normalizeUndoEntry(undoStack.pop());
+  pushLimited(redoStack, captureStateLike(entry));
+  applyUndoEntry(entry);
   return true;
 }
 
 async function redo() {
   if (redoStack.length === 0) return false;
-
-  // Guardar el estado actual en la pila de deshacer antes de rehacer
-  undoStack.push(JSON.stringify(tasks));
-  if (undoStack.length > 50) {
-    undoStack.shift();
-  }
-
-  const nextState = JSON.parse(redoStack.pop());
-  tasks = nextState;
-  saveTasksToStorage();
-  renderWeeklyCalendar();
+  const entry = normalizeUndoEntry(redoStack.pop());
+  pushLimited(undoStack, captureStateLike(entry));
+  applyUndoEntry(entry);
   return true;
 }
 
@@ -3116,6 +3169,13 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
       if (e.target.closest('.task-check-btn')) return;
       if (suppressNextCronogramaClick) { e.stopPropagation(); return; }
       e.stopPropagation();
+      // Escritorio: Shift+clic en un bloque = "Ocultar actividad".
+      if (e.shiftKey && !isMobile()) {
+        e.preventDefault();
+        clearShiftClickSelection();
+        hideActivityFromMenu(taskTagIdForIsolation(task));
+        return;
+      }
       openTaskModal(task.id, occurrenceDate || null);
     });
 

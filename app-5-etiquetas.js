@@ -729,7 +729,8 @@ function confirmDeleteTagModal() {
 //  action.reassignTo = id           -> mover las tareas a esa etiqueta
 //  action.deleteTasks = true        -> eliminar las tareas
 function performTagDeletion(tagId, action) {
-  pushToUndoStack();
+  // Ctrl+Z restaura tareas Y actividades (incluidas las palabras clave movidas).
+  pushUndoEntry({ tasks: JSON.stringify(tasks), tags: JSON.stringify(tags) });
 
   if (action && action.deleteTasks) {
     tasks = tasks.filter(t => t.tagId !== tagId);
