@@ -3400,7 +3400,7 @@ function renderArchiveListsModal() {
   const hint = document.getElementById('archive-lists-hint');
   if (hint) hint.textContent = full
     ? `Llegaste al máximo de ${ARCHIVE_MAX_LISTS} listas (la principal + ${ARCHIVE_MAX_LISTS - 1} subcategorías).`
-    : `Máximo ${ARCHIVE_MAX_LISTS} listas en total (la principal + ${ARCHIVE_MAX_LISTS - 1} subcategorías).`;
+    : '';
 }
 
 // Reordenar subcategorías arrastrando el handle (ratón y táctil). El nuevo
