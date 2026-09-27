@@ -3080,11 +3080,14 @@ async function importUserDataFromFile(file) {
 
   const when = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString('es-CL') : 'fecha desconocida';
   const ok = confirm(
-    `Importar datos exportados el ${when}` +
+    '⚠️ ADVERTENCIA: se BORRARÁN todos los datos actuales de tu cuenta\n' +
+    '(tareas, actividades, notas y preferencias) y se reemplazarán por los del archivo.\n' +
+    'Esta acción NO se puede deshacer.\n\n' +
+    `Archivo exportado el ${when}` +
     `${parsed.account ? ' (cuenta ' + parsed.account + ')' : ''}:\n` +
     `• ${result.tasks.length} tareas\n• ${result.tags.length} actividades\n\n` +
-    'Esto REEMPLAZARÁ todos los datos actuales de tu cuenta (tareas, actividades, notas y preferencias). ' +
-    'No se puede deshacer. Si quieres conservar lo actual, exporta tus datos antes.\n\n¿Continuar?'
+    'Si quieres conservar lo que tienes ahora, cancela y usa primero Herramientas → Exportar datos.\n\n' +
+    '¿Borrar tus datos actuales e importar este archivo?'
   );
   if (!ok) return;
 

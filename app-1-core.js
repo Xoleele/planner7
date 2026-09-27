@@ -696,6 +696,11 @@ function openSettingsModal() {
       closeSettingsModal();
       openChangePasswordModal();
     });
+    const importBtn = document.getElementById('settings-import-data-btn');
+    if (importBtn) importBtn.addEventListener('click', () => {
+      closeSettingsModal();
+      openImportUserDataPicker();
+    });
     const deleteAccBtn = document.getElementById('settings-delete-account-btn');
     if (deleteAccBtn) deleteAccBtn.addEventListener('click', () => {
       closeSettingsModal();
@@ -837,10 +842,6 @@ function setupUserMenu() {
           <img src="icons/download.svg" alt="" width="14" height="14">
           Exportar datos
         </button>
-        <button id="import-data-btn" class="user-dropdown-item">
-          <img src="icons/download.svg" alt="" width="14" height="14" style="transform: rotate(180deg);">
-          Importar datos
-        </button>
         <button id="tools-back-btn" class="user-dropdown-item user-dropdown-back">
           <img src="icons/chevron-left.svg" alt="" width="12" height="12" style="opacity: 0.6;">
           Atrás
@@ -878,7 +879,7 @@ function setupUserMenu() {
     bindTool('buscador-menu-btn', () => openBuscadorModal());
     bindTool('note-template-btn', () => openNoteTemplateModal());
     bindTool('export-data-btn', () => exportUserData());
-    bindTool('import-data-btn', () => openImportUserDataPicker());
+
 
     const statsMenuBtn = document.getElementById('stats-menu-btn');
     if (statsMenuBtn) {
