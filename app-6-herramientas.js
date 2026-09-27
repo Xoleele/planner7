@@ -2225,11 +2225,14 @@ function setupEventListeners() {
     if (isMobile()) briefcaseTrashBtn.style.display = '';
 
     briefcaseTrashBtn.addEventListener('click', () => {
-      const briefcaseTasks = tasks.filter(t => !t.date);
+      // Solo las tareas de la lista visible del panel.
+      const visibleList = getVisibleArchiveListId();
+      const briefcaseTasks = getArchivedTasksOfList(visibleList);
       if (briefcaseTasks.length === 0) return;
-      if (!confirm('¿Eliminar todas las tareas archivadas?')) return;
+      if (!confirm(`¿Eliminar todas las tareas de «${archiveListName(visibleList)}»?`)) return;
       pushToUndoStack();
-      tasks = tasks.filter(t => t.date);
+      const ids = new Set(briefcaseTasks.map(t => t.id));
+      tasks = tasks.filter(t => !ids.has(t.id));
       saveTasksToStorage();
       renderBriefcaseTasks();
       renderWeeklyCalendar();
@@ -3055,12 +3058,419 @@ function updateMobileFeedTasks() {
 function initMobileScrollWeekChange() {}
 
 // ─── Funciones Auxiliares del Maletín ───────────────────────────────────────
+// ─── Listas de Archivados (subcategorías) ────────────────────────────────────
+// El panel de Archivados puede tener varias listas: la principal (nombre
+// editable, por defecto "Archivados") y hasta 4 subcategorías (5 listas en
+// total). La configuración se guarda en la cuenta (preferences.archiveLists).
+// Cada tarea archivada guarda su lista en task.archiveList (id de subcategoría;
+// null/ausente = lista principal).
+const ARCHIVE_MAX_LISTS = 5; // principal + 4 subcategorías
+let archiveListsConfig = { mainName: 'Archivados', subs: [] };
+let currentArchiveListId = null; // lista visible en el panel (null = principal)
+try {
+  const savedList = localStorage.getItem('archiveCurrentList');
+  if (savedList) currentArchiveListId = savedList;
+} catch (e) {}
+
+function loadArchiveListsFromPrefs(prefs) {
+  const cfg = prefs && prefs.archiveLists;
+  archiveListsConfig = {
+    mainName: (cfg && typeof cfg.mainName === 'string' && cfg.mainName.trim()) ? cfg.mainName.trim() : 'Archivados',
+    subs: (cfg && Array.isArray(cfg.subs))
+      ? cfg.subs.filter(s => s && s.id && typeof s.name === 'string').slice(0, ARCHIVE_MAX_LISTS - 1)
+      : []
+  };
+}
+
+function saveArchiveListsConfig() {
+  if (typeof saveSettingPreferences === 'function') {
+    saveSettingPreferences({ archiveLists: archiveListsConfig });
+  }
+}
+
+function archiveListExists(id) {
+  return !!id && archiveListsConfig.subs.some(s => s.id === id);
+}
+
+// Lista a la que pertenece una tarea archivada (null = principal).
+function getArchiveListOfTask(task) {
+  return archiveListExists(task.archiveList) ? task.archiveList : null;
+}
+
+function getVisibleArchiveListId() {
+  if (!archiveListExists(currentArchiveListId)) currentArchiveListId = null;
+  return currentArchiveListId;
+}
+
+function archiveListName(id) {
+  if (!id) return archiveListsConfig.mainName || 'Archivados';
+  const s = archiveListsConfig.subs.find(x => x.id === id);
+  return s ? s.name : (archiveListsConfig.mainName || 'Archivados');
+}
+
+function setCurrentArchiveList(id) {
+  currentArchiveListId = archiveListExists(id) ? id : null;
+  try {
+    if (currentArchiveListId) localStorage.setItem('archiveCurrentList', currentArchiveListId);
+    else localStorage.removeItem('archiveCurrentList');
+  } catch (e) {}
+  renderBriefcaseTasks();
+}
+
+// Las tareas que ACABAN de archivarse (nuevas o que tenían fecha) van a la
+// lista visible en el panel. Al volver al calendario pierden la marca de lista.
+// Se ejecuta antes de guardar y antes de dibujar el panel, así cubre todas las
+// formas de archivar (arrastrar, editor de tareas, "Agregar tarea"…).
+let archiveStateById = null; // id -> ¿estaba archivada la última vez?
+function resetArchiveAssignmentBaseline() { archiveStateById = null; }
+function syncArchiveListAssignments() {
+  if (!Array.isArray(tasks)) return;
+  const first = archiveStateById === null;
+  if (first) archiveStateById = new Map();
+  const visible = getVisibleArchiveListId();
+  tasks.forEach(t => {
+    if (!t || !t.id) return;
+    const archived = !t.date;
+    if (!archived) {
+      if (t.archiveList !== undefined) delete t.archiveList;
+    } else if (!first && t.archiveList === undefined && archiveStateById.get(t.id) !== true) {
+      t.archiveList = visible; // null = principal
+    }
+    archiveStateById.set(t.id, archived);
+  });
+}
+
+// Tareas archivadas de una lista.
+function getArchivedTasksOfList(listId) {
+  return tasks.filter(t => !t.date && getArchiveListOfTask(t) === (listId || null));
+}
+
+// Cambia una tarea archivada de lista (con Ctrl+Z).
+function moveArchivedTaskToList(taskId, listId) {
+  const task = tasks.find(t => t.id === taskId);
+  if (!task || task.date) return;
+  const target = archiveListExists(listId) ? listId : null;
+  if (getArchiveListOfTask(task) === target) return;
+  pushToUndoStack();
+  task.archiveList = target;
+  // Queda arriba de su nueva lista.
+  const others = getArchivedTasksOfList(target).filter(t => t.id !== task.id);
+  task.position = others.reduce((min, t) => Math.min(min, t.position || 0), 0) - 10;
+  saveTasksToStorage();
+  renderBriefcaseTasks();
+  if (typeof showCenterToast === 'function') showCenterToast(`Movida a «${archiveListName(target)}»`);
+}
+
+// ── Desplegable del título ──
+function closeArchiveListMenu() {
+  const m = document.getElementById('archive-list-menu');
+  if (m) m.remove();
+  const btn = document.getElementById('briefcase-title-btn');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+  document.removeEventListener('click', onArchiveMenuOutsideClick, true);
+}
+
+function onArchiveMenuOutsideClick(e) {
+  if (e.target.closest('#archive-list-menu') || e.target.closest('#briefcase-title-btn')) return;
+  closeArchiveListMenu();
+}
+
+// mode 'nav'  → clic en el título: listas para cambiar de vista + crear/modificar.
+// mode 'drop' → arrastrando una tarea archivada: listas (menos la actual) para soltarla.
+function openArchiveListMenu(mode) {
+  closeArchiveListMenu();
+  const drawer = document.getElementById('briefcase-drawer');
+  const titleBtn = document.getElementById('briefcase-title-btn');
+  if (!drawer || !titleBtn) return;
+  const visible = getVisibleArchiveListId();
+  const lists = [{ id: null, name: archiveListsConfig.mainName || 'Archivados' }, ...archiveListsConfig.subs];
+  const hasSubs = archiveListsConfig.subs.length > 0;
+  if (mode === 'drop' && !hasSubs) return;
+
+  const menu = document.createElement('div');
+  menu.id = 'archive-list-menu';
+  menu.className = 'context-menu archive-list-menu' + (mode === 'drop' ? ' is-drop' : '');
+
+  if (mode === 'drop') {
+    const hint = document.createElement('div');
+    hint.className = 'archive-list-menu-hint';
+    hint.textContent = 'Suelta sobre una lista para moverla';
+    menu.appendChild(hint);
+  }
+
+  if (hasSubs) {
+    lists.forEach(l => {
+      if (mode === 'drop' && l.id === visible) return;
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'context-menu-item archive-list-item' + (l.id === visible ? ' is-current' : '');
+      item.textContent = l.name;
+      if (mode === 'nav') {
+        item.addEventListener('click', () => { closeArchiveListMenu(); setCurrentArchiveList(l.id); });
+      } else {
+        item.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = 'move';
+          item.classList.add('drag-over');
+        });
+        item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+        item.addEventListener('drop', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = draggedTaskId || e.dataTransfer.getData('text/plain');
+          closeArchiveListMenu();
+          if (id) moveArchivedTaskToList(id, l.id);
+        });
+      }
+      menu.appendChild(item);
+    });
+  }
+
+  if (mode === 'nav') {
+    if (hasSubs) {
+      const sep = document.createElement('div');
+      sep.className = 'archive-list-menu-sep';
+      menu.appendChild(sep);
+    }
+    const manage = document.createElement('button');
+    manage.type = 'button';
+    manage.className = 'context-menu-item archive-list-manage';
+    manage.textContent = hasSubs ? 'Modificar subcategorías' : 'Crear subcategorías';
+    manage.addEventListener('click', () => { closeArchiveListMenu(); openArchiveListsModal(); });
+    menu.appendChild(manage);
+  }
+
+  drawer.appendChild(menu);
+  // Debajo del título (coordenadas dentro del panel, que puede estar escalado).
+  const header = drawer.querySelector('.drawer-header');
+  menu.style.top = (header ? header.offsetHeight - 6 : 60) + 'px';
+  menu.style.left = (titleBtn.offsetLeft) + 'px';
+  titleBtn.setAttribute('aria-expanded', 'true');
+  if (mode === 'nav') setTimeout(() => document.addEventListener('click', onArchiveMenuOutsideClick, true), 0);
+}
+
+function setupArchiveListsUI() {
+  const titleBtn = document.getElementById('briefcase-title-btn');
+  if (!titleBtn || titleBtn.dataset.bound === 'true') return;
+  titleBtn.dataset.bound = 'true';
+  titleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (document.getElementById('archive-list-menu')) closeArchiveListMenu();
+    else openArchiveListMenu('nav');
+  });
+  // Arrastrar una tarea ARCHIVADA sobre el título → desplegar las listas.
+  titleBtn.addEventListener('dragover', (e) => {
+    const t = draggedTaskId ? tasks.find(x => x.id === draggedTaskId) : null;
+    if (!t || t.date) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const m = document.getElementById('archive-list-menu');
+    if (!m || !m.classList.contains('is-drop')) openArchiveListMenu('drop');
+  });
+  titleBtn.addEventListener('drop', (e) => { e.preventDefault(); e.stopPropagation(); });
+  document.addEventListener('dragend', () => {
+    const m = document.getElementById('archive-list-menu');
+    if (m && m.classList.contains('is-drop')) closeArchiveListMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('archive-list-menu')) closeArchiveListMenu();
+  });
+
+  // Botones del panel de subcategorías.
+  const addBtn = document.getElementById('archive-add-sub-btn');
+  if (addBtn) addBtn.addEventListener('click', () => {
+    if (!archiveDraft || archiveDraft.subs.length >= ARCHIVE_MAX_LISTS - 1) return;
+    archiveDraft.subs.push({ id: 'alist-' + Date.now() + '-' + Math.floor(Math.random() * 1000), name: '' });
+    renderArchiveListsModal();
+    const inputs = document.querySelectorAll('#archive-subs-list input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  });
+  const saveBtn = document.getElementById('archive-lists-save-btn');
+  if (saveBtn) saveBtn.addEventListener('click', saveArchiveListsModal);
+  const cancelBtn = document.getElementById('archive-lists-cancel-btn');
+  if (cancelBtn) cancelBtn.addEventListener('click', closeArchiveListsModal);
+  const delConfirm = document.getElementById('archive-delete-confirm-btn');
+  if (delConfirm) delConfirm.addEventListener('click', confirmArchiveSubDeletion);
+  const delCancel = document.getElementById('archive-delete-cancel-btn');
+  if (delCancel) delCancel.addEventListener('click', closeArchiveDeleteModal);
+}
+
+// ── Panel "Subcategorías de archivados" ──
+// Borrador: los cambios se aplican solo al pulsar Guardar.
+let archiveDraft = null; // { mainName, subs:[{id,name}], deletions:[{id, moveTo|null, deleteTasks}] }
+
+function openArchiveListsModal() {
+  archiveDraft = {
+    mainName: archiveListsConfig.mainName,
+    subs: archiveListsConfig.subs.map(s => ({ ...s })),
+    deletions: []
+  };
+  const title = document.getElementById('archive-lists-modal-title');
+  if (title) title.textContent = archiveListsConfig.subs.length ? 'Modificar subcategorías' : 'Crear subcategorías';
+  const mainInput = document.getElementById('archive-main-name');
+  if (mainInput) mainInput.value = archiveDraft.mainName;
+  renderArchiveListsModal();
+  const modal = document.getElementById('archive-lists-modal');
+  if (modal) modal.classList.remove('hidden');
+  // Si aún no hay subcategorías, dejar una fila lista para escribir.
+  if (!archiveDraft.subs.length) {
+    document.getElementById('archive-add-sub-btn').click();
+  }
+}
+
+function closeArchiveListsModal() {
+  const modal = document.getElementById('archive-lists-modal');
+  if (modal) modal.classList.add('hidden');
+  archiveDraft = null;
+}
+
+function renderArchiveListsModal() {
+  const list = document.getElementById('archive-subs-list');
+  if (!list || !archiveDraft) return;
+  list.innerHTML = '';
+  archiveDraft.subs.forEach((sub, idx) => {
+    const row = document.createElement('div');
+    row.className = 'archive-sub-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = sub.name;
+    input.placeholder = `Subcategoría ${idx + 1}`;
+    input.maxLength = 40;
+    input.autocomplete = 'off';
+    input.addEventListener('input', () => { sub.name = input.value; });
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'tag-action-btn';
+    del.title = 'Eliminar subcategoría';
+    del.innerHTML = '<img src="icons/trash.svg" alt="Eliminar" width="14" height="14">';
+    del.addEventListener('click', () => requestArchiveSubDeletion(sub.id));
+    row.append(input, del);
+    list.appendChild(row);
+  });
+  const addBtn = document.getElementById('archive-add-sub-btn');
+  const full = archiveDraft.subs.length >= ARCHIVE_MAX_LISTS - 1;
+  if (addBtn) {
+    addBtn.disabled = full;
+    addBtn.style.opacity = full ? '0.5' : '';
+  }
+  const hint = document.getElementById('archive-lists-hint');
+  if (hint) hint.textContent = full
+    ? `Llegaste al máximo de ${ARCHIVE_MAX_LISTS} listas (la principal + ${ARCHIVE_MAX_LISTS - 1} subcategorías).`
+    : `Máximo ${ARCHIVE_MAX_LISTS} listas en total (la principal + ${ARCHIVE_MAX_LISTS - 1} subcategorías).`;
+}
+
+let pendingArchiveDeleteId = null;
+
+function requestArchiveSubDeletion(subId) {
+  if (!archiveDraft) return;
+  const count = getArchivedTasksOfList(subId).length;
+  if (count === 0) {
+    archiveDraft.subs = archiveDraft.subs.filter(s => s.id !== subId);
+    archiveDraft.deletions.push({ id: subId, moveTo: null, deleteTasks: false });
+    renderArchiveListsModal();
+    return;
+  }
+  // Tiene tareas: preguntar qué hacer con ellas (como al borrar una actividad).
+  pendingArchiveDeleteId = subId;
+  const sub = archiveDraft.subs.find(s => s.id === subId);
+  const subName = (sub && sub.name.trim()) || 'esta subcategoría';
+  const msg = document.getElementById('archive-delete-message');
+  if (msg) {
+    const plural = count === 1 ? 'tarea está' : 'tareas están';
+    msg.innerHTML = `<strong>${count}</strong> ${plural} en &laquo;${escapeHtmlAdj(subName)}&raquo;. ` +
+      'Antes de eliminarla, elige qu&eacute; hacer con esas tareas:';
+  }
+  const select = document.getElementById('archive-delete-select');
+  if (select) {
+    select.innerHTML = '';
+    const targets = [{ id: '', name: (archiveDraft.mainName || '').trim() || 'Archivados' },
+      ...archiveDraft.subs.filter(s => s.id !== subId).map((s, i) => ({ id: s.id, name: s.name.trim() || `Subcategoría ${i + 1}` }))];
+    targets.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = 'move:' + t.id;
+      opt.textContent = 'Mover a: ' + t.name;
+      select.appendChild(opt);
+    });
+    const del = document.createElement('option');
+    del.value = 'delete-tasks';
+    del.textContent = 'Eliminar también esas tareas';
+    select.appendChild(del);
+  }
+  const modal = document.getElementById('archive-delete-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeArchiveDeleteModal() {
+  const modal = document.getElementById('archive-delete-modal');
+  if (modal) modal.classList.add('hidden');
+  pendingArchiveDeleteId = null;
+}
+
+function confirmArchiveSubDeletion() {
+  const subId = pendingArchiveDeleteId;
+  if (!subId || !archiveDraft) { closeArchiveDeleteModal(); return; }
+  const select = document.getElementById('archive-delete-select');
+  const choice = select ? select.value : 'move:';
+  const deletion = choice === 'delete-tasks'
+    ? { id: subId, moveTo: null, deleteTasks: true }
+    : { id: subId, moveTo: choice.slice(5) || null, deleteTasks: false };
+  // Si otra subcategoría eliminada apuntaba a esta, ahora apunta al mismo destino.
+  archiveDraft.deletions.forEach(d => { if (d.moveTo === subId) d.moveTo = deletion.moveTo; });
+  archiveDraft.deletions.push(deletion);
+  archiveDraft.subs = archiveDraft.subs.filter(s => s.id !== subId);
+  closeArchiveDeleteModal();
+  renderArchiveListsModal();
+}
+
+function saveArchiveListsModal() {
+  if (!archiveDraft) return;
+  const mainInput = document.getElementById('archive-main-name');
+  const mainName = ((mainInput ? mainInput.value : archiveDraft.mainName) || '').trim() || 'Archivados';
+  // Subcategorías sin nombre se descartan (si no tienen tareas; si tienen, se
+  // les pone un nombre por defecto).
+  const subs = [];
+  archiveDraft.subs.forEach((s, i) => {
+    const name = (s.name || '').trim();
+    if (name) subs.push({ id: s.id, name });
+    else if (getArchivedTasksOfList(s.id).length) subs.push({ id: s.id, name: `Subcategoría ${i + 1}` });
+  });
+
+  // Aplicar lo elegido para las tareas de las subcategorías eliminadas.
+  const affected = archiveDraft.deletions.filter(d => getArchivedTasksOfList(d.id).length > 0);
+  if (affected.length) {
+    pushToUndoStack();
+    affected.forEach(d => {
+      if (d.deleteTasks) {
+        tasks = tasks.filter(t => !(!t.date && t.archiveList === d.id));
+      } else {
+        const target = subs.some(s => s.id === d.moveTo) ? d.moveTo : null;
+        tasks.forEach(t => { if (!t.date && t.archiveList === d.id) t.archiveList = target; });
+      }
+    });
+    saveTasksToStorage();
+  }
+
+  archiveListsConfig = { mainName, subs: subs.slice(0, ARCHIVE_MAX_LISTS - 1) };
+  saveArchiveListsConfig();
+  closeArchiveListsModal();
+  getVisibleArchiveListId(); // si la lista visible se eliminó, volver a la principal
+  renderBriefcaseTasks();
+}
+
 function renderBriefcaseTasks() {
   const container = document.getElementById('briefcase-tasks-container');
   if (!container) return;
   container.innerHTML = '';
+  setupArchiveListsUI();
+  syncArchiveListAssignments();
 
-  const briefcaseTasks = tasks.filter(t => !t.date);
+  // Título del panel = nombre de la lista visible.
+  const visibleList = getVisibleArchiveListId();
+  const titleH = document.querySelector('#briefcase-title-btn h3');
+  if (titleH) titleH.textContent = archiveListName(visibleList);
+
+  const briefcaseTasks = getArchivedTasksOfList(visibleList);
 
   if (briefcaseTasks.length === 0) {
     container.innerHTML = `

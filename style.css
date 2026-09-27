@@ -4165,7 +4165,7 @@ html:not(.mobile-mode) .briefcase-drawer.closed {
 }
 html:not(.mobile-mode) .briefcase-drawer .drawer-header {
   position: relative;
-  padding: 28px 24px 20px;     /* más aire arriba para los puntos de agarre */
+  padding: 20px 24px;          /* igual que .modal-header */
   min-height: unset;
   cursor: move;
 }
@@ -4186,21 +4186,72 @@ html:not(.mobile-mode) .briefcase-drawer .drawer-header {
   margin-top: 2px;
 }
 
-/* Puntos de agarre arriba al centro: indican que el panel se puede mover. */
-html:not(.mobile-mode) .briefcase-drawer .drawer-header::before {
-  content: "";
+/* Desplegable del título de Archivados (listas / subcategorías). */
+.archive-list-menu {
   position: absolute;
-  top: 11px;
-  left: 50%;
-  transform: translateX(-50%) scale(1.35); /* puntos escalados como un todo */
-  transform-origin: center top;
-  width: 32px;                /* 5 columnas */
-  height: 8.8px;              /* 2 filas */
-  background-image: radial-gradient(circle, var(--text-muted) 1.2px, transparent 1.5px);
-  background-size: 6.4px 4.4px; /* separación entre puntos */
-  opacity: 0.55;
-  pointer-events: none;
+  z-index: 5;
+  min-width: 200px;
 }
+.archive-list-item.is-current {
+  font-weight: 700;
+}
+.archive-list-item.is-current::after {
+  content: "✓";
+  margin-left: auto;
+  font-weight: 700;
+}
+.archive-list-item.drag-over {
+  background-color: rgba(0, 113, 227, 0.12);
+  color: #0071e3;
+}
+.archive-list-menu.is-drop .archive-list-item {
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+.archive-list-menu-hint {
+  padding: 6px 12px 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.archive-list-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border-light);
+}
+.archive-list-manage {
+  color: var(--text-muted);
+}
+/* Panel de subcategorías */
+.archive-lists-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.archive-subs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.archive-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.archive-sub-row input { flex: 1; }
+.archive-add-sub-btn {
+  width: 100%;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.archive-lists-hint {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
 html:not(.mobile-mode) .briefcase-drawer .drawer-header button {
   cursor: pointer;
 }

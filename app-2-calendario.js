@@ -1130,6 +1130,8 @@ async function startApp(user) {
       await saveTasks(tasks);
       // Tras subir todo, la nube refleja tasks[]: ese es el nuevo snapshot.
       resetSyncSnapshot(tasks);
+      // Lo recién cargado es la base: no se trata como "recién archivado".
+      if (typeof resetArchiveAssignmentBaseline === 'function') resetArchiveAssignmentBaseline();
       localStorage.setItem(cacheKey, JSON.stringify(tasks));
       localStorage.setItem(pendingSyncKey, 'false');
     } catch (e) {
@@ -1141,6 +1143,8 @@ async function startApp(user) {
       tasks = storedTasks;
       // Lo recién cargado de la nube ya está sincronizado: inicializa el snapshot.
       resetSyncSnapshot(tasks);
+      // Lo recién cargado es la base: no se trata como "recién archivado".
+      if (typeof resetArchiveAssignmentBaseline === 'function') resetArchiveAssignmentBaseline();
       try {
         localStorage.setItem(cacheKey, JSON.stringify(tasks));
         localStorage.setItem(pendingSyncKey, 'false');
@@ -1432,6 +1436,8 @@ function showCenterToast(message) {
 
 async function saveTasksToStorage() {
   if (!currentUser) return;
+  // Tareas recién archivadas → a la lista visible del panel de Archivados.
+  if (typeof syncArchiveListAssignments === 'function') syncArchiveListAssignments();
   const pendingSyncKey = 'tasks_pending_sync_' + currentUser.id;
   const cacheKey = 'tasks_cache_' + currentUser.id;
 

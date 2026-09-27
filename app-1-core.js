@@ -81,6 +81,8 @@ function applyUserSettingsFromPrefs(prefs) {
     generalStatsSavedLineTags = Array.isArray(prefs.generalStatsLineTags) ? prefs.generalStatsLineTags.slice(0, 3) : null;
     generalStatsSavedHabitTag = prefs.generalStatsHabitTag || null;
   }
+  // Listas (subcategorías) del panel de Archivados.
+  if (typeof loadArchiveListsFromPrefs === 'function') loadArchiveListsFromPrefs(prefs);
   // Fusiones de estadísticas antiguas (por día) → globales. Se aplica sobre los
   // mapas ya cargados desde estas mismas preferencias.
   if (typeof normalizeStatsMergesToGlobal === 'function') {

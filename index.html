@@ -774,6 +774,56 @@
     </div>
   </div>
 
+  <!-- MODAL: SUBCATEGORÍAS DE ARCHIVADOS -->
+  <div id="archive-lists-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2 id="archive-lists-modal-title">Crear subcategorías</h2>
+        <button class="close-modal-btn" data-modal="archive-lists-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body archive-lists-body">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="archive-main-name">Lista principal</label>
+          <input type="text" id="archive-main-name" maxlength="40" autocomplete="off" placeholder="Archivados">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label>Subcategorías</label>
+          <div id="archive-subs-list" class="archive-subs-list"></div>
+          <button type="button" id="archive-add-sub-btn" class="btn btn-secondary archive-add-sub-btn">
+            <span style="font-size: 16px; font-weight: 500; line-height: 1;">+</span> Agregar subcategoría
+          </button>
+          <div id="archive-lists-hint" class="archive-lists-hint"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="archive-lists-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="archive-lists-save-btn">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ELIMINAR SUBCATEGORÍA CON TAREAS -->
+  <div id="archive-delete-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Eliminar subcategoría</h2>
+        <button class="close-modal-btn" data-modal="archive-delete-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="archive-delete-message" style="font-size: 13.5px; margin-bottom: 12px;"></p>
+        <select id="archive-delete-select" style="width: 100%;"></select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="archive-delete-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="archive-delete-confirm-btn">Eliminar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: ATAJOS DEL TECLADO (solo informativo) -->
   <div id="shortcuts-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">
