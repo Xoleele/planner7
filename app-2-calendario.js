@@ -837,7 +837,15 @@ function applyDayIsolation() {
   applyActivityIsolation();
 }
 
+// Ctrl+Z / Ctrl+Y: cada aislar / restablecer es un paso deshacible.
+function pushIsolationUndo() {
+  if (typeof pushUndoEntry === 'function') {
+    pushUndoEntry({ isolation: { day: isolatedDay, tagId: isolatedTagId } });
+  }
+}
+
 function isolateDay(dayIndex) {
+  pushIsolationUndo();
   // Solo una herramienta de aislamiento a la vez.
   isolatedTagId = null;
   isolatedDay = dayIndex;
@@ -870,6 +878,7 @@ function applyActivityIsolation() {
 }
 
 function isolateActivity(tagId) {
+  pushIsolationUndo();
   isolatedDay = null; // solo una herramienta a la vez
   isolatedTagId = tagId;
   applyDayIsolation(); // también reaplica el aislamiento de actividad
@@ -881,6 +890,7 @@ function isAnyIsolationActive() {
 
 // Restablece cualquier aislamiento (día o actividad).
 function resetIsolation() {
+  if (isAnyIsolationActive()) pushIsolationUndo();
   isolatedDay = null;
   isolatedTagId = null;
   applyDayIsolation();
@@ -1490,6 +1500,7 @@ function saveTagsToStorage() {
 //   { tasks: <json de tasks> }             → cambios en tareas (lo habitual)
 //   { tasks, tags: <json de tags> }        → borrar actividad (tareas + actividades)
 //   { tagVis: { tagId: bool, … } }         → cambios de visibilidad de actividades
+//   { isolation: { day, tagId } }          → aislar día / actividad / restablecer
 // (Las entradas antiguas eran un string con el json de tasks: se siguen aceptando.)
 const UNDO_LIMIT = 50;
 
@@ -1512,6 +1523,7 @@ function captureStateLike(entry) {
   if (entry.tasks !== undefined) out.tasks = JSON.stringify(tasks);
   if (entry.tags !== undefined) out.tags = JSON.stringify(tags);
   if (entry.tagVis !== undefined) out.tagVis = captureTagVisibility(Object.keys(entry.tagVis));
+  if (entry.isolation !== undefined) out.isolation = { day: isolatedDay, tagId: isolatedTagId };
   return out;
 }
 
@@ -1530,6 +1542,11 @@ function applyUndoEntry(entry) {
       if (Object.prototype.hasOwnProperty.call(entry.tagVis, t.id)) t.visible = entry.tagVis[t.id];
     });
     tagsChanged = true;
+  }
+  if (entry.isolation !== undefined) {
+    isolatedDay = entry.isolation.day;
+    isolatedTagId = entry.isolation.tagId;
+    applyDayIsolation();
   }
   if (tagsChanged) {
     saveTagsToStorage();
