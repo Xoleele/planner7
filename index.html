@@ -497,11 +497,12 @@
           <div class="recurrence-toggle-wrapper">
             <div class="recurrence-toggle-left">
               <span class="recurrence-label-text">¿Se repite?</span>
-              <label class="switch">
-                <input type="checkbox" id="task-repeat-toggle">
-                <span class="slider round"></span>
-              </label>
-              <span id="recurrence-status-text" class="recurrence-status">No</span>
+              <!-- Checkbox visual (mismo estilo que "Completado"). El input real se
+                   conserva oculto porque el resto del código lo lee/escribe. -->
+              <input type="checkbox" id="task-repeat-toggle" style="display:none;">
+              <button type="button" id="task-repeat-btn" class="task-modal-check-btn" title="Repetir tarea" aria-label="¿Se repite?" aria-pressed="false"></button>
+              <!-- Texto Sí/No: oculto (el checkbox ya indica el estado). -->
+              <span id="recurrence-status-text" class="recurrence-status" style="display:none;">No</span>
             </div>
             <!-- Checkbox de completado (mismo icono SVG que las tareas) -->
             <div id="task-complete-wrapper" class="task-complete-wrapper hidden">
@@ -804,15 +805,14 @@
         </button>
       </div>
       <div class="modal-body">
+        <div class="settings-section-title settings-section-first">Preferencias</div>
         <div class="settings-row">
           <div class="settings-label">
             <label for="setting-auto-end-time">Hora de fin al completar</label>
             <button type="button" class="settings-info-btn" data-info="info-auto-end-time" aria-label="Más información"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
           </div>
-          <label class="switch" style="flex-shrink: 0;">
-            <input type="checkbox" id="setting-auto-end-time">
-            <span class="slider round"></span>
-          </label>
+          <input type="checkbox" id="setting-auto-end-time" style="display:none;">
+          <button type="button" id="setting-auto-end-time-btn" class="task-modal-check-btn" aria-label="Hora de fin al completar" style="flex-shrink: 0;"></button>
         </div>
         <div id="info-auto-end-time" class="settings-info hidden">Al marcar como completada una tarea que no tiene hora de fin, se le pone la hora actual como hora de fin.</div>
 
@@ -834,10 +834,8 @@
             <label for="setting-show-desc">Mostrar descripción de tareas</label>
             <button type="button" class="settings-info-btn" data-info="info-show-desc" aria-label="Más información"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
           </div>
-          <label class="switch" style="flex-shrink: 0;">
-            <input type="checkbox" id="setting-show-desc">
-            <span class="slider round"></span>
-          </label>
+          <input type="checkbox" id="setting-show-desc" style="display:none;">
+          <button type="button" id="setting-show-desc-btn" class="task-modal-check-btn" aria-label="Mostrar descripción de tareas" style="flex-shrink: 0;"></button>
         </div>
         <div id="info-show-desc" class="settings-info hidden">Muestra u oculta el texto de la descripción en las tarjetas de tareas y en los bloques de la línea de tiempo. La descripción no se borra: sigue disponible al abrir la tarea.</div>
 

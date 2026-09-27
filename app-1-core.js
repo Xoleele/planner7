@@ -662,6 +662,11 @@ function openSettingsModal() {
   const durationSel = document.getElementById('setting-default-duration');
   const descToggle = document.getElementById('setting-show-desc');
   if (!modal || !toggle || !durationSel) return;
+  // Checkboxes (mismo estilo que el editor de tareas) sobre los inputs ocultos.
+  if (typeof setupCheckboxButton === 'function') {
+    setupCheckboxButton('setting-auto-end-time', 'setting-auto-end-time-btn');
+    setupCheckboxButton('setting-show-desc', 'setting-show-desc-btn');
+  }
   // Mostrar los valores vigentes (descarta lo que no se guardó la vez anterior).
   toggle.checked = autoSetEndTimeOnComplete;
   durationSel.value = String(defaultTaskDurationMin);

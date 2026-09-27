@@ -2945,7 +2945,60 @@ function renderTaskModalCheckbox(completed) {
     : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon"><rect x="3" y="3" width="18" height="18" rx="5"/></svg>';
 }
 
+// ─── Checkbox "¿Se repite?" ──────────────────────────────────────────────────
+// Botón con el mismo estilo que el checkbox "Completado" que refleja y controla
+// el input oculto #task-repeat-toggle (el resto del código sigue usando el input).
+const REPEAT_CHECK_SVG_ON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon checked"><rect x="3" y="3" width="18" height="18" rx="5"/><polyline points="8 12.5 11 15.5 16.5 9"/></svg>';
+const REPEAT_CHECK_SVG_OFF = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="task-check-icon"><rect x="3" y="3" width="18" height="18" rx="5"/></svg>';
+
+// Botón-checkbox genérico: refleja y controla un <input type="checkbox"> oculto.
+// Se usa en "¿Se repite?" y en Configuración.
+function renderCheckboxButton(input, btn) {
+  if (!input || !btn) return;
+  const on = !!input.checked;
+  btn.classList.toggle('is-checked', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  btn.disabled = !!input.disabled;
+  btn.style.opacity = input.disabled ? '0.4' : '';
+  btn.style.cursor = input.disabled ? 'default' : '';
+  btn.innerHTML = on ? REPEAT_CHECK_SVG_ON : REPEAT_CHECK_SVG_OFF;
+}
+
+function setupCheckboxButton(inputId, btnId) {
+  const input = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if (!input || !btn || btn.dataset.bound === 'true') return;
+  btn.dataset.bound = 'true';
+  const render = () => renderCheckboxButton(input, btn);
+  // Refrescar el botón también cuando el código cambia .checked / .disabled.
+  const proto = HTMLInputElement.prototype;
+  ['checked', 'disabled'].forEach(prop => {
+    const desc = Object.getOwnPropertyDescriptor(proto, prop);
+    try {
+      Object.defineProperty(input, prop, {
+        configurable: true,
+        get() { return desc.get.call(this); },
+        set(v) { desc.set.call(this, v); render(); }
+      });
+    } catch (e) {}
+  });
+  input.addEventListener('change', render);
+  if (input.form) input.form.addEventListener('reset', () => setTimeout(render, 0));
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (input.disabled) return;
+    input.checked = !input.checked;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  render();
+}
+
+function setupRepeatCheckbox() {
+  setupCheckboxButton('task-repeat-toggle', 'task-repeat-btn');
+}
+
 function openTaskModal(taskId = null, occurrenceDate = null) {
+  setupRepeatCheckbox();
   const modal = document.getElementById('task-modal');
   const form = document.getElementById('task-form');
   const deleteBtn = document.getElementById('delete-task-btn');
