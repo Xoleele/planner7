@@ -595,6 +595,17 @@ function setupEventListeners() {
       const dd = document.getElementById('user-dropdown');
       if (dd) dd.remove();
       estadisticasGenerales(formatDate(new Date()));
+    } else if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Atajo A: abrir/cerrar el panel de Archivados.
+      if (isAnyOverlayOpen()) return;
+      e.preventDefault();
+      toggleBriefcaseDrawer();
+    } else if ((e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Atajo H: ir a la semana actual (igual que el botón "Hoy").
+      if (isAnyOverlayOpen()) return;
+      e.preventDefault();
+      const todayBtn = document.getElementById('today-btn');
+      if (todayBtn) todayBtn.click();
     }
   });
 
