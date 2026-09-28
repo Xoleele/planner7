@@ -4004,6 +4004,7 @@ let copyTextOptions = {
   includePending: true,
   separate: true, // siempre se separan los grupos
   includeDate: false,
+  // includeTime: sin valor por defecto → hereda includeDate (preferencias antiguas).
   includeDesc: false,
   includeNote: false,
 };
@@ -4014,6 +4015,9 @@ function applyCopyOptionsToModal() {
     'copy-opt-pending': copyTextOptions.includePending,
     'copy-opt-separate': copyTextOptions.separate,
     'copy-opt-date': copyTextOptions.includeDate,
+    // Antes "fecha y hora" era una sola opción: si no hay valor propio de hora,
+    // se hereda el de fecha.
+    'copy-opt-time': copyTextOptions.includeTime !== undefined ? copyTextOptions.includeTime : copyTextOptions.includeDate,
     'copy-opt-desc': copyTextOptions.includeDesc,
     'copy-opt-note': copyTextOptions.includeNote,
   };

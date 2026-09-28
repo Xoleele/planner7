@@ -2815,9 +2815,14 @@ function buildCopyText(dateStr, opts) {
   const lineFor = (task) => {
     let line = task.title || '';
     // Hora de la tarea (si la opción "fecha y hora" está activa y hay hora).
-    if (opts.includeDate && (task.startTime || task.endTime)) {
-      const timeStr = formatTaskTimeText(task);
-      line = `${timeStr}. ${line}`;
+    // Duración de la tarea en formato "2h30min" / "2h" / "45min".
+    if (opts.includeTime) {
+      const mins = getTaskDurationMinutes(task);
+      if (mins) {
+        const h = Math.floor(mins / 60), m = mins % 60;
+        const durStr = h && m ? `${h}h${m}min` : (h ? `${h}h` : `${m}min`);
+        line = `${durStr}. ${line}`;
+      }
     }
     if (opts.includeDesc && task.description && task.description.trim() !== '') {
       line += `. ${task.description.trim()}`;
@@ -2861,6 +2866,7 @@ async function handleCopyTextConfirm() {
     includePending: document.getElementById('copy-opt-pending').checked,
     separate: document.getElementById('copy-opt-separate').checked,
     includeDate: document.getElementById('copy-opt-date').checked,
+    includeTime: document.getElementById('copy-opt-time').checked,
     includeDesc: document.getElementById('copy-opt-desc').checked,
     includeNote: document.getElementById('copy-opt-note').checked,
   };
