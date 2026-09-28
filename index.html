@@ -77,13 +77,23 @@
           <!-- Ventana de Calendario Personalizada -->
           <div id="custom-calendar-dropdown" class="custom-calendar-dropdown hidden">
             <div class="custom-calendar-header">
-              <button type="button" id="custom-calendar-prev-month" class="custom-calendar-nav-btn" aria-label="Mes anterior">
-                <img src="icons/chevron-left.svg" alt="Mes anterior" width="12" height="12">
-              </button>
+              <div class="custom-calendar-nav-group">
+                <button type="button" id="custom-calendar-prev-year" class="custom-calendar-nav-btn" aria-label="Año anterior" title="Año anterior">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline></svg>
+                </button>
+                <button type="button" id="custom-calendar-prev-month" class="custom-calendar-nav-btn" aria-label="Mes anterior" title="Mes anterior">
+                  <img src="icons/chevron-left.svg" alt="Mes anterior" width="12" height="12">
+                </button>
+              </div>
               <span id="custom-calendar-month-year">Mayo 2026</span>
-              <button type="button" id="custom-calendar-next-month" class="custom-calendar-nav-btn" aria-label="Mes siguiente">
-                <img src="icons/chevron-right.svg" alt="Mes siguiente" width="12" height="12">
-              </button>
+              <div class="custom-calendar-nav-group">
+                <button type="button" id="custom-calendar-next-month" class="custom-calendar-nav-btn" aria-label="Mes siguiente" title="Mes siguiente">
+                  <img src="icons/chevron-right.svg" alt="Mes siguiente" width="12" height="12">
+                </button>
+                <button type="button" id="custom-calendar-next-year" class="custom-calendar-nav-btn" aria-label="Año siguiente" title="Año siguiente">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg>
+                </button>
+              </div>
             </div>
             <div class="custom-calendar-weekdays">
               <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>

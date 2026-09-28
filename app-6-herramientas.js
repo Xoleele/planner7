@@ -646,6 +646,18 @@ function setupEventListeners() {
     });
   }
 
+  // Flechas dobles: navegar entre AÑOS (mismo mes del año anterior/siguiente).
+  [['custom-calendar-prev-year', -1], ['custom-calendar-next-year', 1]].forEach(([id, dir]) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      datePickerCurrentMonth.setDate(1); // evita saltos de mes (p. ej. 29 de febrero)
+      datePickerCurrentMonth.setFullYear(datePickerCurrentMonth.getFullYear() + dir);
+      renderCustomDatePicker();
+    });
+  });
+
   // Setup desktop columns click, add task buttons, and drag-and-drop listeners
   setupDesktopColumns(document);
 

@@ -2168,6 +2168,13 @@ input:checked + .slider:before {
   background-color: #f2f2f7;
 }
 
+/* Flecha doble (año) + flecha simple (mes) juntas a cada lado. */
+.custom-calendar-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .custom-calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
