@@ -134,8 +134,8 @@ function getStatsModalHTML(prefix) {
         </div>
       </div>
       <!-- Selector de etiqueta para el modo Hábitos (oculto en otros modos). -->
-      <div id="general-stats-habit-tag-row" class="general-stats-filters" style="display: none; padding: 8px 24px 0 24px; align-items: flex-end;">
-        <div class="form-group" style="flex: 2; margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+      <div id="general-stats-habit-tag-row" class="general-stats-filters" style="display: none; padding: 8px 24px 0 24px; align-items: flex-end; gap: 12px;">
+        <div class="form-group" style="flex: 3; min-width: 0; margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
           <label for="habit-tag-select-input" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Actividad</label>
           <div class="custom-select-wrapper">
             <input type="hidden" id="habit-select-tag" value="default">
@@ -149,9 +149,9 @@ function getStatsModalHTML(prefix) {
             <div class="custom-options-container hidden" id="habit-tag-options-container"></div>
           </div>
         </div>
-        <div class="form-group" style="flex: 1; margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+        <div class="form-group" style="flex: 2; min-width: 0; margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
           <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Constancia</label>
-          <div id="habit-streak-count" style="height: 38px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: var(--text-main); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card);">0/0</div>
+          <div id="habit-streak-count" style="height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; font-size: 15px; font-weight: 700; color: var(--text-main); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card);">0/0</div>
         </div>
       </div>
       ` : ''}
@@ -657,35 +657,29 @@ function habitDoneOnDate(dStr) {
   return tasks.some(task => {
     if ((task.tagId || 'default') !== generalStatsHabitTag) return false;
     if (!checkTaskOccurrence(task, dateObj)) return false;
-    return task.isRecurrent
+    return (task.recurrence && task.recurrence.enabled)
       ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
       : !!task.completed;
   });
 }
 
-// Actualiza el contador "completados / días transcurridos desde el primer
-// completado" basándose en los días del rango filtrado. El denominador va desde
-// el primer día completado (dentro del rango) hasta hoy, inclusivo.
+// Actualiza el contador de Constancia: "días completados / días de la muestra".
 function updateHabitStreakCount(dates) {
   const el = document.getElementById('habit-streak-count');
   if (!el) return;
+  // Constancia = días completados / días de la muestra (el periodo elegido,
+  // p. ej. 3/30 en "Últimos 30 días"). Los días futuros no cuentan.
   const todayStr = formatDate(new Date());
   let done = 0;
-  let firstDone = null;
-  dates.forEach(dStr => {
-    if (dStr > todayStr) return; // no contar días futuros
-    if (habitDoneOnDate(dStr)) {
-      done++;
-      if (!firstDone) firstDone = dStr; // dates viene en orden ascendente
-    }
-  });
   let total = 0;
-  if (firstDone) {
-    const a = new Date(firstDone + 'T12:00:00');
-    const b = new Date(todayStr + 'T12:00:00');
-    total = Math.round((b - a) / 86400000) + 1; // inclusivo
-  }
-  el.textContent = `${done}/${total}`;
+  dates.forEach(dStr => {
+    if (dStr > todayStr) return;
+    total++;
+    if (habitDoneOnDate(dStr)) done++;
+  });
+  // "completados/total" + porcentaje de constancia (gris, a la derecha).
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  el.innerHTML = `<span>${done}/${total}</span><span style="color: var(--text-muted); font-weight: 600;">${pct}%</span>`;
 }
 
 // Habit tracker estilo GitHub: un cuadrito por día. Se pinta del color de la
@@ -788,7 +782,7 @@ function topTagByCompletedDaysInRange(fromStr, toStr) {
     const dateObj = new Date(dStr + 'T12:00:00');
     const tagsDone = new Set();
     tasks.forEach(task => {
-      const done = task.isRecurrent
+      const done = (task.recurrence && task.recurrence.enabled)
         ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
         : !!task.completed;
       if (!done) return;
@@ -964,7 +958,7 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       const mins = getTaskDurationMinutes(task);
       if (mins === null || mins <= 0) return;
       
-      const isCompleted = task.isRecurrent
+      const isCompleted = (task.recurrence && task.recurrence.enabled)
         ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
         : !!task.completed;
         

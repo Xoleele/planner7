@@ -523,6 +523,21 @@ function setupEventListeners() {
 
   // Navegación con flechas del teclado (solo escritorio)
   document.addEventListener('keydown', (e) => {
+    // Atajo E con Estadísticas abierto: cerrarlo (E abre / E cierra). No aplica
+    // si se está escribiendo en un campo (p. ej. el buscador de actividad).
+    if ((e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey && !e.altKey && !isMobile()) {
+      const ae = document.activeElement;
+      const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable);
+      const openStats = ['general-stats-modal', 'daily-stats-modal']
+        .map(id => document.getElementById(id))
+        .find(m => m && !m.classList.contains('hidden'));
+      if (openStats && !typing) {
+        e.preventDefault();
+        openStats.classList.add('hidden');
+        return;
+      }
+    }
+
     // Si el modal de estadísticas diarias/generales está abierto, usar flechas para cambiar con animación de deslizamiento
     const activeModal = document.getElementById(activeStatsPrefix + '-modal');
     const editContent = document.getElementById(activeStatsPrefix + '-edit-content');
