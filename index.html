@@ -1168,7 +1168,7 @@
   <div id="copy-text-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">
       <div class="modal-header">
-        <h2>Copiar tareas como texto</h2>
+        <h2>Exportar día</h2>
         <button class="close-modal-btn" data-modal="copy-text-modal">
           <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
         </button>
@@ -1177,11 +1177,11 @@
         <div class="copy-options">
           <label class="copy-option">
             <input type="checkbox" id="copy-opt-completed" checked>
-            <span>Copiar completadas</span>
+            <span>Tareas completadas</span>
           </label>
           <label class="copy-option">
             <input type="checkbox" id="copy-opt-pending" checked>
-            <span>Copiar no completadas</span>
+            <span>Tareas no completadas</span>
           </label>
           <!-- "Separar" está siempre activa; la casilla se mantiene oculta para
                no romper el JS que la lee. -->
@@ -1201,8 +1201,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary close-modal-btn mobile-only" data-modal="copy-text-modal">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="copy-text-btn">Copiar</button>
+        <button type="button" class="btn btn-secondary" id="copy-text-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="copy-text-btn">Exportar</button>
       </div>
     </div>
   </div>

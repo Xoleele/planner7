@@ -911,12 +911,26 @@ function onOutsideContextMenu(e) {
   if (!e.target.closest('.day-column')) closeDayContextMenu();
 }
 
+// Fecha (YYYY-MM-DD) de la columna dayIndex (1..7) de la semana visible.
+function dateStrForDayIndex(dayIndex) {
+  return Number.isFinite(dayIndex) ? formatDate(addDays(currentWeekStart, dayIndex - 1)) : null;
+}
+
+// Opción "Exportar día" (abre el panel de exportación de ese día).
+function exportDayMenuItem(dayIndex) {
+  const dateStr = dateStrForDayIndex(dayIndex);
+  return dateStr ? { label: 'Exportar día', action: () => openCopyTextModal(dateStr) } : null;
+}
+
 function openDayContextMenu(x, y, dayIndex) {
   if (isAnyIsolationActive()) {
     // Ya hay algo aislado (día o actividad): la única opción es restablecer.
     openIsolationContextMenu(x, y, 'Restablecer', resetIsolation);
   } else {
-    openIsolationContextMenu(x, y, 'Aislar día', () => isolateDay(dayIndex));
+    const items = [{ label: 'Aislar día', action: () => isolateDay(dayIndex) }];
+    const exp = exportDayMenuItem(dayIndex);
+    if (exp) items.push(exp);
+    openIsolationContextMenu(x, y, items);
   }
 }
 
@@ -935,6 +949,8 @@ function openTaskContextMenu(x, y, task, dayIndex) {
   // Ocultar actividad: igual que apagar la bombilla en el panel de actividades
   // (se guarda; se vuelve a mostrar desde ese panel).
   items.push({ label: 'Ocultar actividad', action: () => hideActivityFromMenu(tagId) });
+  const exp = exportDayMenuItem(dayIndex);
+  if (exp) items.push(exp);
   openIsolationContextMenu(x, y, items);
 }
 

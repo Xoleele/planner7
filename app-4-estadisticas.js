@@ -2871,12 +2871,24 @@ async function handleCopyTextConfirm() {
 
   const text = buildCopyText(copyTextModalDate, opts);
 
-  const ok = await copyTextToClipboard(text);
+  // "Exportar día": descarga un archivo de texto (.txt) con lo elegido.
+  const dateStr = copyTextModalDate;
   closeCopyTextModal();
-  if (ok) {
-    showHistoryNotification('Tareas copiadas al portapapeles', 'redo');
-  } else {
-    showHistoryNotification('No se pudo copiar al portapapeles', 'undo');
+  try {
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `planner7_dia_${dateStr}.txt`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showHistoryNotification('Día exportado', 'redo');
+  } catch (e) {
+    console.error('Exportar día:', e);
+    showHistoryNotification('No se pudo exportar el día', 'undo');
   }
 }
 

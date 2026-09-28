@@ -2171,6 +2171,8 @@ function setupEventListeners() {
   if (copyTextBtn) {
     copyTextBtn.addEventListener('click', handleCopyTextConfirm);
   }
+  const copyTextCancelBtn = document.getElementById('copy-text-cancel-btn');
+  if (copyTextCancelBtn) copyTextCancelBtn.addEventListener('click', closeCopyTextModal);
 
   // Mantener coherentes las casillas dependientes del modal de copiar
   ['copy-opt-completed', 'copy-opt-pending'].forEach(id => {
