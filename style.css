@@ -5045,10 +5045,19 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .cr-task-block .task-check-btn:hover { opacity: 1 !important; transform: scale(1.1); }
 .cr-task-block.completed .task-check-btn { opacity: 0.95; }
 
-/* Horario (escritorio y móvil) — bloques "compactos" (40–59 min): el título y el
+/* Horario (escritorio y móvil) — bloques "compactos" (25–59 min): el título y el
    checkbox se centran en el eje horizontal que pasa por la mitad del bloque. */
 .cr-task-block.cr-block-compact {
   justify-content: center;   /* centra el título verticalmente (flex column) */
+  /* Sin el padding vertical de 12px del bloque normal: en bloques de 25–39 min
+     (25–39 px de alto) ese padding dejaba muy poco espacio y cortaba el título.
+     El título queda centrado en toda la altura del bloque. */
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.cr-task-block.cr-block-compact .cr-task-title {
+  line-height: 1.2;
+  flex-shrink: 0;
 }
 .cr-task-block.cr-block-compact .task-check-btn {
   top: 50%;

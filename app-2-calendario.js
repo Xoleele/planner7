@@ -3270,8 +3270,8 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   // Reglas de contenido por duración (horario, escritorio y móvil por igual):
   //   < 5 min             → el bloque NO se muestra en absoluto (return null).
   //   5–25 min            → solo el color, con los extremos izq/der redondeados (píldora).
-  //   5–39 min            → solo el color (sin texto y sin checkbox).
-  //   40–59 min           → título + checkbox, centrados verticalmente.
+  //   5–24 min            → solo el color (sin texto y sin checkbox).
+  //   25–59 min           → título + checkbox, centrados verticalmente.
   //   60–74 min           → título + hora (sin descripción).
   //   >= 75 min           → título + hora + descripción (los 3 juntos).
   const durationMin = bottomMin - topMin;
@@ -3352,8 +3352,8 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
     }
 
     // Checkbox para marcar como completada (mismo SVG que el planner).
-    // Solo se muestra a partir de 40 min (por debajo, el bloque va sin checkbox).
-    if (durationMin >= 40) {
+    // Solo se muestra a partir de 25 min (por debajo, el bloque va sin checkbox).
+    if (durationMin >= 25) {
       const checkBtn = document.createElement('button');
       checkBtn.className = 'task-check-btn';
       checkBtn.title = isCompleted ? 'Marcar como pendiente' : 'Marcar como completada';
@@ -3368,8 +3368,8 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
     }
   }
 
-  // Por debajo de 40 min: solo color (sin texto). (Las < 5 min ya salieron antes.)
-  if (durationMin < 40) {
+  // Por debajo de 25 min: solo color (sin texto). (Las < 5 min ya salieron antes.)
+  if (durationMin < 25) {
     // Tareas cortas (5–25 min): extremos izquierdo y derecho totalmente
     // redondeados (forma de píldora) para distinguirlas visualmente.
     if (durationMin <= 25) {
@@ -3378,13 +3378,13 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
     return block;
   }
 
-  // Rango "compacto" (40..59 min): título + checkbox centrados verticalmente.
+  // Rango "compacto" (25..59 min): título + checkbox centrados verticalmente.
   // El centrado real se aplica por CSS (.cr-block-compact), escritorio y móvil.
   if (durationMin <= 59) {
     block.classList.add('cr-block-compact');
   }
 
-  // Título (a partir de 40 min).
+  // Título (a partir de 25 min).
   const titleEl = document.createElement('div');
   titleEl.className = 'cr-task-title';
   titleEl.textContent = titleText;
