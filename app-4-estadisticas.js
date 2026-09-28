@@ -1728,9 +1728,11 @@ function updatePeriodSelectOptions() {
     }
   } else if (generalStatsChartType === 'habitos') {
     periodSelect.innerHTML = `
+      <option value="30dias">Últimos 30 días</option>
+      <option value="50dias">Últimos 50 días</option>
       <option value="100dias">Últimos 100 días</option>
     `;
-    periodSelect.value = '100dias';
+    periodSelect.value = ['30dias', '50dias', '100dias'].includes(currentVal) ? currentVal : '100dias';
   } else if (generalStatsChartType === 'heatmap') {
     periodSelect.innerHTML = `
       <option value="12dias">Últimos 12 días</option>
@@ -1783,9 +1785,11 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
         lineStatsNeedsAutoSelect = true;
       }
     } else if (generalStatsChartType === 'habitos') {
-      periodSelect.value = '100dias';
+      // Periodo: el que esté elegido (30 / 50 / 100 días); por defecto 100.
+      const habitDays = { '30dias': 30, '50dias': 50, '100dias': 100 }[periodSelect.value] || 100;
+      periodSelect.value = habitDays + 'dias';
 
-      generalStatsDateRange = lastNDaysRange(100, dateStr);
+      generalStatsDateRange = lastNDaysRange(habitDays, dateStr);
 
       // Etiqueta: la guardada por el usuario; si no hay, la que más se repite
       // (más días completados) en el rango.
