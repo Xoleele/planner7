@@ -795,12 +795,12 @@ function setupEventListeners() {
       // desarchivamos (rehabilita el campo y pone una fecha por defecto) y luego
       // abrimos el selector. Así la ✕ (archivar) y el calendario (dar fecha) son
       // acciones opuestas y deterministas, sin desincronización.
+      // Tarea archivada: el icono es una carpeta que la manda a la lista principal.
       if (target.disabled && target.id === 'task-input-date') {
-        const briefcaseCheckbox = document.getElementById('task-in-briefcase-checkbox');
-        if (briefcaseCheckbox && briefcaseCheckbox.checked) {
-          briefcaseCheckbox.checked = false;
-          briefcaseCheckbox.dispatchEvent(new Event('change'));
-        }
+        closeTaskArchiveListPicker();
+        taskModalArchiveList = null;
+        updateTaskArchiveLabel();
+        return;
       }
       if (target.disabled) return;
       if (!isMobile() && target.classList.contains('time-masked-input')) {
@@ -2321,6 +2321,7 @@ function setupEventListeners() {
       repeatToggle.disabled = false;
     }
     updateRecurrenceHint();
+    if (typeof syncTaskDateFieldMode === 'function') syncTaskDateFieldMode();
   });
 
   setupBriefcaseDragAndDrop();
@@ -3341,6 +3342,28 @@ let taskModalArchiveList; // undefined = no elegido; null = principal; id = cate
 function initTaskModalArchiveList(task) {
   taskModalArchiveList = (task && !task.date) ? getArchiveListOfTask(task) : getVisibleArchiveListId();
   updateTaskArchiveLabel();
+  syncTaskDateFieldMode();
+}
+
+// Modo del campo Fecha del editor: con la tarea ARCHIVADA pasa a ser "Categoría"
+// (etiqueta CATEGORÍA, icono de carpeta que la manda a la lista principal, sin ✕).
+// Con fecha, vuelve a ser el campo Fecha normal (calendario + ✕ para archivar).
+function syncTaskDateFieldMode() {
+  const group = document.querySelector('.task-date-group');
+  const cb = document.getElementById('task-in-briefcase-checkbox');
+  if (!group || !cb) return;
+  const archived = cb.checked;
+  group.classList.toggle('is-archived', archived);
+  const label = group.querySelector('label[for="task-input-date"]');
+  if (label) label.textContent = archived ? 'Categoría' : 'Fecha';
+  const iconBtn = group.querySelector('.date-calendar-icon');
+  const img = iconBtn ? iconBtn.querySelector('img') : null;
+  if (iconBtn) {
+    iconBtn.setAttribute('aria-label', archived ? 'Mover a la lista principal' : 'Abrir calendario');
+    iconBtn.title = archived ? 'Mover a «' + (archiveListsConfig.mainName || 'Archivados') + '»' : '';
+  }
+  if (img) img.src = archived ? 'icons/folder-closed.svg' : 'icons/calendar.svg';
+  if (!archived) closeTaskArchiveListPicker();
 }
 
 function updateTaskArchiveLabel() {
@@ -3385,6 +3408,28 @@ function openTaskArchiveListPicker(anchorEl) {
     });
     menu.appendChild(item);
   });
+  // Opción para volver a darle fecha (desarchivar).
+  const sep = document.createElement('div');
+  sep.className = 'archive-list-menu-sep';
+  menu.appendChild(sep);
+  const dateItem = document.createElement('button');
+  dateItem.type = 'button';
+  dateItem.className = 'context-menu-item archive-list-manage';
+  dateItem.innerHTML = '<img src="icons/calendar.svg" alt="" width="14" height="14" style="opacity: 0.6; flex-shrink: 0;"><span>Poner fecha</span>';
+  dateItem.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeTaskArchiveListPicker();
+    const cb = document.getElementById('task-in-briefcase-checkbox');
+    if (cb && cb.checked) {
+      cb.checked = false;
+      cb.dispatchEvent(new Event('change'));
+    }
+    const dateInput = document.getElementById('task-input-date');
+    if (dateInput && !dateInput.disabled && typeof dateInput.showPicker === 'function') {
+      try { dateInput.showPicker(); } catch (_) {}
+    }
+  });
+  menu.appendChild(dateItem);
   document.body.appendChild(menu);
   const r = anchorEl.getBoundingClientRect();
   menu.style.position = 'fixed';
