@@ -3470,7 +3470,7 @@ function writeDurationField(el, min) {
   }
 }
 
-// Convierte el campo Duración en campo de texto (solo escritorio).
+// Convierte el campo Duración en campo de texto (escritorio y móvil).
 function setupDurationTextInput(el) {
   if (!el) return;
   el.type = 'text';

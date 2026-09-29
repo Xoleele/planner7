@@ -687,9 +687,10 @@ function setupEventListeners() {
   if (!isMobile()) {
     setupTimeMaskInput(taskStartInput);
     setupTimeMaskInput(taskEndInput);
-    // Duración en escritorio: campo de texto libre ("1h30m", "90", "1 hora"…).
-    setupDurationTextInput(document.getElementById('task-input-duration'));
   }
+  // Duración: campo de texto libre ("1h30m", "90", "1 hora"…) que se escribe con
+  // el teclado, tanto en escritorio como en móvil (sin selector de hora).
+  setupDurationTextInput(document.getElementById('task-input-duration'));
 
   if (taskStartInput) {
     taskStartInput.addEventListener('input', () => {
@@ -707,7 +708,7 @@ function setupEventListeners() {
     if (!inp) return;
     inp.addEventListener('click', () => {
       if (inp.disabled) return;
-      if (isMobile()) {
+      if (isMobile() && inp.type === 'time') {
         if (typeof inp.showPicker === 'function') {
           try { inp.showPicker(); } catch (_) {}
         }
@@ -3087,13 +3088,13 @@ function updateMobileFeedTasks() {
 function initMobileScrollWeekChange() {}
 
 // ─── Funciones Auxiliares del Maletín ───────────────────────────────────────
-// ─── Listas de Archivados (subcategorías) ────────────────────────────────────
+// ─── Listas de Archivados (categorías) ────────────────────────────────────
 // El panel de Archivados puede tener varias listas: la principal (nombre
-// editable, por defecto "Archivados") y hasta 4 subcategorías (5 listas en
+// editable, por defecto "Archivados") y hasta 10 categorías (11 listas en
 // total). La configuración se guarda en la cuenta (preferences.archiveLists).
-// Cada tarea archivada guarda su lista en task.archiveList (id de subcategoría;
+// Cada tarea archivada guarda su lista en task.archiveList (id de categoría;
 // null/ausente = lista principal).
-const ARCHIVE_MAX_LISTS = 5; // principal + 4 subcategorías
+const ARCHIVE_MAX_LISTS = 11; // principal + 10 categorías
 let archiveListsConfig = { mainName: 'Archivados', subs: [] };
 let currentArchiveListId = null; // lista visible en el panel (null = principal)
 try {
@@ -3267,7 +3268,7 @@ function openArchiveListMenu(mode) {
     manage.className = 'context-menu-item archive-list-manage';
     // Icono de carpeta para diferenciarla de las listas de arriba.
     manage.innerHTML = '<img src="icons/folder-closed.svg" alt="" width="14" height="14" style="opacity: 0.6; flex-shrink: 0;">' +
-      '<span>' + (hasSubs ? 'Modificar subcategorías' : 'Crear subcategorías') + '</span>';
+      '<span>' + (hasSubs ? 'Modificar categorías' : 'Crear categorías') + '</span>';
     manage.addEventListener('click', () => { closeArchiveListMenu(); openArchiveListsModal(); });
     menu.appendChild(manage);
   }
@@ -3340,7 +3341,7 @@ function setupArchiveListsUI() {
     if (e.key === 'Escape' && document.getElementById('archive-list-menu')) closeArchiveListMenu();
   });
 
-  // Botones del panel de subcategorías.
+  // Botones del panel de categorías.
   const addBtn = document.getElementById('archive-add-sub-btn');
   if (addBtn) addBtn.addEventListener('click', () => {
     if (!archiveDraft || archiveDraft.subs.length >= ARCHIVE_MAX_LISTS - 1) return;
@@ -3359,7 +3360,7 @@ function setupArchiveListsUI() {
   if (delCancel) delCancel.addEventListener('click', closeArchiveDeleteModal);
 }
 
-// ── Panel "Subcategorías de archivados" ──
+// ── Panel "Categorías de archivados" ──
 // Borrador: los cambios se aplican solo al pulsar Guardar.
 let archiveDraft = null; // { mainName, subs:[{id,name}], deletions:[{id, moveTo|null, deleteTasks}] }
 
@@ -3370,13 +3371,13 @@ function openArchiveListsModal() {
     deletions: []
   };
   const title = document.getElementById('archive-lists-modal-title');
-  if (title) title.textContent = archiveListsConfig.subs.length ? 'Modificar subcategorías' : 'Crear subcategorías';
+  if (title) title.textContent = archiveListsConfig.subs.length ? 'Modificar categorías' : 'Crear categorías';
   const mainInput = document.getElementById('archive-main-name');
   if (mainInput) mainInput.value = archiveDraft.mainName;
   renderArchiveListsModal();
   const modal = document.getElementById('archive-lists-modal');
   if (modal) modal.classList.remove('hidden');
-  // Si aún no hay subcategorías, dejar una fila lista para escribir.
+  // Si aún no hay categorías, dejar una fila lista para escribir.
   if (!archiveDraft.subs.length) {
     document.getElementById('archive-add-sub-btn').click();
   }
@@ -3401,20 +3402,20 @@ function renderArchiveListsModal() {
     grip.type = 'button';
     grip.className = 'tag-drag-handle archive-sub-grip';
     grip.title = 'Arrastrar para reordenar';
-    grip.setAttribute('aria-label', 'Reordenar subcategoría');
+    grip.setAttribute('aria-label', 'Reordenar categoría');
     grip.innerHTML = '<img src="icons/grip.svg" alt="" width="14" height="14">';
     grip.addEventListener('pointerdown', (e) => startArchiveSubReorder(e, row));
     const input = document.createElement('input');
     input.type = 'text';
     input.value = sub.name;
-    input.placeholder = `Subcategoría ${idx + 1}`;
+    input.placeholder = `Categoría ${idx + 1}`;
     input.maxLength = 40;
     input.autocomplete = 'off';
     input.addEventListener('input', () => { sub.name = input.value; });
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'tag-action-btn';
-    del.title = 'Eliminar subcategoría';
+    del.title = 'Eliminar categoría';
     del.innerHTML = '<img src="icons/trash.svg" alt="Eliminar" width="14" height="14">';
     del.addEventListener('click', () => requestArchiveSubDeletion(sub.id));
     row.append(grip, input, del);
@@ -3428,11 +3429,11 @@ function renderArchiveListsModal() {
   }
   const hint = document.getElementById('archive-lists-hint');
   if (hint) hint.textContent = full
-    ? `Llegaste al máximo de ${ARCHIVE_MAX_LISTS} listas (la principal + ${ARCHIVE_MAX_LISTS - 1} subcategorías).`
+    ? `Llegaste al máximo de ${ARCHIVE_MAX_LISTS} listas (la principal + ${ARCHIVE_MAX_LISTS - 1} categorías).`
     : '';
 }
 
-// Reordenar subcategorías arrastrando el handle (ratón y táctil). El nuevo
+// Reordenar categorías arrastrando el handle (ratón y táctil). El nuevo
 // orden queda en el borrador y se aplica al pulsar Guardar.
 function startArchiveSubReorder(e, row) {
   if (e.button !== undefined && e.button !== 0) return;
@@ -3481,7 +3482,7 @@ function requestArchiveSubDeletion(subId) {
   // Tiene tareas: preguntar qué hacer con ellas (como al borrar una actividad).
   pendingArchiveDeleteId = subId;
   const sub = archiveDraft.subs.find(s => s.id === subId);
-  const subName = (sub && sub.name.trim()) || 'esta subcategoría';
+  const subName = (sub && sub.name.trim()) || 'esta categoría';
   const msg = document.getElementById('archive-delete-message');
   if (msg) {
     const plural = count === 1 ? 'tarea está' : 'tareas están';
@@ -3492,7 +3493,7 @@ function requestArchiveSubDeletion(subId) {
   if (select) {
     select.innerHTML = '';
     const targets = [{ id: '', name: (archiveDraft.mainName || '').trim() || 'Archivados' },
-      ...archiveDraft.subs.filter(s => s.id !== subId).map((s, i) => ({ id: s.id, name: s.name.trim() || `Subcategoría ${i + 1}` }))];
+      ...archiveDraft.subs.filter(s => s.id !== subId).map((s, i) => ({ id: s.id, name: s.name.trim() || `Categoría ${i + 1}` }))];
     targets.forEach(t => {
       const opt = document.createElement('option');
       opt.value = 'move:' + t.id;
@@ -3522,7 +3523,7 @@ function confirmArchiveSubDeletion() {
   const deletion = choice === 'delete-tasks'
     ? { id: subId, moveTo: null, deleteTasks: true }
     : { id: subId, moveTo: choice.slice(5) || null, deleteTasks: false };
-  // Si otra subcategoría eliminada apuntaba a esta, ahora apunta al mismo destino.
+  // Si otra categoría eliminada apuntaba a esta, ahora apunta al mismo destino.
   archiveDraft.deletions.forEach(d => { if (d.moveTo === subId) d.moveTo = deletion.moveTo; });
   archiveDraft.deletions.push(deletion);
   archiveDraft.subs = archiveDraft.subs.filter(s => s.id !== subId);
@@ -3534,16 +3535,16 @@ function saveArchiveListsModal() {
   if (!archiveDraft) return;
   const mainInput = document.getElementById('archive-main-name');
   const mainName = ((mainInput ? mainInput.value : archiveDraft.mainName) || '').trim() || 'Archivados';
-  // Subcategorías sin nombre se descartan (si no tienen tareas; si tienen, se
+  // Categorías sin nombre se descartan (si no tienen tareas; si tienen, se
   // les pone un nombre por defecto).
   const subs = [];
   archiveDraft.subs.forEach((s, i) => {
     const name = (s.name || '').trim();
     if (name) subs.push({ id: s.id, name });
-    else if (getArchivedTasksOfList(s.id).length) subs.push({ id: s.id, name: `Subcategoría ${i + 1}` });
+    else if (getArchivedTasksOfList(s.id).length) subs.push({ id: s.id, name: `Categoría ${i + 1}` });
   });
 
-  // Aplicar lo elegido para las tareas de las subcategorías eliminadas.
+  // Aplicar lo elegido para las tareas de las categorías eliminadas.
   const affected = archiveDraft.deletions.filter(d => getArchivedTasksOfList(d.id).length > 0);
   if (affected.length) {
     pushToUndoStack();
@@ -3572,7 +3573,7 @@ function renderBriefcaseTasks() {
   setupArchiveListsUI();
   syncArchiveListAssignments();
 
-  // Título del panel: "Archivados" sin subcategorías; con subcategorías,
+  // Título del panel: "Archivados" sin categorías; con categorías,
   // "Archivados: <nombre de la lista visible>" (también para la principal).
   const visibleList = getVisibleArchiveListId();
   const titleH = document.querySelector('#briefcase-title-btn h3');

@@ -4195,7 +4195,7 @@ html:not(.mobile-mode) .briefcase-drawer .drawer-header {
   flex-shrink: 0;
   margin-top: 2px;
 }
-/* "Archivados: <subcategoría>" largo: se recorta con "…" sin empujar la ✕. */
+/* "Archivados: <categoría>" largo: se recorta con "…" sin empujar la ✕. */
 .drawer-title-dropdown { min-width: 0; }
 .drawer-title-dropdown h3 {
   min-width: 0;
@@ -4212,11 +4212,14 @@ html:not(.mobile-mode) .briefcase-drawer .drawer-header {
   transform: scale(1.15);
 }
 
-/* Desplegable del título de Archivados (listas / subcategorías). */
+/* Desplegable del título de Archivados (listas / categorías). */
 .archive-list-menu {
   position: absolute;
   z-index: 5;
   min-width: 200px;
+  /* Con muchas categorías (hasta 10), el menú se desplaza en vez de salirse. */
+  max-height: 60vh;
+  overflow-y: auto;
 }
 .archive-list-item.is-current {
   font-weight: 700;
@@ -4247,7 +4250,7 @@ html:not(.mobile-mode) .briefcase-drawer .drawer-header {
 .archive-list-manage {
   color: var(--text-muted);
 }
-/* Panel de subcategorías */
+/* Panel de categorías */
 .archive-lists-body {
   display: flex;
   flex-direction: column;
@@ -5902,7 +5905,7 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 }
 .settings-info.hidden { display: none; }
 
-/* Duración en escritorio: campo de texto libre ("1h30m"). */
+/* Duración (escritorio y móvil): campo de texto libre ("1h30m"). */
 .time-input-wrapper input.duration-text-input {
   cursor: text;
   padding-left: 8px;

@@ -2784,8 +2784,8 @@ function updateTime24Overlay(input) {
   if (!input) return;
   const overlay = document.querySelector('.time-24-overlay[data-for="' + input.id + '"]');
   if (!overlay) return;
-  // Campo Duración: en móvil (selector de hora) se muestra como "1h30m"; en
-  // escritorio es un campo de texto propio y el overlay no se usa.
+  // Campo Duración: es un campo de texto propio (escritorio y móvil) y el overlay
+  // no se usa; si algún día volviera a ser selector de hora, se muestra "1h30m".
   if (input.id === 'task-input-duration') {
     if (input.type !== 'time') { overlay.textContent = ''; overlay.style.display = 'none'; return; }
     const m = hhmmToMinutes(input.value);
