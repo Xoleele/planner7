@@ -829,6 +829,14 @@ function setupEventListeners() {
       if (e.target.closest('.date-calendar-icon, .time-clear-btn')) return;
       const target = document.getElementById('task-input-date');
       if (!target) return;
+      // Archivada y con categorías: elegir la categoría (no se pone fecha).
+      if (target.disabled && archiveListsConfig.subs.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (document.getElementById('task-archive-list-picker')) closeTaskArchiveListPicker();
+        else openTaskArchiveListPicker(taskDateWrapper);
+        return;
+      }
       if (target.disabled) {
         const briefcaseCheckbox = document.getElementById('task-in-briefcase-checkbox');
         if (briefcaseCheckbox && briefcaseCheckbox.checked) {
@@ -3234,6 +3242,7 @@ function openArchiveListMenu(mode) {
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'context-menu-item archive-list-item' + (l.id === visible ? ' is-current' : '');
+      item.dataset.listId = l.id || '';
       item.textContent = l.name;
       if (mode === 'nav') {
         item.addEventListener('click', () => { closeArchiveListMenu(); setCurrentArchiveList(l.id); });
@@ -3280,6 +3289,121 @@ function openArchiveListMenu(mode) {
   menu.style.left = (titleBtn.offsetLeft) + 'px';
   titleBtn.setAttribute('aria-expanded', 'true');
   if (mode === 'nav') setTimeout(() => document.addEventListener('click', onArchiveMenuOutsideClick, true), 0);
+}
+
+// ── Móvil: arrastrar (táctil) una tarea archivada al título → cambiar de categoría ──
+// Mismo comportamiento que en escritorio: al pasar el dedo por el título se
+// despliegan las listas y, al soltar sobre una, la tarea se mueve ahí.
+let touchArchiveDropTarget; // undefined = ninguna; null = principal; id = categoría
+
+function handleArchiveListTouchDrag(element, draggedId) {
+  touchArchiveDropTarget = undefined;
+  const t = draggedId ? tasks.find(x => x.id === draggedId) : null;
+  if (!t || t.date) return;
+  document.querySelectorAll('#archive-list-menu .archive-list-item.drag-over')
+    .forEach(i => i.classList.remove('drag-over'));
+  if (element && element.closest('#briefcase-title-btn')) {
+    const m = document.getElementById('archive-list-menu');
+    if (!m || !m.classList.contains('is-drop')) openArchiveListMenu('drop');
+    return;
+  }
+  const item = element ? element.closest('#archive-list-menu.is-drop .archive-list-item') : null;
+  if (item) {
+    item.classList.add('drag-over');
+    touchArchiveDropTarget = item.dataset.listId ? item.dataset.listId : null;
+  }
+  // Sobre el menú, la tarjeta flotante se vuelve translúcida para ver las listas.
+  if (typeof touchGhost !== 'undefined' && touchGhost) {
+    touchGhost.style.opacity = (element && element.closest('#archive-list-menu.is-drop')) ? '0.35' : '';
+  }
+}
+
+// Al soltar: si el dedo estaba sobre una lista del menú, mover ahí. Devuelve true
+// si se gestionó el soltado.
+function finishArchiveListTouchDrag(draggedId) {
+  const target = touchArchiveDropTarget;
+  touchArchiveDropTarget = undefined;
+  const m = document.getElementById('archive-list-menu');
+  const wasDropMenu = !!(m && m.classList.contains('is-drop'));
+  if (wasDropMenu) closeArchiveListMenu();
+  if (target === undefined || !draggedId) return false;
+  moveArchivedTaskToList(draggedId, target);
+  return true;
+}
+
+// ── Editor de tareas: categoría de Archivados en lugar de la fecha ──
+// Si la tarea está archivada, el campo Fecha muestra su categoría y, al tocarlo,
+// permite elegir otra (si hay categorías). Sin categorías dice "Archivado" y
+// tocarlo vuelve a darle fecha, como antes. El icono de calendario siempre sirve
+// para volver a ponerle fecha.
+let taskModalArchiveList; // undefined = no elegido; null = principal; id = categoría
+
+function initTaskModalArchiveList(task) {
+  taskModalArchiveList = (task && !task.date) ? getArchiveListOfTask(task) : getVisibleArchiveListId();
+  updateTaskArchiveLabel();
+}
+
+function updateTaskArchiveLabel() {
+  const overlay = document.querySelector('.date-ddmmyy-overlay[data-for="task-input-date"]');
+  const wrapper = document.querySelector('.task-date-group .date-input-wrapper');
+  const hasSubs = archiveListsConfig.subs.length > 0;
+  if (overlay) {
+    overlay.setAttribute('data-archive-label',
+      hasSubs ? archiveListName(taskModalArchiveList === undefined ? null : taskModalArchiveList) : 'Archivado');
+  }
+  if (wrapper) wrapper.classList.toggle('archive-picker', hasSubs);
+}
+
+function closeTaskArchiveListPicker() {
+  const m = document.getElementById('task-archive-list-picker');
+  if (m) m.remove();
+  document.removeEventListener('click', onTaskArchivePickerOutside, true);
+}
+
+function onTaskArchivePickerOutside(e) {
+  if (e.target.closest('#task-archive-list-picker')) return;
+  closeTaskArchiveListPicker();
+}
+
+function openTaskArchiveListPicker(anchorEl) {
+  closeTaskArchiveListPicker();
+  const lists = [{ id: null, name: archiveListsConfig.mainName || 'Archivados' }, ...archiveListsConfig.subs];
+  const current = taskModalArchiveList === undefined ? null : taskModalArchiveList;
+  const menu = document.createElement('div');
+  menu.id = 'task-archive-list-picker';
+  menu.className = 'context-menu archive-list-menu task-archive-list-picker';
+  lists.forEach(l => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'context-menu-item archive-list-item' + (l.id === current ? ' is-current' : '');
+    item.textContent = l.name;
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      taskModalArchiveList = l.id;
+      updateTaskArchiveLabel();
+      closeTaskArchiveListPicker();
+    });
+    menu.appendChild(item);
+  });
+  document.body.appendChild(menu);
+  const r = anchorEl.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.zIndex = '6000';
+  menu.style.left = r.left + 'px';
+  menu.style.top = (r.bottom + 4) + 'px';
+  menu.style.minWidth = r.width + 'px';
+  // Si no cabe hacia abajo, abrir hacia arriba.
+  const mh = menu.getBoundingClientRect().height;
+  if (r.bottom + 4 + mh > window.innerHeight - 8) {
+    menu.style.top = Math.max(8, r.top - 4 - mh) + 'px';
+  }
+  setTimeout(() => document.addEventListener('click', onTaskArchivePickerOutside, true), 0);
+}
+
+// Al guardar desde el editor: aplicar la categoría elegida a la tarea archivada.
+function applyEditorArchiveList(task) {
+  if (!task || task.date || taskModalArchiveList === undefined) return;
+  task.archiveList = archiveListExists(taskModalArchiveList) ? taskModalArchiveList : null;
 }
 
 function setupArchiveListsUI() {

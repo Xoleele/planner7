@@ -2553,6 +2553,9 @@ function updateDragTarget(clientX, clientY) {
     if (touchGhost) touchGhost.style.visibility = '';
   }
 
+  // Tarea archivada sobre el título de Archivados → menú de categorías.
+  if (typeof handleArchiveListTouchDrag === 'function') handleArchiveListTouchDrag(element, touchDraggedTaskId);
+
   const column = element ? element.closest('.day-column') : null;
   const overBriefcase = element ? element.closest('#briefcase-btn') : null;
   const overTrash = element ? element.closest('#trash-btn') : null;
@@ -2665,6 +2668,12 @@ function handleTouchEnd(e) {
     setTimeout(() => { preventClick = false; }, 100);
 
     // Perform drop
+    // Soltada sobre una categoría del menú del título de Archivados.
+    if (typeof finishArchiveListTouchDrag === 'function' && finishArchiveListTouchDrag(touchDraggedTaskId)) {
+      cleanupDraggingUI();
+      cleanupGlobalTouchListeners();
+      return;
+    }
     if (isOverBriefcaseContainer && touchDraggedTaskId && touchDraggedSourceDate === '') {
       // Reorder within the briefcase panel
       const bContainer = document.getElementById('briefcase-tasks-container');
@@ -2853,6 +2862,9 @@ function triggerEdgeDaySlide(dir) {
 
 function cleanupDraggingUI() {
   hideCronogramaDropPreview();
+  if (typeof touchArchiveDropTarget !== 'undefined') touchArchiveDropTarget = undefined;
+  const archDropMenu = document.getElementById('archive-list-menu');
+  if (archDropMenu && archDropMenu.classList.contains('is-drop')) closeArchiveListMenu();
   if (touchGhost) {
     touchGhost.remove();
     touchGhost = null;
@@ -3169,6 +3181,10 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
 
   // Campo Duración: valor inicial según inicio/fin o la duración guardada.
   syncDurationFieldOnOpen(selectedTaskId ? tasks.find(t => t.id === selectedTaskId) : null);
+  // Categoría de Archivados (se muestra en el campo Fecha si está archivada).
+  if (typeof initTaskModalArchiveList === 'function') {
+    initTaskModalArchiveList(selectedTaskId ? tasks.find(t => t.id === selectedTaskId) : null);
+  }
 
   // Show Modal
   modal.classList.remove('hidden');
@@ -3267,6 +3283,7 @@ function escapeHtmlAdj(str) {
  *                        dejando la serie original intacta en los demas dias.
  */
 function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
+  const tasksLenBefore = tasks.length;
   let { title, description, tagId, isBriefcase, date,
           startTime, endTime, duration, recurrence, alarm } = formData;
 
@@ -3342,6 +3359,12 @@ function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
     };
     tasks.push(newTask);
     adjustPositionForModifiedTime(newTask);
+  }
+
+  // Categoría de Archivados elegida en el editor (si la tarea queda archivada).
+  if (isBriefcase && typeof applyEditorArchiveList === 'function') {
+    const resultTask = tasks.length > tasksLenBefore ? tasks[tasks.length - 1] : tasks.find(t => t.id === taskId);
+    applyEditorArchiveList(resultTask);
   }
 
   saveTasksToStorage();
