@@ -204,9 +204,30 @@ function buildDurationTooltip(dateStr) {
 }
 
 // ─── DB helpers ─────────────────────────────────────────────────────────────
+// Lee TODAS las filas de tareas del usuario, por páginas. Supabase devuelve
+// como máximo 1000 filas por consulta: sin paginar, a partir de la tarea 1001
+// las demás "desaparecían" al recargar (seguían en la nube pero no se cargaban).
+// Se ordena por id para que las páginas sean estables. Devuelve { data, error }.
+const TASKS_PAGE_SIZE = 1000;
+async function fetchAllUserTaskRows(columns) {
+  const all = [];
+  for (let from = 0; ; from += TASKS_PAGE_SIZE) {
+    const { data, error } = await sb.from('tasks')
+      .select(columns)
+      .eq('user_id', currentUser.id)
+      .order('id', { ascending: true })
+      .range(from, from + TASKS_PAGE_SIZE - 1);
+    if (error) return { data: null, error };
+    const rows = data || [];
+    all.push(...rows);
+    if (rows.length < TASKS_PAGE_SIZE) break;
+  }
+  return { data: all, error: null };
+}
+
 async function loadTasks() {
   if (!currentUser) return [];
-  const { data, error } = await sb.from('tasks').select('*').eq('user_id', currentUser.id);
+  const { data, error } = await fetchAllUserTaskRows('*');
   if (error) { console.error('loadTasks:', error); return []; }
   return (data || []).map(row => row.data);
 }
@@ -226,7 +247,7 @@ async function saveTasks(taskList) {
   if (taskList.length === 0) return;
 
   // 2. Fetch all task IDs currently in the DB for this user
-  const { data: dbRows, error: fetchError } = await sb.from('tasks').select('id').eq('user_id', currentUser.id);
+  const { data: dbRows, error: fetchError } = await fetchAllUserTaskRows('id');
   if (fetchError) { console.error('saveTasks (fetch ids):', fetchError); throw fetchError; }
 
   // 3. Delete only the rows that are no longer in the local list

@@ -4106,7 +4106,7 @@ window.recuperarHoras = async function (aplicar = false) {
   if (!currentUser) { console.warn('No hay sesión iniciada.'); return; }
 
   // Leer las filas reales del usuario desde Supabase.
-  const { data, error } = await sb.from('tasks').select('*').eq('user_id', currentUser.id);
+  const { data, error } = await fetchAllUserTaskRows('*');
   if (error) { console.error('Error leyendo tareas:', error); return; }
   const rows = data || [];
 
