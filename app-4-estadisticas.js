@@ -1992,6 +1992,12 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
     generalStatsDateRange = null;
   }
 
+  // Periodo guardado por el usuario para este gráfico (sobrescribe el de por
+  // defecto de arriba).
+  if (applySavedGeneralStatsPeriod(dateStr) && typeof syncHeatmapPeriodSelect === 'function') {
+    syncHeatmapPeriodSelect();
+  }
+
   // Mostrar/ocultar los campos propios de Hábitos / Mapa de calor (Actividad,
   // Constancia/Promedio y el periodo del mapa) según el gráfico guardado. Sin
   // esto, al abrir por primera vez en uno de esos gráficos faltaban campos.
@@ -2006,7 +2012,87 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
 
 function handleGeneralStatsChartTypeChange() {
   updatePeriodSelectOptions();
+  // Usar el periodo que el usuario dejó guardado para este tipo de gráfico.
+  if (applySavedGeneralStatsPeriod()) {
+    if (typeof syncHeatmapPeriodSelect === 'function') syncHeatmapPeriodSelect();
+    if (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap') applySavedHabitTag();
+    if (generalStatsDateRange) renderGeneralStatsForRange();
+    else estadisticasGenerales(formatDate(new Date()));
+    return;
+  }
   handleGeneralStatsPeriodChange();
+}
+
+// ─── Periodo elegido por tipo de gráfico (guardado en la cuenta) ─────────────
+// preferences.generalStatsPeriods = { <tipo>: { v, from?, to?, unit?, qty? } }
+// v = valor del selector (p. ej. '7dias', 'semanal', 'personalizado'). Para
+// "personalizado" se guardan también las fechas. El Mapa de calor guarda 30/50/100
+// aparte (heatmapPeriodDays); aquí solo si su periodo es personalizado.
+let generalStatsSavedPeriods = {};
+
+function rememberGeneralStatsPeriod() {
+  const type = generalStatsChartType;
+  let entry;
+  if (type === 'heatmap') {
+    const r = generalStatsDateRange;
+    entry = (r && r.custom) ? { v: 'personalizado', from: r.from, to: r.to } : { v: 'dias' };
+  } else {
+    const sel = document.getElementById('general-stats-period-select');
+    if (!sel) return;
+    const r = generalStatsDateRange;
+    entry = { v: sel.value };
+    if (sel.value === 'personalizado' && r) {
+      Object.assign(entry, { from: r.from, to: r.to, unit: r.unit || 'dias', qty: r.qty || 7 });
+    }
+  }
+  generalStatsSavedPeriods = { ...generalStatsSavedPeriods, [type]: entry };
+  if (currentUser && typeof saveSettingPreferences === 'function') {
+    saveSettingPreferences({ generalStatsPeriods: generalStatsSavedPeriods });
+  }
+}
+
+// Rango de fechas para un valor del selector de periodo.
+function generalStatsRangeForPeriod(v, refDateStr) {
+  const m = /^(\d+)dias$/.exec(v);
+  if (m) return lastNDaysRange(parseInt(m[1], 10), refDateStr);
+  if (v === 'semanal') {
+    const curr = refDateStr ? new Date(refDateStr + 'T12:00:00') : new Date();
+    curr.setHours(12, 0, 0, 0);
+    const day = curr.getDay();
+    const monday = new Date(curr);
+    monday.setDate(curr.getDate() - day + (day === 0 ? -6 : 1));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return { from: formatDate(monday), to: formatDate(sunday) };
+  }
+  return null; // 'hoy'
+}
+
+// Aplica el periodo guardado del gráfico actual (selector + rango). Devuelve
+// true si había uno válido.
+function applySavedGeneralStatsPeriod(refDateStr) {
+  const saved = generalStatsSavedPeriods[generalStatsChartType];
+  if (!saved || !saved.v) return false;
+  if (generalStatsChartType === 'heatmap') {
+    if (saved.v === 'personalizado' && saved.from && saved.to) {
+      generalStatsDateRange = { from: saved.from, to: saved.to, custom: true };
+      return true;
+    }
+    return false;
+  }
+  const sel = document.getElementById('general-stats-period-select');
+  if (!sel || ![...sel.options].some(o => o.value === saved.v)) return false;
+  if (saved.v === 'personalizado') {
+    if (!saved.from || !saved.to) return false;
+    sel.value = 'personalizado';
+    previousPeriodValue = 'personalizado';
+    generalStatsDateRange = { from: saved.from, to: saved.to, unit: saved.unit || 'dias', qty: saved.qty || 7, custom: true };
+    return true;
+  }
+  sel.value = saved.v;
+  previousPeriodValue = saved.v;
+  generalStatsDateRange = generalStatsRangeForPeriod(saved.v, refDateStr);
+  return true;
 }
 
 function handleGeneralStatsPeriodChange() {
@@ -2014,6 +2100,10 @@ function handleGeneralStatsPeriodChange() {
   if (!periodSelect) return;
   
   const val = periodSelect.value;
+  if (val !== 'personalizado' && generalStatsChartType !== 'heatmap') {
+    // Guardar la elección (antes de redibujar, que vuelve a leer lo guardado).
+    rememberGeneralStatsPeriod();
+  }
   if (val === 'hoy') {
     generalStatsDateRange = null;
     estadisticasGenerales(formatDate(new Date()));
@@ -2317,6 +2407,7 @@ function handleGeneralStatsCustomRangeAccept() {
   };
   const hmSel = document.getElementById('heatmap-period-select');
   if (hmSel && generalStatsChartType === 'heatmap') hmSel.value = 'custom';
+  rememberGeneralStatsPeriod();
   
   previousPeriodValue = 'personalizado';
   closeGeneralStatsCustomRangeModal(true);
@@ -2507,6 +2598,7 @@ function initStatsEvents(prefix) {
           saveSettingPreferences({ heatmapPeriodDays });
         }
         generalStatsDateRange = lastNDaysRange(12);
+        rememberGeneralStatsPeriod();
         renderGeneralStatsForRange();
       });
     }
@@ -3814,6 +3906,9 @@ function getStatsGroupOfTag(tagId) {
 // las fusiones antiguas de actividades en grupos, para no perder lo que ya se
 // veía en las estadísticas.
 function setStatsActivityGroupsFromPrefs(prefs) {
+  if (prefs.generalStatsPeriods && typeof prefs.generalStatsPeriods === 'object') {
+    generalStatsSavedPeriods = { ...prefs.generalStatsPeriods };
+  }
   const hp = Number(prefs.heatmapPeriodDays);
   if ([30, 50, 100].includes(hp)) heatmapPeriodDays = hp;
   const hpSel = document.getElementById('heatmap-period-select');
