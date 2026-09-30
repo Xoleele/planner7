@@ -802,8 +802,31 @@ function renderHabitTrackerHTML(dates) {
   // Orden: el día más reciente en la esquina superior izquierda; se rellena de
   // izquierda a derecha y luego hacia abajo (flujo por filas). `dates` viene en
   // orden ascendente, así que lo invertimos.
-  // Escritorio (ventana ancha): 25 columnas → cuadrados más chicos.
-  const COLS = isMobile() ? 10 : 25;
+  // Celular: 10 columnas que llenan el ancho. Escritorio: se elige la cantidad
+  // de columnas (siempre múltiplo de 5) que hace los cuadrados lo más grandes
+  // posible sin salirse del espacio visible (ancho y alto del panel).
+  let COLS = 10;
+  let cellPx = null;
+  const GAP = 3;
+  if (!isMobile()) {
+    const n = Math.max(1, dates.length);
+    const body = document.querySelector('#general-stats-panel-curr .modal-body');
+    const W = 700;
+    let H = body && body.clientHeight > 150 ? body.clientHeight - 40 : 420;
+    let best = { c: 5, s: 0 };
+    for (let c = 5; c <= 100; c += 5) {
+      const r = Math.ceil(n / c);
+      const sW = (W - GAP * (c - 1)) / c;
+      const sH = (H - GAP * (r - 1)) / r;
+      // Tope de 64px por cuadrado; a igual tamaño, se prefieren más columnas
+      // (bloque más ancho y bajo, que ocupa mejor el panel).
+      const size = Math.min(sW, sH, 64);
+      if (size >= best.s - 0.01) best = { c, s: size };
+      if (c >= n) break; // más columnas ya no agrandan nada
+    }
+    COLS = best.c;
+    cellPx = Math.max(8, Math.floor(best.s));
+  }
   const ordered = dates.slice().reverse();
   const cells = ordered.map(dStr => {
     const done = habitDoneOnDate(dStr);
@@ -815,7 +838,7 @@ function renderHabitTrackerHTML(dates) {
   }).join('');
 
   return `
-    <div class="habit-grid" style="display:grid; grid-template-columns: repeat(${COLS}, 1fr); grid-auto-flow: row; gap: 3px; padding: 6px 0; width: 100%;">
+    <div class="habit-grid" style="display:grid; grid-template-columns: repeat(${COLS}, ${cellPx ? cellPx + 'px' : '1fr'}); ${cellPx ? 'justify-content: center;' : ''} grid-auto-flow: row; gap: ${GAP}px; padding: 6px 0; width: 100%;">
       ${cells}
     </div>`;
 }
@@ -1289,7 +1312,7 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     if (habitLike) {
       chartContainer.style.width = '100%';
       // Hábitos: cuadrados más chicos (≈22px); Mapa de calor: ancho completo.
-      const habitMax = generalStatsChartType === 'habitos' ? '620px' : '680px';
+      const habitMax = generalStatsChartType === 'habitos' ? '700px' : '680px';
       chartContainer.style.maxWidth = wide ? habitMax : '340px';
       chartContainer.style.height = 'auto';
     } else if (prefix === 'general-stats' && (generalStatsChartType === 'barras-apiladas' || generalStatsChartType === 'lineal')) {
