@@ -1859,10 +1859,11 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
 
 // "Últimos N días": terminan AYER (el día actual no se considera). Si se pasa
 // una fecha de referencia pasada, el periodo termina en esa fecha.
-function lastNDaysRange(n, refDateStr) {
+function lastNDaysRange(n, refDateStr, includeToday = false) {
+  // includeToday: el periodo termina HOY (lo usa Hábitos) en vez de ayer.
   const yesterday = new Date();
   yesterday.setHours(12, 0, 0, 0);
-  yesterday.setDate(yesterday.getDate() - 1);
+  if (!includeToday) yesterday.setDate(yesterday.getDate() - 1);
   let end = refDateStr ? new Date(refDateStr + 'T12:00:00') : new Date(yesterday);
   if (end > yesterday) end = new Date(yesterday);
   const from = new Date(end);
@@ -1984,7 +1985,7 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
       const habitDays = { '30dias': 30, '50dias': 50, '100dias': 100 }[periodSelect.value] || 100;
       periodSelect.value = habitDays + 'dias';
 
-      generalStatsDateRange = lastNDaysRange(habitDays, dateStr);
+      generalStatsDateRange = lastNDaysRange(habitDays, dateStr, true); // incluye hoy
 
       // Etiqueta: la guardada por el usuario; si no hay, la que más se repite
       // (más días completados) en el rango.
@@ -2081,7 +2082,7 @@ function rememberGeneralStatsPeriod() {
 // Rango de fechas para un valor del selector de periodo.
 function generalStatsRangeForPeriod(v, refDateStr) {
   const m = /^(\d+)dias$/.exec(v);
-  if (m) return lastNDaysRange(parseInt(m[1], 10), refDateStr);
+  if (m) return lastNDaysRange(parseInt(m[1], 10), refDateStr, generalStatsChartType === 'habitos');
   if (v === 'semanal') {
     const curr = refDateStr ? new Date(refDateStr + 'T12:00:00') : new Date();
     curr.setHours(12, 0, 0, 0);
@@ -2156,7 +2157,7 @@ function handleGeneralStatsPeriodChange() {
     renderGeneralStatsForRange();
   } else if (val === '12dias' || val === '30dias' || val === '50dias' || val === '100dias') {
     const days = val === '12dias' ? 12 : (val === '50dias' ? 50 : (val === '100dias' ? 100 : 30));
-    generalStatsDateRange = lastNDaysRange(days);
+    generalStatsDateRange = lastNDaysRange(days, undefined, generalStatsChartType === 'habitos');
     // Hábitos / Mapa de calor: usar la actividad guardada (en la cuenta) también
     // al cambiar a estos gráficos desde otro, no solo al abrir las estadísticas.
     if (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap') {
