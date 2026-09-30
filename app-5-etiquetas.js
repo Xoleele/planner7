@@ -990,12 +990,19 @@ function updateHabitTagRowVisibility() {
   const row = document.getElementById('general-stats-habit-tag-row');
   if (!row) return;
   const visible = (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap');
-  row.style.display = visible ? 'flex' : 'none';
+  row.style.display = visible ? 'grid' : 'none';
   // El botón de grupos se oculta en Hábitos / Mapa de calor.
   if (typeof refreshStatsGroupsButtons === 'function') refreshStatsGroupsButtons();
   // El selector de periodo no aplica al mapa de calor (scroll infinito propio).
   const periodGroup = document.getElementById('general-stats-period-group');
   if (periodGroup) periodGroup.style.display = (generalStatsChartType === 'heatmap') ? 'none' : '';
+  // En su lugar, el Mapa de calor tiene su propio periodo (30 / 50 / 100 días).
+  const heatmapGroup = document.getElementById('heatmap-period-group');
+  if (heatmapGroup) {
+    heatmapGroup.style.display = (generalStatsChartType === 'heatmap') ? '' : 'none';
+    const sel = document.getElementById('heatmap-period-select');
+    if (sel && typeof heatmapPeriodDays !== 'undefined') sel.value = String(heatmapPeriodDays);
+  }
   if (visible) {
     buildHabitTagSelectorOptions();
     setHabitSelectTagValue(generalStatsHabitTag);

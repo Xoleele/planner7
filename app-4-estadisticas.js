@@ -112,10 +112,12 @@ function getStatsModalHTML(prefix) {
       </div>
       
       ${prefix === 'general-stats' ? `
-      <div class="general-stats-filters" style="display: flex; gap: 12px; padding: 12px 24px 0 24px;">
-        <div class="form-group flex-1" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+      <!-- Filtros en cuadrícula de 2 columnas iguales (fila 1: tipo + periodo;
+           fila 2, solo Hábitos / Mapa de calor: actividad + constancia/promedio). -->
+      <div class="general-stats-filters gs-filter-grid">
+        <div class="form-group gs-filter" style="margin-bottom: 0;">
           <label for="general-stats-chart-type-select" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Tipo de Gráfico</label>
-          <select id="general-stats-chart-type-select" style="width: 100%; padding: 6px 10px; font-size: 13px; height: 36px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
+          <select id="general-stats-chart-type-select" style="width: 100%; padding: 6px 10px; font-size: 13px; height: 38px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
             <option value="circular" selected>Circular</option>
             <option value="barras-apiladas">Barras apiladas</option>
             <option value="lineal">Lineal</option>
@@ -123,19 +125,28 @@ function getStatsModalHTML(prefix) {
             <option value="heatmap">Mapa de calor</option>
           </select>
         </div>
-        <div class="form-group flex-1" id="general-stats-period-group" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+        <div class="form-group gs-filter" id="general-stats-period-group" style="margin-bottom: 0;">
           <label for="general-stats-period-select" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Periodo</label>
-          <select id="general-stats-period-select" style="width: 100%; padding: 6px 10px; font-size: 13px; height: 36px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
+          <select id="general-stats-period-select" style="width: 100%; padding: 6px 10px; font-size: 13px; height: 38px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
             <option value="hoy" selected>Hoy</option>
             <option value="7dias">Últimos 7 días</option>
             <option value="30dias">Últimos 30 días</option>
             <option value="personalizado">Personalizado</option>
           </select>
         </div>
+        <!-- Periodo del Mapa de calor (solo en ese modo). -->
+        <div class="form-group gs-filter" id="heatmap-period-group" style="margin-bottom: 0; display: none;">
+          <label for="heatmap-period-select" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Periodo</label>
+          <select id="heatmap-period-select" style="width: 100%; padding: 6px 10px; font-size: 13px; height: 38px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
+            <option value="30">30 días</option>
+            <option value="50">50 días</option>
+            <option value="100" selected>100 días</option>
+          </select>
+        </div>
       </div>
       <!-- Selector de etiqueta para el modo Hábitos (oculto en otros modos). -->
-      <div id="general-stats-habit-tag-row" class="general-stats-filters" style="display: none; padding: 8px 24px 0 24px; align-items: flex-end; gap: 12px;">
-        <div class="form-group" style="flex: 3; min-width: 0; margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+      <div id="general-stats-habit-tag-row" class="general-stats-filters gs-filter-grid gs-filter-grid-2" style="display: none;">
+        <div class="form-group gs-filter" style="margin-bottom: 0;">
           <label for="habit-tag-select-input" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Actividad</label>
           <div class="custom-select-wrapper">
             <input type="hidden" id="habit-select-tag" value="default">
@@ -149,9 +160,9 @@ function getStatsModalHTML(prefix) {
             <div class="custom-options-container hidden" id="habit-tag-options-container"></div>
           </div>
         </div>
-        <div class="form-group" style="flex: 2; min-width: 0; margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
+        <div class="form-group gs-filter" style="margin-bottom: 0;">
           <label id="habit-streak-label" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Constancia</label>
-          <div id="habit-streak-count" style="height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; font-size: 15px; font-weight: 700; color: var(--text-main); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card);">0/0</div>
+          <div id="habit-streak-count" style="height: 38px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; font-size: 15px; font-weight: 700; color: var(--text-main); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card);">0/0</div>
         </div>
       </div>
       ` : ''}
@@ -660,21 +671,21 @@ function habitDoneOnDate(dStr) {
   });
 }
 
-// Mapa de calor: el recuadro de la cabecera muestra PROMEDIO en horas por día,
-// desde el primer día con una tarea de la actividad/grupo elegido hasta el día
-// más reciente del mapa. Cuenta lo mismo que pinta el mapa (tareas con hora de
+// Mapa de calor: el recuadro de la cabecera muestra PROMEDIO en horas por día
+// dentro del periodo elegido (30 / 50 / 100 días, terminando en el día más
+// reciente del mapa). Cuenta lo mismo que pinta el mapa (tareas con hora de
 // inicio y fin; si cruzan medianoche, hasta las 24:00).
+let heatmapPeriodDays = 100;
+
 function updateHeatmapAverage(dates) {
   const el = document.getElementById('habit-streak-count');
   const label = document.getElementById('habit-streak-label');
   if (label) label.textContent = 'Promedio';
   if (!el) return;
   const newest = (dates && dates.length) ? dates[dates.length - 1] : formatDate(new Date());
-  const oldest = heatmapOldestDate();
-  if (!oldest || oldest > newest) {
-    el.innerHTML = '<span>—</span>';
-    return;
-  }
+  const startD = new Date(newest + 'T12:00:00');
+  startD.setDate(startD.getDate() - (heatmapPeriodDays - 1));
+  const oldest = formatDate(startD);
   const minsOf = (task) => {
     const r = getTaskTimeRange(task);
     if (!r) return 0;
@@ -687,6 +698,7 @@ function updateHeatmapAverage(dates) {
     const mins = minsOf(task);
     if (!mins) return;
     if (task.recurrence && task.recurrence.enabled) {
+      if (task.date && task.date > newest) return;
       const start = new Date(((task.date && task.date > oldest) ? task.date : oldest) + 'T12:00:00');
       const end = new Date(newest + 'T12:00:00');
       for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
@@ -696,11 +708,10 @@ function updateHeatmapAverage(dates) {
       total += mins;
     }
   });
-  const days = Math.round((new Date(newest + 'T12:00:00') - new Date(oldest + 'T12:00:00')) / 86400000) + 1;
-  const avgHours = days > 0 ? total / 60 / days : 0;
+  const avgHours = total / 60 / heatmapPeriodDays;
   const txt = avgHours.toLocaleString('es-CL', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
-  el.title = `${minutesToReadable(Math.round(total))} en ${days} días`;
-  el.innerHTML = `<span>${txt} hrs/día</span><span style="color: var(--text-muted); font-weight: 600;">${days} días</span>`;
+  el.title = `${minutesToReadable(Math.round(total))} en ${heatmapPeriodDays} días`;
+  el.innerHTML = `<span>${txt} hrs/día</span>`;
 }
 
 // Actualiza el contador de Constancia: "días completados / días de la muestra".
@@ -886,8 +897,13 @@ function renderHeatmapHTML(dates) {
   // Día más reciente = último del rango (o hoy si no hay rango).
   const newest = (dates && dates.length) ? dates[dates.length - 1] : formatDate(new Date());
 
+  // Periodo elegido (30 / 50 / 100 días): no se pinta nada más antiguo.
+  const limitD = new Date(newest + 'T12:00:00');
+  limitD.setDate(limitD.getDate() - (heatmapPeriodDays - 1));
+  const limit = formatDate(limitD);
+
   // Cargar los primeros 12 días (más reciente arriba, hacia atrás).
-  const INITIAL = 12;
+  const INITIAL = Math.min(12, heatmapPeriodDays);
   let html = '<div class="heatmap-corner"></div>';
   for (let h = 0; h < 24; h++) {
     html += `<div class="heatmap-hlabel">${h}</div>`;
@@ -901,7 +917,7 @@ function renderHeatmapHTML(dates) {
   const oldestLoaded = formatDate(cursor); // primer día aún NO cargado (siguiente a pintar)
 
   return `
-    <div class="heatmap-scroll" data-hue="${hue}" data-sat="${sat}" data-next="${oldestLoaded}"
+    <div class="heatmap-scroll" data-hue="${hue}" data-sat="${sat}" data-next="${oldestLoaded}" data-limit="${limit}"
          style="overflow: auto; max-width: 100%; max-height: 320px; padding-bottom: 4px;">
       <div class="heatmap-grid" style="display:grid; grid-template-columns: auto repeat(24, 22px); gap: 3px; padding: 6px 0; width: max-content; align-items: center;">
         ${html}
@@ -945,8 +961,10 @@ function setupHeatmapInfiniteScroll(scrollEl) {
     const nearBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 40;
     if (!nearBottom) return;
     const oldest = heatmapOldestDate();
+    const limit = scrollEl.dataset.limit || '';
     let next = scrollEl.dataset.next;
     if (oldest && next < oldest) return; // ya llegamos al límite
+    if (limit && next < limit) return;   // fin del periodo elegido
 
     // Cargar un bloque de días más antiguos.
     const BLOCK = 12;
@@ -958,6 +976,7 @@ function setupHeatmapInfiniteScroll(scrollEl) {
       added++;
       cursor.setDate(cursor.getDate() - 1);
       if (oldest && dStr <= oldest) break; // no pasar de la tarea más antigua
+      if (limit && dStr <= limit) break;   // ni del inicio del periodo
     }
     scrollEl.dataset.next = formatDate(cursor);
     if (added > 0) bindHeatmapCellTooltips(scrollEl);
@@ -2363,6 +2382,17 @@ function initStatsEvents(prefix) {
   });
 
   if (prefix === 'general-stats') {
+    const heatmapPeriodSelect = document.getElementById('heatmap-period-select');
+    if (heatmapPeriodSelect) {
+      heatmapPeriodSelect.value = String(heatmapPeriodDays);
+      heatmapPeriodSelect.addEventListener('change', (e) => {
+        heatmapPeriodDays = parseInt(e.target.value, 10) || 100;
+        if (currentUser && typeof saveSettingPreferences === 'function') {
+          saveSettingPreferences({ heatmapPeriodDays });
+        }
+        renderGeneralStatsForRange();
+      });
+    }
     const chartTypeSelect = document.getElementById('general-stats-chart-type-select');
     if (chartTypeSelect) {
       chartTypeSelect.addEventListener('change', (e) => {
@@ -3667,6 +3697,10 @@ function getStatsGroupOfTag(tagId) {
 // las fusiones antiguas de actividades en grupos, para no perder lo que ya se
 // veía en las estadísticas.
 function setStatsActivityGroupsFromPrefs(prefs) {
+  const hp = Number(prefs.heatmapPeriodDays);
+  if ([30, 50, 100].includes(hp)) heatmapPeriodDays = hp;
+  const hpSel = document.getElementById('heatmap-period-select');
+  if (hpSel) hpSel.value = String(heatmapPeriodDays);
   statsGroupsEnabled = prefs.statsGroupsEnabled === true;
   refreshStatsGroupsButtons();
   if (Array.isArray(prefs.statsActivityGroups)) {

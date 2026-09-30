@@ -6282,3 +6282,21 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
 .stats-groups-toggle.active img {
   filter: brightness(0);
 }
+
+/* Estadísticas generales: filtros en 2 columnas iguales y alineadas. */
+.gs-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px 24px 0 24px;
+  align-items: end;
+}
+.gs-filter-grid.gs-filter-grid-2 { padding-top: 10px; }
+.gs-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.gs-filter select,
+.gs-filter .custom-select-trigger { height: 38px; box-sizing: border-box; }
