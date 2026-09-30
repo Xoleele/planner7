@@ -542,7 +542,19 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   const x_left = 15;
   const x_right = 190;
   const plotWidth = x_right - x_left;
-  const N = dates.length;
+
+  // Periodo personalizado en semanas o meses (igual que en Barras apiladas):
+  // cada punto suma las horas de una semana / mes en lugar de un día.
+  const rng = generalStatsDateRange;
+  const bucketDays = (rng && rng.custom && (rng.unit === 'semanas' || rng.unit === 'meses'))
+    ? (rng.unit === 'semanas' ? 7 : 30) : 1;
+  const bucketUnit = bucketDays === 7 ? 'Semana' : (bucketDays === 30 ? 'Mes' : '');
+  const buckets = [];
+  for (let i = 0; i < dates.length; i += bucketDays) buckets.push(dates.slice(i, i + bucketDays));
+  const bucketOfDate = {};
+  buckets.forEach((b, bi) => b.forEach(d => { bucketOfDate[d] = bi; }));
+
+  const N = buckets.length;
   const denom = N > 1 ? N - 1 : 1;
 
   const tagDailyHours = {};
@@ -552,14 +564,11 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
     tagDailyHours[tagName] = Array(N).fill(0);
   });
 
-  dates.forEach((dStr, dateIdx) => {
-    groupedList.forEach(group => {
-      if (!activeTags.includes(group.name)) return;
-      group.occurrences.forEach(occ => {
-        if (occ.dateStr === dStr) {
-          tagDailyHours[group.name][dateIdx] += occ.mins / 60;
-        }
-      });
+  groupedList.forEach(group => {
+    if (!activeTags.includes(group.name)) return;
+    group.occurrences.forEach(occ => {
+      const bi = bucketOfDate[occ.dateStr];
+      if (bi !== undefined) tagDailyHours[group.name][bi] += occ.mins / 60;
     });
   });
 
@@ -586,7 +595,13 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   // Con muchos días los números del eje X quedan apretados: en ese caso solo se
   // muestran el primero y el último (con día y mes).
   const LABELS_MAX_DAYS = 31;
-  if (N > LABELS_MAX_DAYS) {
+  if (bucketDays > 1) {
+    // Semanas / meses: numerados 1, 2, 3… (como en Barras apiladas).
+    buckets.forEach((b, idx) => {
+      const x = x_left + (idx / denom) * plotWidth;
+      svgParts.push(`<text x="${x}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="5.5" font-weight="600" text-anchor="middle">${idx + 1}</text>`);
+    });
+  } else if (N > LABELS_MAX_DAYS) {
     const mesesAx = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
     const lbl = (dStr) => { const d = new Date(dStr + 'T12:00:00'); return `${d.getDate()} ${mesesAx[d.getMonth()]}`; };
     svgParts.push(`<text x="${x_left}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="5.5" font-weight="600" text-anchor="start">${lbl(dates[0])}</text>`);
@@ -609,7 +624,7 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
     const color = group.color.bg;
 
     const points = [];
-    dates.forEach((dStr, idx) => {
+    buckets.forEach((b, idx) => {
       const x = x_left + (idx / denom) * plotWidth;
       const hours = tagDailyHours[tagName][idx];
       const y = y_bottom - (hours / yMax) * plotHeight;
@@ -638,9 +653,12 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
       // Punto visual muy sutil para que la línea parezca continua
       svgParts.push(`<circle cx="${p.x}" cy="${p.y}" r="0.8" fill="${color}" />`);
       // Fecha del eje x (ej. "23 jun") + etiqueta y horas del eje y, sintetizado
-      const dObj = new Date(dates[idx] + 'T12:00:00');
       const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-      const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
+      const fmtD = (ds) => { const o = new Date(ds + 'T12:00:00'); return `${o.getDate()} ${meses[o.getMonth()]}`; };
+      const bDates = buckets[idx];
+      const dLabel = bucketDays > 1
+        ? `${bucketUnit} ${idx + 1} (${fmtD(bDates[0])} – ${fmtD(bDates[bDates.length - 1])})`
+        : fmtD(bDates[0]);
       // Formato horas/minutos: 2.5 -> "2h30min", 3 -> "3h", 0.5 -> "30min"
       const totalMin = Math.round(p.hours * 60);
       const hh = Math.floor(totalMin / 60);
@@ -1981,6 +1999,12 @@ function handleGeneralStatsPeriodChange() {
 let previousPeriodValue = 'hoy';
 let customRangeQueue = ['start', 'duration']; // cola de edición para sincronización
 
+// Barras apiladas y Lineal: el periodo personalizado se elige en días, semanas
+// o meses (Mostrar + Cantidad). Los demás gráficos usan inicio/fin/duración.
+function customRangeUsesUnits() {
+  return generalStatsChartType === 'barras-apiladas' || generalStatsChartType === 'lineal';
+}
+
 function openGeneralStatsCustomRangeModal() {
   const mainModal = document.getElementById('general-stats-modal');
   if (mainModal) mainModal.classList.add('hidden');
@@ -1998,7 +2022,7 @@ function openGeneralStatsCustomRangeModal() {
   const unitSelect = document.getElementById('general-stats-custom-range-unit');
   const qtySelect = document.getElementById('general-stats-custom-range-qty');
   
-  if (generalStatsChartType === 'barras-apiladas') {
+  if (customRangeUsesUnits()) {
     if (durationRow) durationRow.classList.add('hidden');
     if (barrasRow) barrasRow.classList.remove('hidden');
   } else {
@@ -2012,7 +2036,7 @@ function openGeneralStatsCustomRangeModal() {
       toInput.value = generalStatsDateRange.to;
       let days = countDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
       if (days !== null) {
-        if (generalStatsChartType === 'barras-apiladas') {
+        if (customRangeUsesUnits()) {
           let unit = generalStatsDateRange.unit || 'dias';
           let qty = generalStatsDateRange.qty || 7;
           if (!generalStatsDateRange.unit) {
@@ -2043,7 +2067,7 @@ function openGeneralStatsCustomRangeModal() {
     } else {
       const todayStr = formatDate(new Date());
       fromInput.value = todayStr;
-      if (generalStatsChartType === 'barras-apiladas') {
+      if (customRangeUsesUnits()) {
         if (unitSelect) unitSelect.value = 'dias';
         if (qtySelect) qtySelect.value = '7';
         const endDate = new Date();
@@ -2097,7 +2121,7 @@ function recordCustomRangeChange(field) {
   let endVal = endInput.value;
   
   let durationVal = 1;
-  if (generalStatsChartType === 'barras-apiladas') {
+  if (customRangeUsesUnits()) {
     const unit = unitSelect ? unitSelect.value : 'dias';
     const qty = qtySelect ? parseInt(qtySelect.value, 10) : 7;
     durationVal = qty * (unit === 'semanas' ? 7 : unit === 'meses' ? 30 : 1);
@@ -2123,7 +2147,7 @@ function recordCustomRangeChange(field) {
     if (startVal && endVal) {
       const days = countDaysInRange(startVal, endVal);
       if (days !== null) {
-        if (generalStatsChartType === 'barras-apiladas') {
+        if (customRangeUsesUnits()) {
           let unit = 'dias';
           let qty = 7;
           if (days % 30 === 0 && days >= 120 && days <= 360) {
@@ -2151,7 +2175,7 @@ function recordCustomRangeChange(field) {
         }
       } else {
         endInput.value = startVal;
-        if (generalStatsChartType === 'barras-apiladas') {
+        if (customRangeUsesUnits()) {
           if (unitSelect) unitSelect.value = 'dias';
           if (qtySelect) qtySelect.value = '7';
         } else {
@@ -2176,7 +2200,7 @@ function shiftCustomRange(direction) {
   if (!startVal) return;
   
   let durationVal = 1;
-  if (generalStatsChartType === 'barras-apiladas') {
+  if (customRangeUsesUnits()) {
     const unit = unitSelect ? unitSelect.value : 'dias';
     const qty = qtySelect ? parseInt(qtySelect.value, 10) : 7;
     durationVal = qty * (unit === 'semanas' ? 7 : unit === 'meses' ? 30 : 1);
@@ -2215,7 +2239,7 @@ function handleGeneralStatsCustomRangeAccept() {
   
   let unit = 'dias';
   let qty = 7;
-  if (generalStatsChartType === 'barras-apiladas') {
+  if (customRangeUsesUnits()) {
     const unitSelect = document.getElementById('general-stats-custom-range-unit');
     const qtySelect = document.getElementById('general-stats-custom-range-qty');
     unit = unitSelect ? unitSelect.value : 'dias';
@@ -2486,8 +2510,8 @@ function initStatsEvents(prefix) {
     if (durationInput) {
       durationInput.addEventListener('input', () => {
         let val = parseInt(durationInput.value, 10);
-        let minVal = (generalStatsChartType === 'barras-apiladas') ? 2 : 1;
-        let maxVal = (generalStatsChartType === 'barras-apiladas') ? 12 : Infinity;
+        let minVal = customRangeUsesUnits() ? 2 : 1;
+        let maxVal = customRangeUsesUnits() ? 12 : Infinity;
         if (isNaN(val) || val < minVal) val = minVal;
         if (val > maxVal) val = maxVal;
         durationInput.value = val;
