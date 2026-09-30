@@ -1803,7 +1803,7 @@ function endTaskPlacement() {
 }
 
 function onTaskPlacementKey(e) {
-  if (e.key === 'Escape') endTaskPlacement();
+  if (e.key === 'Escape') { e.stopPropagation(); endTaskPlacement(); }
 }
 
 // Mientras se coloca, los clics dentro del horario no abren tareas ni el creador.

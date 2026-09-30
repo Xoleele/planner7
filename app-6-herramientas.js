@@ -1426,71 +1426,11 @@ function setupEventListeners() {
       }
     }
 
-    // Check for Escape key to close open modals
-    if (e.key === 'Escape') {
-      const timerModal = document.getElementById('timer-modal');
-      const isTimerModalOpen = timerModal && !timerModal.classList.contains('hidden');
-      if (isTimerModalOpen) {
-        e.preventDefault();
-        // Escape minimiza (el cronómetro sigue corriendo); no lo descarta.
-        minimizeTimer();
-        return;
-      }
-
-      const confirmModal = document.getElementById('confirm-modal');
-      const isConfirmModalOpen = confirmModal && !confirmModal.classList.contains('hidden');
-      if (isConfirmModalOpen) {
-        e.preventDefault();
-        closeConfirmModal();
-        return;
-      }
-
-      const taskModal = document.getElementById('task-modal');
-      const isTaskModalOpen = taskModal && !taskModal.classList.contains('hidden');
-      if (isTaskModalOpen) {
-        e.preventDefault();
-        closeTaskModal();
-        return;
-      }
-
-      const tagsModal = document.getElementById('tags-modal');
-      const isTagsModalOpen = tagsModal && !tagsModal.classList.contains('hidden');
-      if (isTagsModalOpen) {
-        e.preventDefault();
-        closeTagsModal();
-        return;
-      }
-
-      const shortcutsModal = document.getElementById('shortcuts-modal');
-      if (shortcutsModal && !shortcutsModal.classList.contains('hidden')) {
-        e.preventDefault();
-        shortcutsModal.classList.add('hidden');
-        return;
-      }
-
-      const notesModal = document.getElementById('notes-modal');
-      const isNotesModalOpen = notesModal && !notesModal.classList.contains('hidden');
-      if (isNotesModalOpen) {
-        e.preventDefault();
-        closeNotesModal();
-        return;
-      }
-
-      const changePasswordModal = document.getElementById('change-password-modal');
-      const isChangePasswordModalOpen = changePasswordModal && !changePasswordModal.classList.contains('hidden');
-      if (isChangePasswordModalOpen) {
-        e.preventDefault();
-        closeChangePasswordModal();
-        return;
-      }
-
-      const deleteAccountModal = document.getElementById('delete-account-modal');
-      const isDeleteAccountModalOpen = deleteAccountModal && !deleteAccountModal.classList.contains('hidden');
-      if (isDeleteAccountModalOpen) {
-        e.preventDefault();
-        closeDeleteAccountModal();
-        return;
-      }
+    // Escape: cierra la ventana de más arriba o, si esa ventana tiene una
+    // vista interna abierta, vuelve a la vista anterior (p. ej. Resultados →
+    // Buscador; Editar tarea / Ajustes → Estadísticas).
+    if (e.key === 'Escape' && !e.isComposing) {
+      if (handleGlobalEscape()) e.preventDefault();
     }
   });
 
@@ -2039,6 +1979,8 @@ function setupEventListeners() {
           input.blur();
         }
       } else if (e.key === 'Escape') {
+        // Solo cierra la lista desplegable (no la ventana que la contiene).
+        e.stopPropagation();
         restoreSelected();
         container.classList.add('hidden');
         input.blur();
@@ -3000,6 +2942,86 @@ function openTaskFromBuscador(taskId, date) {
   buscadorReturn.observer = observer;
 }
 
+// ─── Escape global ───────────────────────────────────────────────────────────
+// Devuelve true si cerró/retrocedió algo.
+function handleGlobalEscape() {
+  // Ventanitas propias que ya manejan Escape por su cuenta.
+  if (typeof crDrag !== 'undefined' && crDrag) return false;
+  if (typeof taskPlacement !== 'undefined' && taskPlacement) return false;
+  if (document.querySelector('.endtime-conflict-overlay')) return false;
+  if (document.getElementById('archive-list-menu')) return false;
+
+  // Menú del usuario (avatar) y selector de fecha desplegable.
+  const dd = document.getElementById('user-dropdown');
+  if (dd) { dd.remove(); return true; }
+  const dp = document.getElementById('custom-calendar-dropdown');
+  if (dp && !dp.classList.contains('hidden')) { dp.classList.add('hidden'); return true; }
+
+  // Ventana (modal) visible de más arriba: mayor z-index; a igualdad, la
+  // última en el documento.
+  const open = [...document.querySelectorAll('.modal-backdrop')].filter(m =>
+    !m.classList.contains('hidden') && m.style.display !== 'none');
+  if (open.length) {
+    let top = open[0], topZ = parseInt(getComputedStyle(top).zIndex, 10) || 0;
+    open.forEach(m => {
+      const z = parseInt(getComputedStyle(m).zIndex, 10) || 0;
+      if (z >= topZ) { top = m; topZ = z; }
+    });
+    closeOrGoBackInModal(top);
+    return true;
+  }
+
+  // Sin ventanas: cerrar el panel de Archivados si está abierto.
+  const drawer = document.getElementById('briefcase-drawer');
+  if (drawer && !drawer.classList.contains('closed') && typeof toggleBriefcaseDrawer === 'function') {
+    toggleBriefcaseDrawer();
+    return true;
+  }
+  return false;
+}
+
+function closeOrGoBackInModal(modal) {
+  const id = modal.id;
+  const isVisible = (el) => el && !el.classList.contains('hidden');
+
+  // Retroceder a la vista anterior dentro de la misma ventana.
+  if (id === 'buscador-modal' && isVisible(document.getElementById('buscador-results-view'))) {
+    showBuscadorSearchView();
+    return;
+  }
+  if (id === 'daily-stats-modal' || id === 'general-stats-modal') {
+    const prefix = id.replace('-modal', '');
+    if (isVisible(document.getElementById(prefix + '-edit-content'))) {
+      closeStatsTaskEditView();
+      return;
+    }
+    if (isVisible(document.getElementById(prefix + '-settings-content'))) {
+      cancelDailyStatsSettings();
+      return;
+    }
+  }
+
+  // Cierres con lógica propia.
+  const special = {
+    'timer-modal': () => (typeof timerStartTime !== 'undefined' && timerStartTime) ? minimizeTimer() : modal.classList.add('hidden'),
+    'confirm-modal': () => closeConfirmModal(),
+    'task-modal': () => closeTaskModal(),
+    'tags-modal': () => closeTagsModal(),
+    'notes-modal': () => closeNotesModal(),
+    'change-password-modal': () => closeChangePasswordModal(),
+    'delete-account-modal': () => closeDeleteAccountModal()
+  };
+  if (special[id]) { special[id](); return; }
+
+  // Resto: su botón Cancelar / X (así corre la misma lógica que al pulsarlo)
+  // o, si no tiene, simplemente se oculta.
+  const btn = modal.querySelector(`.close-modal-btn[data-modal="${id}"]`)
+    || modal.querySelector('.close-modal-btn[id$="close-btn"]')
+    || modal.querySelector('[id$="cancel-btn"]');
+  if (btn && btn.offsetParent !== null) { btn.click(); return; }
+  modal.classList.add('hidden');
+}
+
 // Devuelve la hora actual en formato "HH:MM".
 function currentTimeHHMM() {
   const now = new Date();
@@ -3043,7 +3065,7 @@ function askEndTimeConflict(originalEnd, currentEnd) {
       overlay.remove();
       resolve(value);
     };
-    const onKey = (e) => { if (e.key === 'Escape') finish('cancel'); };
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); finish('cancel'); } };
     document.addEventListener('keydown', onKey);
 
     const btnCancel = document.createElement('button');
@@ -3951,7 +3973,7 @@ function setupArchiveListsUI() {
     if (m && m.classList.contains('is-drop')) closeArchiveListMenu();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && document.getElementById('archive-list-menu')) closeArchiveListMenu();
+    if (e.key === 'Escape' && document.getElementById('archive-list-menu')) { e.stopPropagation(); closeArchiveListMenu(); }
   });
 
   // Botones del panel de categorías.
