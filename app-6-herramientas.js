@@ -2530,7 +2530,9 @@ function countDaysInRange(from, to) {
   return diff >= 0 ? diff + 1 : null;
 }
 
-function computeBuscadorStats(keyword, period, fields = { title: true }) {
+// status: 'completed' | 'pending' | 'all'. oncePerDay: las repeticiones y el
+// tiempo total cuentan como máximo 1 tarea por día (la primera del día).
+function computeBuscadorStats(keyword, period, fields = { title: true }, status = 'completed', oncePerDay = false) {
   const kw = normalizeForSearch(keyword);
   const { from, to } = getBuscadorDateRange(period);
   const totalDays = countDaysInRange(from, to);
@@ -2552,23 +2554,28 @@ function computeBuscadorStats(keyword, period, fields = { title: true }) {
       if (!hit) return;
     }
 
-    const minutes = getTaskDurationMinutes(task) || 0;
-
-    const addOccurrence = (dateStr) => {
+    const addOccurrence = (dateStr, done) => {
       if (!dateInRange(dateStr, from, to)) return;
-      repetitions += 1;
-      uniqueDays.add(dateStr);
+      if (status === 'completed' && !done) return;
+      if (status === 'pending' && done) return;
       items.push({ date: dateStr, task });
-      if (minutes > 0) {
-        totalMinutes += minutes;
-        hasAnyDuration = true;
-      }
     };
 
     if (task.recurrence && task.recurrence.enabled) {
-      (task.completedOccurrences || []).forEach(addOccurrence);
-    } else if (task.completed && task.date) {
-      addOccurrence(task.date);
+      const doneDates = new Set(task.completedOccurrences || []);
+      if (status !== 'pending') doneDates.forEach(d => addOccurrence(d, true));
+      if (status !== 'completed' && task.date) {
+        // Ocurrencias no completadas: recorrer los días del rango (sin
+        // extremo final, hasta hoy) en que la tarea se repite.
+        const start = new Date(((from && from > task.date) ? from : task.date) + 'T12:00:00');
+        const end = new Date((to || formatDate(new Date())) + 'T12:00:00');
+        for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const ds = formatDate(d);
+          if (!doneDates.has(ds) && checkTaskOccurrence(task, d)) addOccurrence(ds, false);
+        }
+      }
+    } else if (task.date) {
+      addOccurrence(task.date, !!task.completed);
     }
   });
 
@@ -2577,6 +2584,21 @@ function computeBuscadorStats(keyword, period, fields = { title: true }) {
   items.sort((a, b) => a.date.localeCompare(b.date) ||
     (a.task.startTime || '99:99').localeCompare(b.task.startTime || '99:99') ||
     (a.task.position || 0) - (b.task.position || 0));
+
+  // Totales a partir de lo encontrado (con "máximo 1 por día", solo la
+  // primera tarea de cada día suma repeticiones y tiempo).
+  const counted = new Set();
+  items.forEach(({ date, task }) => {
+    uniqueDays.add(date);
+    if (oncePerDay && counted.has(date)) return;
+    counted.add(date);
+    repetitions += 1;
+    const minutes = getTaskDurationMinutes(task) || 0;
+    if (minutes > 0) {
+      totalMinutes += minutes;
+      hasAnyDuration = true;
+    }
+  });
 
   return { repetitions, days: uniqueDays.size, totalDays, totalMinutes, hasAnyDuration, items };
 }
@@ -2590,7 +2612,9 @@ function runBuscadorCalculation() {
     tag: isOn('buscador-in-tag'),
     desc: isOn('buscador-in-desc')
   };
-  const stats = computeBuscadorStats(keyword, period, fields);
+  const statusSel = document.getElementById('buscador-status');
+  const status = statusSel ? statusSel.value : 'completed';
+  const stats = computeBuscadorStats(keyword, period, fields, status, isOn('buscador-once-per-day'));
   document.getElementById('buscador-repetitions').textContent = stats.repetitions;
   if (stats.totalDays) {
     const pct = Math.round((stats.days / stats.totalDays) * 100);

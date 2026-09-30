@@ -972,7 +972,8 @@
             </label>
           </div>
         </div>
-        <div class="form-group">
+        <div class="form-row buscador-period-row">
+        <div class="form-group flex-1">
           <label for="buscador-period">Periodo</label>
           <select id="buscador-period" style="width: 100%; padding: 6px 10px;">
             <option value="today">Hoy</option>
@@ -983,6 +984,15 @@
             <option value="year">Este año</option>
             <option value="custom">Personalizado</option>
           </select>
+        </div>
+        <div class="form-group flex-1">
+          <label for="buscador-status">Estado</label>
+          <select id="buscador-status" style="width: 100%; padding: 6px 10px;">
+            <option value="completed" selected>Completadas</option>
+            <option value="pending">No completadas</option>
+            <option value="all">Mostrar todo</option>
+          </select>
+        </div>
         </div>
 
         <!-- Rango personalizado (oculto por defecto) -->
@@ -995,6 +1005,13 @@
             <label for="buscador-date-to">Hasta</label>
             <input type="date" id="buscador-date-to">
           </div>
+        </div>
+
+        <div class="buscador-fields buscador-once-row">
+          <label class="copy-option">
+            <input type="checkbox" id="buscador-once-per-day">
+            <span>Contabilizar máximo 1 por día</span>
+          </label>
         </div>
 
         <!-- Resultados (ocultos hasta presionar Aceptar) -->
@@ -1017,7 +1034,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="buscador-cancel-btn">Cancelar</button>
-        <button type="button" class="btn btn-primary" id="buscador-accept-btn">Aplicar</button>
+        <button type="button" class="btn btn-primary" id="buscador-accept-btn">Buscar</button>
       </div>
     </div>
   </div>

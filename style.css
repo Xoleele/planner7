@@ -6152,3 +6152,8 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
 .buscador-list .buscador-card.completed .task-card-time {
   text-decoration: none !important;
 }
+
+/* Buscador: Periodo y Estado lado a lado; casilla "máximo 1 por día". */
+.buscador-period-row { margin-bottom: 0; }
+.buscador-period-row .form-group { min-width: 0; }
+.buscador-once-row { margin: -8px 0 14px -8px; }
