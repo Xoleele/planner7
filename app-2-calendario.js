@@ -3149,6 +3149,13 @@ function toggleCronograma() {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => jumpMobileFeedToDate(targetDate));
       });
+    } else {
+      // Escritorio: la lista de tareas debe mostrar la MISMA semana que se
+      // estaba viendo en la línea de tiempo (ambas comparten currentWeekStart,
+      // pero la lista no se redibujaba al volver y quedaba en la semana vieja).
+      renderWeeklyCalendar();
+      const label = document.getElementById('week-range-label');
+      if (label) label.textContent = formatWeekRange(currentWeekStart);
     }
   }
 
