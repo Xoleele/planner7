@@ -834,7 +834,7 @@ function renderHabitTrackerHTML(dates) {
     const dLabel = `${dObj.getDate()} ${meses[dObj.getMonth()]}`;
     const tip = `${dLabel}: ${done ? 'completado' : 'sin completar'}`;
     const bg = done ? fillColor : EMPTY;
-    return `<div class="habit-cell" data-tooltip="${tip}" style="background:${bg};"></div>`;
+    return `<div class="habit-cell" data-date="${dStr}" data-tooltip="${tip}" style="background:${bg};"></div>`;
   }).join('');
 
   return `
@@ -898,7 +898,7 @@ function renderHeatmapRow(dStr, hue, sat) {
     const v = mins[h];
     const bg = `hsl(${hue}, ${sat}%, ${HEATMAP_LUM[heatmapTier(v)]}%)`;
     const tip = `${dLabel} ${String(h).padStart(2,'0')}:00 · ${v} min`;
-    row += `<div class="heatmap-cell" data-tooltip="${tip}" style="background:${bg};"></div>`;
+    row += `<div class="heatmap-cell" data-date="${dStr}" data-hour="${h}" data-tooltip="${tip}" style="background:${bg};"></div>`;
   }
   return row;
 }
@@ -4017,3 +4017,61 @@ function setupStatsGroupsModal() {
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setupStatsGroupsModal);
 else setupStatsGroupsModal();
+
+
+// ─── Hábitos / Mapa de calor: clic en un cuadrito → tareas de ese día/hora ───
+// Se abre un panel con las tareas de la actividad (o grupo) elegida, con las
+// mismas tarjetas que "Ver resultados" del Buscador.
+function openStatsCellDetail(dateStr, hour) {
+  const modal = document.getElementById('stats-cell-modal');
+  const list = document.getElementById('stats-cell-list');
+  const title = document.getElementById('stats-cell-title');
+  if (!modal || !list) return;
+  const info = getHabitSelectionInfo(generalStatsHabitTag);
+  const dateObj = new Date(dateStr + 'T12:00:00');
+  const hasHour = hour !== undefined && hour !== null && hour !== '';
+  const h = hasHour ? parseInt(hour, 10) : null;
+
+  const found = tasks.filter(task => {
+    if (!habitSelectionHasTag(task.tagId || 'default')) return false;
+    if (!checkTaskOccurrence(task, dateObj)) return false;
+    if (!hasHour) return true;
+    // Mapa de calor: la tarea ocupa al menos un minuto de esa hora.
+    const r = getTaskTimeRange(task);
+    if (!r) return false;
+    const end = r.crossesMidnight ? 24 * 60 : r.rawEndMin;
+    return r.startMin < (h + 1) * 60 && end > h * 60;
+  }).sort((a, b) => (a.startTime || '99:99').localeCompare(b.startTime || '99:99'));
+
+  const dTxt = dateObj.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const dCap = dTxt.charAt(0).toUpperCase() + dTxt.slice(1);
+  if (title) title.textContent = info.label;
+  list.innerHTML = '';
+  const head = document.createElement('div');
+  head.className = 'buscador-list-date';
+  head.textContent = hasHour
+    ? `${dCap} · ${String(h).padStart(2, '0')}:00 – ${String((h + 1) % 24).padStart(2, '0')}:00`
+    : dCap;
+  list.appendChild(head);
+  if (!found.length) {
+    const empty = document.createElement('div');
+    empty.className = 'stats-cell-empty';
+    empty.textContent = hasHour ? 'No hubo tareas en esta hora.' : 'No hubo tareas este día.';
+    list.appendChild(empty);
+  }
+  found.forEach(task => {
+    const card = createTaskCard(task, dateStr).cloneNode(true);
+    card.draggable = false;
+    card.classList.remove('activity-hidden', 'dragging');
+    card.classList.add('buscador-card', 'stats-cell-card');
+    list.appendChild(card);
+  });
+  modal.classList.remove('hidden');
+}
+
+document.addEventListener('click', (e) => {
+  const cell = e.target.closest && e.target.closest('#general-stats-modal .habit-cell, #general-stats-modal .heatmap-cell');
+  if (!cell || !cell.dataset.date) return;
+  getOrCreateChartTooltip().classList.remove('visible');
+  openStatsCellDetail(cell.dataset.date, cell.dataset.hour);
+});

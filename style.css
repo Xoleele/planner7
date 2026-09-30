@@ -6342,3 +6342,16 @@ html:not(.mobile-mode) .gs-filters-wrap > .gs-filter-grid:not([style*="none"]) {
 /* Mapa de calor en escritorio: centrado y más alto. */
 .modal-body.stats-wide-stack .heatmap-scroll { max-height: 400px !important; }
 .modal-body.stats-wide-stack .heatmap-grid { margin: 0 auto; }
+
+/* Hábitos / Mapa de calor: los cuadritos se pueden pulsar. */
+#general-stats-modal .habit-cell,
+#general-stats-modal .heatmap-cell { cursor: pointer; }
+/* Panel con las tareas de un cuadrito (mismo estilo que Resultados). */
+.stats-cell-body { max-height: 60vh; overflow-y: auto; }
+.buscador-list .stats-cell-card { cursor: default; }
+.stats-cell-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 16px 0;
+}
