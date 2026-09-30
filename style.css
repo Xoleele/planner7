@@ -6130,7 +6130,7 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
 }
 .buscador-list-date:first-child { margin-top: 0; }
 .buscador-list .buscador-card {
-  cursor: default;
+  cursor: pointer;
   flex-shrink: 0;
 }
 .buscador-list .buscador-card .task-check-btn { pointer-events: none; }
@@ -6144,4 +6144,11 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
 /* Resultados del buscador: las tarjetas completadas NO se atenúan. */
 .buscador-list .task-card.buscador-card.completed {
   opacity: 1 !important;
+}
+/* …ni tachadas. */
+.buscador-list .buscador-card.completed .task-card-title,
+.buscador-list .buscador-card.completed .task-card-desc,
+.buscador-list .buscador-card.completed .task-card-meta,
+.buscador-list .buscador-card.completed .task-card-time {
+  text-decoration: none !important;
 }

@@ -2646,12 +2646,54 @@ function toggleBuscadorResultsList() {
     card.draggable = false;
     card.classList.remove('activity-hidden', 'dragging');
     card.classList.add('buscador-card');
+    card.title = 'Abrir en el editor';
+    card.addEventListener('click', () => openTaskFromBuscador(task.id, date));
     const row = card;
     list.appendChild(row);
   });
   list.classList.remove('hidden');
   if (viewBtn) viewBtn.textContent = 'Ocultar resultados';
   list.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// Clic en una tarjeta de los resultados: se oculta el Buscador, se abre el
+// editor de tareas y, cuando ya no queda ninguna ventana abierta (guardar,
+// cancelar, eliminar, aviso de recurrentes...), el Buscador vuelve a
+// mostrarse con los resultados recalculados y la lista en la misma posición.
+let buscadorReturn = null; // { scrollTop, observer }
+
+function openTaskFromBuscador(taskId, date) {
+  const buscador = document.getElementById('buscador-modal');
+  const list = document.getElementById('buscador-list');
+  if (!buscador || !tasks.some(t => t.id === taskId)) return;
+  if (buscadorReturn && buscadorReturn.observer) buscadorReturn.observer.disconnect();
+  buscadorReturn = { scrollTop: list ? list.scrollTop : 0, observer: null };
+  buscador.classList.add('hidden');
+  openTaskModal(taskId, date);
+
+  let pending = false;
+  const check = () => {
+    pending = false;
+    if (!buscadorReturn) return;
+    const anyOpen = [...document.querySelectorAll('.modal-backdrop')].some(m =>
+      m.id !== 'buscador-modal' && !m.classList.contains('hidden') && m.style.display !== 'none');
+    if (anyOpen) return;
+    const { scrollTop, observer } = buscadorReturn;
+    if (observer) observer.disconnect();
+    buscadorReturn = null;
+    buscador.classList.remove('hidden');
+    runBuscadorCalculation();
+    if (buscadorLastItems.length) {
+      toggleBuscadorResultsList();
+      const l = document.getElementById('buscador-list');
+      if (l) l.scrollTop = scrollTop;
+    }
+  };
+  const observer = new MutationObserver(() => {
+    if (!pending) { pending = true; setTimeout(check, 0); }
+  });
+  observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
+  buscadorReturn.observer = observer;
 }
 
 // Devuelve la hora actual en formato "HH:MM".
