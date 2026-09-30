@@ -1608,7 +1608,11 @@ function setupEventListeners() {
   }
   const buscadorViewBtn = document.getElementById('buscador-view-btn');
   if (buscadorViewBtn) {
-    buscadorViewBtn.addEventListener('click', toggleBuscadorResultsList);
+    buscadorViewBtn.addEventListener('click', () => showBuscadorResultsView());
+  }
+  const buscadorBackBtn = document.getElementById('buscador-back-btn');
+  if (buscadorBackBtn) {
+    buscadorBackBtn.addEventListener('click', showBuscadorSearchView);
   }
 
   // Trigger Nueva Etiqueta Button: abre la ventana aparte para crear actividad.
@@ -2625,31 +2629,73 @@ function runBuscadorCalculation() {
     stats.hasAnyDuration ? minutesToReadable(stats.totalMinutes) : '—';
   document.getElementById('buscador-results').classList.remove('hidden');
 
-  // Botón "Ver resultados": la lista se arma con lo encontrado y queda oculta
-  // hasta que se pulse.
+  // Tras buscar: aparece "Ver resultados" (negro) y "Buscar" pasa a gris.
   buscadorLastItems = stats.items;
-  const list = document.getElementById('buscador-list');
-  if (list) { list.classList.add('hidden'); list.innerHTML = ''; }
   const viewBtn = document.getElementById('buscador-view-btn');
   if (viewBtn) {
+    viewBtn.classList.remove('hidden');
     viewBtn.disabled = stats.items.length === 0;
-    viewBtn.textContent = 'Ver resultados';
+  }
+  const acceptBtn = document.getElementById('buscador-accept-btn');
+  if (acceptBtn) {
+    acceptBtn.classList.remove('btn-primary');
+    acceptBtn.classList.add('btn-secondary');
   }
 }
 
 let buscadorLastItems = [];
 
-// Muestra / oculta la lista de tareas encontradas, en orden cronológico y
-// agrupadas por día.
-function toggleBuscadorResultsList() {
-  const list = document.getElementById('buscador-list');
+// Estado inicial del Buscador (al abrirlo): vista del formulario, sin
+// "Ver resultados" y con "Buscar" en negro.
+function resetBuscadorView() {
+  showBuscadorSearchView();
   const viewBtn = document.getElementById('buscador-view-btn');
-  if (!list) return;
-  if (!list.classList.contains('hidden')) {
-    list.classList.add('hidden');
-    if (viewBtn) viewBtn.textContent = 'Ver resultados';
-    return;
+  if (viewBtn) viewBtn.classList.add('hidden');
+  const acceptBtn = document.getElementById('buscador-accept-btn');
+  if (acceptBtn) {
+    acceptBtn.classList.remove('btn-secondary');
+    acceptBtn.classList.add('btn-primary');
   }
+}
+
+// Alterna entre las dos vistas del mismo panel. La de resultados toma el alto
+// exacto de la del formulario, así parece que solo cambia el contenido.
+function showBuscadorSearchView() {
+  const searchView = document.getElementById('buscador-search-view');
+  const resultsView = document.getElementById('buscador-results-view');
+  if (searchView) searchView.classList.remove('hidden');
+  if (resultsView) resultsView.classList.add('hidden');
+  const title = document.getElementById('buscador-modal-title');
+  if (title) title.textContent = 'Buscador';
+  document.getElementById('buscador-back-btn')?.classList.add('hidden');
+  ['buscador-view-btn', 'buscador-cancel-btn', 'buscador-accept-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = '';
+  });
+}
+
+function showBuscadorResultsView(scrollTop = 0) {
+  const searchView = document.getElementById('buscador-search-view');
+  const resultsView = document.getElementById('buscador-results-view');
+  const list = document.getElementById('buscador-list');
+  if (!searchView || !resultsView || !list) return;
+  const h = searchView.offsetHeight;
+  if (h) resultsView.style.height = h + 'px';
+  renderBuscadorResultsList(list);
+  searchView.classList.add('hidden');
+  resultsView.classList.remove('hidden');
+  resultsView.scrollTop = scrollTop;
+  const title = document.getElementById('buscador-modal-title');
+  if (title) title.textContent = `Resultados (${buscadorLastItems.length})`;
+  document.getElementById('buscador-back-btn')?.classList.remove('hidden');
+  ['buscador-view-btn', 'buscador-cancel-btn', 'buscador-accept-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+}
+
+// Lista de tareas encontradas, en orden cronológico y agrupadas por día.
+function renderBuscadorResultsList(list) {
   list.innerHTML = '';
   let lastDate = null;
   buscadorLastItems.forEach(({ date, task }) => {
@@ -2670,12 +2716,8 @@ function toggleBuscadorResultsList() {
     card.classList.add('buscador-card');
     card.title = 'Abrir en el editor';
     card.addEventListener('click', () => openTaskFromBuscador(task.id, date));
-    const row = card;
-    list.appendChild(row);
+    list.appendChild(card);
   });
-  list.classList.remove('hidden');
-  if (viewBtn) viewBtn.textContent = 'Ocultar resultados';
-  list.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 // Clic en una tarjeta de los resultados: se oculta el Buscador, se abre el
@@ -2686,10 +2728,10 @@ let buscadorReturn = null; // { scrollTop, observer }
 
 function openTaskFromBuscador(taskId, date) {
   const buscador = document.getElementById('buscador-modal');
-  const list = document.getElementById('buscador-list');
+  const resultsView = document.getElementById('buscador-results-view');
   if (!buscador || !tasks.some(t => t.id === taskId)) return;
   if (buscadorReturn && buscadorReturn.observer) buscadorReturn.observer.disconnect();
-  buscadorReturn = { scrollTop: list ? list.scrollTop : 0, observer: null };
+  buscadorReturn = { scrollTop: resultsView ? resultsView.scrollTop : 0, observer: null };
   buscador.classList.add('hidden');
   openTaskModal(taskId, date);
 
@@ -2705,11 +2747,7 @@ function openTaskFromBuscador(taskId, date) {
     buscadorReturn = null;
     buscador.classList.remove('hidden');
     runBuscadorCalculation();
-    if (buscadorLastItems.length) {
-      toggleBuscadorResultsList();
-      const l = document.getElementById('buscador-list');
-      if (l) l.scrollTop = scrollTop;
-    }
+    showBuscadorResultsView(scrollTop);
   };
   const observer = new MutationObserver(() => {
     if (!pending) { pending = true; setTimeout(check, 0); }

@@ -6106,20 +6106,17 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
 }
 
 /* Buscador: botón y lista de resultados encontrados (orden cronológico). */
-.buscador-view-btn {
-  width: 100%;
-  margin-top: 10px;
-}
-.buscador-view-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .buscador-list {
-  margin-top: 10px;
-  max-height: 320px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.buscador-list.hidden { display: none; }
+/* Pie del Buscador: "Regresar" a la izquierda; el resto a la derecha. */
+.buscador-footer-spacer { flex: 1; }
+#buscador-view-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.buscador-results-view { overflow-y: auto; }
+.buscador-results-view.hidden,
+#buscador-search-view.hidden { display: none; }
 .buscador-list-date {
   font-size: 11px;
   font-weight: 700;

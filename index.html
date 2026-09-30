@@ -950,7 +950,8 @@
           <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
         </button>
       </div>
-      <div class="modal-body">
+      <!-- Vista 1: formulario de búsqueda + totales -->
+      <div class="modal-body" id="buscador-search-view">
         <div class="form-group">
           <label for="buscador-keyword">Palabra clave</label>
           <input type="text" id="buscador-keyword" placeholder="Escribe una palabra clave" autocomplete="off">
@@ -1031,11 +1032,16 @@
             <span class="buscador-result-label">Tiempo total</span>
             <span class="buscador-result-value" id="buscador-total-time">—</span>
           </div>
-          <button type="button" id="buscador-view-btn" class="btn btn-secondary buscador-view-btn">Ver resultados</button>
-          <div id="buscador-list" class="buscador-list hidden"></div>
         </div>
       </div>
-      <div class="modal-footer">
+      <!-- Vista 2: lista de resultados (mismo alto que la vista 1) -->
+      <div class="modal-body buscador-results-view hidden" id="buscador-results-view">
+        <div id="buscador-list" class="buscador-list"></div>
+      </div>
+      <div class="modal-footer buscador-footer">
+        <button type="button" class="btn btn-primary hidden" id="buscador-back-btn">Regresar</button>
+        <span class="buscador-footer-spacer"></span>
+        <button type="button" class="btn btn-primary hidden" id="buscador-view-btn">Ver resultados</button>
         <button type="button" class="btn btn-secondary" id="buscador-cancel-btn">Cancelar</button>
         <button type="button" class="btn btn-primary" id="buscador-accept-btn">Buscar</button>
       </div>

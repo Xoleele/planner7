@@ -1451,6 +1451,7 @@ function setupTimeMaskInput(inputEl) {
 // de escritorio y por el ítem del menú de usuario (móvil).
 function openBuscadorModal() {
   document.getElementById('buscador-results').classList.add('hidden');
+  if (typeof resetBuscadorView === 'function') resetBuscadorView();
   document.getElementById('buscador-keyword').value = '';
   document.getElementById('buscador-period').value = 'last10';
   document.getElementById('buscador-custom-range').classList.add('hidden');
