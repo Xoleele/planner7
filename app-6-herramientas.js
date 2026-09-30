@@ -1606,6 +1606,10 @@ function setupEventListeners() {
   if (buscadorAcceptBtn) {
     buscadorAcceptBtn.addEventListener('click', runBuscadorCalculation);
   }
+  const buscadorViewBtn = document.getElementById('buscador-view-btn');
+  if (buscadorViewBtn) {
+    buscadorViewBtn.addEventListener('click', toggleBuscadorResultsList);
+  }
 
   // Trigger Nueva Etiqueta Button: abre la ventana aparte para crear actividad.
   document.getElementById('add-tag-trigger-btn').addEventListener('click', () => {
@@ -2535,6 +2539,7 @@ function computeBuscadorStats(keyword, period, fields = { title: true }) {
   const uniqueDays = new Set();
   let totalMinutes = 0;
   let hasAnyDuration = false;
+  const items = []; // { date, task } de cada ocurrencia encontrada
 
   tasks.forEach(task => {
     // Coincide si la palabra clave aparece (sin distinguir tildes ni
@@ -2553,6 +2558,7 @@ function computeBuscadorStats(keyword, period, fields = { title: true }) {
       if (!dateInRange(dateStr, from, to)) return;
       repetitions += 1;
       uniqueDays.add(dateStr);
+      items.push({ date: dateStr, task });
       if (minutes > 0) {
         totalMinutes += minutes;
         hasAnyDuration = true;
@@ -2566,7 +2572,13 @@ function computeBuscadorStats(keyword, period, fields = { title: true }) {
     }
   });
 
-  return { repetitions, days: uniqueDays.size, totalDays, totalMinutes, hasAnyDuration };
+  // Orden cronológico: por fecha y, dentro del día, por hora de inicio
+  // (las que no tienen hora van al final del día).
+  items.sort((a, b) => a.date.localeCompare(b.date) ||
+    (a.task.startTime || '99:99').localeCompare(b.task.startTime || '99:99') ||
+    (a.task.position || 0) - (b.task.position || 0));
+
+  return { repetitions, days: uniqueDays.size, totalDays, totalMinutes, hasAnyDuration, items };
 }
 
 function runBuscadorCalculation() {
@@ -2590,6 +2602,84 @@ function runBuscadorCalculation() {
   document.getElementById('buscador-total-time').textContent =
     stats.hasAnyDuration ? minutesToReadable(stats.totalMinutes) : '—';
   document.getElementById('buscador-results').classList.remove('hidden');
+
+  // Botón "Ver resultados": la lista se arma con lo encontrado y queda oculta
+  // hasta que se pulse.
+  buscadorLastItems = stats.items;
+  const list = document.getElementById('buscador-list');
+  if (list) { list.classList.add('hidden'); list.innerHTML = ''; }
+  const viewBtn = document.getElementById('buscador-view-btn');
+  if (viewBtn) {
+    viewBtn.disabled = stats.items.length === 0;
+    viewBtn.textContent = 'Ver resultados';
+  }
+}
+
+let buscadorLastItems = [];
+
+// Muestra / oculta la lista de tareas encontradas, en orden cronológico y
+// agrupadas por día.
+function toggleBuscadorResultsList() {
+  const list = document.getElementById('buscador-list');
+  const viewBtn = document.getElementById('buscador-view-btn');
+  if (!list) return;
+  if (!list.classList.contains('hidden')) {
+    list.classList.add('hidden');
+    if (viewBtn) viewBtn.textContent = 'Ver resultados';
+    return;
+  }
+  list.innerHTML = '';
+  let lastDate = null;
+  buscadorLastItems.forEach(({ date, task }) => {
+    if (date !== lastDate) {
+      lastDate = date;
+      const head = document.createElement('div');
+      head.className = 'buscador-list-date';
+      const d = new Date(date + 'T12:00:00');
+      const txt = d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+      head.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
+      list.appendChild(head);
+    }
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    const row = document.createElement('div');
+    row.className = 'buscador-list-item';
+    if (tag && tag.color) {
+      row.style.setProperty('--tag-bg', tag.color.bg);
+      row.style.setProperty('--tag-border', tag.color.border);
+    }
+    const main = document.createElement('div');
+    main.className = 'buscador-list-main';
+    const title = document.createElement('div');
+    title.className = 'buscador-list-title';
+    title.textContent = task.title || '(sin título)';
+    main.appendChild(title);
+    const meta = document.createElement('div');
+    meta.className = 'buscador-list-meta';
+    const parts = [];
+    const timeTxt = formatTaskTimeText(task);
+    if (timeTxt) parts.push(timeTxt);
+    if (tag && tag.name) parts.push(tag.name);
+    meta.textContent = parts.join(' · ');
+    if (parts.length) main.appendChild(meta);
+    if (task.description && task.description.trim()) {
+      const desc = document.createElement('div');
+      desc.className = 'buscador-list-desc';
+      desc.textContent = task.description.trim();
+      main.appendChild(desc);
+    }
+    row.appendChild(main);
+    const mins = getTaskDurationMinutes(task);
+    if (mins) {
+      const dur = document.createElement('span');
+      dur.className = 'buscador-list-dur';
+      dur.textContent = minutesToReadable(mins);
+      row.appendChild(dur);
+    }
+    list.appendChild(row);
+  });
+  list.classList.remove('hidden');
+  if (viewBtn) viewBtn.textContent = 'Ocultar resultados';
+  list.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 // Devuelve la hora actual en formato "HH:MM".
