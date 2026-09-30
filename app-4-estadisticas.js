@@ -113,7 +113,9 @@ function getStatsModalHTML(prefix) {
       
       ${prefix === 'general-stats' ? `
       <!-- Filtros en cuadrícula de 2 columnas iguales (fila 1: tipo + periodo;
-           fila 2, solo Hábitos / Mapa de calor: actividad + constancia/promedio). -->
+           fila 2, solo Hábitos / Mapa de calor: actividad + constancia/promedio).
+           En escritorio (ventana ancha) las dos filas se juntan en una de 4. -->
+      <div class="gs-filters-wrap">
       <div class="general-stats-filters gs-filter-grid">
         <div class="form-group gs-filter" style="margin-bottom: 0;">
           <label for="general-stats-chart-type-select" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Tipo de Gráfico</label>
@@ -165,6 +167,7 @@ function getStatsModalHTML(prefix) {
           <label id="habit-streak-label" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Constancia</label>
           <div id="habit-streak-count" style="height: 38px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; font-size: 15px; font-weight: 700; color: var(--text-main); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card);">0/0</div>
         </div>
+      </div>
       </div>
       ` : ''}
       
@@ -947,7 +950,9 @@ function renderHeatmapHTML(dates) {
   const limit = formatDate(limitD);
 
   // Cargar los primeros 12 días (más reciente arriba, hacia atrás).
-  const INITIAL = Math.min(12, periodDays);
+  // (En escritorio la ventana es más alta: se cargan más filas para que haya
+  // scroll y así el scroll infinito pueda seguir cargando días.)
+  const INITIAL = Math.min(isMobile() ? 12 : 20, periodDays);
   let html = '<div class="heatmap-corner"></div>';
   for (let h = 0; h < 24; h++) {
     html += `<div class="heatmap-hlabel">${h}</div>`;
@@ -1262,18 +1267,27 @@ function renderDailyStatsPanel(panelEl, dateParam) {
 
   // Renderizar gráfico
   const chartContainer = chartPlaceholder.parentElement;
+  // Escritorio: ventana ancha. Gráfico a la izquierda y listado a la derecha;
+  // Hábitos / Mapa de calor (sin listado) usan todo el ancho.
+  const wide = !isMobile();
+  const habitLike = prefix === 'general-stats' && (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap');
+  const bodyEl = panelEl.querySelector('.modal-body');
+  if (bodyEl) {
+    bodyEl.classList.toggle('stats-wide', wide && !habitLike);
+    bodyEl.classList.toggle('stats-wide-stack', wide && habitLike);
+  }
   if (chartContainer) {
-    if (prefix === 'general-stats' && (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap')) {
+    if (habitLike) {
       chartContainer.style.width = '100%';
-      chartContainer.style.maxWidth = '340px';
+      chartContainer.style.maxWidth = wide ? '680px' : '340px';
       chartContainer.style.height = 'auto';
     } else if (prefix === 'general-stats' && (generalStatsChartType === 'barras-apiladas' || generalStatsChartType === 'lineal')) {
-      chartContainer.style.width = '100%';
-      chartContainer.style.maxWidth = '340px';
-      chartContainer.style.height = '175px';
+      chartContainer.style.width = wide ? '54%' : '100%';
+      chartContainer.style.maxWidth = wide ? 'none' : '340px';
+      chartContainer.style.height = wide ? '260px' : '175px';
     } else {
-      chartContainer.style.width = '175px';
-      chartContainer.style.height = '175px';
+      chartContainer.style.width = wide ? '280px' : '175px';
+      chartContainer.style.height = wide ? '280px' : '175px';
       chartContainer.style.maxWidth = '';
     }
   }

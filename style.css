@@ -6300,3 +6300,45 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
 }
 .gs-filter select,
 .gs-filter .custom-select-trigger { height: 38px; box-sizing: border-box; }
+
+/* ─── Estadísticas en escritorio: ventana el doble de ancha ─── */
+html:not(.mobile-mode) #daily-stats-main-content,
+html:not(.mobile-mode) #general-stats-main-content {
+  width: 760px;
+  max-width: calc(100vw - 32px);
+}
+/* Gráfico a la izquierda, listado de actividades a la derecha. */
+html:not(.mobile-mode) #daily-stats-modal .modal-body.stats-wide,
+html:not(.mobile-mode) #general-stats-modal .modal-body.stats-wide {
+  flex-direction: row;
+  align-items: center;
+  gap: 28px;
+  padding: 10px 28px 20px 28px;
+}
+.modal-body.stats-wide .pie-chart-container { flex: 0 0 auto; }
+.modal-body.stats-wide .daily-stats-legend {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  justify-content: center;
+}
+.modal-body.stats-wide .activity-list { flex: 0 1 auto; }
+/* Hábitos / Mapa de calor: el gráfico ocupa todo el ancho, centrado. */
+html:not(.mobile-mode) #general-stats-modal .modal-body.stats-wide-stack {
+  padding: 10px 28px 20px 28px;
+}
+/* Filtros: las dos filas se juntan en una de 4 columnas. */
+html:not(.mobile-mode) .gs-filters-wrap {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px 28px 0 28px;
+  align-items: end;
+}
+html:not(.mobile-mode) .gs-filters-wrap > .gs-filter-grid { padding: 0; }
+html:not(.mobile-mode) .gs-filters-wrap > .gs-filter-grid:not([style*="none"]) {
+  display: contents !important;
+}
+/* Mapa de calor en escritorio: centrado y más alto. */
+.modal-body.stats-wide-stack .heatmap-scroll { max-height: 400px !important; }
+.modal-body.stats-wide-stack .heatmap-grid { margin: 0 auto; }
