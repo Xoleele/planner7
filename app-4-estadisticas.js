@@ -415,7 +415,9 @@ function renderPieChartSVG(includedGroups) {
 }
 
 function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) {
-  const y_bottom = 80;
+  // En escritorio el gráfico es más alto (lienzo 200×150 en vez de 200×100).
+  const VB_H = isMobile() ? 100 : 150;
+  const y_bottom = VB_H - 20;
   const y_top = 8;
   const plotHeight = y_bottom - y_top;
   const x_left = 12;
@@ -467,7 +469,7 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
   const barWidth = (plotWidth - (N - 1) * gap) / N;
 
   const svgParts = [];
-  svgParts.push(`<svg viewBox="0 0 200 100" style="width: 100%; height: 100%;">`);
+  svgParts.push(`<svg viewBox="0 0 200 ${VB_H}" style="width: 100%; height: 100%;">`);
   
   const gridLinesY = [y_top + plotHeight * 0.25, y_top + plotHeight * 0.5, y_top + plotHeight * 0.75];
   gridLinesY.forEach(yVal => {
@@ -539,7 +541,9 @@ function getOrCreateChartTooltip() {
 }
 
 function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
-  const y_bottom = 80;
+  // En escritorio el gráfico es más alto (lienzo 200×150 en vez de 200×100).
+  const VB_H = isMobile() ? 100 : 150;
+  const y_bottom = VB_H - 20;
   const y_top = 10;
   const plotHeight = y_bottom - y_top;
   const x_left = 15;
@@ -586,7 +590,7 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   const yMax = maxDailyHours > 0 ? maxDailyHours * 1.1 : 1;
 
   const svgParts = [];
-  svgParts.push(`<svg viewBox="0 0 200 100" style="width: 100%; height: 100%;">`);
+  svgParts.push(`<svg viewBox="0 0 200 ${VB_H}" style="width: 100%; height: 100%;">`);
 
   const gridLinesY = [y_top + plotHeight * 0.25, y_top + plotHeight * 0.5, y_top + plotHeight * 0.75];
   gridLinesY.forEach((yVal, idx) => {
@@ -794,7 +798,8 @@ function renderHabitTrackerHTML(dates) {
   // Orden: el día más reciente en la esquina superior izquierda; se rellena de
   // izquierda a derecha y luego hacia abajo (flujo por filas). `dates` viene en
   // orden ascendente, así que lo invertimos.
-  const COLS = 10;
+  // Escritorio (ventana ancha): 25 columnas → cuadrados más chicos.
+  const COLS = isMobile() ? 10 : 25;
   const ordered = dates.slice().reverse();
   const cells = ordered.map(dStr => {
     const done = habitDoneOnDate(dStr);
@@ -1279,14 +1284,18 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   if (chartContainer) {
     if (habitLike) {
       chartContainer.style.width = '100%';
-      chartContainer.style.maxWidth = wide ? '680px' : '340px';
+      // Hábitos: cuadrados más chicos (≈22px); Mapa de calor: ancho completo.
+      const habitMax = generalStatsChartType === 'habitos' ? '620px' : '680px';
+      chartContainer.style.maxWidth = wide ? habitMax : '340px';
       chartContainer.style.height = 'auto';
     } else if (prefix === 'general-stats' && (generalStatsChartType === 'barras-apiladas' || generalStatsChartType === 'lineal')) {
-      chartContainer.style.width = wide ? '54%' : '100%';
+      // Escritorio: misma columna izquierda (380px) que el circular, para que
+      // el listado de la derecha tenga siempre el mismo ancho.
+      chartContainer.style.width = wide ? '380px' : '100%';
       chartContainer.style.maxWidth = wide ? 'none' : '340px';
-      chartContainer.style.height = wide ? '260px' : '175px';
+      chartContainer.style.height = wide ? '300px' : '175px';
     } else {
-      chartContainer.style.width = wide ? '280px' : '175px';
+      chartContainer.style.width = wide ? '380px' : '175px';
       chartContainer.style.height = wide ? '280px' : '175px';
       chartContainer.style.maxWidth = '';
     }
