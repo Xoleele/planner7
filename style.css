@@ -6140,3 +6140,8 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
+
+/* Resultados del buscador: las tarjetas completadas NO se atenúan. */
+.buscador-list .task-card.buscador-card.completed {
+  opacity: 1 !important;
+}
