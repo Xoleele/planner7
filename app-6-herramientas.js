@@ -523,6 +523,27 @@ function setupEventListeners() {
 
   // Navegación con flechas del teclado (solo escritorio)
   document.addEventListener('keydown', (e) => {
+    // Atajos que abren una ventana también la cierran (B = Buscador,
+    // L = Actividades). Solo si esa ventana es la única abierta y no se está
+    // escribiendo en un campo. Se cierra con su propia X para que corra la
+    // misma lógica de cierre.
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && !isMobile()) {
+      const k = (e.key || '').toLowerCase();
+      const targetId = k === 'b' ? 'buscador-modal' : k === 'l' ? 'tags-modal' : null;
+      const target = targetId && document.getElementById(targetId);
+      if (target && !target.classList.contains('hidden')) {
+        const ae = document.activeElement;
+        const typing = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT' || ae.isContentEditable);
+        const othersOpen = [...document.querySelectorAll('.modal-backdrop')].some(m =>
+          m !== target && !m.classList.contains('hidden') && m.style.display !== 'none');
+        if (!typing && !othersOpen) {
+          e.preventDefault();
+          const x = target.querySelector('.close-modal-btn[data-modal]');
+          if (x) x.click(); else target.classList.add('hidden');
+          return;
+        }
+      }
+    }
     // Atajo E con Estadísticas abierto: cerrarlo (E abre / E cierra). No aplica
     // si se está escribiendo en un campo (p. ej. el buscador de actividad).
     if ((e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey && !e.altKey && !isMobile()) {
@@ -1966,6 +1987,11 @@ function setupEventListeners() {
     const restoreSelected = () => {
       const hidden = document.getElementById(hiddenId);
       const id = hidden ? hidden.value : 'default';
+      // Selector de Hábitos: también puede tener un grupo elegido.
+      if (hiddenId === 'habit-select-tag' && typeof getHabitSelectionInfo === 'function') {
+        input.value = getHabitSelectionInfo(id).label;
+        return;
+      }
       const tag = tags.find(t => t.id === id) || tags.find(t => t.id === 'default');
       if (tag) input.value = tag.name;
     };

@@ -849,7 +849,8 @@ function filterTagOptions(container, query) {
   let first = null;
   container.querySelectorAll('.custom-option').forEach(opt => {
     const name = (opt.dataset.name || '').toLowerCase();
-    const match = (!q || name.startsWith(q));
+    const alt = (opt.dataset.alt || '').toLowerCase();
+    const match = (!q || name.startsWith(q) || (alt && alt.startsWith(q)));
     opt.style.display = match ? '' : 'none';
     if (match && !first) first = opt;
   });
@@ -937,21 +938,46 @@ function buildHabitTagSelectorOptions() {
 
     container.appendChild(option);
   });
+
+  // Grupos de actividades al final: "GRUPO: nombre".
+  (typeof statsActivityGroups !== 'undefined' ? statsActivityGroups : []).forEach(g => {
+    const info = getHabitSelectionInfo(STATS_GROUP_KEY_PREFIX + g.id);
+    const option = document.createElement('div');
+    option.className = 'custom-option';
+    option.dataset.value = info.id;
+    option.dataset.name = g.name || 'Grupo';
+    option.dataset.alt = info.label; // permite buscar escribiendo "grupo…"
+    const circle = document.createElement('span');
+    circle.className = 'custom-select-color-circle';
+    circle.style.backgroundColor = info.color ? info.color.bg : '#c7c7cc';
+    circle.style.borderColor = info.color ? (info.color.border || info.color.bg) : '#c7c7cc';
+    const label = document.createElement('span');
+    label.textContent = info.label;
+    option.append(circle, label);
+    option.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setHabitSelectTagValue(info.id);
+      if (typeof rememberGeneralStatsHabitTag === 'function') rememberGeneralStatsHabitTag(info.id);
+      container.classList.add('hidden');
+      renderGeneralStatsForRange();
+    });
+    container.appendChild(option);
+  });
 }
 
 // Establece la etiqueta seleccionada del modo hábitos y refleja nombre/color.
 function setHabitSelectTagValue(tagId) {
-  const tag = tags.find(t => t.id === tagId) || tags.find(t => t.id === 'default');
-  if (!tag) return;
-  generalStatsHabitTag = tag.id;
+  // Puede ser una actividad o un grupo ("grp:<id>").
+  const info = getHabitSelectionInfo(tagId);
+  generalStatsHabitTag = info.id;
   const hidden = document.getElementById('habit-select-tag');
-  if (hidden) hidden.value = tag.id;
+  if (hidden) hidden.value = info.id;
   const input = document.getElementById('habit-tag-select-input');
-  if (input) input.value = tag.name;
+  if (input) input.value = info.label;
   const circle = document.getElementById('habit-tag-select-circle');
-  if (circle) {
-    circle.style.backgroundColor = tag.color.bg;
-    circle.style.borderColor = tag.color.border;
+  if (circle && info.color) {
+    circle.style.backgroundColor = info.color.bg;
+    circle.style.borderColor = info.color.border || info.color.bg;
   }
 }
 
@@ -965,6 +991,8 @@ function updateHabitTagRowVisibility() {
   if (!row) return;
   const visible = (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap');
   row.style.display = visible ? 'flex' : 'none';
+  // El botón de grupos se oculta en Hábitos / Mapa de calor.
+  if (typeof refreshStatsGroupsButtons === 'function') refreshStatsGroupsButtons();
   // El selector de periodo no aplica al mapa de calor (scroll infinito propio).
   const periodGroup = document.getElementById('general-stats-period-group');
   if (periodGroup) periodGroup.style.display = (generalStatsChartType === 'heatmap') ? 'none' : '';

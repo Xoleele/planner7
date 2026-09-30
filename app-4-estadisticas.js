@@ -150,7 +150,7 @@ function getStatsModalHTML(prefix) {
           </div>
         </div>
         <div class="form-group" style="flex: 2; min-width: 0; margin-bottom: 0; display: flex; flex-direction: column; gap: 4px;">
-          <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Constancia</label>
+          <label id="habit-streak-label" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Constancia</label>
           <div id="habit-streak-count" style="height: 38px; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; font-size: 15px; font-weight: 700; color: var(--text-main); border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card);">0/0</div>
         </div>
       </div>
@@ -652,7 +652,7 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
 function habitDoneOnDate(dStr) {
   const dateObj = new Date(dStr + 'T12:00:00');
   return tasks.some(task => {
-    if ((task.tagId || 'default') !== generalStatsHabitTag) return false;
+    if (!habitSelectionHasTag(task.tagId || 'default')) return false;
     if (!checkTaskOccurrence(task, dateObj)) return false;
     return (task.recurrence && task.recurrence.enabled)
       ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
@@ -660,10 +660,56 @@ function habitDoneOnDate(dStr) {
   });
 }
 
+// Mapa de calor: el recuadro de la cabecera muestra PROMEDIO en horas por día,
+// desde el primer día con una tarea de la actividad/grupo elegido hasta el día
+// más reciente del mapa. Cuenta lo mismo que pinta el mapa (tareas con hora de
+// inicio y fin; si cruzan medianoche, hasta las 24:00).
+function updateHeatmapAverage(dates) {
+  const el = document.getElementById('habit-streak-count');
+  const label = document.getElementById('habit-streak-label');
+  if (label) label.textContent = 'Promedio';
+  if (!el) return;
+  const newest = (dates && dates.length) ? dates[dates.length - 1] : formatDate(new Date());
+  const oldest = heatmapOldestDate();
+  if (!oldest || oldest > newest) {
+    el.innerHTML = '<span>—</span>';
+    return;
+  }
+  const minsOf = (task) => {
+    const r = getTaskTimeRange(task);
+    if (!r) return 0;
+    const end = r.crossesMidnight ? 24 * 60 : r.rawEndMin;
+    return Math.max(0, end - r.startMin);
+  };
+  let total = 0;
+  tasks.forEach(task => {
+    if (!habitSelectionHasTag(task.tagId || 'default')) return;
+    const mins = minsOf(task);
+    if (!mins) return;
+    if (task.recurrence && task.recurrence.enabled) {
+      const start = new Date(((task.date && task.date > oldest) ? task.date : oldest) + 'T12:00:00');
+      const end = new Date(newest + 'T12:00:00');
+      for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        if (checkTaskOccurrence(task, d)) total += mins;
+      }
+    } else if (task.date && task.date >= oldest && task.date <= newest) {
+      total += mins;
+    }
+  });
+  const days = Math.round((new Date(newest + 'T12:00:00') - new Date(oldest + 'T12:00:00')) / 86400000) + 1;
+  const avgHours = days > 0 ? total / 60 / days : 0;
+  const txt = avgHours.toLocaleString('es-CL', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  el.title = `${minutesToReadable(Math.round(total))} en ${days} días`;
+  el.innerHTML = `<span>${txt} hrs/día</span><span style="color: var(--text-muted); font-weight: 600;">${days} días</span>`;
+}
+
 // Actualiza el contador de Constancia: "días completados / días de la muestra".
 function updateHabitStreakCount(dates) {
   const el = document.getElementById('habit-streak-count');
+  const label = document.getElementById('habit-streak-label');
+  if (label) label.textContent = 'Constancia';
   if (!el) return;
+  el.title = '';
   // Constancia = días completados / días de la muestra (el periodo elegido,
   // p. ej. 3/30 en "Últimos 30 días"). Los días futuros no cuentan.
   const todayStr = formatDate(new Date());
@@ -683,8 +729,8 @@ function updateHabitStreakCount(dates) {
 // etiqueta seleccionada si ese día hubo ≥1 tarea de esa etiqueta completada;
 // si no, queda en gris claro.
 function renderHabitTrackerHTML(dates) {
-  const tag = tags.find(t => t.id === generalStatsHabitTag) || tags.find(t => t.id === 'default');
-  const fillColor = tag && tag.color ? tag.color.bg : '#50a9ed';
+  const habitInfo = getHabitSelectionInfo(generalStatsHabitTag);
+  const fillColor = habitInfo.color ? habitInfo.color.bg : '#50a9ed';
   const EMPTY = '#e9e9ec';
   const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 
@@ -739,7 +785,7 @@ function heatmapDayMinutes(dStr) {
   const dateObj = new Date(dStr + 'T12:00:00');
   const hours = new Array(24).fill(0);
   tasks.forEach(task => {
-    if ((task.tagId || 'default') !== generalStatsHabitTag) return;
+    if (!habitSelectionHasTag(task.tagId || 'default')) return;
     if (!checkTaskOccurrence(task, dateObj)) return;
     const r = getTaskTimeRange(task); // requiere startTime + endTime
     if (!r) return;
@@ -821,7 +867,7 @@ function topTagByDurationInRange(fromStr, toStr) {
 function heatmapOldestDate() {
   let oldest = null;
   tasks.forEach(task => {
-    if ((task.tagId || 'default') !== generalStatsHabitTag) return;
+    if (!habitSelectionHasTag(task.tagId || 'default')) return;
     if (!getTaskTimeRange(task)) return; // solo tareas con horario cuentan
     const d = task.date || (task.completedOccurrences && task.completedOccurrences[0]);
     if (d && (!oldest || d < oldest)) oldest = d;
@@ -834,8 +880,8 @@ function heatmapOldestDate() {
 // de la etiqueta. La escala de color es fija (0–60 min). El parámetro `dates`
 // (rango del periodo) solo se usa para fijar el día más reciente.
 function renderHeatmapHTML(dates) {
-  const tag = tags.find(t => t.id === generalStatsHabitTag) || tags.find(t => t.id === 'default');
-  const [hue, sat] = getHueSatFromColor(tag && tag.color ? tag.color.bg : '#50a9ed');
+  const habitInfo = getHabitSelectionInfo(generalStatsHabitTag);
+  const [hue, sat] = getHueSatFromColor(habitInfo.color ? habitInfo.color.bg : '#50a9ed');
 
   // Día más reciente = último del rango (o hoy si no hay rango).
   const newest = (dates && dates.length) ? dates[dates.length - 1] : formatDate(new Date());
@@ -1170,6 +1216,7 @@ function renderDailyStatsPanel(panelEl, dateParam) {
 
   if (prefix === 'general-stats' && generalStatsChartType === 'heatmap') {
     chartPlaceholder.innerHTML = renderHeatmapHTML(dates);
+    if (panelEl.id && panelEl.id.endsWith('-panel-curr')) updateHeatmapAverage(dates);
     const scrollEl = chartPlaceholder.querySelector('.heatmap-scroll');
     bindHeatmapCellTooltips(scrollEl);
     setupHeatmapInfiniteScroll(scrollEl);
@@ -3554,10 +3601,41 @@ let statsActivityGroups = [];
 // cuenta (preferences.statsGroupsEnabled). Por defecto, desactivado.
 let statsGroupsEnabled = false;
 
+// Hábitos / Mapa de calor: se elige UNA actividad o un grupo en su selector
+// ("GRUPO: nombre", al final de la lista). La selección se guarda como el id
+// de la actividad o como "grp:<id del grupo>".
+function getHabitSelectionInfo(id) {
+  if (id && String(id).startsWith(STATS_GROUP_KEY_PREFIX)) {
+    const g = statsActivityGroups.find(x => STATS_GROUP_KEY_PREFIX + x.id === id);
+    if (g) {
+      const first = tags.find(t => g.tagIds.includes(t.id));
+      return {
+        id,
+        label: `GRUPO: ${g.name || 'Grupo'}`,
+        color: g.color || (first && first.color) || null,
+        tagIds: g.tagIds
+      };
+    }
+  }
+  const tag = tags.find(t => t.id === id) || tags.find(t => t.id === 'default');
+  return tag
+    ? { id: tag.id, label: tag.name, color: tag.color || null, tagIds: [tag.id] }
+    : { id: 'default', label: 'Por defecto', color: null, tagIds: ['default'] };
+}
+
+function habitSelectionHasTag(tagId) {
+  return getHabitSelectionInfo(generalStatsHabitTag).tagIds.includes(tagId);
+}
+
 function refreshStatsGroupsButtons() {
   ['daily-stats-groups-btn', 'general-stats-groups-btn'].forEach(id => {
     const btn = document.getElementById(id);
     if (!btn) return;
+    // En Hábitos y Mapa de calor no aplica: los grupos se eligen en el selector.
+    if (id === 'general-stats-groups-btn') {
+      const habitMode = generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap';
+      btn.style.display = habitMode ? 'none' : '';
+    }
     btn.classList.toggle('active', statsGroupsEnabled);
     btn.title = statsGroupsEnabled
       ? 'Grupos activados (clic para ver las actividades por separado)'
