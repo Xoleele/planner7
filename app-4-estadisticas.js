@@ -465,7 +465,7 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
     }
   });
 
-  const gap = N > 8 ? 4 : 6;
+  const gap = N > 20 ? 1.5 : (N > 12 ? 2.5 : (N > 8 ? 4 : 6));
   const barWidth = (plotWidth - (N - 1) * gap) / N;
 
   const svgParts = [];
@@ -498,7 +498,11 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
         labelText = dateObj.getDate();
       }
     }
-    svgParts.push(`<text x="${x_center}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="${fontSize}" font-weight="600" text-anchor="middle">${labelText}</text>`);
+    // Con muchas barras los números se aprietan: solo el primero y el último.
+    const showLabel = N <= 16 || idx === 0 || idx === N - 1;
+    if (showLabel) {
+      svgParts.push(`<text x="${x_center}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="${fontSize}" font-weight="600" text-anchor="middle">${labelText}</text>`);
+    }
 
     if (maxBarMinutes > 0 && barTotals[idx] > 0) {
       let currentY = y_bottom;
@@ -618,6 +622,8 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   } else if (bucketDays > 1) {
     // Semanas / meses: numerados 1, 2, 3… (como en Barras apiladas).
     buckets.forEach((b, idx) => {
+      // Con muchas semanas/meses: solo el primero y el último.
+      if (N > 16 && idx !== 0 && idx !== N - 1) return;
       const x = x_left + (idx / denom) * plotWidth;
       svgParts.push(`<text x="${x}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="5.5" font-weight="600" text-anchor="middle">${idx + 1}</text>`);
     });
@@ -2158,6 +2164,43 @@ function handleGeneralStatsPeriodChange() {
 let previousPeriodValue = 'hoy';
 let customRangeQueue = ['start', 'duration']; // cola de edición para sincronización
 
+// Máximos del periodo personalizado (cantidad escrita a mano):
+//  · Barras apiladas: 31 días, 26 semanas o 24 meses (una barra por unidad; más
+//    barras quedarían demasiado finas).
+//  · Lineal: 366 días, 52 semanas o 24 meses.
+//  · Resto de gráficos: 366 días (un año).
+function customRangeMaxQty(unit) {
+  if (generalStatsChartType === 'barras-apiladas') {
+    return unit === 'semanas' ? 26 : unit === 'meses' ? 24 : 31;
+  }
+  if (generalStatsChartType === 'lineal') {
+    return unit === 'semanas' ? 52 : unit === 'meses' ? 24 : 366;
+  }
+  return 366;
+}
+
+// Si el valor supera el máximo, lo ajusta y muestra un aviso (se oculta solo).
+let customRangeWarnTimer = null;
+function enforceCustomRangeMax(input) {
+  if (!input) return;
+  const isQty = input.id === 'general-stats-custom-range-qty';
+  const unitSel = document.getElementById('general-stats-custom-range-unit');
+  const unit = isQty && unitSel ? unitSel.value : 'dias';
+  const max = customRangeMaxQty(unit);
+  const val = parseInt(input.value, 10);
+  const warn = document.getElementById('general-stats-custom-range-warning');
+  if (!isNaN(val) && val > max) {
+    input.value = max;
+    if (warn) {
+      const unitName = unit === 'semanas' ? 'semanas' : unit === 'meses' ? 'meses' : 'días';
+      warn.textContent = `El máximo es ${max} ${unitName}. Se ajustó la cantidad.`;
+      warn.classList.remove('hidden');
+      clearTimeout(customRangeWarnTimer);
+      customRangeWarnTimer = setTimeout(() => warn.classList.add('hidden'), 3500);
+    }
+  }
+}
+
 // Barras apiladas y Lineal: el periodo personalizado se elige en días, semanas
 // o meses (Mostrar + Cantidad). Los demás gráficos usan inicio/fin/duración.
 function customRangeUsesUnits() {
@@ -2207,11 +2250,11 @@ function openGeneralStatsCustomRangeModal() {
               qty = days / 7;
             } else {
               unit = 'dias';
-              qty = Math.max(4, Math.min(12, days));
+              qty = Math.max(2, Math.min(customRangeMaxQty('dias'), days));
             }
           }
           if (unitSelect) unitSelect.value = unit;
-          if (qtySelect) qtySelect.value = qty;
+          if (qtySelect) qtySelect.value = Math.min(qty, customRangeMaxQty(unit));
           
           const factor = (unit === 'semanas' ? 7 : unit === 'meses' ? 30 : 1);
           days = qty * factor;
@@ -2405,6 +2448,12 @@ function handleGeneralStatsCustomRangeAccept() {
     const qtySelect = document.getElementById('general-stats-custom-range-qty');
     unit = unitSelect ? unitSelect.value : 'dias';
     qty = qtySelect ? parseInt(qtySelect.value, 10) : 7;
+    if (isNaN(qty) || qty < 2) {
+      qty = 2;
+      if (qtySelect) qtySelect.value = qty;
+      recordCustomRangeChange('duration');
+      return handleGeneralStatsCustomRangeAccept();
+    }
     
     const days = countDaysInRange(fromVal, toVal);
     const expectedDays = qty * (unit === 'semanas' ? 7 : unit === 'meses' ? 30 : 1);
@@ -2669,25 +2718,34 @@ function initStatsEvents(prefix) {
     if (endInput) {
       endInput.addEventListener('change', () => recordCustomRangeChange('end'));
     }
-    const durationInput = document.getElementById('general-stats-custom-range-duration');
-    if (durationInput) {
-      durationInput.addEventListener('input', () => {
-        let val = parseInt(durationInput.value, 10);
-        let minVal = customRangeUsesUnits() ? 2 : 1;
-        let maxVal = customRangeUsesUnits() ? 12 : Infinity;
-        if (isNaN(val) || val < minVal) val = minVal;
-        if (val > maxVal) val = maxVal;
-        durationInput.value = val;
+    // Cantidad escrita a mano (días, o días/semanas/meses en Barras y Lineal).
+    // Mientras se escribe solo se corrige si supera el máximo (con aviso); el
+    // mínimo se aplica al salir del campo, para poder escribir p. ej. "15".
+    const wireQty = (input, getMin) => {
+      if (!input) return;
+      input.addEventListener('input', () => {
+        const val = parseInt(input.value, 10);
+        if (!isNaN(val)) {
+          enforceCustomRangeMax(input);
+          if (val >= getMin()) recordCustomRangeChange('duration');
+        }
+      });
+      input.addEventListener('change', () => {
+        let val = parseInt(input.value, 10);
+        if (isNaN(val) || val < getMin()) val = getMin();
+        input.value = val;
+        enforceCustomRangeMax(input);
         recordCustomRangeChange('duration');
       });
-    }
+    };
+    wireQty(document.getElementById('general-stats-custom-range-duration'), () => 1);
+    wireQty(document.getElementById('general-stats-custom-range-qty'), () => 2);
     const unitSelect = document.getElementById('general-stats-custom-range-unit');
     if (unitSelect) {
-      unitSelect.addEventListener('change', () => recordCustomRangeChange('duration'));
-    }
-    const qtySelect = document.getElementById('general-stats-custom-range-qty');
-    if (qtySelect) {
-      qtySelect.addEventListener('change', () => recordCustomRangeChange('duration'));
+      unitSelect.addEventListener('change', () => {
+        enforceCustomRangeMax(document.getElementById('general-stats-custom-range-qty'));
+        recordCustomRangeChange('duration');
+      });
     }
     
     // Botones del modal personalizado

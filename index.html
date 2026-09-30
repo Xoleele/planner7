@@ -1202,19 +1202,11 @@
           </div>
           <div class="form-group flex-1" style="margin-bottom: 0;">
             <label for="general-stats-custom-range-qty" style="margin-bottom: 3px; display: block; font-weight: bold;">Cantidad</label>
-            <select id="general-stats-custom-range-qty" style="height: 34px; padding: 6px 12px; width: 100%; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main);">
-              <option value="4">4</option>
-              <option value="5">5</option>
-              <option value="6">6</option>
-              <option value="7" selected>7</option>
-              <option value="8">8</option>
-              <option value="9">9</option>
-              <option value="10">10</option>
-              <option value="11">11</option>
-              <option value="12">12</option>
-            </select>
+            <input type="number" id="general-stats-custom-range-qty" min="2" step="1" value="7" autocomplete="off" style="height: 34px; padding: 6px 12px; width: 100%;">
           </div>
         </div>
+        <!-- Aviso cuando la cantidad escrita supera el máximo permitido -->
+        <div id="general-stats-custom-range-warning" class="custom-range-warning hidden"></div>
         <!-- Fila 3: Subtítulo PERIODO -->
         <div class="form-row" style="margin-bottom: 0; margin-top: 4px;">
           <div class="form-group flex-1" style="margin-bottom: 0;">
