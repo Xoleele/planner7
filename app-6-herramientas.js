@@ -2519,7 +2519,7 @@ function countDaysInRange(from, to) {
   return diff >= 0 ? diff + 1 : null;
 }
 
-function computeBuscadorStats(keyword, period) {
+function computeBuscadorStats(keyword, period, fields = { title: true }) {
   const kw = normalizeForSearch(keyword);
   const { from, to } = getBuscadorDateRange(period);
   const totalDays = countDaysInRange(from, to);
@@ -2530,7 +2530,15 @@ function computeBuscadorStats(keyword, period) {
   let hasAnyDuration = false;
 
   tasks.forEach(task => {
-    if (kw && !normalizeForSearch(task.title).includes(kw)) return;
+    // Coincide si la palabra clave aparece (sin distinguir tildes ni
+    // mayúsculas) en alguno de los campos marcados en "Buscar en".
+    if (kw) {
+      const tag = fields.tag ? tags.find(t => t.id === task.tagId) : null;
+      const hit = (fields.title && normalizeForSearch(task.title).includes(kw)) ||
+        (fields.tag && tag && normalizeForSearch(tag.name).includes(kw)) ||
+        (fields.desc && normalizeForSearch(task.description).includes(kw));
+      if (!hit) return;
+    }
 
     const minutes = getTaskDurationMinutes(task) || 0;
 
@@ -2557,7 +2565,13 @@ function computeBuscadorStats(keyword, period) {
 function runBuscadorCalculation() {
   const keyword = document.getElementById('buscador-keyword').value.trim();
   const period = document.getElementById('buscador-period').value;
-  const stats = computeBuscadorStats(keyword, period);
+  const isOn = (id) => { const el = document.getElementById(id); return !!(el && el.checked); };
+  const fields = {
+    title: isOn('buscador-in-title'),
+    tag: isOn('buscador-in-tag'),
+    desc: isOn('buscador-in-desc')
+  };
+  const stats = computeBuscadorStats(keyword, period, fields);
   document.getElementById('buscador-repetitions').textContent = stats.repetitions;
   if (stats.totalDays) {
     const pct = Math.round((stats.days / stats.totalDays) * 100);
@@ -2731,6 +2745,15 @@ async function toggleTaskCompletion(task, occurrenceDate, preResolvedEndTimeChoi
       } else {
         setEffectivePosition(task, dateStr, Math.min(...positions) - 10);
       }
+    }
+  } else {
+    // Tarea archivada: completada -> al final de su lista; descompletada ->
+    // arriba (encima de las pendientes). El render de Archivados además
+    // agrupa las completadas abajo.
+    const others = getArchivedTasksOfList(getArchiveListOfTask(task)).filter(t => t.id !== task.id);
+    if (others.length > 0) {
+      const positions = others.map(t => t.position || 0);
+      task.position = nowCompleted ? Math.max(...positions) + 10 : Math.min(...positions) - 10;
     }
   }
 
@@ -3180,6 +3203,12 @@ function syncArchiveListAssignments() {
 }
 
 // Tareas archivadas de una lista.
+// Orden de Archivados: pendientes arriba y completadas al final; dentro de
+// cada grupo, por posición.
+function compareArchivedTasks(a, b) {
+  return ((a.completed ? 1 : 0) - (b.completed ? 1 : 0)) || ((a.position || 0) - (b.position || 0));
+}
+
 function getArchivedTasksOfList(listId) {
   return tasks.filter(t => !t.date && getArchiveListOfTask(t) === (listId || null));
 }
@@ -3838,7 +3867,7 @@ function renderBriefcaseTasks() {
     return;
   }
 
-  briefcaseTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
+  briefcaseTasks.sort(compareArchivedTasks);
 
   briefcaseTasks.forEach(task => {
     const taskCard = createTaskCard(task, '');
@@ -3891,7 +3920,7 @@ async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null)
       const afterElement = getDragAfterElement(container, clientY);
       const briefcaseTasks = tasks.filter(t => !t.date);
       
-      briefcaseTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
+      briefcaseTasks.sort(compareArchivedTasks);
 
       let insertIndex = briefcaseTasks.length;
       if (afterElement) {
@@ -3926,7 +3955,7 @@ async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null)
       const afterElement = getDragAfterElement(container, clientY);
       const briefcaseTasks = tasks.filter(t => !t.date && t.id !== task.id);
       
-      briefcaseTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
+      briefcaseTasks.sort(compareArchivedTasks);
 
       let insertIndex = briefcaseTasks.length;
       if (afterElement) {
@@ -3996,7 +4025,7 @@ function setupTrashDragAndDrop() {
 async function reorderBriefcaseTask(taskId, container, clientY) {
   const afterElement = getDragAfterElement(container, clientY);
   const briefcaseTasks = tasks.filter(t => !t.date);
-  briefcaseTasks.sort((a, b) => (a.position || 0) - (b.position || 0));
+  briefcaseTasks.sort(compareArchivedTasks);
 
   // Remove the dragged task from its current position
   const fromIndex = briefcaseTasks.findIndex(t => t.id === taskId);

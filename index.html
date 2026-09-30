@@ -955,6 +955,23 @@
           <input type="text" id="buscador-keyword" placeholder="Escribe una palabra clave" autocomplete="off">
         </div>
         <div class="form-group">
+          <label>Buscar en:</label>
+          <div class="buscador-fields">
+            <label class="copy-option">
+              <input type="checkbox" id="buscador-in-title" checked>
+              <span>Título</span>
+            </label>
+            <label class="copy-option">
+              <input type="checkbox" id="buscador-in-tag">
+              <span>Actividad</span>
+            </label>
+            <label class="copy-option">
+              <input type="checkbox" id="buscador-in-desc">
+              <span>Descripción</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
           <label for="buscador-period">Periodo</label>
           <select id="buscador-period" style="width: 100%; padding: 6px 10px;">
             <option value="today">Hoy</option>

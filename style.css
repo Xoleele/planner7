@@ -6088,3 +6088,19 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
   padding-bottom: 0;
   min-height: 38px;
 }
+
+/* Buscador: casillas "Buscar en" (Título / Actividad / Descripción) en una fila. */
+.buscador-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin-left: -8px; /* alinear la casilla con el borde del campo (el hover sobresale) */
+}
+.buscador-fields .copy-option {
+  padding: 6px 8px;
+  font-size: 14px;
+  color: var(--text-main);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+}
