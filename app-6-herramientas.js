@@ -617,6 +617,13 @@ function setupEventListeners() {
       const dd = document.getElementById('user-dropdown');
       if (dd) dd.remove();
       openBuscadorModal();
+    } else if ((e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Atajo L: abrir el panel de actividades, solo si no hay ninguna ventana abierta.
+      if (isAnyOverlayOpen()) return;
+      e.preventDefault();
+      const dd = document.getElementById('user-dropdown');
+      if (dd) dd.remove();
+      openTagsModal();
     } else if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey && !e.altKey) {
       // Atajo A: abrir/cerrar el panel de Archivados.
       if (isAnyOverlayOpen()) return;
