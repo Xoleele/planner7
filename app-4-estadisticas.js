@@ -1858,7 +1858,7 @@ function lastNDaysRange(n, refDateStr) {
 // Pone como actividad de Hábitos / Mapa de calor la elegida por el usuario
 // (guardada en la cuenta). Si no hay elección guardada, la más frecuente del rango.
 function applySavedHabitTag() {
-  if (generalStatsSavedHabitTag && tags.some(t => t.id === generalStatsSavedHabitTag)) {
+  if (generalStatsSavedHabitTag && getHabitSelectionInfo(generalStatsSavedHabitTag).id === generalStatsSavedHabitTag) {
     generalStatsHabitTag = generalStatsSavedHabitTag;
   } else if (generalStatsDateRange) {
     const topTag = generalStatsChartType === 'heatmap'
@@ -1965,7 +1965,7 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
 
       // Etiqueta: la guardada por el usuario; si no hay, la que más se repite
       // (más días completados) en el rango.
-      if (generalStatsSavedHabitTag && tags.some(t => t.id === generalStatsSavedHabitTag)) {
+      if (generalStatsSavedHabitTag && getHabitSelectionInfo(generalStatsSavedHabitTag).id === generalStatsSavedHabitTag) {
         generalStatsHabitTag = generalStatsSavedHabitTag;
       } else {
         const topTag = topTagByCompletedDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
@@ -1978,7 +1978,7 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
 
       // Etiqueta: la guardada por el usuario; si no hay, la de mayor duración
       // acumulada en estos 12 días.
-      if (generalStatsSavedHabitTag && tags.some(t => t.id === generalStatsSavedHabitTag)) {
+      if (generalStatsSavedHabitTag && getHabitSelectionInfo(generalStatsSavedHabitTag).id === generalStatsSavedHabitTag) {
         generalStatsHabitTag = generalStatsSavedHabitTag;
       } else {
         const topTag = topTagByDurationInRange(generalStatsDateRange.from, generalStatsDateRange.to);
@@ -1991,6 +1991,11 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
   } else {
     generalStatsDateRange = null;
   }
+
+  // Mostrar/ocultar los campos propios de Hábitos / Mapa de calor (Actividad,
+  // Constancia/Promedio y el periodo del mapa) según el gráfico guardado. Sin
+  // esto, al abrir por primera vez en uno de esos gráficos faltaban campos.
+  if (typeof updateHabitTagRowVisibility === 'function') updateHabitTagRowVisibility();
   
   estadisticasDiarias(dateStr, resetFilter);
 
