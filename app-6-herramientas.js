@@ -2530,8 +2530,8 @@ function countDaysInRange(from, to) {
   return diff >= 0 ? diff + 1 : null;
 }
 
-// status: 'completed' | 'pending' | 'all'. oncePerDay: las repeticiones y el
-// tiempo total cuentan como máximo 1 tarea por día (la primera del día).
+// status: 'completed' | 'pending' | 'all'. oncePerDay: Repeticiones cuenta
+// como máximo 1 por día (el tiempo total y la lista no se ven afectados).
 function computeBuscadorStats(keyword, period, fields = { title: true }, status = 'completed', oncePerDay = false) {
   const kw = normalizeForSearch(keyword);
   const { from, to } = getBuscadorDateRange(period);
@@ -2585,14 +2585,12 @@ function computeBuscadorStats(keyword, period, fields = { title: true }, status 
     (a.task.startTime || '99:99').localeCompare(b.task.startTime || '99:99') ||
     (a.task.position || 0) - (b.task.position || 0));
 
-  // Totales a partir de lo encontrado (con "máximo 1 por día", solo la
-  // primera tarea de cada día suma repeticiones y tiempo).
-  const counted = new Set();
+  // Totales a partir de lo encontrado. Con "Máximo 1 repetición por día" solo
+  // se limita el conteo de Repeticiones (1 por día); la duración de todas las
+  // tareas se suma igual y todas aparecen en los resultados.
   items.forEach(({ date, task }) => {
+    if (!oncePerDay || !uniqueDays.has(date)) repetitions += 1;
     uniqueDays.add(date);
-    if (oncePerDay && counted.has(date)) return;
-    counted.add(date);
-    repetitions += 1;
     const minutes = getTaskDurationMinutes(task) || 0;
     if (minutes > 0) {
       totalMinutes += minutes;
