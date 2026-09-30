@@ -505,8 +505,12 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
       
       svgParts.push(`<rect x="${x}" y="${y_top}" width="${barWidth}" height="${plotHeight}" fill="var(--border-light, #f2f2f7)" opacity="0.15" rx="0.5" />`);
 
-      groupedList.forEach(group => {
-        if (excludedSet.has(group.name)) return;
+      // Cada barra se apila de abajo hacia arriba de mayor a menor: el segmento
+      // más grande de ESA barra queda abajo.
+      const barGroups = groupedList
+        .filter(g => !excludedSet.has(g.name) && (barBreakdown[idx][g.name] || 0) > 0)
+        .sort((a, b) => (barBreakdown[idx][b.name] || 0) - (barBreakdown[idx][a.name] || 0));
+      barGroups.forEach(group => {
         const mins = barBreakdown[idx][group.name] || 0;
         if (mins > 0) {
           const segHeight = (mins / maxBarMinutes) * plotHeight;
