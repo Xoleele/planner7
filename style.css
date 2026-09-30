@@ -6263,3 +6263,36 @@ body.sg-drag-active, body.sg-drag-active * { cursor: grabbing !important; }
   margin-top: 10px;
 }
 .sg-hint:empty { display: none; }
+
+/* Mis actividades: cada actividad como tarjetita de su color (en lugar del
+   circulito). Texto e iconos en blanco. */
+.tag-item.tag-item-card {
+  background-color: var(--tag-card-bg);
+  border-color: transparent;
+  box-shadow: var(--shadow-sm);
+  min-height: 34px;
+  padding: 4px 8px;
+}
+.tag-item.tag-item-card:hover {
+  background-color: var(--tag-card-bg);
+  filter: brightness(0.95);
+}
+.tag-item-card .tag-color-pill { display: none; }
+.tag-item-card .tag-name-label {
+  color: #ffffff;
+  font-weight: 600;
+}
+.tag-item-card .tag-action-btn img,
+.tag-item-card .tag-drag-handle img {
+  filter: brightness(0) invert(1);
+}
+.tag-item-card .tag-action-btn:hover,
+.tag-item-card .tag-action-btn.delete:hover {
+  background-color: rgba(255, 255, 255, 0.22);
+}
+/* Actividad con visualización desactivada: tarjeta atenuada. */
+.tag-item-card.tag-item-off { opacity: 0.55; }
+.tag-item-card.tag-item-off .tag-name-label { opacity: 1 !important; }
+/* Arrastre: la fila de origen y el clon flotante conservan su color. */
+.tag-item.tag-item-card.tag-dragging { background-color: var(--tag-card-bg); }
+.tag-drag-ghost.tag-item-card { background-color: var(--tag-card-bg); border: none; }

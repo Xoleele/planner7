@@ -3350,8 +3350,10 @@ function renderTagsList() {
 
   displayTags.forEach(tag => {
     const item = document.createElement('div');
-    item.className = 'tag-item';
+    // Cada actividad se muestra como una "tarjetita" de su color.
+    item.className = 'tag-item tag-item-card';
     item.dataset.tagId = tag.id;
+    item.style.setProperty('--tag-card-bg', (tag.color && tag.color.bg) || '#c7c7cc');
 
     // Handle de arrastre para reordenar (raton + tactil).
     // La etiqueta 'default' (Por defecto) queda fija arriba: sin handle, no se arrastra.
@@ -3393,6 +3395,7 @@ function renderTagsList() {
     
     const isVisible = tag.visible !== false;
     if (!isVisible) {
+      item.classList.add('tag-item-off');
       pill.style.opacity = '0.4';
       name.style.opacity = '0.4';
       name.style.textDecoration = 'line-through';
