@@ -141,6 +141,7 @@ function getStatsModalHTML(prefix) {
             <option value="30">30 días</option>
             <option value="50">50 días</option>
             <option value="100" selected>100 días</option>
+            <option value="custom">Personalizado</option>
           </select>
         </div>
       </div>
@@ -582,15 +583,25 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
     svgParts.push(`<text x="${x_left - 3}" y="${yVal}" fill="var(--text-muted, #8e8e93)" font-size="5" font-weight="600" text-anchor="end" dominant-baseline="central">${hoursVal.toFixed(1)}h</text>`);
   });
 
-  const step = Math.ceil(N / 10);
-  dates.forEach((dStr, idx) => {
-    if (idx % step === 0) {
-      const x = x_left + (idx / denom) * plotWidth;
-      const dateObj = new Date(dStr + 'T12:00:00');
-      const dayNum = dateObj.getDate();
-      svgParts.push(`<text x="${x}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="5.5" font-weight="600" text-anchor="middle">${dayNum}</text>`);
-    }
-  });
+  // Con muchos días los números del eje X quedan apretados: en ese caso solo se
+  // muestran el primero y el último (con día y mes).
+  const LABELS_MAX_DAYS = 31;
+  if (N > LABELS_MAX_DAYS) {
+    const mesesAx = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+    const lbl = (dStr) => { const d = new Date(dStr + 'T12:00:00'); return `${d.getDate()} ${mesesAx[d.getMonth()]}`; };
+    svgParts.push(`<text x="${x_left}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="5.5" font-weight="600" text-anchor="start">${lbl(dates[0])}</text>`);
+    svgParts.push(`<text x="${x_right}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="5.5" font-weight="600" text-anchor="end">${lbl(dates[N - 1])}</text>`);
+  } else {
+    const step = Math.ceil(N / 10);
+    dates.forEach((dStr, idx) => {
+      if (idx % step === 0) {
+        const x = x_left + (idx / denom) * plotWidth;
+        const dateObj = new Date(dStr + 'T12:00:00');
+        const dayNum = dateObj.getDate();
+        svgParts.push(`<text x="${x}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="5.5" font-weight="600" text-anchor="middle">${dayNum}</text>`);
+      }
+    });
+  }
 
   activeTags.forEach(tagName => {
     const group = groupedList.find(g => g.name === tagName);
@@ -677,14 +688,28 @@ function habitDoneOnDate(dStr) {
 // inicio y fin; si cruzan medianoche, hasta las 24:00).
 let heatmapPeriodDays = 100;
 
+// Días del periodo del Mapa de calor: 30/50/100, o los del rango personalizado.
+function heatmapEffectiveDays(dates) {
+  if (generalStatsDateRange && generalStatsDateRange.custom && dates && dates.length) return dates.length;
+  return heatmapPeriodDays;
+}
+
+// Refleja en el selector del Mapa de calor si el periodo es personalizado.
+function syncHeatmapPeriodSelect() {
+  const sel = document.getElementById('heatmap-period-select');
+  if (!sel) return;
+  sel.value = (generalStatsDateRange && generalStatsDateRange.custom) ? 'custom' : String(heatmapPeriodDays);
+}
+
 function updateHeatmapAverage(dates) {
   const el = document.getElementById('habit-streak-count');
   const label = document.getElementById('habit-streak-label');
   if (label) label.textContent = 'Promedio';
   if (!el) return;
   const newest = (dates && dates.length) ? dates[dates.length - 1] : formatDate(new Date());
+  const periodDays = heatmapEffectiveDays(dates);
   const startD = new Date(newest + 'T12:00:00');
-  startD.setDate(startD.getDate() - (heatmapPeriodDays - 1));
+  startD.setDate(startD.getDate() - (periodDays - 1));
   const oldest = formatDate(startD);
   const minsOf = (task) => {
     const r = getTaskTimeRange(task);
@@ -708,9 +733,9 @@ function updateHeatmapAverage(dates) {
       total += mins;
     }
   });
-  const avgHours = total / 60 / heatmapPeriodDays;
+  const avgHours = total / 60 / periodDays;
   const txt = avgHours.toLocaleString('es-CL', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
-  el.title = `${minutesToReadable(Math.round(total))} en ${heatmapPeriodDays} días`;
+  el.title = `${minutesToReadable(Math.round(total))} en ${periodDays} días`;
   el.innerHTML = `<span>${txt} hrs/día</span>`;
 }
 
@@ -898,12 +923,13 @@ function renderHeatmapHTML(dates) {
   const newest = (dates && dates.length) ? dates[dates.length - 1] : formatDate(new Date());
 
   // Periodo elegido (30 / 50 / 100 días): no se pinta nada más antiguo.
+  const periodDays = heatmapEffectiveDays(dates);
   const limitD = new Date(newest + 'T12:00:00');
-  limitD.setDate(limitD.getDate() - (heatmapPeriodDays - 1));
+  limitD.setDate(limitD.getDate() - (periodDays - 1));
   const limit = formatDate(limitD);
 
   // Cargar los primeros 12 días (más reciente arriba, hacia atrás).
-  const INITIAL = Math.min(12, heatmapPeriodDays);
+  const INITIAL = Math.min(12, periodDays);
   let html = '<div class="heatmap-corner"></div>';
   for (let h = 0; h < 24; h++) {
     html += `<div class="heatmap-hlabel">${h}</div>`;
@@ -1795,8 +1821,9 @@ function updatePeriodSelectOptions() {
     periodSelect.innerHTML = `
       <option value="10dias">Últimos 10 días</option>
       <option value="30dias">Últimos 30 días</option>
+      <option value="personalizado">Personalizado</option>
     `;
-    if (currentVal === '10dias' || currentVal === '30dias') {
+    if (currentVal === '10dias' || currentVal === '30dias' || currentVal === 'personalizado') {
       periodSelect.value = currentVal;
     } else {
       periodSelect.value = '10dias';
@@ -1806,8 +1833,9 @@ function updatePeriodSelectOptions() {
       <option value="30dias">Últimos 30 días</option>
       <option value="50dias">Últimos 50 días</option>
       <option value="100dias">Últimos 100 días</option>
+      <option value="personalizado">Personalizado</option>
     `;
-    periodSelect.value = ['30dias', '50dias', '100dias'].includes(currentVal) ? currentVal : '100dias';
+    periodSelect.value = ['30dias', '50dias', '100dias', 'personalizado'].includes(currentVal) ? currentVal : '100dias';
   } else if (generalStatsChartType === 'heatmap') {
     periodSelect.innerHTML = `
       <option value="12dias">Últimos 12 días</option>
@@ -2043,6 +2071,7 @@ function closeGeneralStatsCustomRangeModal(applied = false) {
     if (periodSelect) {
       periodSelect.value = previousPeriodValue;
     }
+    syncHeatmapPeriodSelect();
   }
 }
 
@@ -2203,8 +2232,11 @@ function handleGeneralStatsCustomRangeAccept() {
     from: fromVal,
     to: toVal,
     unit: unit,
-    qty: qty
+    qty: qty,
+    custom: true
   };
+  const hmSel = document.getElementById('heatmap-period-select');
+  if (hmSel && generalStatsChartType === 'heatmap') hmSel.value = 'custom';
   
   previousPeriodValue = 'personalizado';
   closeGeneralStatsCustomRangeModal(true);
@@ -2386,10 +2418,15 @@ function initStatsEvents(prefix) {
     if (heatmapPeriodSelect) {
       heatmapPeriodSelect.value = String(heatmapPeriodDays);
       heatmapPeriodSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'custom') {
+          openGeneralStatsCustomRangeModal();
+          return;
+        }
         heatmapPeriodDays = parseInt(e.target.value, 10) || 100;
         if (currentUser && typeof saveSettingPreferences === 'function') {
           saveSettingPreferences({ heatmapPeriodDays });
         }
+        generalStatsDateRange = lastNDaysRange(12);
         renderGeneralStatsForRange();
       });
     }

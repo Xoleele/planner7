@@ -1000,8 +1000,7 @@ function updateHabitTagRowVisibility() {
   const heatmapGroup = document.getElementById('heatmap-period-group');
   if (heatmapGroup) {
     heatmapGroup.style.display = (generalStatsChartType === 'heatmap') ? '' : 'none';
-    const sel = document.getElementById('heatmap-period-select');
-    if (sel && typeof heatmapPeriodDays !== 'undefined') sel.value = String(heatmapPeriodDays);
+    if (typeof syncHeatmapPeriodSelect === 'function') syncHeatmapPeriodSelect();
   }
   if (visible) {
     buildHabitTagSelectorOptions();
