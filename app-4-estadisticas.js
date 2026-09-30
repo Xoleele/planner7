@@ -1964,8 +1964,15 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
       
       // Etiquetas del gráfico lineal: las guardadas por el usuario (si siguen
       // existiendo); si no, se deja que renderDailyStatsPanel elija la principal.
-      const savedLine = (generalStatsSavedLineTags || []).filter(n => tags.some(t => t.name === n));
-      if (generalStatsSavedLineTags && savedLine.length > 0) {
+      // Son nombres de actividades o de grupos (con los grupos activados, cada
+      // grupo es una línea). Antes solo se aceptaban nombres de actividades, así
+      // que las líneas de grupos se perdían al volver a abrir.
+      const validName = (n) => tags.some(t => t.name === n) ||
+        (typeof statsActivityGroups !== 'undefined' && statsActivityGroups.some(g => (g.name || 'Grupo') === n));
+      const savedLine = (generalStatsSavedLineTags || []).filter(validName);
+      const savedAll = generalStatsSavedLineTags || [];
+      if (generalStatsSavedLineTags && (savedLine.length > 0 || savedAll.length === 0)) {
+        // (Si el usuario dejó todas apagadas, se respeta.)
         lineStatsActiveTags = savedLine.slice(0, 3);
         lineStatsNeedsAutoSelect = false;
       } else {
