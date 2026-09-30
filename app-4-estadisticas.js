@@ -2506,7 +2506,10 @@ function renderGeneralStatsForRange() {
   if (titleEl) {
     const fromFormatted = formatToDDMMYYYY(generalStatsDateRange.from);
     const toFormatted = formatToDDMMYYYY(generalStatsDateRange.to);
-    titleEl.textContent = `Actividad ${fromFormatted} - ${toFormatted}`;
+    // Un solo día (p. ej. "Ayer"): se muestra solo esa fecha.
+    titleEl.textContent = generalStatsDateRange.from === generalStatsDateRange.to
+      ? `Actividad ${fromFormatted}`
+      : `Actividad ${fromFormatted} - ${toFormatted}`;
   }
   
   const panelCurr = document.getElementById('general-stats-panel-curr');
