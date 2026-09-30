@@ -628,9 +628,15 @@
           <!-- Las actividades existentes se listarán aquí -->
         </div>
 
-        <button id="add-tag-trigger-btn" class="btn btn-secondary" style="width: 100%; margin-top: 16px; display: flex; align-items: center; justify-content: center; gap: 8px;">
-          <span style="font-size: 16px; font-weight: 500; line-height: 1;">+</span> Nueva actividad
-        </button>
+        <div class="tags-footer-btns">
+          <button id="add-tag-trigger-btn" class="btn btn-secondary">
+            <span style="font-size: 16px; font-weight: 500; line-height: 1;">+</span> Nueva actividad
+          </button>
+          <!-- Grupos: solo cambian cómo se muestran las actividades en las estadísticas -->
+          <button id="tags-new-group-btn" class="btn btn-secondary" title="Agrupa actividades para verlas juntas en las estadísticas">
+            <span style="font-size: 16px; font-weight: 500; line-height: 1;">+</span> Nuevo grupo
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1099,24 +1105,6 @@
 
   <!-- MODAL: ESTADÍSTICAS GENERALES -->
   <div id="general-stats-modal" class="modal-backdrop hidden"></div>
-
-  <!-- MODAL: AGRUPAR ACTIVIDADES (solo afecta a las estadísticas) -->
-  <div id="stats-groups-modal" class="modal-backdrop hidden">
-    <div class="modal-content tags-modal-w">
-      <div class="modal-header">
-        <h2>Agrupar actividades</h2>
-        <button class="close-modal-btn" data-modal="stats-groups-modal">
-          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
-        </button>
-      </div>
-      <div class="modal-body" id="stats-groups-body"></div>
-      <div class="modal-footer sg-footer">
-        <button type="button" class="btn btn-secondary" id="stats-groups-back-btn">Atrás</button>
-        <span class="sg-footer-spacer"></span>
-        <button type="button" class="btn btn-primary" id="stats-groups-new-btn">Nuevo grupo</button>
-      </div>
-    </div>
-  </div>
 
   <!-- MODAL: NOMBRE Y COLOR DE UN GRUPO DE ACTIVIDADES -->
   <div id="stats-group-edit-modal" class="modal-backdrop hidden">

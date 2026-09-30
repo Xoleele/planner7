@@ -1,5 +1,8 @@
 // ─── Reordenar etiquetas: arrastrar y soltar (raton + tactil) ────────────────
 function setupTagDragAndDrop(container) {
+  // renderTagsList vuelve a llamar a esta función en cada render: quitar los
+  // listeners del contenedor del render anterior para no duplicarlos.
+  if (container._tagDndCleanup) container._tagDndCleanup();
   let dragItem = null;      // .tag-item que se arrastra
   let dragTagId = null;
   let ghost = null;         // clon flotante (solo tactil)
@@ -55,7 +58,7 @@ function setupTagDragAndDrop(container) {
   const items = () => [...container.querySelectorAll('.tag-item')];
 
   function clearTagIndicators() {
-    container.querySelectorAll('.tag-item').forEach(el => {
+    container.querySelectorAll('.tag-item, .tag-drop-placeholder').forEach(el => {
       el.classList.remove('drag-before-indicator', 'drag-after-indicator');
     });
     lastIndicatorEl = null;
@@ -64,7 +67,8 @@ function setupTagDragAndDrop(container) {
 
   function updateTagDragIndicator(y) {
     if (!dragItem) return;
-    const others = items().filter(el => el !== dragItem);
+    // Con grupos, también cuentan los recuadros vacíos "Arrastra actividades aquí".
+    const others = [...container.querySelectorAll('.tag-item, .tag-drop-placeholder')].filter(el => el !== dragItem);
     if (others.length === 0) return;
 
     let targetEl = null;
@@ -109,6 +113,53 @@ function setupTagDragAndDrop(container) {
     tags.sort((a, b) => (a.id === 'default' ? -1 : 0) - (b.id === 'default' ? -1 : 0));
     saveTagsToStorage();
     buildTagSelectorOptions();
+  }
+
+  // Suelta la actividad según el indicador activo. Sin grupos: solo reordena.
+  // Con grupos (secciones): la actividad pasa al grupo de la sección donde cae
+  // y, en orden personalizado, se ubica junto a su vecina dentro de la sección
+  // sin alterar el orden relativo del resto de actividades.
+  function finishDrop() {
+    if (!dragItem) return;
+    if (lastIndicatorEl) {
+      const parent = lastIndicatorEl.parentNode;
+      if (lastIndicatorClass === 'drag-before-indicator') {
+        parent.insertBefore(dragItem, lastIndicatorEl);
+      } else if (lastIndicatorClass === 'drag-after-indicator') {
+        parent.insertBefore(dragItem, lastIndicatorEl.nextSibling);
+      }
+    }
+    clearTagIndicators();
+    const section = dragItem.closest('.tag-section');
+    if (!section) { commitOrder(); return; }
+
+    const movedId = dragItem.dataset.tagId;
+    if (!tagsSortAlphabetical && movedId !== 'default') {
+      const siblings = [...dragItem.parentNode.querySelectorAll(':scope > .tag-item')];
+      const idx = siblings.indexOf(dragItem);
+      const next = siblings[idx + 1], prev = siblings[idx - 1];
+      const from = tags.findIndex(t => t.id === movedId);
+      if (from !== -1 && (next || prev)) {
+        const [moved] = tags.splice(from, 1);
+        let to;
+        if (next) to = tags.findIndex(t => t.id === next.dataset.tagId);
+        else to = tags.findIndex(t => t.id === prev.dataset.tagId) + 1;
+        if (to < 0) to = tags.length;
+        tags.splice(to, 0, moved);
+        tags.sort((a, b) => (a.id === 'default' ? -1 : 0) - (b.id === 'default' ? -1 : 0));
+        saveTagsToStorage();
+        buildTagSelectorOptions();
+      }
+    }
+    const groupId = section.dataset.groupId || null;
+    const dropped = dragItem;
+    dragItem = null;
+    // Cambia el grupo (si corresponde), guarda y vuelve a dibujar la lista.
+    setTimeout(() => {
+      if (typeof setTagStatsGroup === 'function') setTagStatsGroup(movedId, groupId);
+      else renderTagsList();
+    }, 0);
+    return dropped;
   }
 
   container.querySelectorAll('.tag-item-draggable').forEach(item => {
@@ -177,17 +228,9 @@ function setupTagDragAndDrop(container) {
         if (dragItem) {
           dragItem.style.opacity = '';
           dragItem.classList.remove('tag-dragging');
-          // Colocar el elemento según el indicador activo
-          if (lastIndicatorEl) {
-            if (lastIndicatorClass === 'drag-before-indicator') {
-              container.insertBefore(dragItem, lastIndicatorEl);
-            } else if (lastIndicatorClass === 'drag-after-indicator') {
-              container.insertBefore(dragItem, lastIndicatorEl.nextSibling);
-            }
-          }
+          finishDrop();
         }
         clearTagIndicators();
-        commitOrder();
         touchDragging = false; dragItem = null; dragTagId = null;
       }
     };
@@ -203,35 +246,35 @@ function setupTagDragAndDrop(container) {
   });
 
   // Reordenamiento por línea indicadora mientras se arrastra con ratón
-  container.addEventListener('dragover', (e) => {
+  const onDragOver = (e) => {
     if (!dragItem) return;
     e.preventDefault();
     lastClientY = e.clientY;
     updateTagDragIndicator(e.clientY);
     handleAutoScroll(e.clientY);
-  });
-
-  container.addEventListener('dragleave', (e) => {
+  };
+  const onDragLeave = (e) => {
     if (container.contains(e.relatedTarget)) return;
     clearTagIndicators();
     stopAutoScroll();
-  });
-
-  container.addEventListener('drop', (e) => {
+  };
+  const onDrop = (e) => {
     e.preventDefault();
     stopAutoScroll();
     if (!dragItem) return;
-
-    if (lastIndicatorEl) {
-      if (lastIndicatorClass === 'drag-before-indicator') {
-        container.insertBefore(dragItem, lastIndicatorEl);
-      } else if (lastIndicatorClass === 'drag-after-indicator') {
-        container.insertBefore(dragItem, lastIndicatorEl.nextSibling);
-      }
-    }
-    clearTagIndicators();
-    commitOrder();
-  });
+    const el = dragItem;
+    finishDrop();
+    if (el) el.classList.remove('tag-dragging');
+  };
+  container.addEventListener('dragover', onDragOver);
+  container.addEventListener('dragleave', onDragLeave);
+  container.addEventListener('drop', onDrop);
+  container._tagDndCleanup = () => {
+    container.removeEventListener('dragover', onDragOver);
+    container.removeEventListener('dragleave', onDragLeave);
+    container.removeEventListener('drop', onDrop);
+    stopAutoScroll();
+  };
 }
 
 function buildColorPalette() {

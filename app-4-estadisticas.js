@@ -102,9 +102,6 @@ function getStatsModalHTML(prefix) {
           <button id="${prefix}-settings-btn" title="Ajustes" class="close-modal-btn" type="button">
             <img src="icons/settings.svg" alt="Ajustes" width="16" height="16">
           </button>
-          <button id="${prefix}-merge-btn" title="Agrupar actividades" class="close-modal-btn" type="button">
-            <img src="icons/merge.svg" alt="Agrupar actividades" width="20" height="20">
-          </button>
           <button class="close-modal-btn" data-modal="${prefix}-modal">
             <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
           </button>
@@ -2274,8 +2271,6 @@ function initStatsEvents(prefix) {
   const statsEditCloseBtn = getEl('stats-edit-close-btn');
   if (statsEditCloseBtn) statsEditCloseBtn.addEventListener('click', closeStatsTaskEditView);
 
-  const statsMergeBtn = getEl('daily-stats-merge-btn');
-  if (statsMergeBtn) statsMergeBtn.addEventListener('click', openStatsGroupsModal);
 
   ['stats-edit-hsl-h', 'stats-edit-hsl-s', 'stats-edit-hsl-l'].forEach(id => {
     const el = getEl(id);
@@ -3324,6 +3319,122 @@ function getOrderedTagsForDisplay() {
   });
 }
 
+function buildTagListItem(tag, opts) {
+  const item = document.createElement('div');
+  // Cada actividad se muestra como una "tarjetita" de su color.
+  item.className = 'tag-item tag-item-card';
+  item.dataset.tagId = tag.id;
+  // Dentro de un grupo de estadísticas, la tarjeta usa el color del grupo.
+  const cardColor = (opts.groupColor && opts.groupColor.bg) || (tag.color && tag.color.bg) || '#c7c7cc';
+  item.style.setProperty('--tag-card-bg', cardColor);
+
+  // Handle de arrastre para reordenar (raton + tactil).
+  // La etiqueta 'default' (Por defecto) queda fija arriba: sin handle, no se arrastra.
+  // En modo alfabético no se permite arrastrar (la vista no es el orden real) ni se reserva espacio.
+  // Mientras se busca tampoco se arrastra: la lista filtrada no es el orden completo.
+  if (opts.showHandles) {
+    if (opts.canDrag) {
+      item.classList.add('tag-item-draggable');
+      const grip = document.createElement('button');
+      grip.className = 'tag-drag-handle';
+      grip.title = 'Arrastrar para reordenar';
+      grip.setAttribute('aria-label', 'Reordenar actividad');
+      grip.innerHTML = `<img src="icons/grip.svg" alt="" width="14" height="14">`;
+      grip.addEventListener('click', (e) => e.stopPropagation());
+      item.appendChild(grip);
+    } else {
+      // En orden personalizado, la fila 'Por defecto' no se arrastra pero mantiene un espaciador
+      // invisible para mantener alineado el contenido con las demas filas que si tienen handle.
+      const spacer = document.createElement('span');
+      spacer.className = 'tag-drag-handle tag-drag-handle-fixed';
+      item.appendChild(spacer);
+    }
+  }
+
+  const left = document.createElement('div');
+  left.className = 'tag-preview-group';
+
+  const pill = document.createElement('div');
+  pill.className = 'tag-color-pill';
+  pill.style.backgroundColor = tag.color.bg;
+  pill.style.borderColor = tag.color.border;
+
+  const name = document.createElement('span');
+  name.className = 'tag-name-label';
+  name.textContent = tag.name;
+
+  left.appendChild(pill);
+  left.appendChild(name);
+  
+  const isVisible = tag.visible !== false;
+  if (!isVisible) {
+    item.classList.add('tag-item-off');
+    pill.style.opacity = '0.4';
+    name.style.opacity = '0.4';
+    name.style.textDecoration = 'line-through';
+  }
+
+  item.appendChild(left);
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'tag-actions';
+
+  // Visibility Toggle Button (Lightbulb)
+  const visBtn = document.createElement('button');
+  visBtn.className = 'tag-action-btn visibility-btn';
+  visBtn.title = isVisible ? 'Desactivar visualización' : 'Activar visualización';
+  if (isVisible) {
+    visBtn.innerHTML = `<img src="icons/lightbulb-on.svg" alt="Activa" width="14" height="14">`;
+  } else {
+    visBtn.innerHTML = `<img src="icons/lightbulb-off.svg" alt="Inactiva" width="14" height="14" style="opacity: 0.45;">`;
+  }
+  visBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    tag.visible = !isVisible;
+    saveTagsToStorage();
+    renderTagsList();
+    renderWeeklyCalendar();
+  });
+  actions.appendChild(visBtn);
+
+  // Edit Button
+  const editBtn = document.createElement('button');
+  editBtn.className = 'tag-action-btn';
+  editBtn.title = 'Editar actividad';
+  editBtn.innerHTML = `<img src="icons/edit.svg" alt="Editar" width="14" height="14">`;
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startEditTag(tag);
+  });
+  actions.appendChild(editBtn);
+
+  // Delete Button (only if not 'default')
+  if (tag.id !== 'default') {
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'tag-action-btn delete';
+    deleteBtn.title = 'Eliminar actividad';
+    deleteBtn.innerHTML = `<img src="icons/trash.svg" alt="Eliminar" width="14" height="14">`;
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteTag(tag.id);
+    });
+    actions.appendChild(deleteBtn);
+  }
+
+  item.appendChild(actions);
+
+  // Al hacer clic en cualquier parte de la fila de etiqueta (que no sean botones de acción), abrir editor
+  item.addEventListener('click', (e) => {
+    if (e.target.closest('.tag-action-btn')) {
+      return;
+    }
+    startEditTag(tag);
+  });
+
+  return item;
+}
+
 function renderTagsList() {
   const container = document.getElementById('tags-list');
   container.innerHTML = '';
@@ -3345,130 +3456,83 @@ function renderTagsList() {
     return;
   }
 
-  displayTags.forEach(tag => {
-    const item = document.createElement('div');
-    // Cada actividad se muestra como una "tarjetita" de su color.
-    item.className = 'tag-item tag-item-card';
-    item.dataset.tagId = tag.id;
-    item.style.setProperty('--tag-card-bg', (tag.color && tag.color.bg) || '#c7c7cc');
-
-    // Handle de arrastre para reordenar (raton + tactil).
-    // La etiqueta 'default' (Por defecto) queda fija arriba: sin handle, no se arrastra.
-    // En modo alfabético no se permite arrastrar (la vista no es el orden real) ni se reserva espacio.
-    // Mientras se busca tampoco se arrastra: la lista filtrada no es el orden completo.
-    if (!tagsSortAlphabetical && !isFiltering) {
-      if (tag.id !== 'default') {
-        item.classList.add('tag-item-draggable');
-        const grip = document.createElement('button');
-        grip.className = 'tag-drag-handle';
-        grip.title = 'Arrastrar para reordenar';
-        grip.setAttribute('aria-label', 'Reordenar actividad');
-        grip.innerHTML = `<img src="icons/grip.svg" alt="" width="14" height="14">`;
-        grip.addEventListener('click', (e) => e.stopPropagation());
-        item.appendChild(grip);
-      } else {
-        // En orden personalizado, la fila 'Por defecto' no se arrastra pero mantiene un espaciador
-        // invisible para mantener alineado el contenido con las demas filas que si tienen handle.
-        const spacer = document.createElement('span');
-        spacer.className = 'tag-drag-handle tag-drag-handle-fixed';
-        item.appendChild(spacer);
-      }
-    }
-
-    const left = document.createElement('div');
-    left.className = 'tag-preview-group';
-
-    const pill = document.createElement('div');
-    pill.className = 'tag-color-pill';
-    pill.style.backgroundColor = tag.color.bg;
-    pill.style.borderColor = tag.color.border;
-
-    const name = document.createElement('span');
-    name.className = 'tag-name-label';
-    name.textContent = tag.name;
-
-    left.appendChild(pill);
-    left.appendChild(name);
-    
-    const isVisible = tag.visible !== false;
-    if (!isVisible) {
-      item.classList.add('tag-item-off');
-      pill.style.opacity = '0.4';
-      name.style.opacity = '0.4';
-      name.style.textDecoration = 'line-through';
-    }
-
-    item.appendChild(left);
-
-    // Actions
-    const actions = document.createElement('div');
-    actions.className = 'tag-actions';
-
-    // Visibility Toggle Button (Lightbulb)
-    const visBtn = document.createElement('button');
-    visBtn.className = 'tag-action-btn visibility-btn';
-    visBtn.title = isVisible ? 'Desactivar visualización' : 'Activar visualización';
-    if (isVisible) {
-      visBtn.innerHTML = `<img src="icons/lightbulb-on.svg" alt="Activa" width="14" height="14">`;
-    } else {
-      visBtn.innerHTML = `<img src="icons/lightbulb-off.svg" alt="Inactiva" width="14" height="14" style="opacity: 0.45;">`;
-    }
-    visBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      tag.visible = !isVisible;
-      saveTagsToStorage();
-      renderTagsList();
-      renderWeeklyCalendar();
-    });
-    actions.appendChild(visBtn);
-
-    // Edit Button
-    const editBtn = document.createElement('button');
-    editBtn.className = 'tag-action-btn';
-    editBtn.title = 'Editar actividad';
-    editBtn.innerHTML = `<img src="icons/edit.svg" alt="Editar" width="14" height="14">`;
-    editBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      startEditTag(tag);
-    });
-    actions.appendChild(editBtn);
-
-    // Delete Button (only if not 'default')
-    if (tag.id !== 'default') {
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'tag-action-btn delete';
-      deleteBtn.title = 'Eliminar actividad';
-      deleteBtn.innerHTML = `<img src="icons/trash.svg" alt="Eliminar" width="14" height="14">`;
-      deleteBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        deleteTag(tag.id);
-      });
-      actions.appendChild(deleteBtn);
-    }
-
-    item.appendChild(actions);
-
-    // Al hacer clic en cualquier parte de la fila de etiqueta (que no sean botones de acción), abrir editor
-    item.addEventListener('click', (e) => {
-      if (e.target.closest('.tag-action-btn')) {
-        return;
-      }
-      startEditTag(tag);
-    });
-
-    container.appendChild(item);
+  // Grupos de estadísticas (antes "Agrupar actividades"): con grupos, la
+  // lista se divide en secciones "Sin grupo" + un bloque por grupo. Las
+  // actividades se arrastran entre secciones para cambiarlas de grupo.
+  const groupsOn = !isFiltering && statsActivityGroups.length > 0;
+  const showHandles = !isFiltering && (!tagsSortAlphabetical || groupsOn);
+  const optsFor = (tag, group) => ({
+    showHandles,
+    canDrag: showHandles && (tag.id !== 'default' || groupsOn),
+    groupColor: group && group.color ? group.color : null
   });
 
-  // El arrastre para reordenar solo aplica en el orden personalizado.
-  if (!tagsSortAlphabetical) {
+  if (!groupsOn) {
+    displayTags.forEach(tag => container.appendChild(buildTagListItem(tag, optsFor(tag, null))));
+  } else {
+    statsActivityGroups.forEach(g => { g.tagIds = g.tagIds.filter(id => tags.some(t => t.id === id)); });
+    const makeSection = (group, list) => {
+      const sec = document.createElement('div');
+      sec.className = 'tag-section';
+      sec.dataset.groupId = group ? group.id : '';
+      const headEl = document.createElement('div');
+      headEl.className = 'tag-section-head';
+      if (group) {
+        const sw = document.createElement('span');
+        sw.className = 'tag-section-swatch' + (group.color ? '' : ' empty');
+        if (group.color) sw.style.backgroundColor = group.color.bg;
+        headEl.appendChild(sw);
+      }
+      const title = document.createElement('span');
+      title.className = 'tag-section-title';
+      title.textContent = group ? (group.name || 'Grupo') : 'Sin grupo';
+      headEl.appendChild(title);
+      if (group) {
+        const actions = document.createElement('div');
+        actions.className = 'tag-section-actions';
+        const edit = document.createElement('button');
+        edit.type = 'button';
+        edit.className = 'tag-action-btn';
+        edit.title = 'Cambiar nombre y color del grupo';
+        edit.innerHTML = '<img src="icons/edit.svg" alt="Editar" width="14" height="14">';
+        edit.addEventListener('click', (e) => { e.stopPropagation(); openStatsGroupEdit(group.id); });
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'tag-action-btn delete';
+        del.title = 'Eliminar grupo';
+        del.innerHTML = '<img src="icons/trash.svg" alt="Eliminar" width="14" height="14">';
+        del.addEventListener('click', (e) => { e.stopPropagation(); deleteStatsGroup(group.id); });
+        actions.append(edit, del);
+        headEl.appendChild(actions);
+      }
+      sec.appendChild(headEl);
+      const listEl = document.createElement('div');
+      listEl.className = 'tag-section-list';
+      if (!list.length) {
+        const ph = document.createElement('div');
+        ph.className = 'tag-drop-placeholder';
+        ph.textContent = group ? 'Arrastra actividades aquí' : 'Todas las actividades están agrupadas';
+        listEl.appendChild(ph);
+      }
+      list.forEach(tag => listEl.appendChild(buildTagListItem(tag, optsFor(tag, group))));
+      sec.appendChild(listEl);
+      container.appendChild(sec);
+    };
+    makeSection(null, displayTags.filter(t => !getStatsGroupOfTag(t.id)));
+    statsActivityGroups.forEach(g => makeSection(g, displayTags.filter(t => g.tagIds.includes(t.id))));
+  }
+
+  // Arrastre: reordenar (orden personalizado) y/o cambiar de grupo.
+  if (showHandles) {
     setupTagDragAndDrop(container);
   }
 }
 
 
 
-// ─── Agrupar actividades (solo estadísticas) ─────────────────────────────────
-// Reemplaza a "Fusionar". Cada grupo reúne varias actividades que, en las
+// ─── Grupos de actividades (solo estadísticas) ───────────────────────────────
+// Se gestionan desde "Mis actividades" (secciones + arrastrar). Reemplaza a
+// "Fusionar". Cada grupo reúne varias actividades que, en las
 // estadísticas (diarias por actividad y generales), se muestran como una sola
 // fila con el nombre y el color del grupo. Fuera de las estadísticas no cambia
 // nada. Se guarda en la cuenta: preferences.statsActivityGroups =
@@ -3524,123 +3588,23 @@ function saveStatsActivityGroups() {
   }
 }
 
-// Tras cualquier cambio: guardar, redibujar el panel y las estadísticas.
+// Tras cualquier cambio: guardar y redibujar "Mis actividades" y, si hay
+// estadísticas abiertas, también esas.
 function commitStatsGroupsChange() {
   saveStatsActivityGroups();
-  renderStatsGroupsModal();
-  if (typeof rerenderStatsAfterMerge === 'function') rerenderStatsAfterMerge();
-}
-
-function openStatsGroupsModal() {
-  // Apagar el modo antiguo de fusión, por si quedó activo.
-  statsMergeModeActive = false;
-  statsMergeFirstSelected = '';
-  const oldBtn = getStatsEl('daily-stats-merge-btn');
-  if (oldBtn) oldBtn.classList.remove('active');
-  renderStatsGroupsModal();
-  document.getElementById('stats-groups-modal')?.classList.remove('hidden');
-}
-
-function closeStatsGroupsModal() {
-  document.getElementById('stats-groups-modal')?.classList.add('hidden');
-}
-
-function renderStatsGroupsModal() {
-  const body = document.getElementById('stats-groups-body');
-  if (!body) return;
-  const scroll = body.scrollTop;
-  body.innerHTML = '';
-  // Limpiar actividades que ya no existen.
-  statsActivityGroups.forEach(g => { g.tagIds = g.tagIds.filter(id => tags.some(t => t.id === id)); });
-
-  // Orden alfabético dentro de cada sección; "Por defecto" siempre primera.
-  const ordered = [...tags].sort((a, b) => {
-    if (a.id === 'default') return -1;
-    if (b.id === 'default') return 1;
-    return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
+  if (typeof renderTagsList === 'function') renderTagsList();
+  const statsOpen = ['daily-stats-modal', 'general-stats-modal'].some(id => {
+    const m = document.getElementById(id);
+    return m && !m.classList.contains('hidden');
   });
-  const ungrouped = ordered.filter(t => !getStatsGroupOfTag(t.id));
-  body.appendChild(buildStatsGroupSection(null, ungrouped));
-  statsActivityGroups.forEach(g => {
-    const list = ordered.filter(t => g.tagIds.includes(t.id));
-    body.appendChild(buildStatsGroupSection(g, list));
-  });
-  body.scrollTop = scroll;
+  if (statsOpen && typeof rerenderStatsAfterMerge === 'function') rerenderStatsAfterMerge();
 }
 
-function buildStatsGroupSection(group, tagList) {
-  const section = document.createElement('div');
-  section.className = 'sg-section';
-  section.dataset.groupId = group ? group.id : '';
-
-  const head = document.createElement('div');
-  head.className = 'sg-section-head';
-  if (group) {
-    const sw = document.createElement('span');
-    sw.className = 'sg-swatch';
-    sw.style.backgroundColor = group.color ? group.color.bg : 'transparent';
-    if (!group.color) sw.classList.add('sg-swatch-empty');
-    head.appendChild(sw);
-  }
-  const title = document.createElement('span');
-  title.className = 'sg-section-title';
-  title.textContent = group ? (group.name || 'Grupo') : 'Actividades sin grupo';
-  head.appendChild(title);
-  if (group) {
-    const actions = document.createElement('div');
-    actions.className = 'sg-section-actions';
-    const edit = document.createElement('button');
-    edit.type = 'button';
-    edit.className = 'tag-action-btn';
-    edit.title = 'Cambiar nombre y color';
-    edit.innerHTML = '<img src="icons/edit.svg" alt="Editar" width="14" height="14">';
-    edit.addEventListener('click', () => openStatsGroupEdit(group.id));
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'tag-action-btn delete';
-    del.title = 'Eliminar grupo';
-    del.innerHTML = '<img src="icons/trash.svg" alt="Eliminar" width="14" height="14">';
-    del.addEventListener('click', () => deleteStatsGroup(group.id));
-    actions.append(edit, del);
-    head.appendChild(actions);
-  }
-  section.appendChild(head);
-
-  const list = document.createElement('div');
-  list.className = 'sg-list';
-  if (!tagList.length) {
-    const empty = document.createElement('div');
-    empty.className = 'sg-empty';
-    empty.textContent = group ? 'Arrastra actividades aquí' : 'Todas las actividades están agrupadas';
-    list.appendChild(empty);
-  }
-  tagList.forEach(tag => {
-    const item = document.createElement('div');
-    item.className = 'sg-item';
-    item.dataset.tagId = tag.id;
-    // Dentro de un grupo, la actividad se ve con el color del grupo.
-    const c = (group && group.color) ? group.color : tag.color;
-    item.style.backgroundColor = c ? c.bg : '#c7c7cc';
-    const grip = document.createElement('img');
-    grip.src = 'icons/grip.svg';
-    grip.alt = '';
-    grip.width = 14; grip.height = 14;
-    grip.className = 'sg-grip';
-    const name = document.createElement('span');
-    name.className = 'sg-item-name';
-    name.textContent = tag.name;
-    item.append(grip, name);
-    setupStatsGroupItemDrag(item, tag.id);
-    list.appendChild(item);
-  });
-  section.appendChild(list);
-  return section;
-}
-
-// Mueve una actividad a un grupo (groupId) o a "sin grupo" (null).
-function moveTagToStatsGroup(tagId, groupId) {
+// Mueve una actividad a un grupo (groupId) o a "sin grupo" (null). Siempre
+// termina redibujando la lista de actividades.
+function setTagStatsGroup(tagId, groupId) {
   const current = getStatsGroupOfTag(tagId);
-  if ((current ? current.id : null) === (groupId || null)) return;
+  if ((current ? current.id : null) === (groupId || null)) { renderTagsList(); return; }
   if (current) current.tagIds = current.tagIds.filter(id => id !== tagId);
   if (groupId) {
     const g = statsActivityGroups.find(x => x.id === groupId);
@@ -3661,119 +3625,6 @@ function deleteStatsGroup(groupId) {
   if (g.tagIds.length && !confirm(`¿Eliminar el grupo «${g.name}»? Sus actividades quedarán sin grupo.`)) return;
   statsActivityGroups = statsActivityGroups.filter(x => x.id !== groupId);
   commitStatsGroupsChange();
-}
-
-// Arrastrar una actividad entre secciones. Ratón: se arrastra al moverlo unos
-// píxeles. Táctil: mantener presionado (250 ms) y luego arrastrar, así el
-// desplazamiento normal de la lista sigue funcionando.
-function setupStatsGroupItemDrag(item, tagId) {
-  let ghost = null, offsetY = 0, offsetX = 0, dragging = false, startX = 0, startY = 0;
-  let touchTimer = null, scrollTimer = null, lastY = 0, lastX = 0;
-  const body = () => document.getElementById('stats-groups-body');
-
-  const sectionAt = (x, y) => {
-    const el = document.elementFromPoint(x, y);
-    return el ? el.closest('#stats-groups-body .sg-section') : null;
-  };
-  const clearTargets = () => document.querySelectorAll('.sg-section.sg-drop-target')
-    .forEach(s => s.classList.remove('sg-drop-target'));
-
-  const start = (x, y) => {
-    dragging = true;
-    const r = item.getBoundingClientRect();
-    offsetX = x - r.left; offsetY = y - r.top;
-    ghost = item.cloneNode(true);
-    ghost.classList.add('sg-ghost');
-    Object.assign(ghost.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', pointerEvents: 'none', zIndex: '10000', margin: '0' });
-    document.body.appendChild(ghost);
-    item.classList.add('sg-dragging');
-    document.body.classList.add('sg-drag-active');
-  };
-  const move = (x, y) => {
-    lastX = x; lastY = y;
-    ghost.style.left = (x - offsetX) + 'px';
-    ghost.style.top = (y - offsetY) + 'px';
-    clearTargets();
-    const sec = sectionAt(x, y);
-    if (sec) sec.classList.add('sg-drop-target');
-    // Auto-desplazamiento cerca de los bordes del panel.
-    const b = body();
-    if (!b) return;
-    const rect = b.getBoundingClientRect();
-    const EDGE = 40;
-    let speed = 0;
-    if (y < rect.top + EDGE) speed = -9 * Math.min(1, (rect.top + EDGE - y) / EDGE);
-    else if (y > rect.bottom - EDGE) speed = 9 * Math.min(1, (y - (rect.bottom - EDGE)) / EDGE);
-    if (!speed) { if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; } return; }
-    if (!scrollTimer) scrollTimer = setInterval(() => {
-      b.scrollTop += speed;
-      clearTargets();
-      const s2 = sectionAt(lastX, lastY);
-      if (s2) s2.classList.add('sg-drop-target');
-    }, 16);
-  };
-  const end = (drop) => {
-    if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; }
-    if (!dragging) return;
-    dragging = false;
-    const sec = drop ? sectionAt(lastX, lastY) : null;
-    if (ghost) { ghost.remove(); ghost = null; }
-    item.classList.remove('sg-dragging');
-    document.body.classList.remove('sg-drag-active');
-    clearTargets();
-    if (sec) moveTagToStatsGroup(tagId, sec.dataset.groupId || null);
-  };
-
-  // Ratón
-  item.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    startX = e.clientX; startY = e.clientY;
-    const onMove = (ev) => {
-      if (!dragging) {
-        if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 4) return;
-        start(startX, startY);
-      }
-      move(ev.clientX, ev.clientY);
-    };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      end(true);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  });
-
-  // Táctil
-  item.addEventListener('touchstart', (e) => {
-    const t = e.touches[0];
-    startX = t.clientX; startY = t.clientY;
-    touchTimer = setTimeout(() => {
-      touchTimer = null;
-      if (navigator.vibrate) navigator.vibrate(30);
-      start(startX, startY);
-      move(startX, startY);
-    }, 250);
-  }, { passive: true });
-  item.addEventListener('touchmove', (e) => {
-    const t = e.touches[0];
-    if (!dragging) {
-      if (touchTimer && Math.abs(t.clientX - startX) + Math.abs(t.clientY - startY) > 8) {
-        clearTimeout(touchTimer); touchTimer = null;
-      }
-      return;
-    }
-    e.preventDefault();
-    move(t.clientX, t.clientY);
-  }, { passive: false });
-  const touchEnd = (ev) => {
-    if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
-    end(ev.type === 'touchend');
-  };
-  item.addEventListener('touchend', touchEnd);
-  item.addEventListener('touchcancel', touchEnd);
-  item.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 // ── Panel de nombre y color de un grupo ──
@@ -3883,16 +3734,16 @@ function saveStatsGroupEdit() {
       tagIds: []
     });
   }
+  const isNew = !statsGroupEditId;
   closeStatsGroupEdit();
   commitStatsGroupsChange();
   // Grupo nuevo: bajar hasta él para poder arrastrarle actividades.
-  const body = document.getElementById('stats-groups-body');
-  if (body && !statsGroupEditId) body.scrollTop = body.scrollHeight;
+  const list = document.getElementById('tags-list');
+  if (list && isNew) list.scrollTop = list.scrollHeight;
 }
 
 function setupStatsGroupsModal() {
-  document.getElementById('stats-groups-back-btn')?.addEventListener('click', closeStatsGroupsModal);
-  document.getElementById('stats-groups-new-btn')?.addEventListener('click', () => openStatsGroupEdit(null));
+  document.getElementById('tags-new-group-btn')?.addEventListener('click', () => openStatsGroupEdit(null));
   document.getElementById('stats-group-edit-cancel-btn')?.addEventListener('click', closeStatsGroupEdit);
   document.getElementById('stats-group-edit-save-btn')?.addEventListener('click', saveStatsGroupEdit);
   document.getElementById('stats-group-name')?.addEventListener('keydown', (e) => {
