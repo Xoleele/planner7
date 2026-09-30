@@ -67,8 +67,21 @@ function setupTagDragAndDrop(container) {
 
   function updateTagDragIndicator(y) {
     if (!dragItem) return;
-    // Con grupos, también cuentan los recuadros vacíos "Arrastra actividades aquí".
-    const others = [...container.querySelectorAll('.tag-item, .tag-drop-placeholder')].filter(el => el !== dragItem);
+    // Con grupos (secciones), la línea solo se busca dentro de la sección bajo
+    // el cursor: así se puede soltar DEBAJO de la última actividad de un grupo
+    // (antes saltaba al primer puesto del grupo siguiente). El hueco entre
+    // secciones cuenta como parte de la sección de arriba. También cuentan los
+    // recuadros vacíos "Arrastra actividades aquí".
+    let scope = container;
+    const sections = [...container.querySelectorAll('.tag-section')];
+    if (sections.length) {
+      scope = sections[0];
+      for (const sec of sections) {
+        if (sec.getBoundingClientRect().top <= y) scope = sec;
+      }
+    }
+    const others = [...scope.querySelectorAll('.tag-item, .tag-drop-placeholder')].filter(el => el !== dragItem);
+    if (others.length === 0) { clearTagIndicators(); return; }
     if (others.length === 0) return;
 
     let targetEl = null;
