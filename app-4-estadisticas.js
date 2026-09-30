@@ -606,7 +606,16 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   // Con muchos días los números del eje X quedan apretados: en ese caso solo se
   // muestran el primero y el último (con día y mes).
   const LABELS_MAX_DAYS = 31;
-  if (bucketDays > 1) {
+  const periodSelEl = document.getElementById('general-stats-period-select');
+  const isWeekly = periodSelEl && periodSelEl.value === 'semanal' && N === 7;
+  if (isWeekly) {
+    // Semanal: letras de los días (L M M J V S D), como en Barras apiladas.
+    const wk = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+    buckets.forEach((b, idx) => {
+      const x = x_left + (idx / denom) * plotWidth;
+      svgParts.push(`<text x="${x}" y="${y_bottom + 10}" fill="var(--text-muted, #8e8e93)" font-size="5.5" font-weight="600" text-anchor="middle">${wk[idx]}</text>`);
+    });
+  } else if (bucketDays > 1) {
     // Semanas / meses: numerados 1, 2, 3… (como en Barras apiladas).
     buckets.forEach((b, idx) => {
       const x = x_left + (idx / denom) * plotWidth;
@@ -1890,9 +1899,10 @@ function updatePeriodSelectOptions() {
     periodSelect.innerHTML = `
       <option value="10dias">Últimos 10 días</option>
       <option value="30dias">Últimos 30 días</option>
+      <option value="semanal">Semanal</option>
       <option value="personalizado">Personalizado</option>
     `;
-    if (currentVal === '10dias' || currentVal === '30dias' || currentVal === 'personalizado') {
+    if (currentVal === '10dias' || currentVal === '30dias' || currentVal === 'semanal' || currentVal === 'personalizado') {
       periodSelect.value = currentVal;
     } else {
       periodSelect.value = '10dias';
