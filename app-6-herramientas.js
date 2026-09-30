@@ -884,7 +884,9 @@ function setupEventListeners() {
   document.querySelectorAll('.close-modal-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const targetModal = btn.dataset.modal;
-      document.getElementById(targetModal).classList.add('hidden');
+      // Algunos botones reutilizan la clase sin data-modal (p. ej. Agrupar).
+      const m = targetModal && document.getElementById(targetModal);
+      if (m) m.classList.add('hidden');
     });
   });
 

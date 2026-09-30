@@ -102,8 +102,8 @@ function getStatsModalHTML(prefix) {
           <button id="${prefix}-settings-btn" title="Ajustes" class="close-modal-btn" type="button">
             <img src="icons/settings.svg" alt="Ajustes" width="16" height="16">
           </button>
-          <button id="${prefix}-merge-btn" title="Combinar tareas" class="close-modal-btn" type="button">
-            <img src="icons/merge.svg" alt="Combinar tareas" width="20" height="20">
+          <button id="${prefix}-merge-btn" title="Agrupar actividades" class="close-modal-btn" type="button">
+            <img src="icons/merge.svg" alt="Agrupar actividades" width="20" height="20">
           </button>
           <button class="close-modal-btn" data-modal="${prefix}-modal">
             <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
@@ -985,19 +985,28 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       const dStr = occ.dateStr;
       const mins = occ.mins;
       let tagId = task.tagId || 'default';
+      if (!tags.some(t => t.id === tagId)) tagId = 'default';
 
-      // Resolver fusión de actividades (global, recursiva): si esta actividad se
-      // combinó en otra, sumamos en la actividad destino.
-      tagId = resolveStatsMerge(statsMergedActivities, tagId);
-
-      const tag = tags.find(t => t.id === tagId) || tags.find(t => t.id === 'default');
-      const name = tag ? tag.name : 'Por defecto';
+      // Grupos de actividades (panel "Agrupar actividades"): las actividades de
+      // un grupo se suman en una sola fila con el nombre y color del grupo.
+      const grp = getStatsGroupOfTag(tagId);
+      let name;
+      let groupColor = null;
+      if (grp) {
+        tagId = STATS_GROUP_KEY_PREFIX + grp.id;
+        name = grp.name || 'Grupo';
+        groupColor = grp.color || null;
+      } else {
+        const tag = tags.find(t => t.id === tagId) || tags.find(t => t.id === 'default');
+        name = tag ? tag.name : 'Por defecto';
+      }
       if (!grouped[tagId]) {
         grouped[tagId] = {
           name,
           displayName: name,
           minutes: 0,
           tagId: tagId,
+          groupColor,
           tasks: [],
           occurrences: []
         };
@@ -1056,6 +1065,12 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       if (statsCustomColors[customColorKey]) {
         customColor = statsCustomColors[customColorKey];
       }
+    }
+    // Grupo de actividades: siempre con el color definido en el grupo.
+    if (group.groupColor) {
+      group.color = { bg: group.groupColor.bg, border: group.groupColor.border || group.groupColor.bg };
+      usedColors.add(group.color.bg.toLowerCase());
+      return;
     }
     // Color fijado por una fusión (global, para todos los días).
     if (!customColor && statsCustomColors[STATS_GLOBAL_PREFIX + group.name]) {
@@ -1264,7 +1279,8 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   // gráfico de barras o el lineal (las fusiones de actividades son globales).
   const isBarChartRange = prefix === 'general-stats'
     && (generalStatsChartType === 'barras-apiladas' || generalStatsChartType === 'lineal');
-  const mergeAllowed = dates.length <= 1 || isBarChartRange;
+  // "Agrupar actividades" es un panel aparte: disponible siempre.
+  const mergeAllowed = true;
   const mergeBtn = document.getElementById(prefix + '-merge-btn');
   if (mergeBtn) {
     mergeBtn.style.display = mergeAllowed ? '' : 'none';
@@ -2262,7 +2278,7 @@ function initStatsEvents(prefix) {
   if (statsEditCloseBtn) statsEditCloseBtn.addEventListener('click', closeStatsTaskEditView);
 
   const statsMergeBtn = getEl('daily-stats-merge-btn');
-  if (statsMergeBtn) statsMergeBtn.addEventListener('click', toggleStatsMergeMode);
+  if (statsMergeBtn) statsMergeBtn.addEventListener('click', openStatsGroupsModal);
 
   ['stats-edit-hsl-h', 'stats-edit-hsl-s', 'stats-edit-hsl-l'].forEach(id => {
     const el = getEl(id);
@@ -3449,3 +3465,437 @@ function renderTagsList() {
   }
 }
 
+
+
+// ─── Agrupar actividades (solo estadísticas) ─────────────────────────────────
+// Reemplaza a "Fusionar". Cada grupo reúne varias actividades que, en las
+// estadísticas (diarias por actividad y generales), se muestran como una sola
+// fila con el nombre y el color del grupo. Fuera de las estadísticas no cambia
+// nada. Se guarda en la cuenta: preferences.statsActivityGroups =
+//   [{ id, name, color: {bg,text,border} | null, tagIds: [...] }]
+// Al agregar la PRIMERA actividad a un grupo sin color, el grupo toma el color
+// de esa actividad (luego se puede cambiar con el lápiz).
+const STATS_GROUP_KEY_PREFIX = 'grp:';
+let statsActivityGroups = [];
+
+function getStatsGroupOfTag(tagId) {
+  for (const g of statsActivityGroups) {
+    if (Array.isArray(g.tagIds) && g.tagIds.includes(tagId)) return g;
+  }
+  return null;
+}
+
+// Carga desde las preferencias. La primera vez (sin grupos guardados) convierte
+// las fusiones antiguas de actividades en grupos, para no perder lo que ya se
+// veía en las estadísticas.
+function setStatsActivityGroupsFromPrefs(prefs) {
+  if (Array.isArray(prefs.statsActivityGroups)) {
+    statsActivityGroups = prefs.statsActivityGroups.map(g => ({
+      id: String(g.id),
+      name: g.name || 'Grupo',
+      color: g.color || null,
+      tagIds: Array.isArray(g.tagIds) ? [...g.tagIds] : []
+    }));
+    return;
+  }
+  const merges = (typeof statsMergedActivities === 'object' && statsMergedActivities) || {};
+  const keys = Object.keys(merges).filter(k => k.startsWith(STATS_GLOBAL_PREFIX));
+  if (!keys.length) { statsActivityGroups = []; return; }
+  const byDest = {};
+  keys.forEach(k => {
+    const src = k.slice(STATS_GLOBAL_PREFIX.length);
+    const dst = resolveStatsMerge(merges, src);
+    if (src === dst) return;
+    (byDest[dst] = byDest[dst] || new Set([dst])).add(src);
+  });
+  statsActivityGroups = Object.entries(byDest).map(([dst, set], i) => {
+    const tag = tags.find(t => t.id === dst);
+    const name = tag ? tag.name : `Grupo ${i + 1}`;
+    const custom = statsCustomColors[STATS_GLOBAL_PREFIX + name];
+    const color = custom || (tag && tag.color ? { ...tag.color } : null);
+    return { id: 'g' + Date.now().toString(36) + i, name, color, tagIds: [...set] };
+  });
+  saveStatsActivityGroups();
+}
+
+function saveStatsActivityGroups() {
+  if (currentUser && typeof saveSettingPreferences === 'function') {
+    saveSettingPreferences({ statsActivityGroups });
+  }
+}
+
+// Tras cualquier cambio: guardar, redibujar el panel y las estadísticas.
+function commitStatsGroupsChange() {
+  saveStatsActivityGroups();
+  renderStatsGroupsModal();
+  if (typeof rerenderStatsAfterMerge === 'function') rerenderStatsAfterMerge();
+}
+
+function openStatsGroupsModal() {
+  // Apagar el modo antiguo de fusión, por si quedó activo.
+  statsMergeModeActive = false;
+  statsMergeFirstSelected = '';
+  const oldBtn = getStatsEl('daily-stats-merge-btn');
+  if (oldBtn) oldBtn.classList.remove('active');
+  renderStatsGroupsModal();
+  document.getElementById('stats-groups-modal')?.classList.remove('hidden');
+}
+
+function closeStatsGroupsModal() {
+  document.getElementById('stats-groups-modal')?.classList.add('hidden');
+}
+
+function renderStatsGroupsModal() {
+  const body = document.getElementById('stats-groups-body');
+  if (!body) return;
+  const scroll = body.scrollTop;
+  body.innerHTML = '';
+  // Limpiar actividades que ya no existen.
+  statsActivityGroups.forEach(g => { g.tagIds = g.tagIds.filter(id => tags.some(t => t.id === id)); });
+
+  const ordered = typeof getOrderedTagsForDisplay === 'function' ? getOrderedTagsForDisplay() : tags;
+  const ungrouped = ordered.filter(t => !getStatsGroupOfTag(t.id));
+  body.appendChild(buildStatsGroupSection(null, ungrouped));
+  statsActivityGroups.forEach(g => {
+    const list = ordered.filter(t => g.tagIds.includes(t.id));
+    body.appendChild(buildStatsGroupSection(g, list));
+  });
+  body.scrollTop = scroll;
+}
+
+function buildStatsGroupSection(group, tagList) {
+  const section = document.createElement('div');
+  section.className = 'sg-section';
+  section.dataset.groupId = group ? group.id : '';
+
+  const head = document.createElement('div');
+  head.className = 'sg-section-head';
+  if (group) {
+    const sw = document.createElement('span');
+    sw.className = 'sg-swatch';
+    sw.style.backgroundColor = group.color ? group.color.bg : 'transparent';
+    if (!group.color) sw.classList.add('sg-swatch-empty');
+    head.appendChild(sw);
+  }
+  const title = document.createElement('span');
+  title.className = 'sg-section-title';
+  title.textContent = group ? (group.name || 'Grupo') : 'Actividades sin grupo';
+  head.appendChild(title);
+  if (group) {
+    const actions = document.createElement('div');
+    actions.className = 'sg-section-actions';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'tag-action-btn';
+    edit.title = 'Cambiar nombre y color';
+    edit.innerHTML = '<img src="icons/edit.svg" alt="Editar" width="14" height="14">';
+    edit.addEventListener('click', () => openStatsGroupEdit(group.id));
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'tag-action-btn delete';
+    del.title = 'Eliminar grupo';
+    del.innerHTML = '<img src="icons/trash.svg" alt="Eliminar" width="14" height="14">';
+    del.addEventListener('click', () => deleteStatsGroup(group.id));
+    actions.append(edit, del);
+    head.appendChild(actions);
+  }
+  section.appendChild(head);
+
+  const list = document.createElement('div');
+  list.className = 'sg-list';
+  if (!tagList.length) {
+    const empty = document.createElement('div');
+    empty.className = 'sg-empty';
+    empty.textContent = group ? 'Arrastra actividades aquí' : 'Todas las actividades están agrupadas';
+    list.appendChild(empty);
+  }
+  tagList.forEach(tag => {
+    const item = document.createElement('div');
+    item.className = 'sg-item';
+    item.dataset.tagId = tag.id;
+    // Dentro de un grupo, la actividad se ve con el color del grupo.
+    const c = (group && group.color) ? group.color : tag.color;
+    item.style.backgroundColor = c ? c.bg : '#c7c7cc';
+    const grip = document.createElement('img');
+    grip.src = 'icons/grip.svg';
+    grip.alt = '';
+    grip.width = 14; grip.height = 14;
+    grip.className = 'sg-grip';
+    const name = document.createElement('span');
+    name.className = 'sg-item-name';
+    name.textContent = tag.name;
+    item.append(grip, name);
+    setupStatsGroupItemDrag(item, tag.id);
+    list.appendChild(item);
+  });
+  section.appendChild(list);
+  return section;
+}
+
+// Mueve una actividad a un grupo (groupId) o a "sin grupo" (null).
+function moveTagToStatsGroup(tagId, groupId) {
+  const current = getStatsGroupOfTag(tagId);
+  if ((current ? current.id : null) === (groupId || null)) return;
+  if (current) current.tagIds = current.tagIds.filter(id => id !== tagId);
+  if (groupId) {
+    const g = statsActivityGroups.find(x => x.id === groupId);
+    if (!g) return;
+    // Primera actividad de un grupo sin color: el grupo toma su color.
+    if (!g.color && !g.tagIds.length) {
+      const tag = tags.find(t => t.id === tagId);
+      if (tag && tag.color) g.color = { bg: tag.color.bg, text: '#ffffff', border: tag.color.border || tag.color.bg };
+    }
+    g.tagIds.push(tagId);
+  }
+  commitStatsGroupsChange();
+}
+
+function deleteStatsGroup(groupId) {
+  const g = statsActivityGroups.find(x => x.id === groupId);
+  if (!g) return;
+  if (g.tagIds.length && !confirm(`¿Eliminar el grupo «${g.name}»? Sus actividades quedarán sin grupo.`)) return;
+  statsActivityGroups = statsActivityGroups.filter(x => x.id !== groupId);
+  commitStatsGroupsChange();
+}
+
+// Arrastrar una actividad entre secciones. Ratón: se arrastra al moverlo unos
+// píxeles. Táctil: mantener presionado (250 ms) y luego arrastrar, así el
+// desplazamiento normal de la lista sigue funcionando.
+function setupStatsGroupItemDrag(item, tagId) {
+  let ghost = null, offsetY = 0, offsetX = 0, dragging = false, startX = 0, startY = 0;
+  let touchTimer = null, scrollTimer = null, lastY = 0, lastX = 0;
+  const body = () => document.getElementById('stats-groups-body');
+
+  const sectionAt = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    return el ? el.closest('#stats-groups-body .sg-section') : null;
+  };
+  const clearTargets = () => document.querySelectorAll('.sg-section.sg-drop-target')
+    .forEach(s => s.classList.remove('sg-drop-target'));
+
+  const start = (x, y) => {
+    dragging = true;
+    const r = item.getBoundingClientRect();
+    offsetX = x - r.left; offsetY = y - r.top;
+    ghost = item.cloneNode(true);
+    ghost.classList.add('sg-ghost');
+    Object.assign(ghost.style, { position: 'fixed', left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', pointerEvents: 'none', zIndex: '10000', margin: '0' });
+    document.body.appendChild(ghost);
+    item.classList.add('sg-dragging');
+    document.body.classList.add('sg-drag-active');
+  };
+  const move = (x, y) => {
+    lastX = x; lastY = y;
+    ghost.style.left = (x - offsetX) + 'px';
+    ghost.style.top = (y - offsetY) + 'px';
+    clearTargets();
+    const sec = sectionAt(x, y);
+    if (sec) sec.classList.add('sg-drop-target');
+    // Auto-desplazamiento cerca de los bordes del panel.
+    const b = body();
+    if (!b) return;
+    const rect = b.getBoundingClientRect();
+    const EDGE = 40;
+    let speed = 0;
+    if (y < rect.top + EDGE) speed = -9 * Math.min(1, (rect.top + EDGE - y) / EDGE);
+    else if (y > rect.bottom - EDGE) speed = 9 * Math.min(1, (y - (rect.bottom - EDGE)) / EDGE);
+    if (!speed) { if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; } return; }
+    if (!scrollTimer) scrollTimer = setInterval(() => {
+      b.scrollTop += speed;
+      clearTargets();
+      const s2 = sectionAt(lastX, lastY);
+      if (s2) s2.classList.add('sg-drop-target');
+    }, 16);
+  };
+  const end = (drop) => {
+    if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; }
+    if (!dragging) return;
+    dragging = false;
+    const sec = drop ? sectionAt(lastX, lastY) : null;
+    if (ghost) { ghost.remove(); ghost = null; }
+    item.classList.remove('sg-dragging');
+    document.body.classList.remove('sg-drag-active');
+    clearTargets();
+    if (sec) moveTagToStatsGroup(tagId, sec.dataset.groupId || null);
+  };
+
+  // Ratón
+  item.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    startX = e.clientX; startY = e.clientY;
+    const onMove = (ev) => {
+      if (!dragging) {
+        if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 4) return;
+        start(startX, startY);
+      }
+      move(ev.clientX, ev.clientY);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      end(true);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // Táctil
+  item.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    startX = t.clientX; startY = t.clientY;
+    touchTimer = setTimeout(() => {
+      touchTimer = null;
+      if (navigator.vibrate) navigator.vibrate(30);
+      start(startX, startY);
+      move(startX, startY);
+    }, 250);
+  }, { passive: true });
+  item.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    if (!dragging) {
+      if (touchTimer && Math.abs(t.clientX - startX) + Math.abs(t.clientY - startY) > 8) {
+        clearTimeout(touchTimer); touchTimer = null;
+      }
+      return;
+    }
+    e.preventDefault();
+    move(t.clientX, t.clientY);
+  }, { passive: false });
+  const touchEnd = (ev) => {
+    if (touchTimer) { clearTimeout(touchTimer); touchTimer = null; }
+    end(ev.type === 'touchend');
+  };
+  item.addEventListener('touchend', touchEnd);
+  item.addEventListener('touchcancel', touchEnd);
+  item.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+// ── Panel de nombre y color de un grupo ──
+let statsGroupEditId = null;       // null = grupo nuevo
+let statsGroupEditColor = null;    // {bg,text,border} o null (sin elegir)
+let statsGroupEditCustom = false;  // true si el color viene del selector HSL
+
+function openStatsGroupEdit(groupId) {
+  const g = groupId ? statsActivityGroups.find(x => x.id === groupId) : null;
+  statsGroupEditId = g ? g.id : null;
+  statsGroupEditColor = g && g.color ? { ...g.color } : null;
+  statsGroupEditCustom = !!(statsGroupEditColor && !DEFAULT_COLORS.some(c => c.bg.toLowerCase() === statsGroupEditColor.bg.toLowerCase()));
+  document.getElementById('stats-group-edit-title').textContent = g ? 'Editar grupo' : 'Nuevo grupo';
+  const input = document.getElementById('stats-group-name');
+  input.value = g ? g.name : `Grupo ${statsActivityGroups.length + 1}`;
+  document.getElementById('stats-group-hsl-picker').classList.toggle('hidden', !statsGroupEditCustom);
+  if (statsGroupEditCustom) {
+    const [h, sat, l] = hexToHsl(statsGroupEditColor.bg);
+    document.getElementById('stats-group-hsl-h').value = h;
+    document.getElementById('stats-group-hsl-s').value = sat;
+    document.getElementById('stats-group-hsl-l').value = l;
+    // Solo mostrar la vista previa (sin recalcular el color, para no alterarlo).
+    const prev = document.getElementById('stats-group-hsl-preview');
+    const val = document.getElementById('stats-group-hsl-value');
+    if (prev) prev.style.backgroundColor = statsGroupEditColor.bg;
+    if (val) val.textContent = `${statsGroupEditColor.bg.toUpperCase()}  (H ${h}, S ${sat}, L ${l})`;
+  }
+  buildStatsGroupColorGrid();
+  updateStatsGroupColorHint();
+  document.getElementById('stats-group-edit-modal').classList.remove('hidden');
+  setTimeout(() => { input.focus(); input.select(); }, 30);
+}
+
+function updateStatsGroupColorHint() {
+  const hint = document.getElementById('stats-group-color-hint');
+  if (hint) hint.textContent = statsGroupEditColor ? '' :
+    'Si no eliges un color, el grupo tomará el de la primera actividad que agregues.';
+}
+
+function buildStatsGroupColorGrid() {
+  const grid = document.getElementById('stats-group-color-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  DEFAULT_COLORS.forEach(color => {
+    const c = document.createElement('div');
+    c.className = 'color-circle';
+    c.style.backgroundColor = color.bg;
+    c.style.borderColor = color.border;
+    if (!statsGroupEditCustom && statsGroupEditColor && statsGroupEditColor.bg.toLowerCase() === color.bg.toLowerCase()) c.classList.add('selected');
+    c.addEventListener('click', () => {
+      statsGroupEditColor = { ...color };
+      statsGroupEditCustom = false;
+      document.getElementById('stats-group-hsl-picker').classList.add('hidden');
+      buildStatsGroupColorGrid();
+      updateStatsGroupColorHint();
+    });
+    grid.appendChild(c);
+  });
+  const add = document.createElement('div');
+  add.className = 'color-circle color-circle-add';
+  add.title = 'Color personalizado';
+  add.innerHTML = '<span class="color-add-plus">+</span>';
+  if (statsGroupEditCustom) add.classList.add('selected');
+  add.addEventListener('click', () => {
+    if (!statsGroupEditCustom && statsGroupEditColor) {
+      const [h, sat, l] = hexToHsl(statsGroupEditColor.bg);
+      document.getElementById('stats-group-hsl-h').value = h;
+      document.getElementById('stats-group-hsl-s').value = sat;
+      document.getElementById('stats-group-hsl-l').value = l;
+    }
+    statsGroupEditCustom = true;
+    document.getElementById('stats-group-hsl-picker').classList.remove('hidden');
+    updateStatsGroupHslPreview();
+    buildStatsGroupColorGrid();
+  });
+  grid.appendChild(add);
+}
+
+function updateStatsGroupHslPreview() {
+  const h = +document.getElementById('stats-group-hsl-h').value;
+  const sat = +document.getElementById('stats-group-hsl-s').value;
+  const l = +document.getElementById('stats-group-hsl-l').value;
+  const hex = hslToHex(h, sat, l);
+  statsGroupEditColor = { bg: hex, text: '#ffffff', border: hex };
+  const prev = document.getElementById('stats-group-hsl-preview');
+  const val = document.getElementById('stats-group-hsl-value');
+  if (prev) prev.style.backgroundColor = hex;
+  if (val) val.textContent = `${hex.toUpperCase()}  (H ${h}, S ${sat}, L ${l})`;
+  updateStatsGroupColorHint();
+}
+
+function closeStatsGroupEdit() {
+  document.getElementById('stats-group-edit-modal')?.classList.add('hidden');
+  statsGroupEditId = null;
+}
+
+function saveStatsGroupEdit() {
+  const name = (document.getElementById('stats-group-name').value || '').trim() || `Grupo ${statsActivityGroups.length + 1}`;
+  if (statsGroupEditId) {
+    const g = statsActivityGroups.find(x => x.id === statsGroupEditId);
+    if (g) { g.name = name; if (statsGroupEditColor) g.color = { ...statsGroupEditColor }; }
+  } else {
+    statsActivityGroups.push({
+      id: 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      name,
+      color: statsGroupEditColor ? { ...statsGroupEditColor } : null,
+      tagIds: []
+    });
+  }
+  closeStatsGroupEdit();
+  commitStatsGroupsChange();
+  // Grupo nuevo: bajar hasta él para poder arrastrarle actividades.
+  const body = document.getElementById('stats-groups-body');
+  if (body && !statsGroupEditId) body.scrollTop = body.scrollHeight;
+}
+
+function setupStatsGroupsModal() {
+  document.getElementById('stats-groups-back-btn')?.addEventListener('click', closeStatsGroupsModal);
+  document.getElementById('stats-groups-new-btn')?.addEventListener('click', () => openStatsGroupEdit(null));
+  document.getElementById('stats-group-edit-cancel-btn')?.addEventListener('click', closeStatsGroupEdit);
+  document.getElementById('stats-group-edit-save-btn')?.addEventListener('click', saveStatsGroupEdit);
+  document.getElementById('stats-group-name')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveStatsGroupEdit(); }
+  });
+  ['stats-group-hsl-h', 'stats-group-hsl-s', 'stats-group-hsl-l'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', updateStatsGroupHslPreview);
+  });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setupStatsGroupsModal);
+else setupStatsGroupsModal();

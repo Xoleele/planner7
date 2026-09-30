@@ -69,6 +69,8 @@ function applyUserSettingsFromPrefs(prefs) {
   defaultTaskDurationMin = DEFAULT_TASK_DURATION_OPTIONS.includes(d) ? d : 60;
   showTaskDescriptions = prefs.showTaskDescriptions !== false;
   applyTaskDescriptionVisibility();
+  // Estadísticas: grupos de actividades (panel "Agrupar actividades").
+  if (typeof setStatsActivityGroupsFromPrefs === 'function') setStatsActivityGroupsFromPrefs(prefs);
   // Estadísticas diarias: grupos ocultos (globales, todos los días).
   if (typeof statsHiddenGroups !== 'undefined') {
     statsHiddenGroups.clear();

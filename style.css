@@ -6168,3 +6168,98 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
   border-radius: 3px;
   padding: 0 1px;
 }
+
+/* ─── Agrupar actividades (estadísticas) ─── */
+#stats-groups-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 60vh;
+}
+.sg-section {
+  border-radius: var(--radius-md);
+  padding: 6px;
+  margin: -6px;
+  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.sg-section.sg-drop-target {
+  background-color: #f2f2f7;
+  box-shadow: inset 0 0 0 1.5px var(--text-main);
+}
+.sg-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: 6px;
+}
+.sg-section-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-section[data-group-id]:not([data-group-id=""]) .sg-section-title { color: var(--text-main); }
+.sg-section-actions { display: flex; align-items: center; gap: 2px; }
+.sg-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.sg-swatch-empty { border: 1.5px dashed #c7c7cc; }
+.sg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.sg-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  box-shadow: var(--shadow-sm);
+}
+.sg-item:active { cursor: grabbing; }
+.sg-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-grip { filter: brightness(0) invert(1); opacity: 0.7; flex-shrink: 0; }
+.sg-item.sg-dragging { opacity: 0.3; }
+.sg-ghost { box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18); opacity: 0.95; }
+body.sg-drag-active, body.sg-drag-active * { cursor: grabbing !important; }
+.sg-empty {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 10px;
+  border: 1.5px dashed var(--border-light);
+  border-radius: var(--radius-md);
+}
+.sg-footer-spacer { flex: 1; }
+.sg-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  margin-top: 10px;
+}
+.sg-hint:empty { display: none; }
