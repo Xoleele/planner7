@@ -196,9 +196,6 @@ function getStatsModalHTML(prefix) {
         </div>
       </div>
       
-      <div class="modal-footer" style="display: flex; justify-content: center; background-color: transparent; border-top: none; padding-top: 8px;">
-        <button type="button" class="btn btn-secondary close-modal-btn" data-modal="${prefix}-modal" style="min-width: 120px;">Cerrar</button>
-      </div>
     </div>
 
     <!-- VISTA DE EDICIÓN DE TAREA -->
@@ -3556,7 +3553,12 @@ function renderStatsGroupsModal() {
   // Limpiar actividades que ya no existen.
   statsActivityGroups.forEach(g => { g.tagIds = g.tagIds.filter(id => tags.some(t => t.id === id)); });
 
-  const ordered = typeof getOrderedTagsForDisplay === 'function' ? getOrderedTagsForDisplay() : tags;
+  // Orden alfabético dentro de cada sección; "Por defecto" siempre primera.
+  const ordered = [...tags].sort((a, b) => {
+    if (a.id === 'default') return -1;
+    if (b.id === 'default') return 1;
+    return (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' });
+  });
   const ungrouped = ordered.filter(t => !getStatsGroupOfTag(t.id));
   body.appendChild(buildStatsGroupSection(null, ungrouped));
   statsActivityGroups.forEach(g => {
