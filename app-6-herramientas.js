@@ -2534,9 +2534,8 @@ function countDaysInRange(from, to) {
   return diff >= 0 ? diff + 1 : null;
 }
 
-// status: 'completed' | 'pending' | 'all'. oncePerDay: Repeticiones cuenta
-// como máximo 1 por día (el tiempo total y la lista no se ven afectados).
-function computeBuscadorStats(keyword, period, fields = { title: true }, status = 'completed', oncePerDay = false) {
+// status: 'completed' | 'pending' | 'all'.
+function computeBuscadorStats(keyword, period, fields = { title: true }, status = 'completed') {
   const kw = normalizeForSearch(keyword);
   const { from, to } = getBuscadorDateRange(period);
   const totalDays = countDaysInRange(from, to);
@@ -2589,11 +2588,9 @@ function computeBuscadorStats(keyword, period, fields = { title: true }, status 
     (a.task.startTime || '99:99').localeCompare(b.task.startTime || '99:99') ||
     (a.task.position || 0) - (b.task.position || 0));
 
-  // Totales a partir de lo encontrado. Con "Máximo 1 repetición por día" solo
-  // se limita el conteo de Repeticiones (1 por día); la duración de todas las
-  // tareas se suma igual y todas aparecen en los resultados.
+  // Totales a partir de lo encontrado.
   items.forEach(({ date, task }) => {
-    if (!oncePerDay || !uniqueDays.has(date)) repetitions += 1;
+    repetitions += 1;
     uniqueDays.add(date);
     const minutes = getTaskDurationMinutes(task) || 0;
     if (minutes > 0) {
@@ -2616,7 +2613,7 @@ function runBuscadorCalculation() {
   };
   const statusSel = document.getElementById('buscador-status');
   const status = statusSel ? statusSel.value : 'completed';
-  const stats = computeBuscadorStats(keyword, period, fields, status, isOn('buscador-once-per-day'));
+  const stats = computeBuscadorStats(keyword, period, fields, status);
   document.getElementById('buscador-repetitions').textContent = stats.repetitions;
   if (stats.totalDays) {
     const pct = Math.round((stats.days / stats.totalDays) * 100);

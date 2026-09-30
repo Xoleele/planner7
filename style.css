@@ -6112,7 +6112,10 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
   gap: 6px;
 }
 /* Pie del Buscador: "Regresar" a la izquierda; el resto a la derecha. */
-.buscador-footer-spacer { flex: 1; }
+.buscador-footer-spacer { flex: 1; min-width: 0; }
+/* "Ver resultados" y "Regresar" ocupan el mismo lugar (izquierda). */
+.buscador-footer .btn { white-space: nowrap; flex-shrink: 0; }
+#buscador-view-btn, #buscador-back-btn { margin-right: auto; }
 #buscador-view-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .buscador-results-view { overflow-y: auto; }
 .buscador-results-view.hidden,
@@ -6150,7 +6153,7 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
   text-decoration: none !important;
 }
 
-/* Buscador: Periodo y Estado lado a lado; casilla "máximo 1 por día". */
+/* Buscador: Periodo y Estado lado a lado. */
 .buscador-period-row { margin-bottom: 0; }
 .buscador-period-row .form-group { margin-bottom: 18px; }
 .buscador-period-row .form-group { min-width: 0; }
