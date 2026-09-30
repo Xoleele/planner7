@@ -2030,6 +2030,10 @@ function handleGeneralStatsChartTypeChange() {
     else estadisticasGenerales(formatDate(new Date()));
     return;
   }
+  // Sin periodo guardado para este gráfico: no heredar "Personalizado" del
+  // gráfico anterior (abriría la ventana de fechas); usar la primera opción.
+  const sel = document.getElementById('general-stats-period-select');
+  if (sel && sel.value === 'personalizado' && sel.options.length) sel.value = sel.options[0].value;
   handleGeneralStatsPeriodChange();
 }
 
@@ -2212,24 +2216,26 @@ function openGeneralStatsCustomRangeModal() {
           const factor = (unit === 'semanas' ? 7 : unit === 'meses' ? 30 : 1);
           days = qty * factor;
           
-          const startDate = new Date(generalStatsDateRange.from + 'T12:00:00');
-          startDate.setDate(startDate.getDate() + days - 1);
-          toInput.value = formatDate(startDate);
+          // Se conserva el día de término; el inicio se calcula hacia atrás.
+          const startDate = new Date(generalStatsDateRange.to + 'T12:00:00');
+          startDate.setDate(startDate.getDate() - days + 1);
+          fromInput.value = formatDate(startDate);
         } else {
           if (durationInput) durationInput.value = days;
         }
       }
     } else {
+      // Sin rango previo: termina hoy.
       const todayStr = formatDate(new Date());
-      fromInput.value = todayStr;
+      toInput.value = todayStr;
       if (customRangeUsesUnits()) {
         if (unitSelect) unitSelect.value = 'dias';
         if (qtySelect) qtySelect.value = '7';
-        const endDate = new Date();
-        endDate.setDate(endDate.getDate() + 6);
-        toInput.value = formatDate(endDate);
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 6);
+        fromInput.value = formatDate(startDate);
       } else {
-        toInput.value = todayStr;
+        fromInput.value = todayStr;
         if (durationInput) durationInput.value = 1;
       }
     }
@@ -2259,9 +2265,9 @@ function recordCustomRangeChange(field) {
   customRangeQueue = customRangeQueue.filter(f => f !== field);
   customRangeQueue.push(field);
   
-  // Ya no hay campo "Día de término" visible: el término siempre se calcula a
-  // partir del inicio y la cantidad de días.
-  const adjustedField = 'end';
+  // Solo se elige el "Día de término": el inicio siempre se calcula a partir
+  // del término y la cantidad de días.
+  const adjustedField = 'start';
   
   const startInput = document.getElementById('general-stats-custom-range-start');
   const endInput = document.getElementById('general-stats-custom-range-end');

@@ -1177,13 +1177,13 @@
         </button>
       </div>
       <div class="modal-body" style="padding: 12px 20px; display: flex; flex-direction: column; gap: 8px;">
-        <!-- Fila 1: Día de inicio + Cantidad de días (no hay día de término: se
-             calcula como inicio + cantidad - 1 y se guarda en el input oculto). -->
+        <!-- Fila 1: Día de término + Cantidad de días (el día de inicio no se
+             elige: se calcula como término - cantidad + 1, en el input oculto). -->
         <div class="form-row" style="margin-bottom: 0; gap: 10px;">
           <div class="form-group flex-1" style="margin-bottom: 0;">
-            <label for="general-stats-custom-range-start" style="margin-bottom: 3px; display: block;">Día de inicio</label>
-            <input type="date" id="general-stats-custom-range-start" style="height: 34px; padding: 6px 12px;">
-            <input type="hidden" id="general-stats-custom-range-end">
+            <label for="general-stats-custom-range-end" style="margin-bottom: 3px; display: block;">Día de término</label>
+            <input type="date" id="general-stats-custom-range-end" style="height: 34px; padding: 6px 12px;">
+            <input type="hidden" id="general-stats-custom-range-start">
           </div>
           <div class="form-group flex-1" id="general-stats-custom-range-duration-row" style="margin-bottom: 0;">
             <label for="general-stats-custom-range-duration" style="margin-bottom: 3px; display: block;">Cantidad de días</label>
