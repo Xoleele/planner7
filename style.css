@@ -290,10 +290,12 @@ html:not(.mobile-mode) .app-container {
 }
 
 /* Botón de ordenar activado (orden alfabético): círculo igual, icono resaltado. */
-#tags-sort-btn.active {
+#tags-sort-btn.active,
+#buscador-sort-btn.active {
   background-color: rgba(0, 0, 0, 0.08);
 }
-#tags-sort-btn.active img {
+#tags-sort-btn.active img,
+#buscador-sort-btn.active img {
   filter: brightness(0);
 }
 
@@ -6157,3 +6159,12 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
 .buscador-period-row { margin-bottom: 0; }
 .buscador-period-row .form-group { margin-bottom: 18px; }
 .buscador-period-row .form-group { min-width: 0; }
+
+/* Buscador: palabra encontrada resaltada dentro de las tarjetas. */
+.buscador-card mark.buscador-hl {
+  background-color: rgba(255, 255, 255, 0.35);
+  color: inherit;
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 0 1px;
+}

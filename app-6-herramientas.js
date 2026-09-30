@@ -1610,6 +1610,33 @@ function setupEventListeners() {
   if (buscadorViewBtn) {
     buscadorViewBtn.addEventListener('click', () => showBuscadorResultsView());
   }
+  // Enter en la palabra clave = Buscar.
+  const buscadorKeywordInput = document.getElementById('buscador-keyword');
+  if (buscadorKeywordInput) {
+    buscadorKeywordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.isComposing) {
+        e.preventDefault();
+        runBuscadorCalculation();
+      }
+    });
+  }
+  // Invertir el orden de la lista de resultados (mismo botón que "Mis actividades").
+  const buscadorSortBtn = document.getElementById('buscador-sort-btn');
+  if (buscadorSortBtn) {
+    buscadorSortBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      buscadorSortDesc = !buscadorSortDesc;
+      buscadorSortBtn.classList.toggle('active', buscadorSortDesc);
+      buscadorSortBtn.title = buscadorSortDesc
+        ? 'Más recientes primero (clic para invertir)'
+        : 'Más antiguas primero (clic para invertir)';
+      const list = document.getElementById('buscador-list');
+      const view = document.getElementById('buscador-results-view');
+      if (list) renderBuscadorResultsList(list);
+      if (view) view.scrollTop = 0;
+    });
+  }
   const buscadorBackBtn = document.getElementById('buscador-back-btn');
   if (buscadorBackBtn) {
     buscadorBackBtn.addEventListener('click', showBuscadorSearchView);
@@ -2489,6 +2516,10 @@ function getBuscadorDateRange(period) {
   if (period === 'today') {
     return { from: toStr, to: toStr };
   }
+  if (period === 'all') {
+    // Desde siempre: sin fecha inicial, hasta hoy.
+    return { from: null, to: toStr };
+  }
   if (period === 'last10' || period === 'last30') {
     const days = period === 'last10' ? 10 : 30;
     const from = new Date(today);
@@ -2534,8 +2565,10 @@ function countDaysInRange(from, to) {
   return diff >= 0 ? diff + 1 : null;
 }
 
-// status: 'completed' | 'pending' | 'all'.
-function computeBuscadorStats(keyword, period, fields = { title: true }, status = 'completed') {
+// status: 'completed' | 'pending' | 'all'. includeArchived: suma también las
+// tareas de Archivados (no tienen fecha: no filtran por periodo ni cuentan en
+// "Días"; en la lista van al final con el encabezado "Archivadas").
+function computeBuscadorStats(keyword, period, fields = { title: true }, status = 'completed', includeArchived = false) {
   const kw = normalizeForSearch(keyword);
   const { from, to } = getBuscadorDateRange(period);
   const totalDays = countDaysInRange(from, to);
@@ -2579,19 +2612,25 @@ function computeBuscadorStats(keyword, period, fields = { title: true }, status 
       }
     } else if (task.date) {
       addOccurrence(task.date, !!task.completed);
+    } else if (includeArchived) {
+      const done = !!task.completed;
+      if (status === 'completed' && !done) return;
+      if (status === 'pending' && done) return;
+      items.push({ date: '', task });
     }
   });
 
   // Orden cronológico: por fecha y, dentro del día, por hora de inicio
   // (las que no tienen hora van al final del día).
-  items.sort((a, b) => a.date.localeCompare(b.date) ||
+  items.sort((a, b) => ((a.date ? 0 : 1) - (b.date ? 0 : 1)) ||
+    a.date.localeCompare(b.date) ||
     (a.task.startTime || '99:99').localeCompare(b.task.startTime || '99:99') ||
     (a.task.position || 0) - (b.task.position || 0));
 
   // Totales a partir de lo encontrado.
   items.forEach(({ date, task }) => {
     repetitions += 1;
-    uniqueDays.add(date);
+    if (date) uniqueDays.add(date);
     const minutes = getTaskDurationMinutes(task) || 0;
     if (minutes > 0) {
       totalMinutes += minutes;
@@ -2613,7 +2652,8 @@ function runBuscadorCalculation() {
   };
   const statusSel = document.getElementById('buscador-status');
   const status = statusSel ? statusSel.value : 'completed';
-  const stats = computeBuscadorStats(keyword, period, fields, status);
+  const stats = computeBuscadorStats(keyword, period, fields, status, isOn('buscador-include-archived'));
+  buscadorLastQuery = { keyword, fields };
   document.getElementById('buscador-repetitions').textContent = stats.repetitions;
   if (stats.totalDays) {
     const pct = Math.round((stats.days / stats.totalDays) * 100);
@@ -2641,6 +2681,45 @@ function runBuscadorCalculation() {
 }
 
 let buscadorLastItems = [];
+let buscadorLastQuery = { keyword: '', fields: {} };
+let buscadorSortDesc = false; // true = más recientes primero
+
+// Resalta la palabra buscada dentro del texto de un elemento, sin distinguir
+// tildes ni mayúsculas (se mapea cada carácter normalizado a su posición en el
+// texto original para marcar exactamente lo que se ve).
+function highlightBuscadorMatches(el, keyword) {
+  const kw = normalizeForSearch(keyword);
+  if (!el || !kw) return;
+  const text = el.textContent;
+  let norm = '';
+  const map = []; // índice en norm -> índice en text
+  for (let i = 0; i < text.length; i++) {
+    const piece = normalizeForSearch(text[i]);
+    for (let j = 0; j < piece.length; j++) { norm += piece[j]; map.push(i); }
+  }
+  const ranges = [];
+  let pos = norm.indexOf(kw);
+  while (pos !== -1) {
+    const start = map[pos];
+    const end = map[pos + kw.length - 1] + 1;
+    ranges.push([start, end]);
+    pos = norm.indexOf(kw, pos + kw.length);
+  }
+  if (!ranges.length) return;
+  const frag = document.createDocumentFragment();
+  let last = 0;
+  ranges.forEach(([st, en]) => {
+    if (st > last) frag.appendChild(document.createTextNode(text.slice(last, st)));
+    const mark = document.createElement('mark');
+    mark.className = 'buscador-hl';
+    mark.textContent = text.slice(st, en);
+    frag.appendChild(mark);
+    last = en;
+  });
+  if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+  el.textContent = '';
+  el.appendChild(frag);
+}
 
 // Estado inicial del Buscador (al abrirlo): vista del formulario, sin
 // "Ver resultados" y con "Buscar" en negro.
@@ -2665,6 +2744,7 @@ function showBuscadorSearchView() {
   const title = document.getElementById('buscador-modal-title');
   if (title) title.textContent = 'Buscador';
   document.getElementById('buscador-back-btn')?.classList.add('hidden');
+  document.getElementById('buscador-sort-btn')?.classList.add('hidden');
   ['buscador-view-btn', 'buscador-cancel-btn', 'buscador-accept-btn'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = '';
@@ -2685,6 +2765,7 @@ function showBuscadorResultsView(scrollTop = 0) {
   const title = document.getElementById('buscador-modal-title');
   if (title) title.textContent = `Resultados (${buscadorLastItems.length})`;
   document.getElementById('buscador-back-btn')?.classList.remove('hidden');
+  document.getElementById('buscador-sort-btn')?.classList.remove('hidden');
   ['buscador-view-btn', 'buscador-cancel-btn', 'buscador-accept-btn'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
@@ -2695,14 +2776,24 @@ function showBuscadorResultsView(scrollTop = 0) {
 function renderBuscadorResultsList(list) {
   list.innerHTML = '';
   let lastDate = null;
-  buscadorLastItems.forEach(({ date, task }) => {
+  // Orden: cronológico o invertido (botón del encabezado). Las archivadas
+  // (sin fecha) siempre van al final.
+  const dated = buscadorLastItems.filter(it => it.date);
+  const archived = buscadorLastItems.filter(it => !it.date);
+  const ordered = (buscadorSortDesc ? dated.slice().reverse() : dated).concat(archived);
+  const { keyword, fields } = buscadorLastQuery;
+  ordered.forEach(({ date, task }) => {
     if (date !== lastDate) {
       lastDate = date;
       const head = document.createElement('div');
       head.className = 'buscador-list-date';
-      const d = new Date(date + 'T12:00:00');
-      const txt = d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-      head.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
+      if (date) {
+        const d = new Date(date + 'T12:00:00');
+        const txt = d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+        head.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
+      } else {
+        head.textContent = 'Archivadas';
+      }
       list.appendChild(head);
     }
     // Misma tarjeta que en la vista principal, pero de solo lectura: se
@@ -2712,7 +2803,9 @@ function renderBuscadorResultsList(list) {
     card.classList.remove('activity-hidden', 'dragging');
     card.classList.add('buscador-card');
     card.title = 'Abrir en el editor';
-    card.addEventListener('click', () => openTaskFromBuscador(task.id, date));
+    card.addEventListener('click', () => openTaskFromBuscador(task.id, date || null));
+    if (fields.title) highlightBuscadorMatches(card.querySelector('.task-card-title'), keyword);
+    if (fields.desc) highlightBuscadorMatches(card.querySelector('.task-card-desc'), keyword);
     list.appendChild(card);
   });
 }
