@@ -849,13 +849,13 @@ function setupUserMenu() {
       </div>
       <!-- Submenú Herramientas (reemplaza la vista principal en el mismo menú) -->
       <div class="user-dropdown-view hidden" data-view="tools">
+        <button id="buscador-menu-btn" class="user-dropdown-item" title="Atajo: B">
+          <img src="icons/search.svg" alt="" width="14" height="14">
+          Buscador
+        </button>
         <button id="stats-menu-btn" class="user-dropdown-item" title="Atajo: E">
           <img src="icons/bar-chart.svg" alt="" width="14" height="14">
           Estadísticas
-        </button>
-        <button id="buscador-menu-btn" class="user-dropdown-item">
-          <img src="icons/search.svg" alt="" width="14" height="14">
-          Buscador
         </button>
         <button id="note-template-btn" class="user-dropdown-item">
           <img src="icons/edit.svg" alt="" width="13.3" height="13.3">
