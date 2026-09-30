@@ -102,6 +102,9 @@ function getStatsModalHTML(prefix) {
           <button id="${prefix}-settings-btn" title="Ajustes" class="close-modal-btn" type="button">
             <img src="icons/settings.svg" alt="Ajustes" width="16" height="16">
           </button>
+          <button id="${prefix}-groups-btn" title="Mostrar grupos de actividades" class="close-modal-btn stats-groups-toggle" type="button">
+            <img src="icons/merge.svg" alt="Grupos de actividades" width="20" height="20">
+          </button>
           <button class="close-modal-btn" data-modal="${prefix}-modal">
             <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
           </button>
@@ -983,7 +986,7 @@ function renderDailyStatsPanel(panelEl, dateParam) {
 
       // Grupos de actividades (panel "Agrupar actividades"): las actividades de
       // un grupo se suman en una sola fila con el nombre y color del grupo.
-      const grp = getStatsGroupOfTag(tagId);
+      const grp = statsGroupsEnabled ? getStatsGroupOfTag(tagId) : null;
       let name;
       let groupColor = null;
       if (grp) {
@@ -1286,6 +1289,8 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       mergeBtn.classList.remove('active');
     }
   }
+
+  refreshStatsGroupsButtons();
 
   // Renderizar tabla
   activityListEl.innerHTML = '';
@@ -2289,6 +2294,9 @@ function initStatsEvents(prefix) {
   if (colorSelect) {
     colorSelect.addEventListener('change', (e) => handleStatsColorModeChange(e.target.value));
   }
+
+  const statsGroupsBtn = getEl('daily-stats-groups-btn');
+  if (statsGroupsBtn) statsGroupsBtn.addEventListener('click', toggleStatsGroupsEnabled);
 
   const statsSettingsBtn = getEl('daily-stats-settings-btn');
   if (statsSettingsBtn) statsSettingsBtn.addEventListener('click', openDailyStatsSettings);
@@ -3541,6 +3549,34 @@ function renderTagsList() {
 // de esa actividad (luego se puede cambiar con el lápiz).
 const STATS_GROUP_KEY_PREFIX = 'grp:';
 let statsActivityGroups = [];
+// Botón de grupos en los paneles de estadísticas: activado = cada grupo se ve
+// como una sola fila; desactivado = actividades por separado. Se guarda en la
+// cuenta (preferences.statsGroupsEnabled). Por defecto, desactivado.
+let statsGroupsEnabled = false;
+
+function refreshStatsGroupsButtons() {
+  ['daily-stats-groups-btn', 'general-stats-groups-btn'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.classList.toggle('active', statsGroupsEnabled);
+    btn.title = statsGroupsEnabled
+      ? 'Grupos activados (clic para ver las actividades por separado)'
+      : 'Grupos desactivados (clic para agrupar actividades)';
+  });
+}
+
+function toggleStatsGroupsEnabled(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  statsGroupsEnabled = !statsGroupsEnabled;
+  refreshStatsGroupsButtons();
+  if (currentUser && typeof saveSettingPreferences === 'function') {
+    saveSettingPreferences({ statsGroupsEnabled });
+  }
+  if (typeof rerenderStatsAfterMerge === 'function') rerenderStatsAfterMerge();
+  if (typeof showCenterToast === 'function') {
+    showCenterToast(statsGroupsEnabled ? 'Grupos activados' : 'Actividades por separado');
+  }
+}
 
 function getStatsGroupOfTag(tagId) {
   for (const g of statsActivityGroups) {
@@ -3553,6 +3589,8 @@ function getStatsGroupOfTag(tagId) {
 // las fusiones antiguas de actividades en grupos, para no perder lo que ya se
 // veía en las estadísticas.
 function setStatsActivityGroupsFromPrefs(prefs) {
+  statsGroupsEnabled = prefs.statsGroupsEnabled === true;
+  refreshStatsGroupsButtons();
   if (Array.isArray(prefs.statsActivityGroups)) {
     statsActivityGroups = prefs.statsActivityGroups.map(g => ({
       id: String(g.id),
