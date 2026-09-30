@@ -1452,7 +1452,7 @@ function setupTimeMaskInput(inputEl) {
 function openBuscadorModal() {
   document.getElementById('buscador-results').classList.add('hidden');
   document.getElementById('buscador-keyword').value = '';
-  document.getElementById('buscador-period').value = 'today';
+  document.getElementById('buscador-period').value = 'last10';
   document.getElementById('buscador-custom-range').classList.add('hidden');
   document.getElementById('buscador-modal').classList.remove('hidden');
   document.getElementById('buscador-keyword').focus();

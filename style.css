@@ -6129,42 +6129,14 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
   margin-top: 6px;
 }
 .buscador-list-date:first-child { margin-top: 0; }
-.buscador-list-item {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--tag-bg, var(--bg-app));
-  border-left: 3px solid var(--tag-border, var(--border-light));
+.buscador-list .buscador-card {
+  cursor: default;
+  flex-shrink: 0;
 }
-.buscador-list-main { min-width: 0; flex: 1; }
-.buscador-list-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text-main);
-  overflow-wrap: anywhere;
-}
-.buscador-list-meta {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-.buscador-list-desc {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 2px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  display: -webkit-box;
+.buscador-list .buscador-card .task-check-btn { pointer-events: none; }
+.buscador-list .buscador-card:hover { transform: none; }
+/* Descripción: máximo 2 líneas visibles. */
+.buscador-list .buscador-card .task-card-desc {
   -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.buscador-list-dur {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-main);
-  white-space: nowrap;
+  line-clamp: 2;
 }

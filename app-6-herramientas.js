@@ -2640,41 +2640,13 @@ function toggleBuscadorResultsList() {
       head.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
       list.appendChild(head);
     }
-    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
-    const row = document.createElement('div');
-    row.className = 'buscador-list-item';
-    if (tag && tag.color) {
-      row.style.setProperty('--tag-bg', tag.color.bg);
-      row.style.setProperty('--tag-border', tag.color.border);
-    }
-    const main = document.createElement('div');
-    main.className = 'buscador-list-main';
-    const title = document.createElement('div');
-    title.className = 'buscador-list-title';
-    title.textContent = task.title || '(sin título)';
-    main.appendChild(title);
-    const meta = document.createElement('div');
-    meta.className = 'buscador-list-meta';
-    const parts = [];
-    const timeTxt = formatTaskTimeText(task);
-    if (timeTxt) parts.push(timeTxt);
-    if (tag && tag.name) parts.push(tag.name);
-    meta.textContent = parts.join(' · ');
-    if (parts.length) main.appendChild(meta);
-    if (task.description && task.description.trim()) {
-      const desc = document.createElement('div');
-      desc.className = 'buscador-list-desc';
-      desc.textContent = task.description.trim();
-      main.appendChild(desc);
-    }
-    row.appendChild(main);
-    const mins = getTaskDurationMinutes(task);
-    if (mins) {
-      const dur = document.createElement('span');
-      dur.className = 'buscador-list-dur';
-      dur.textContent = minutesToReadable(mins);
-      row.appendChild(dur);
-    }
+    // Misma tarjeta que en la vista principal, pero de solo lectura: se
+    // clona (cloneNode no copia los listeners) y se desactiva el arrastre.
+    const card = createTaskCard(task, date).cloneNode(true);
+    card.draggable = false;
+    card.classList.remove('activity-hidden', 'dragging');
+    card.classList.add('buscador-card');
+    const row = card;
     list.appendChild(row);
   });
   list.classList.remove('hidden');
