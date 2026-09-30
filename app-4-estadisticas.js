@@ -1091,7 +1091,8 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       if (!grouped[tagId]) {
         grouped[tagId] = {
           name,
-          displayName: name,
+          // Los grupos se muestran como "Grupo: <nombre>".
+          displayName: grp ? `Grupo: ${name}` : name,
           minutes: 0,
           tagId: tagId,
           groupColor,
