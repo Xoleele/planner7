@@ -49,7 +49,13 @@ function resolveStatsMerge(map, key) {
 // (Las fusiones de actividades ya son globales y se guardan aparte.)
 let generalStatsHiddenTags = new Set();
 let generalStatsSavedLineTags = null;  // null = sin elección guardada
-let generalStatsSavedHabitTag = null;  // null = sin elección guardada
+// Actividad (o grupo) elegida, guardada POR SEPARADO para Hábitos y para Mapa
+// de calor: { habitos: id|null, heatmap: id|null }.
+let generalStatsSavedHabitTags = { habitos: null, heatmap: null };
+function savedHabitTagForChart(type = generalStatsChartType) {
+  const id = generalStatsSavedHabitTags[type === 'heatmap' ? 'heatmap' : 'habitos'];
+  return id && getHabitSelectionInfo(id).id === id ? id : null;
+}
 
 function saveGeneralStatsTagPrefs() {
   if (typeof saveSettingPreferences !== 'function') return;
@@ -57,7 +63,7 @@ function saveGeneralStatsTagPrefs() {
     generalStatsHiddenTags: [...generalStatsHiddenTags]
   };
   if (generalStatsSavedLineTags) changes.generalStatsLineTags = [...generalStatsSavedLineTags];
-  if (generalStatsSavedHabitTag) changes.generalStatsHabitTag = generalStatsSavedHabitTag;
+  changes.generalStatsHabitTags = { ...generalStatsSavedHabitTags };
   saveSettingPreferences(changes);
 }
 
@@ -70,7 +76,7 @@ function rememberGeneralStatsLineTags() {
 // El usuario eligió la etiqueta de Hábitos / Mapa de calor.
 function rememberGeneralStatsHabitTag(tagId) {
   if (!tagId) return;
-  generalStatsSavedHabitTag = tagId;
+  generalStatsSavedHabitTags = { ...generalStatsSavedHabitTags, [generalStatsChartType === 'heatmap' ? 'heatmap' : 'habitos']: tagId };
   saveGeneralStatsTagPrefs();
 }
 
@@ -1874,8 +1880,8 @@ function lastNDaysRange(n, refDateStr, includeToday = false) {
 // Pone como actividad de Hábitos / Mapa de calor la elegida por el usuario
 // (guardada en la cuenta). Si no hay elección guardada, la más frecuente del rango.
 function applySavedHabitTag() {
-  if (generalStatsSavedHabitTag && getHabitSelectionInfo(generalStatsSavedHabitTag).id === generalStatsSavedHabitTag) {
-    generalStatsHabitTag = generalStatsSavedHabitTag;
+  if (savedHabitTagForChart()) {
+    generalStatsHabitTag = savedHabitTagForChart();
   } else if (generalStatsDateRange) {
     const topTag = generalStatsChartType === 'heatmap'
       ? topTagByDurationInRange(generalStatsDateRange.from, generalStatsDateRange.to)
@@ -1989,8 +1995,8 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
 
       // Etiqueta: la guardada por el usuario; si no hay, la que más se repite
       // (más días completados) en el rango.
-      if (generalStatsSavedHabitTag && getHabitSelectionInfo(generalStatsSavedHabitTag).id === generalStatsSavedHabitTag) {
-        generalStatsHabitTag = generalStatsSavedHabitTag;
+      if (savedHabitTagForChart()) {
+        generalStatsHabitTag = savedHabitTagForChart();
       } else {
         const topTag = topTagByCompletedDaysInRange(generalStatsDateRange.from, generalStatsDateRange.to);
         if (topTag) generalStatsHabitTag = topTag;
@@ -2002,8 +2008,8 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
 
       // Etiqueta: la guardada por el usuario; si no hay, la de mayor duración
       // acumulada en estos 12 días.
-      if (generalStatsSavedHabitTag && getHabitSelectionInfo(generalStatsSavedHabitTag).id === generalStatsSavedHabitTag) {
-        generalStatsHabitTag = generalStatsSavedHabitTag;
+      if (savedHabitTagForChart()) {
+        generalStatsHabitTag = savedHabitTagForChart();
       } else {
         const topTag = topTagByDurationInRange(generalStatsDateRange.from, generalStatsDateRange.to);
         if (topTag) generalStatsHabitTag = topTag;

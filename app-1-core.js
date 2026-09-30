@@ -81,7 +81,14 @@ function applyUserSettingsFromPrefs(prefs) {
     generalStatsHiddenTags.clear();
     (Array.isArray(prefs.generalStatsHiddenTags) ? prefs.generalStatsHiddenTags : []).forEach(n => generalStatsHiddenTags.add(n));
     generalStatsSavedLineTags = Array.isArray(prefs.generalStatsLineTags) ? prefs.generalStatsLineTags.slice(0, 3) : null;
-    generalStatsSavedHabitTag = prefs.generalStatsHabitTag || null;
+    // Hábitos y Mapa de calor guardan su actividad por separado. Si solo existe
+    // la elección antigua (una para ambos), se usa como punto de partida.
+    const oldHabit = prefs.generalStatsHabitTag || null;
+    const byChart = prefs.generalStatsHabitTags || {};
+    generalStatsSavedHabitTags = {
+      habitos: byChart.habitos !== undefined ? byChart.habitos : oldHabit,
+      heatmap: byChart.heatmap !== undefined ? byChart.heatmap : oldHabit
+    };
   }
   // Listas (categorías) del panel de Archivados.
   if (typeof loadArchiveListsFromPrefs === 'function') loadArchiveListsFromPrefs(prefs);
