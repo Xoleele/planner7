@@ -1637,6 +1637,14 @@ function setupEventListeners() {
       if (view) view.scrollTop = 0;
     });
   }
+  // Exportar resultados (.txt), con un panel de opciones como "Exportar día".
+  document.getElementById('buscador-export-btn')?.addEventListener('click', () => {
+    document.getElementById('buscador-export-modal')?.classList.remove('hidden');
+  });
+  document.getElementById('buscador-export-cancel-btn')?.addEventListener('click', () => {
+    document.getElementById('buscador-export-modal')?.classList.add('hidden');
+  });
+  document.getElementById('buscador-export-confirm-btn')?.addEventListener('click', exportBuscadorResults);
   const buscadorBackBtn = document.getElementById('buscador-back-btn');
   if (buscadorBackBtn) {
     buscadorBackBtn.addEventListener('click', showBuscadorSearchView);
@@ -2745,10 +2753,11 @@ function showBuscadorSearchView() {
   if (title) title.textContent = 'Buscador';
   document.getElementById('buscador-back-btn')?.classList.add('hidden');
   document.getElementById('buscador-sort-btn')?.classList.add('hidden');
-  ['buscador-view-btn', 'buscador-cancel-btn', 'buscador-accept-btn'].forEach(id => {
+  ['buscador-view-btn', 'buscador-accept-btn'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = '';
   });
+  document.getElementById('buscador-export-btn')?.classList.add('hidden');
 }
 
 function showBuscadorResultsView(scrollTop = 0) {
@@ -2766,10 +2775,11 @@ function showBuscadorResultsView(scrollTop = 0) {
   if (title) title.textContent = `Resultados (${buscadorLastItems.length})`;
   document.getElementById('buscador-back-btn')?.classList.remove('hidden');
   document.getElementById('buscador-sort-btn')?.classList.remove('hidden');
-  ['buscador-view-btn', 'buscador-cancel-btn', 'buscador-accept-btn'].forEach(id => {
+  ['buscador-view-btn', 'buscador-accept-btn'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
+  document.getElementById('buscador-export-btn')?.classList.remove('hidden');
 }
 
 // Lista de tareas encontradas, en orden cronológico y agrupadas por día.
@@ -2808,6 +2818,104 @@ function renderBuscadorResultsList(list) {
     if (fields.desc) highlightBuscadorMatches(card.querySelector('.task-card-desc'), keyword);
     list.appendChild(card);
   });
+}
+
+// Texto plano de los resultados, en el mismo orden que la lista (respeta el
+// botón de invertir) y con el mismo formato que "Exportar día".
+function buildBuscadorExportText(opts) {
+  const dated = buscadorLastItems.filter(it => it.date);
+  const archived = buscadorLastItems.filter(it => !it.date);
+  const ordered = (buscadorSortDesc ? dated.slice().reverse() : dated).concat(archived);
+
+  const lineFor = (task) => {
+    let line = task.title || '';
+    if (opts.includeTime) {
+      const mins = getTaskDurationMinutes(task);
+      if (mins) {
+        const h = Math.floor(mins / 60), m = mins % 60;
+        const durStr = h && m ? `${h}h${m}min` : (h ? `${h}h` : `${m}min`);
+        line = `${durStr}. ${line}`;
+      }
+    }
+    if (opts.includeTag) {
+      const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+      if (tag && tag.name) line += ` (${tag.name})`;
+    }
+    if (opts.includeDesc && task.description && task.description.trim() !== '') {
+      line += `. ${task.description.trim()}`;
+    }
+    return `- ${line}`;
+  };
+
+  const blocks = [];
+  if (opts.includeSummary) {
+    const txt = (id) => (document.getElementById(id)?.textContent || '').trim();
+    const sel = (id) => { const el = document.getElementById(id); return el && el.selectedIndex >= 0 ? el.options[el.selectedIndex].text : ''; };
+    const summary = [];
+    if (buscadorLastQuery.keyword) summary.push(`Búsqueda: «${buscadorLastQuery.keyword}»`);
+    let periodTxt = sel('buscador-period');
+    if (document.getElementById('buscador-period')?.value === 'custom') {
+      const f = document.getElementById('buscador-date-from')?.value;
+      const t = document.getElementById('buscador-date-to')?.value;
+      const fmt = (d) => d ? formatSingleDateNumeric(new Date(d + 'T00:00:00')) : '…';
+      periodTxt = `${fmt(f)} - ${fmt(t)}`;
+    }
+    summary.push(`Periodo: ${periodTxt}`);
+    summary.push(`Estado: ${sel('buscador-status')}`);
+    summary.push(`Repeticiones: ${txt('buscador-repetitions')}`);
+    summary.push(`Días: ${txt('buscador-days')}`);
+    summary.push(`Tiempo total: ${txt('buscador-total-time')}`);
+    blocks.push(summary.join('\n'));
+  }
+
+  if (opts.includeDate) {
+    // Un bloque por día (y "Archivadas" al final).
+    let current = null, lines = [];
+    const flush = () => { if (lines.length) blocks.push(lines.join('\n')); lines = []; };
+    ordered.forEach(({ date, task }) => {
+      if (date !== current) {
+        flush();
+        current = date;
+        lines.push(date ? formatSingleDate(new Date(date + 'T00:00:00')) : 'Archivadas:');
+      }
+      lines.push(lineFor(task));
+    });
+    flush();
+  } else if (ordered.length) {
+    blocks.push(ordered.map(({ task }) => lineFor(task)).join('\n'));
+  }
+
+  return blocks.join('\n\n').trim();
+}
+
+function exportBuscadorResults() {
+  const on = (id) => !!document.getElementById(id)?.checked;
+  const text = buildBuscadorExportText({
+    includeSummary: on('bexp-opt-summary'),
+    includeDate: on('bexp-opt-date'),
+    includeTime: on('bexp-opt-time'),
+    includeTag: on('bexp-opt-tag'),
+    includeDesc: on('bexp-opt-desc'),
+  });
+  document.getElementById('buscador-export-modal')?.classList.add('hidden');
+  try {
+    const slug = normalizeForSearch(buscadorLastQuery.keyword || '')
+      .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30);
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `planner7_busqueda${slug ? '_' + slug : ''}_${formatDate(new Date())}.txt`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showHistoryNotification('Resultados exportados', 'redo');
+  } catch (e) {
+    console.error('Exportar resultados:', e);
+    showHistoryNotification('No se pudieron exportar los resultados', 'undo');
+  }
 }
 
 // Clic en una tarjeta de los resultados: se oculta el Buscador, se abre el

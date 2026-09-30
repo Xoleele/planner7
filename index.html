@@ -1048,8 +1048,48 @@
         <button type="button" class="btn btn-primary hidden" id="buscador-back-btn">Regresar</button>
         <button type="button" class="btn btn-primary hidden" id="buscador-view-btn">Ver resultados</button>
         <span class="buscador-footer-spacer"></span>
-        <button type="button" class="btn btn-secondary" id="buscador-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-secondary hidden" id="buscador-export-btn">Exportar</button>
         <button type="button" class="btn btn-primary" id="buscador-accept-btn">Buscar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EXPORTAR RESULTADOS DEL BUSCADOR (como "Exportar día") -->
+  <div id="buscador-export-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Exportar resultados</h2>
+        <button class="close-modal-btn" data-modal="buscador-export-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="copy-options">
+          <label class="copy-option">
+            <input type="checkbox" id="bexp-opt-summary" checked>
+            <span>Incluir resumen de la búsqueda</span>
+          </label>
+          <label class="copy-option">
+            <input type="checkbox" id="bexp-opt-date" checked>
+            <span>Incluir fecha</span>
+          </label>
+          <label class="copy-option">
+            <input type="checkbox" id="bexp-opt-time">
+            <span>Incluir duración</span>
+          </label>
+          <label class="copy-option">
+            <input type="checkbox" id="bexp-opt-tag">
+            <span>Incluir actividad</span>
+          </label>
+          <label class="copy-option">
+            <input type="checkbox" id="bexp-opt-desc">
+            <span>Incluir descripciones</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="buscador-export-cancel-btn">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="buscador-export-confirm-btn">Exportar</button>
       </div>
     </div>
   </div>
