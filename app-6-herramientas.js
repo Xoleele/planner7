@@ -2573,6 +2573,13 @@ function countDaysInRange(from, to) {
   return diff >= 0 ? diff + 1 : null;
 }
 
+// ¿El texto contiene la palabra clave (ya normalizada)? El comienzo y el final
+// del texto cuentan como un espacio: " s." encuentra "hola s." y también un
+// texto que empieza por "s."; "sol " encuentra un texto que termina en "sol".
+function buscadorTextMatches(text, kw) {
+  return (' ' + normalizeForSearch(text) + ' ').includes(kw);
+}
+
 // status: 'completed' | 'pending' | 'all'. includeArchived: suma también las
 // tareas de Archivados (no tienen fecha: no filtran por periodo ni cuentan en
 // "Días"; en la lista van al final con el encabezado "Archivadas").
@@ -2592,9 +2599,9 @@ function computeBuscadorStats(keyword, period, fields = { title: true }, status 
     // mayúsculas) en alguno de los campos marcados en "Buscar en".
     if (kw) {
       const tag = fields.tag ? tags.find(t => t.id === task.tagId) : null;
-      const hit = (fields.title && normalizeForSearch(task.title).includes(kw)) ||
-        (fields.tag && tag && normalizeForSearch(tag.name).includes(kw)) ||
-        (fields.desc && normalizeForSearch(task.description).includes(kw));
+      const hit = (fields.title && buscadorTextMatches(task.title, kw)) ||
+        (fields.tag && tag && buscadorTextMatches(tag.name, kw)) ||
+        (fields.desc && buscadorTextMatches(task.description, kw));
       if (!hit) return;
     }
 
@@ -2650,7 +2657,8 @@ function computeBuscadorStats(keyword, period, fields = { title: true }, status 
 }
 
 function runBuscadorCalculation() {
-  const keyword = document.getElementById('buscador-keyword').value.trim();
+  // Sin trim: los espacios también cuentan (p. ej. " sol" busca palabras que empiezan por "sol").
+  const keyword = document.getElementById('buscador-keyword').value;
   const period = document.getElementById('buscador-period').value;
   const isOn = (id) => { const el = document.getElementById(id); return !!(el && el.checked); };
   const fields = {
@@ -2705,13 +2713,16 @@ function highlightBuscadorMatches(el, keyword) {
     const piece = normalizeForSearch(text[i]);
     for (let j = 0; j < piece.length; j++) { norm += piece[j]; map.push(i); }
   }
+  // Igual que la búsqueda: el comienzo y el final del texto cuentan como un
+  // espacio (se busca en ' ' + norm + ' ' y se descuentan esos extremos).
+  const padded = ' ' + norm + ' ';
   const ranges = [];
-  let pos = norm.indexOf(kw);
+  let pos = padded.indexOf(kw);
   while (pos !== -1) {
-    const start = map[pos];
-    const end = map[pos + kw.length - 1] + 1;
-    ranges.push([start, end]);
-    pos = norm.indexOf(kw, pos + kw.length);
+    const a = Math.max(0, pos - 1);
+    const b = Math.min(norm.length - 1, pos + kw.length - 2);
+    if (b >= a) ranges.push([map[a], map[b] + 1]);
+    pos = padded.indexOf(kw, pos + kw.length);
   }
   if (!ranges.length) return;
   const frag = document.createDocumentFragment();
