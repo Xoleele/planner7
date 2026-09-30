@@ -892,6 +892,16 @@
 
         <div class="settings-row">
           <div class="settings-label">
+            <label for="setting-show-desc">Mostrar descripción de tareas</label>
+            <button type="button" class="settings-info-btn" data-info="info-show-desc" aria-label="Más información"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
+          </div>
+          <input type="checkbox" id="setting-show-desc" style="display:none;">
+          <button type="button" id="setting-show-desc-btn" class="task-modal-check-btn" aria-label="Mostrar descripción de tareas" style="flex-shrink: 0;"></button>
+        </div>
+        <div id="info-show-desc" class="settings-info hidden">Muestra u oculta el texto de la descripción en las tarjetas de tareas y en los bloques de la línea de tiempo. La descripción no se borra: sigue disponible al abrir la tarea.</div>
+
+        <div class="settings-row">
+          <div class="settings-label">
             <label for="setting-default-duration">Duración por defecto</label>
             <button type="button" class="settings-info-btn" data-info="info-default-duration" aria-label="Más información"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
           </div>
@@ -902,16 +912,6 @@
           </select>
         </div>
         <div id="info-default-duration" class="settings-info hidden">Duración que tendrá una tarea nueva al crearla con un clic en la línea de tiempo.</div>
-
-        <div class="settings-row">
-          <div class="settings-label">
-            <label for="setting-show-desc">Mostrar descripción de tareas</label>
-            <button type="button" class="settings-info-btn" data-info="info-show-desc" aria-label="Más información"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
-          </div>
-          <input type="checkbox" id="setting-show-desc" style="display:none;">
-          <button type="button" id="setting-show-desc-btn" class="task-modal-check-btn" aria-label="Mostrar descripción de tareas" style="flex-shrink: 0;"></button>
-        </div>
-        <div id="info-show-desc" class="settings-info hidden">Muestra u oculta el texto de la descripción en las tarjetas de tareas y en los bloques de la línea de tiempo. La descripción no se borra: sigue disponible al abrir la tarea.</div>
 
         <!-- Cuenta: cambiar contraseña y (última opción) eliminar cuenta -->
         <div class="settings-section-title">Cuenta</div>

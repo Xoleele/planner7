@@ -3602,32 +3602,104 @@ function renderArchiveListsModal() {
     : '';
 }
 
-// Reordenar categorías arrastrando el handle (ratón y táctil). El nuevo
-// orden queda en el borrador y se aplica al pulsar Guardar.
+// Reordenar categorías arrastrando el handle (ratón y táctil), igual que
+// "Mis actividades": la fila se queda en su sitio (atenuada), un clon flota
+// bajo el dedo/cursor y una línea indica dónde caerá. El DOM solo se toca al
+// soltar, así la captura del puntero no se pierde y se pueden saltar varias
+// posiciones de una vez. El nuevo orden queda en el borrador (Guardar).
 function startArchiveSubReorder(e, row) {
   if (e.button !== undefined && e.button !== 0) return;
   const list = document.getElementById('archive-subs-list');
   if (!list || !archiveDraft) return;
   e.preventDefault();
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   const grip = e.currentTarget;
   try { grip.setPointerCapture(e.pointerId); } catch (_) {}
+
+  // Contenedor con scroll (para auto-scroll cerca de los bordes).
+  let scroller = list.parentElement;
+  while (scroller && scroller !== document.body) {
+    const oy = getComputedStyle(scroller).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && scroller.scrollHeight > scroller.clientHeight) break;
+    scroller = scroller.parentElement;
+  }
+  if (scroller === document.body) scroller = null;
+
+  const r0 = row.getBoundingClientRect();
+  const offsetY = e.clientY - r0.top;
+  const ghost = row.cloneNode(true);
+  ghost.classList.add('tag-drag-ghost', 'archive-sub-ghost');
+  Object.assign(ghost.style, {
+    position: 'fixed', left: r0.left + 'px', top: r0.top + 'px', width: r0.width + 'px',
+    pointerEvents: 'none', zIndex: '10000', margin: '0'
+  });
+  // Conservar el texto escrito en el clon.
+  const srcInput = row.querySelector('input');
+  const ghostInput = ghost.querySelector('input');
+  if (srcInput && ghostInput) ghostInput.value = srcInput.value;
+  document.body.appendChild(ghost);
   row.classList.add('is-reordering');
-  const onMove = (ev) => {
-    const rows = [...list.querySelectorAll('.archive-sub-row')];
-    const others = rows.filter(r => r !== row);
-    let before = null;
+  if (e.pointerType === 'touch' && navigator.vibrate) navigator.vibrate(30);
+
+  let indEl = null, indClass = null, lastY = e.clientY, scrollTimer = null, scrollSpeed = 0;
+
+  const clearInd = () => {
+    list.querySelectorAll('.archive-sub-row').forEach(r =>
+      r.classList.remove('drag-before-indicator', 'drag-after-indicator'));
+    indEl = null; indClass = null;
+  };
+  const updateInd = (y) => {
+    const others = [...list.querySelectorAll('.archive-sub-row')].filter(r => r !== row);
+    if (!others.length) return;
+    let el = null, cls = 'drag-before-indicator';
     for (const r of others) {
       const rect = r.getBoundingClientRect();
-      if (ev.clientY < rect.top + rect.height / 2) { before = r; break; }
+      if (y < rect.top + rect.height / 2) { el = r; break; }
     }
-    if (before) { if (row.nextSibling !== before) list.insertBefore(row, before); }
-    else if (list.lastElementChild !== row) list.appendChild(row);
+    if (!el) { el = others[others.length - 1]; cls = 'drag-after-indicator'; }
+    if (el === indEl && cls === indClass) return;
+    clearInd();
+    el.classList.add(cls);
+    indEl = el; indClass = cls;
   };
-  const onUp = () => {
+  const stopScroll = () => { if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; } };
+  const autoScroll = (y) => {
+    if (!scroller) return;
+    const rect = scroller.getBoundingClientRect();
+    const EDGE = 40, MAX = 9;
+    let speed = 0;
+    if (y < rect.top + EDGE) speed = -MAX * Math.min(1, (rect.top + EDGE - y) / EDGE);
+    else if (y > rect.bottom - EDGE) speed = MAX * Math.min(1, (y - (rect.bottom - EDGE)) / EDGE);
+    if (!speed) { stopScroll(); return; }
+    scrollSpeed = speed;
+    if (!scrollTimer) scrollTimer = setInterval(() => {
+      scroller.scrollTop += scrollSpeed;
+      updateInd(lastY);
+    }, 16);
+  };
+
+  updateInd(e.clientY);
+
+  const onMove = (ev) => {
+    ev.preventDefault();
+    lastY = ev.clientY;
+    ghost.style.top = (ev.clientY - offsetY) + 'px';
+    updateInd(ev.clientY);
+    autoScroll(ev.clientY);
+  };
+  const onUp = (ev) => {
     grip.removeEventListener('pointermove', onMove);
     grip.removeEventListener('pointerup', onUp);
     grip.removeEventListener('pointercancel', onUp);
+    try { grip.releasePointerCapture(e.pointerId); } catch (_) {}
+    stopScroll();
+    ghost.remove();
     row.classList.remove('is-reordering');
+    if (ev.type === 'pointerup' && indEl) {
+      if (indClass === 'drag-before-indicator') list.insertBefore(row, indEl);
+      else list.insertBefore(row, indEl.nextSibling);
+    }
+    clearInd();
     const order = [...list.querySelectorAll('.archive-sub-row')].map(r => r.dataset.subId);
     archiveDraft.subs.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
     renderArchiveListsModal();

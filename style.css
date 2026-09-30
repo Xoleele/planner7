@@ -4282,8 +4282,26 @@ html:not(.mobile-mode) .briefcase-drawer .drawer-header {
 }
 .archive-sub-grip:active { cursor: grabbing; }
 .archive-sub-row.is-reordering {
-  opacity: 0.6;
+  opacity: 0.3;
 }
+.archive-sub-row.drag-before-indicator,
+.archive-sub-row.drag-after-indicator { position: relative; }
+.archive-sub-row.drag-before-indicator::before,
+.archive-sub-row.drag-after-indicator::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  height: 3px;
+  background-color: var(--text-main);
+  border-radius: var(--radius-full);
+  z-index: 10;
+  box-shadow: 0 0 0 1px var(--bg-card);
+  pointer-events: none;
+}
+.archive-sub-row.drag-before-indicator::before { top: -6px; }
+.archive-sub-row.drag-after-indicator::after { bottom: -6px; }
+.archive-sub-ghost { padding: 4px; }
 .archive-add-sub-btn {
   width: 100%;
   margin-top: 8px;
@@ -6056,4 +6074,17 @@ body.alarms-disabled .time-input-wrapper.has-bell input {
 }
 body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
   right: 6px;
+}
+
+/* Configuración: mismo alto para las filas de Preferencias (con check o
+   select) y las opciones de Cuenta. Antes las de arriba sumaban el alto del
+   control (32–38px) al padding y quedaban más espaciadas. */
+#settings-modal .settings-row {
+  padding: 0;
+  min-height: 38px;
+}
+#settings-modal .settings-action-btn {
+  padding-top: 0;
+  padding-bottom: 0;
+  min-height: 38px;
 }
