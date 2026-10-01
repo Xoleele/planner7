@@ -912,6 +912,14 @@ function setupEventListeners() {
   document.querySelectorAll('.close-modal-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const targetModal = btn.dataset.modal;
+      if (targetModal === 'notes-modal') {
+        closeNotesModal();
+        return;
+      }
+      if (targetModal === 'notes-unsaved-modal') {
+        cancelDailyNotesClose();
+        return;
+      }
       if (targetModal === 'task-results-modal') {
         closeTaskResultsPanel();
         return;
@@ -936,7 +944,11 @@ function setupEventListeners() {
         // El modal del cronómetro no se "oculta a secas" al hacer clic fuera:
         // se minimiza (sigue corriendo, el botón de la barra queda activo). Así
         // no queda un cronómetro corriendo de forma inconsistente.
-        if (backdrop.id === 'task-results-modal') {
+        if (backdrop.id === 'notes-modal') {
+          closeNotesModal();
+        } else if (backdrop.id === 'notes-unsaved-modal') {
+          cancelDailyNotesClose();
+        } else if (backdrop.id === 'task-results-modal') {
           closeTaskResultsPanel();
         } else if (backdrop.id === 'timer-modal' && timerStartTime) {
           minimizeTimer();
@@ -2214,21 +2226,10 @@ function setupEventListeners() {
   });
 
   // Eventos del modal de Notas
-  document.getElementById('notes-save-btn').addEventListener('click', async () => {
-    const modal = document.getElementById('notes-modal');
-    const dateStr = modal.dataset.date;
-    const text = document.getElementById('notes-textarea').value.trim();
-    
-    if (text) {
-      notes[dateStr] = text;
-    } else {
-      delete notes[dateStr];
-    }
-    
-    closeNotesModal();
-    saveNotesToStorage();
-    renderWeeklyCalendar();
-  });
+  document.getElementById('notes-save-btn').addEventListener('click', saveDailyNotes);
+  document.getElementById('notes-unsaved-cancel-btn').addEventListener('click', cancelDailyNotesClose);
+  document.getElementById('notes-unsaved-discard-btn').addEventListener('click', dismissDailyNotes);
+  document.getElementById('notes-unsaved-save-btn').addEventListener('click', saveDailyNotes);
 
   document.getElementById('notes-cancel-btn').addEventListener('click', closeNotesModal);
 
@@ -2892,6 +2893,7 @@ function closeOrGoBackInModal(modal) {
     'task-modal': () => closeTaskModal(),
     'tags-modal': () => closeTagsModal(),
     'notes-modal': () => closeNotesModal(),
+    'notes-unsaved-modal': () => cancelDailyNotesClose(),
     'change-password-modal': () => closeChangePasswordModal(),
     'delete-account-modal': () => closeDeleteAccountModal()
   };

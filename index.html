@@ -779,6 +779,26 @@
     </div>
   </div>
 
+  <!-- Aviso de cambios pendientes: mismo diseño de Tareas con horario coincidente. -->
+  <div id="notes-unsaved-modal" class="modal-backdrop hidden">
+    <div class="modal-content task-modal-w" role="alertdialog" aria-modal="true" aria-labelledby="notes-unsaved-title" aria-describedby="notes-unsaved-message">
+      <div class="modal-header">
+        <h2 id="notes-unsaved-title">Cambios sin guardar</h2>
+        <button type="button" class="close-modal-btn" data-modal="notes-unsaved-modal" aria-label="Cancelar cierre">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 20px 24px;">
+        <p id="notes-unsaved-message" style="font-size: 14px; line-height: 1.5; color: var(--text-main); margin-bottom: 12px;">Hay cambios sin guardar. ¿Qué deseas hacer?</p>
+      </div>
+      <div class="modal-footer adjacent-modal-footer" style="padding: 12px 24px; display: flex; align-items: center; gap: 8px;">
+        <button id="notes-unsaved-cancel-btn" type="button" class="btn btn-secondary">Cancelar</button>
+        <button id="notes-unsaved-discard-btn" type="button" class="btn btn-danger">Descartar</button>
+        <button id="notes-unsaved-save-btn" type="button" class="btn btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: PLANTILLA DE NOTAS -->
   <div id="note-template-modal" class="modal-backdrop hidden">
     <div class="modal-content tags-modal-w">

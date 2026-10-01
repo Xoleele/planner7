@@ -3934,6 +3934,7 @@ function initMdNoteEditor(el) {
 }
 
 // --- Daily Notes Modal & Management ---
+let dailyNotesInitialValue = '';
 
 function openNotesModal(dateStr) {
   const date = new Date(dateStr + 'T00:00:00');
@@ -3945,6 +3946,8 @@ function openNotesModal(dateStr) {
   
   const notesTextarea = initMdNoteEditor(document.getElementById('notes-textarea'));
   notesTextarea.value = notes[dateStr] || '';
+  // Comparar el valor serializado del editor, no su HTML de presentación.
+  dailyNotesInitialValue = notesTextarea.value;
 
   // El botón de plantilla vuelve a mostrarse al abrir la nota, pero solo si el
   // usuario tiene texto definido en su plantilla.
@@ -3956,7 +3959,34 @@ function openNotesModal(dateStr) {
 }
 
 function closeNotesModal() {
+  const editor = document.getElementById('notes-textarea');
+  if (editor && editor.value !== dailyNotesInitialValue) {
+    document.getElementById('notes-unsaved-modal').classList.remove('hidden');
+    document.getElementById('notes-unsaved-cancel-btn').focus();
+    return;
+  }
+  dismissDailyNotes();
+}
+
+function dismissDailyNotes() {
+  document.getElementById('notes-unsaved-modal').classList.add('hidden');
   document.getElementById('notes-modal').classList.add('hidden');
+}
+
+function cancelDailyNotesClose() {
+  document.getElementById('notes-unsaved-modal').classList.add('hidden');
+  document.getElementById('notes-textarea').focus();
+}
+
+function saveDailyNotes() {
+  const dateStr = document.getElementById('notes-modal').dataset.date;
+  const text = document.getElementById('notes-textarea').value.trim();
+  if (text) notes[dateStr] = text;
+  else delete notes[dateStr];
+  dailyNotesInitialValue = document.getElementById('notes-textarea').value;
+  dismissDailyNotes();
+  saveNotesToStorage();
+  renderWeeklyCalendar();
 }
 
 async function saveNotesToStorage() {
