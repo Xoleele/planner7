@@ -4238,6 +4238,63 @@ function statsDetailDateLabel(dateStr) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+let statsDetailReturn = null;
+
+// Igual que en "Mostrar resultados" del Buscador: oculta temporalmente el
+// panel de resultados, abre la ocurrencia correcta en el editor y vuelve al
+// mismo panel (conservando su scroll) cuando termina la edición.
+function openTaskFromStatsDetail(taskId, dateStr) {
+  const detailModal = document.getElementById('stats-cell-modal');
+  const detailBody = detailModal && detailModal.querySelector('.stats-cell-body');
+  if (!detailModal || !tasks.some(task => task.id === taskId)) return;
+
+  if (statsDetailReturn && statsDetailReturn.observer) statsDetailReturn.observer.disconnect();
+  const backgroundModalIds = new Set(
+    [...document.querySelectorAll('.modal-backdrop')]
+      .filter(modal => modal.id !== 'stats-cell-modal'
+        && !modal.classList.contains('hidden')
+        && modal.style.display !== 'none')
+      .map(modal => modal.id)
+  );
+  statsDetailReturn = {
+    scrollTop: detailBody ? detailBody.scrollTop : 0,
+    backgroundModalIds,
+    observer: null
+  };
+  detailModal.classList.add('hidden');
+  openTaskModal(taskId, dateStr || null);
+
+  let pending = false;
+  const check = () => {
+    pending = false;
+    if (!statsDetailReturn) return;
+    const taskModal = document.getElementById('task-modal');
+    if (taskModal && !taskModal.classList.contains('hidden') && taskModal.style.display !== 'none') return;
+
+    // Si el editor abrió otra confirmación, esperar también a que se cierre.
+    const hasForegroundModal = [...document.querySelectorAll('.modal-backdrop')].some(modal =>
+      modal.id !== 'stats-cell-modal'
+      && !statsDetailReturn.backgroundModalIds.has(modal.id)
+      && !modal.classList.contains('hidden')
+      && modal.style.display !== 'none');
+    if (hasForegroundModal) return;
+
+    const { scrollTop, observer } = statsDetailReturn;
+    if (observer) observer.disconnect();
+    statsDetailReturn = null;
+    detailModal.classList.remove('hidden');
+    if (detailBody) detailBody.scrollTop = scrollTop;
+  };
+  const observer = new MutationObserver(() => {
+    if (!pending) {
+      pending = true;
+      setTimeout(check, 0);
+    }
+  });
+  observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
+  statsDetailReturn.observer = observer;
+}
+
 function openStatsDetailPanel(titleText, sections, emptyText = 'No hubo tareas en este periodo.') {
   const modal = document.getElementById('stats-cell-modal');
   const list = document.getElementById('stats-cell-list');
@@ -4265,6 +4322,8 @@ function openStatsDetailPanel(titleText, sections, emptyText = 'No hubo tareas e
       card.draggable = false;
       card.classList.remove('activity-hidden', 'dragging');
       card.classList.add('buscador-card', 'stats-cell-card');
+      card.title = 'Abrir en el editor';
+      card.addEventListener('click', () => openTaskFromStatsDetail(occ.task.id, occ.dateStr));
       list.appendChild(card);
     });
   });
