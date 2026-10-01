@@ -4394,6 +4394,11 @@ function openStatsCellDetail(dateStr, hour) {
 }
 
 document.addEventListener('click', (e) => {
+  const backBtn = e.target.closest && e.target.closest('#stats-cell-back-btn');
+  if (backBtn) {
+    document.getElementById('stats-cell-modal')?.classList.add('hidden');
+    return;
+  }
   const cell = e.target.closest && e.target.closest('#general-stats-modal .habit-cell, #general-stats-modal .heatmap-cell');
   if (!cell || !cell.dataset.date) return;
   getOrCreateChartTooltip().classList.remove('visible');
