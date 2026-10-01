@@ -6348,7 +6348,7 @@ html:not(.mobile-mode) .gs-filters-wrap > .gs-filter-grid:not([style*="none"]) {
 #general-stats-modal .heatmap-cell { cursor: pointer; }
 /* Panel con las tareas de un cuadrito (mismo estilo que Resultados). */
 .stats-cell-body { max-height: 60vh; overflow-y: auto; }
-.stats-cell-footer { justify-content: flex-start; }
+.stats-cell-footer { justify-content: center; }
 .stats-cell-footer .btn { white-space: nowrap; flex-shrink: 0; }
 .buscador-list .stats-cell-card { cursor: pointer; }
 .stats-cell-empty {
