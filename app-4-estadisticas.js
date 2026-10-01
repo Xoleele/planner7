@@ -4249,18 +4249,21 @@ function openTaskFromStatsDetail(taskId, dateStr) {
   if (!detailModal || !tasks.some(task => task.id === taskId)) return;
 
   if (statsDetailReturn && statsDetailReturn.observer) statsDetailReturn.observer.disconnect();
-  const backgroundModalIds = new Set(
-    [...document.querySelectorAll('.modal-backdrop')]
-      .filter(modal => modal.id !== 'stats-cell-modal'
-        && !modal.classList.contains('hidden')
-        && modal.style.display !== 'none')
-      .map(modal => modal.id)
-  );
+  const backgroundModals = [...document.querySelectorAll('.modal-backdrop')]
+    .filter(modal => modal.id !== 'stats-cell-modal'
+      && !modal.classList.contains('hidden')
+      && modal.style.display !== 'none');
+  const backgroundModalIds = new Set(backgroundModals.map(modal => modal.id));
   statsDetailReturn = {
     scrollTop: detailBody ? detailBody.scrollTop : 0,
+    backgroundModals,
     backgroundModalIds,
     observer: null
   };
+  // Los paneles de estadísticas aparecen después que el editor en el DOM y,
+  // con el mismo z-index, lo cubrirían. Se ocultan mientras se edita y se
+  // restauran al volver, igual que hace el panel de resultados del Buscador.
+  backgroundModals.forEach(modal => modal.classList.add('hidden'));
   detailModal.classList.add('hidden');
   openTaskModal(taskId, dateStr || null);
 
@@ -4279,9 +4282,10 @@ function openTaskFromStatsDetail(taskId, dateStr) {
       && modal.style.display !== 'none');
     if (hasForegroundModal) return;
 
-    const { scrollTop, observer } = statsDetailReturn;
+    const { scrollTop, backgroundModals, observer } = statsDetailReturn;
     if (observer) observer.disconnect();
     statsDetailReturn = null;
+    backgroundModals.forEach(modal => modal.classList.remove('hidden'));
     detailModal.classList.remove('hidden');
     if (detailBody) detailBody.scrollTop = scrollTop;
   };
