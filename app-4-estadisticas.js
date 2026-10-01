@@ -358,7 +358,7 @@ function renderPieChartSVG(includedGroups) {
     const textEl = percentVal >= 5 ? `<text x="0" y="0" fill="#ffffff" font-size="0.11" font-weight="700" text-anchor="middle" dominant-baseline="central" style="font-family: inherit; pointer-events: none;">100%</text>` : '';
     return `
       <svg viewBox="-1.05 -1.05 2.1 2.1" style="width: 100%; height: 100%; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.06));">
-        <circle class="chart-slice" data-tooltip="${escapeHtmlAdj(tip)}" cx="0" cy="0" r="0.95" fill="${only.color.bg}" stroke="none" />
+        <circle class="chart-slice" data-stats-group-index="0" data-tooltip="${escapeHtmlAdj(tip)}" cx="0" cy="0" r="0.95" fill="${only.color.bg}" stroke="none" />
         ${textEl}
       </svg>
     `;
@@ -368,7 +368,7 @@ function renderPieChartSVG(includedGroups) {
   const paths = [];
   const labels = [];
   
-  includedGroups.forEach(group => {
+  includedGroups.forEach((group, groupIndex) => {
     const percent = group.minutes / totalMins;
     if (percent <= 0) return;
 
@@ -380,7 +380,7 @@ function renderPieChartSVG(includedGroups) {
     const tip = `${group.displayName || group.name} · ${minutesToReadable(group.minutes)}`;
 
     if (percent >= 0.999) {
-      paths.push(`<circle class="chart-slice" data-tooltip="${escapeHtmlAdj(tip)}" cx="0" cy="0" r="0.95" fill="${group.color.bg}" stroke="none" />`);
+      paths.push(`<circle class="chart-slice" data-stats-group-index="${groupIndex}" data-tooltip="${escapeHtmlAdj(tip)}" cx="0" cy="0" r="0.95" fill="${group.color.bg}" stroke="none" />`);
       if (percentVal >= 5) {
         labels.push(`<text x="0" y="0" fill="#ffffff" font-size="0.11" font-weight="700" text-anchor="middle" dominant-baseline="central" style="font-family: inherit; pointer-events: none;">${percentVal}%</text>`);
       }
@@ -401,7 +401,7 @@ function renderPieChartSVG(includedGroups) {
       `Z`
     ].join(' ');
     
-    paths.push(`<path class="chart-slice" data-tooltip="${escapeHtmlAdj(tip)}" d="${pathData}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.02" stroke-linejoin="round" />`);
+    paths.push(`<path class="chart-slice" data-stats-group-index="${groupIndex}" data-tooltip="${escapeHtmlAdj(tip)}" d="${pathData}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.02" stroke-linejoin="round" />`);
 
     if (percentVal >= 5) {
       const middleAngle = (startAngle + endAngle) / 2;
@@ -529,7 +529,9 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
           // 1ª línea: la actividad del segmento; 2ª: total de la barra (suma de
           // todas las actividades visibles en ese día/semana/mes).
           const segTip = `${group.displayName || group.name} · ${minutesToReadable(mins)}\nTotal: ${minutesToReadable(barTotals[idx])}`;
-          svgParts.push(`<rect class="chart-slice" data-tooltip="${escapeHtmlAdj(segTip)}" x="${x}" y="${y}" width="${barWidth}" height="${segHeight}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.25" rx="0.3" />`);
+          const bucketDates = dates.slice(idx * daysPerBar, (idx + 1) * daysPerBar);
+          const groupIndex = groupedList.indexOf(group);
+          svgParts.push(`<rect class="chart-slice" data-stats-group-index="${groupIndex}" data-stats-start-date="${bucketDates[0]}" data-stats-end-date="${bucketDates[bucketDates.length - 1]}" data-tooltip="${escapeHtmlAdj(segTip)}" x="${x}" y="${y}" width="${barWidth}" height="${segHeight}" fill="${group.color.bg}" stroke="var(--bg-card, #ffffff)" stroke-width="0.25" rx="0.3" />`);
 
           currentY = y;
         }
@@ -653,6 +655,7 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   activeTags.forEach(tagName => {
     const group = groupedList.find(g => g.name === tagName);
     if (!group) return;
+    const groupIndex = groupedList.indexOf(group);
     const color = group.color.bg;
 
     const points = [];
@@ -702,19 +705,19 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
       const tipText = `${dLabel}: ${durLabel}`;
       // Área de hover invisible más grande con clase y atributo data-tooltip.
       // El <title> vacío evita el tooltip nativo heredado ("Planner7").
-      svgParts.push(`<circle class="chart-hover-circle" cx="${p.x}" cy="${p.y}" r="6" fill="transparent" style="cursor: pointer;" data-tooltip="${tipText}"><title></title></circle>`);
+      svgParts.push(`<circle class="chart-hover-circle" data-stats-group-index="${groupIndex}" data-stats-start-date="${bDates[0]}" data-stats-end-date="${bDates[bDates.length - 1]}" cx="${p.x}" cy="${p.y}" r="6" fill="transparent" style="cursor: pointer;" data-tooltip="${tipText}"><title></title></circle>`);
     });
   });
 
   // Ejes al final para que queden visualmente por encima de las líneas de datos.
   const xTip = x_right + 5; // extremo derecho del eje X
   const yTip = y_top - 5;   // extremo superior del eje Y
-  svgParts.push(`<line x1="${x_left}" y1="${y_bottom}" x2="${xTip}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
-  svgParts.push(`<line x1="${x_left}" y1="${yTip}" x2="${x_left}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" />`);
+  svgParts.push(`<line x1="${x_left}" y1="${y_bottom}" x2="${xTip}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" pointer-events="none" />`);
+  svgParts.push(`<line x1="${x_left}" y1="${yTip}" x2="${x_left}" y2="${y_bottom}" stroke="#111111" stroke-width="0.8" pointer-events="none" />`);
   // Flechitas de punta abierta (V) en los extremos de los ejes.
   const a = 2.4; // tamaño de la flecha
-  svgParts.push(`<path d="M${xTip - a},${y_bottom - a} L${xTip},${y_bottom} L${xTip - a},${y_bottom + a}" fill="none" stroke="#111111" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" />`);
-  svgParts.push(`<path d="M${x_left - a},${yTip + a} L${x_left},${yTip} L${x_left + a},${yTip + a}" fill="none" stroke="#111111" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" />`);
+  svgParts.push(`<path d="M${xTip - a},${y_bottom - a} L${xTip},${y_bottom} L${xTip - a},${y_bottom + a}" fill="none" stroke="#111111" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" pointer-events="none" />`);
+  svgParts.push(`<path d="M${x_left - a},${yTip + a} L${x_left},${yTip} L${x_left + a},${yTip + a}" fill="none" stroke="#111111" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" pointer-events="none" />`);
 
   svgParts.push(`</svg>`);
   return svgParts.join('\n');
@@ -1403,6 +1406,12 @@ function renderDailyStatsPanel(panelEl, dateParam) {
         const tooltip = getOrCreateChartTooltip();
         tooltip.classList.remove('visible');
       });
+      circle.addEventListener('click', () => {
+        const group = groupedList[Number(circle.dataset.statsGroupIndex)];
+        if (!group) return;
+        getOrCreateChartTooltip().classList.remove('visible');
+        openStatsChartDetail(group, circle.dataset.statsStartDate, circle.dataset.statsEndDate);
+      });
     });
   } else {
     chartPlaceholder.innerHTML = renderPieChartSVG(includedGroups);
@@ -1435,6 +1444,15 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     slice.addEventListener('mousemove', moveTip);
     slice.addEventListener('mouseleave', () => {
       getOrCreateChartTooltip().classList.remove('visible');
+    });
+    slice.addEventListener('click', () => {
+      const sourceGroups = prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas'
+        ? groupedList
+        : includedGroups;
+      const group = sourceGroups[Number(slice.dataset.statsGroupIndex)];
+      if (!group) return;
+      getOrCreateChartTooltip().classList.remove('visible');
+      openStatsChartDetail(group, slice.dataset.statsStartDate, slice.dataset.statsEndDate);
     });
   });
 
@@ -4210,14 +4228,82 @@ if (document.readyState === 'loading') document.addEventListener('DOMContentLoad
 else setupStatsGroupsModal();
 
 
-// ─── Hábitos / Mapa de calor: clic en un cuadrito → tareas de ese día/hora ───
-// Se abre un panel con las tareas de la actividad (o grupo) elegida, con las
-// mismas tarjetas que "Ver resultados" del Buscador.
-function openStatsCellDetail(dateStr, hour) {
+// ─── Detalle de los elementos de los gráficos ────────────────────────────────
+// Todos los gráficos reutilizan este mismo panel y las mismas tarjetas que
+// "Ver resultados" del Buscador. Cada tarjeta conserva su fecha de ocurrencia,
+// algo necesario para representar correctamente las tareas recurrentes.
+function statsDetailDateLabel(dateStr) {
+  const dateObj = new Date(dateStr + 'T12:00:00');
+  const text = dateObj.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function openStatsDetailPanel(titleText, sections, emptyText = 'No hubo tareas en este periodo.') {
   const modal = document.getElementById('stats-cell-modal');
   const list = document.getElementById('stats-cell-list');
   const title = document.getElementById('stats-cell-title');
   if (!modal || !list) return;
+
+  if (title) title.textContent = titleText || 'Tareas';
+  list.innerHTML = '';
+  sections.forEach(section => {
+    const head = document.createElement('div');
+    head.className = 'buscador-list-date';
+    head.textContent = section.heading;
+    list.appendChild(head);
+
+    if (!section.occurrences.length) {
+      const empty = document.createElement('div');
+      empty.className = 'stats-cell-empty';
+      empty.textContent = emptyText;
+      list.appendChild(empty);
+      return;
+    }
+
+    section.occurrences.forEach(occ => {
+      const card = createTaskCard(occ.task, occ.dateStr).cloneNode(true);
+      card.draggable = false;
+      card.classList.remove('activity-hidden', 'dragging');
+      card.classList.add('buscador-card', 'stats-cell-card');
+      list.appendChild(card);
+    });
+  });
+  modal.classList.remove('hidden');
+}
+
+function openStatsChartDetail(group, startDate, endDate) {
+  if (!group) return;
+  const hasRange = !!startDate;
+  const lastDate = endDate || startDate;
+  const selected = (group.occurrences || [])
+    .filter(occ => !hasRange || (occ.dateStr >= startDate && occ.dateStr <= lastDate))
+    .slice()
+    .sort((a, b) => a.dateStr.localeCompare(b.dateStr)
+      || (a.task.startTime || '99:99').localeCompare(b.task.startTime || '99:99'));
+
+  const byDate = new Map();
+  selected.forEach(occ => {
+    if (!byDate.has(occ.dateStr)) byDate.set(occ.dateStr, []);
+    byDate.get(occ.dateStr).push(occ);
+  });
+  let sections = Array.from(byDate, ([dateStr, dayOccurrences]) => ({
+    heading: statsDetailDateLabel(dateStr),
+    occurrences: dayOccurrences
+  }));
+
+  // Los puntos con valor cero también son interactivos: el panel deja claro que
+  // no hay tareas contabilizadas para ese día, semana o mes.
+  if (!sections.length) {
+    const heading = hasRange && lastDate !== startDate
+      ? `${statsDetailDateLabel(startDate)} – ${statsDetailDateLabel(lastDate)}`
+      : statsDetailDateLabel(startDate);
+    sections = [{ heading, occurrences: [] }];
+  }
+  openStatsDetailPanel(group.displayName || group.name, sections);
+}
+
+// Hábitos / Mapa de calor: clic en un cuadrito → tareas de ese día/hora.
+function openStatsCellDetail(dateStr, hour) {
   const info = getHabitSelectionInfo(generalStatsHabitTag);
   const dateObj = new Date(dateStr + 'T12:00:00');
   const hasHour = hour !== undefined && hour !== null && hour !== '';
@@ -4236,28 +4322,12 @@ function openStatsCellDetail(dateStr, hour) {
 
   const dTxt = dateObj.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   const dCap = dTxt.charAt(0).toUpperCase() + dTxt.slice(1);
-  if (title) title.textContent = info.label;
-  list.innerHTML = '';
-  const head = document.createElement('div');
-  head.className = 'buscador-list-date';
-  head.textContent = hasHour
+  const heading = hasHour
     ? `${dCap} · ${String(h).padStart(2, '0')}:00 – ${String((h + 1) % 24).padStart(2, '0')}:00`
     : dCap;
-  list.appendChild(head);
-  if (!found.length) {
-    const empty = document.createElement('div');
-    empty.className = 'stats-cell-empty';
-    empty.textContent = hasHour ? 'No hubo tareas en esta hora.' : 'No hubo tareas este día.';
-    list.appendChild(empty);
-  }
-  found.forEach(task => {
-    const card = createTaskCard(task, dateStr).cloneNode(true);
-    card.draggable = false;
-    card.classList.remove('activity-hidden', 'dragging');
-    card.classList.add('buscador-card', 'stats-cell-card');
-    list.appendChild(card);
-  });
-  modal.classList.remove('hidden');
+  const occurrences = found.map(task => ({ task, dateStr }));
+  const emptyText = hasHour ? 'No hubo tareas en esta hora.' : 'No hubo tareas este día.';
+  openStatsDetailPanel(info.label, [{ heading, occurrences }], emptyText);
 }
 
 document.addEventListener('click', (e) => {
