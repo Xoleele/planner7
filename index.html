@@ -1157,9 +1157,14 @@
     <div class="modal-content tags-modal-w">
       <div class="modal-header">
         <h2 id="stats-cell-title">Tareas</h2>
-        <button class="close-modal-btn" data-modal="stats-cell-modal">
-          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
-        </button>
+        <div class="modal-header-actions">
+          <button id="stats-cell-sort-btn" type="button" class="icon-button" title="Invertir orden" aria-label="Invertir orden" aria-pressed="false">
+            <img src="icons/sort.svg" alt="Ordenar" width="15" height="15">
+          </button>
+          <button class="close-modal-btn" data-modal="stats-cell-modal">
+            <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+          </button>
+        </div>
       </div>
       <div class="modal-body stats-cell-body">
         <div id="stats-cell-list" class="buscador-list"></div>

@@ -4239,6 +4239,9 @@ function statsDetailDateLabel(dateStr) {
 }
 
 let statsDetailReturn = null;
+let statsDetailSortDesc = false;
+let statsDetailSections = [];
+let statsDetailEmptyText = '';
 
 // Igual que en "Mostrar resultados" del Buscador: oculta temporalmente el
 // panel de resultados, abre la ocurrencia correcta en el editor y vuelve al
@@ -4306,6 +4309,26 @@ function openStatsDetailPanel(titleText, sections, emptyText = 'No hubo tareas e
   if (!modal || !list) return;
 
   if (title) title.textContent = titleText || 'Tareas';
+  statsDetailSections = sections;
+  statsDetailEmptyText = emptyText;
+  renderStatsDetailResults();
+  modal.classList.remove('hidden');
+}
+
+function renderStatsDetailResults() {
+  const list = document.getElementById('stats-cell-list');
+  if (!list) return;
+  const sortBtn = document.getElementById('stats-cell-sort-btn');
+  if (sortBtn) {
+    sortBtn.classList.toggle('active', statsDetailSortDesc);
+    sortBtn.setAttribute('aria-pressed', String(statsDetailSortDesc));
+    sortBtn.title = statsDetailSortDesc
+      ? 'Más recientes primero (clic para invertir)'
+      : 'Más antiguas primero (clic para invertir)';
+  }
+  // Igual que el Buscador: invertir tanto los días como las tareas de cada día,
+  // conservando los datos originales para poder restablecer el orden.
+  const sections = statsDetailSortDesc ? statsDetailSections.slice().reverse() : statsDetailSections;
   list.innerHTML = '';
   sections.forEach(section => {
     const head = document.createElement('div');
@@ -4316,12 +4339,13 @@ function openStatsDetailPanel(titleText, sections, emptyText = 'No hubo tareas e
     if (!section.occurrences.length) {
       const empty = document.createElement('div');
       empty.className = 'stats-cell-empty';
-      empty.textContent = emptyText;
+      empty.textContent = statsDetailEmptyText;
       list.appendChild(empty);
       return;
     }
 
-    section.occurrences.forEach(occ => {
+    const occurrences = statsDetailSortDesc ? section.occurrences.slice().reverse() : section.occurrences;
+    occurrences.forEach(occ => {
       const card = createTaskCard(occ.task, occ.dateStr).cloneNode(true);
       card.draggable = false;
       card.classList.remove('activity-hidden', 'dragging');
@@ -4331,7 +4355,6 @@ function openStatsDetailPanel(titleText, sections, emptyText = 'No hubo tareas e
       list.appendChild(card);
     });
   });
-  modal.classList.remove('hidden');
 }
 
 function openStatsChartDetail(group, startDate, endDate) {
@@ -4394,6 +4417,16 @@ function openStatsCellDetail(dateStr, hour) {
 }
 
 document.addEventListener('click', (e) => {
+  const sortBtn = e.target.closest && e.target.closest('#stats-cell-sort-btn');
+  if (sortBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    statsDetailSortDesc = !statsDetailSortDesc;
+    renderStatsDetailResults();
+    const body = document.querySelector('#stats-cell-modal .stats-cell-body');
+    if (body) body.scrollTop = 0;
+    return;
+  }
   const backBtn = e.target.closest && e.target.closest('#stats-cell-back-btn');
   if (backBtn) {
     document.getElementById('stats-cell-modal')?.classList.add('hidden');
