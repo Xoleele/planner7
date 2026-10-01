@@ -912,6 +912,10 @@ function setupEventListeners() {
   document.querySelectorAll('.close-modal-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const targetModal = btn.dataset.modal;
+      if (targetModal === 'task-results-modal') {
+        closeTaskResultsPanel();
+        return;
+      }
       // Algunos botones reutilizan la clase sin data-modal (p. ej. Agrupar).
       const m = targetModal && document.getElementById(targetModal);
       if (m) m.classList.add('hidden');
@@ -932,7 +936,9 @@ function setupEventListeners() {
         // El modal del cronómetro no se "oculta a secas" al hacer clic fuera:
         // se minimiza (sigue corriendo, el botón de la barra queda activo). Así
         // no queda un cronómetro corriendo de forma inconsistente.
-        if (backdrop.id === 'timer-modal' && timerStartTime) {
+        if (backdrop.id === 'task-results-modal') {
+          closeTaskResultsPanel();
+        } else if (backdrop.id === 'timer-modal' && timerStartTime) {
           minimizeTimer();
         } else {
           backdrop.classList.add('hidden');
@@ -1590,35 +1596,11 @@ function setupEventListeners() {
       }
     });
   }
-  // Invertir el orden de la lista de resultados (mismo botón que "Mis actividades").
-  const buscadorSortBtn = document.getElementById('buscador-sort-btn');
-  if (buscadorSortBtn) {
-    buscadorSortBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      buscadorSortDesc = !buscadorSortDesc;
-      buscadorSortBtn.classList.toggle('active', buscadorSortDesc);
-      buscadorSortBtn.title = buscadorSortDesc
-        ? 'Más recientes primero (clic para invertir)'
-        : 'Más antiguas primero (clic para invertir)';
-      const list = document.getElementById('buscador-list');
-      const view = document.getElementById('buscador-results-view');
-      if (list) renderBuscadorResultsList(list);
-      if (view) view.scrollTop = 0;
-    });
-  }
   // Exportar resultados (.txt), con un panel de opciones como "Exportar día".
-  document.getElementById('buscador-export-btn')?.addEventListener('click', () => {
-    document.getElementById('buscador-export-modal')?.classList.remove('hidden');
-  });
   document.getElementById('buscador-export-cancel-btn')?.addEventListener('click', () => {
     document.getElementById('buscador-export-modal')?.classList.add('hidden');
   });
   document.getElementById('buscador-export-confirm-btn')?.addEventListener('click', exportBuscadorResults);
-  const buscadorBackBtn = document.getElementById('buscador-back-btn');
-  if (buscadorBackBtn) {
-    buscadorBackBtn.addEventListener('click', showBuscadorSearchView);
-  }
 
   // Trigger Nueva Etiqueta Button: abre la ventana aparte para crear actividad.
   document.getElementById('add-tag-trigger-btn').addEventListener('click', () => {
@@ -2675,7 +2657,6 @@ function runBuscadorCalculation() {
 
 let buscadorLastItems = [];
 let buscadorLastQuery = { keyword: '', fields: {} };
-let buscadorSortDesc = false; // true = más recientes primero
 
 // Resalta la palabra buscada dentro del texto de un elemento, sin distinguir
 // tildes ni mayúsculas (se mapea cada carácter normalizado a su posición en el
@@ -2720,7 +2701,6 @@ function highlightBuscadorMatches(el, keyword) {
 // Estado inicial del Buscador (al abrirlo): vista del formulario, sin
 // "Ver resultados" y con "Buscar" en negro.
 function resetBuscadorView() {
-  showBuscadorSearchView();
   const viewBtn = document.getElementById('buscador-view-btn');
   if (viewBtn) viewBtn.classList.add('hidden');
   const acceptBtn = document.getElementById('buscador-accept-btn');
@@ -2730,90 +2710,28 @@ function resetBuscadorView() {
   }
 }
 
-// Alterna entre las dos vistas del mismo panel. La de resultados toma el alto
-// exacto de la del formulario, así parece que solo cambia el contenido.
-function showBuscadorSearchView() {
-  const searchView = document.getElementById('buscador-search-view');
-  const resultsView = document.getElementById('buscador-results-view');
-  if (searchView) searchView.classList.remove('hidden');
-  if (resultsView) resultsView.classList.add('hidden');
-  const title = document.getElementById('buscador-modal-title');
-  if (title) title.textContent = 'Buscador';
-  document.getElementById('buscador-back-btn')?.classList.add('hidden');
-  document.getElementById('buscador-sort-btn')?.classList.add('hidden');
-  ['buscador-view-btn', 'buscador-accept-btn'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = '';
-  });
-  document.getElementById('buscador-export-btn')?.classList.add('hidden');
-}
-
+// El Buscador solo prepara los datos; el panel común dibuja los resultados.
 function showBuscadorResultsView(scrollTop = 0) {
-  const searchView = document.getElementById('buscador-search-view');
-  const resultsView = document.getElementById('buscador-results-view');
-  const list = document.getElementById('buscador-list');
-  if (!searchView || !resultsView || !list) return;
-  const h = searchView.offsetHeight;
-  if (h) resultsView.style.height = h + 'px';
-  renderBuscadorResultsList(list);
-  searchView.classList.add('hidden');
-  resultsView.classList.remove('hidden');
-  resultsView.scrollTop = scrollTop;
-  const title = document.getElementById('buscador-modal-title');
-  if (title) title.textContent = `Resultados (${buscadorLastItems.length})`;
-  document.getElementById('buscador-back-btn')?.classList.remove('hidden');
-  document.getElementById('buscador-sort-btn')?.classList.remove('hidden');
-  ['buscador-view-btn', 'buscador-accept-btn'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  });
-  document.getElementById('buscador-export-btn')?.classList.remove('hidden');
-}
-
-// Lista de tareas encontradas, en orden cronológico y agrupadas por día.
-function renderBuscadorResultsList(list) {
-  list.innerHTML = '';
-  let lastDate = null;
-  // Orden: cronológico o invertido (botón del encabezado). Las archivadas
-  // (sin fecha) siempre van al final.
-  const dated = buscadorLastItems.filter(it => it.date);
-  const archived = buscadorLastItems.filter(it => !it.date);
-  const ordered = (buscadorSortDesc ? dated.slice().reverse() : dated).concat(archived);
-  const { keyword, fields } = buscadorLastQuery;
-  ordered.forEach(({ date, task }) => {
-    if (date !== lastDate) {
-      lastDate = date;
-      const head = document.createElement('div');
-      head.className = 'buscador-list-date';
-      if (date) {
-        const d = new Date(date + 'T12:00:00');
-        const txt = d.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-        head.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
-      } else {
-        head.textContent = 'Archivadas';
+  openTaskResultsPanel({
+    getData: () => ({
+      title: `Resultados (${buscadorLastItems.length})`,
+      sections: taskResultsSectionsFromItems(buscadorLastItems),
+      emptyText: 'No se encontraron tareas.',
+      decorateCard: (card) => {
+        const { keyword, fields } = buscadorLastQuery;
+        if (fields.title) highlightBuscadorMatches(card.querySelector('.task-card-title'), keyword);
+        if (fields.desc) highlightBuscadorMatches(card.querySelector('.task-card-desc'), keyword);
       }
-      list.appendChild(head);
-    }
-    // Misma tarjeta que en la vista principal, pero de solo lectura: se
-    // clona (cloneNode no copia los listeners) y se desactiva el arrastre.
-    const card = createTaskCard(task, date).cloneNode(true);
-    card.draggable = false;
-    card.classList.remove('activity-hidden', 'dragging');
-    card.classList.add('buscador-card');
-    card.title = 'Abrir en el editor';
-    card.addEventListener('click', () => openTaskFromBuscador(task.id, date || null));
-    if (fields.title) highlightBuscadorMatches(card.querySelector('.task-card-title'), keyword);
-    if (fields.desc) highlightBuscadorMatches(card.querySelector('.task-card-desc'), keyword);
-    list.appendChild(card);
-  });
+    }),
+    refresh: runBuscadorCalculation,
+    onExport: () => document.getElementById('buscador-export-modal')?.classList.remove('hidden')
+  }, scrollTop);
 }
 
 // Texto plano de los resultados, en el mismo orden que la lista (respeta el
 // botón de invertir) y con el mismo formato que "Exportar día".
 function buildBuscadorExportText(opts) {
-  const dated = buscadorLastItems.filter(it => it.date);
-  const archived = buscadorLastItems.filter(it => !it.date);
-  const ordered = (buscadorSortDesc ? dated.slice().reverse() : dated).concat(archived);
+  const ordered = orderedTaskResultItems(buscadorLastItems);
 
   const lineFor = (task) => {
     let line = task.title || '';
@@ -2906,41 +2824,7 @@ function exportBuscadorResults() {
   }
 }
 
-// Clic en una tarjeta de los resultados: se oculta el Buscador, se abre el
-// editor de tareas y, cuando ya no queda ninguna ventana abierta (guardar,
-// cancelar, eliminar, aviso de recurrentes...), el Buscador vuelve a
-// mostrarse con los resultados recalculados y la lista en la misma posición.
-let buscadorReturn = null; // { scrollTop, observer }
-
-function openTaskFromBuscador(taskId, date) {
-  const buscador = document.getElementById('buscador-modal');
-  const resultsView = document.getElementById('buscador-results-view');
-  if (!buscador || !tasks.some(t => t.id === taskId)) return;
-  if (buscadorReturn && buscadorReturn.observer) buscadorReturn.observer.disconnect();
-  buscadorReturn = { scrollTop: resultsView ? resultsView.scrollTop : 0, observer: null };
-  buscador.classList.add('hidden');
-  openTaskModal(taskId, date);
-
-  let pending = false;
-  const check = () => {
-    pending = false;
-    if (!buscadorReturn) return;
-    const anyOpen = [...document.querySelectorAll('.modal-backdrop')].some(m =>
-      m.id !== 'buscador-modal' && !m.classList.contains('hidden') && m.style.display !== 'none');
-    if (anyOpen) return;
-    const { scrollTop, observer } = buscadorReturn;
-    if (observer) observer.disconnect();
-    buscadorReturn = null;
-    buscador.classList.remove('hidden');
-    runBuscadorCalculation();
-    showBuscadorResultsView(scrollTop);
-  };
-  const observer = new MutationObserver(() => {
-    if (!pending) { pending = true; setTimeout(check, 0); }
-  });
-  observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
-  buscadorReturn.observer = observer;
-}
+// La apertura del editor y el regreso se gestionan en app-7-resultados.js.
 
 // ─── Escape global ───────────────────────────────────────────────────────────
 // Devuelve true si cerró/retrocedió algo.
@@ -2984,9 +2868,9 @@ function closeOrGoBackInModal(modal) {
   const id = modal.id;
   const isVisible = (el) => el && !el.classList.contains('hidden');
 
-  // Retroceder a la vista anterior dentro de la misma ventana.
-  if (id === 'buscador-modal' && isVisible(document.getElementById('buscador-results-view'))) {
-    showBuscadorSearchView();
+  // El panel compartido restaura el origen al regresar o pulsar Escape.
+  if (id === 'task-results-modal') {
+    closeTaskResultsPanel();
     return;
   }
   if (id === 'daily-stats-modal' || id === 'general-stats-modal') {

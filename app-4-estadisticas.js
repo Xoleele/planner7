@@ -4232,128 +4232,11 @@ else setupStatsGroupsModal();
 // Todos los gráficos reutilizan este mismo panel y las mismas tarjetas que
 // "Ver resultados" del Buscador. Cada tarjeta conserva su fecha de ocurrencia,
 // algo necesario para representar correctamente las tareas recurrentes.
-function statsDetailDateLabel(dateStr) {
-  const dateObj = new Date(dateStr + 'T12:00:00');
-  const text = dateObj.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-let statsDetailReturn = null;
-let statsDetailSortDesc = false;
-let statsDetailSections = [];
-let statsDetailEmptyText = '';
-
-// Igual que en "Mostrar resultados" del Buscador: oculta temporalmente el
-// panel de resultados, abre la ocurrencia correcta en el editor y vuelve al
-// mismo panel (conservando su scroll) cuando termina la edición.
-function openTaskFromStatsDetail(taskId, dateStr) {
-  const detailModal = document.getElementById('stats-cell-modal');
-  const detailBody = detailModal && detailModal.querySelector('.stats-cell-body');
-  if (!detailModal || !tasks.some(task => task.id === taskId)) return;
-
-  if (statsDetailReturn && statsDetailReturn.observer) statsDetailReturn.observer.disconnect();
-  const backgroundModals = [...document.querySelectorAll('.modal-backdrop')]
-    .filter(modal => modal.id !== 'stats-cell-modal'
-      && !modal.classList.contains('hidden')
-      && modal.style.display !== 'none');
-  const backgroundModalIds = new Set(backgroundModals.map(modal => modal.id));
-  statsDetailReturn = {
-    scrollTop: detailBody ? detailBody.scrollTop : 0,
-    backgroundModals,
-    backgroundModalIds,
-    observer: null
-  };
-  // Los paneles de estadísticas aparecen después que el editor en el DOM y,
-  // con el mismo z-index, lo cubrirían. Se ocultan mientras se edita y se
-  // restauran al volver, igual que hace el panel de resultados del Buscador.
-  backgroundModals.forEach(modal => modal.classList.add('hidden'));
-  detailModal.classList.add('hidden');
-  openTaskModal(taskId, dateStr || null);
-
-  let pending = false;
-  const check = () => {
-    pending = false;
-    if (!statsDetailReturn) return;
-    const taskModal = document.getElementById('task-modal');
-    if (taskModal && !taskModal.classList.contains('hidden') && taskModal.style.display !== 'none') return;
-
-    // Si el editor abrió otra confirmación, esperar también a que se cierre.
-    const hasForegroundModal = [...document.querySelectorAll('.modal-backdrop')].some(modal =>
-      modal.id !== 'stats-cell-modal'
-      && !statsDetailReturn.backgroundModalIds.has(modal.id)
-      && !modal.classList.contains('hidden')
-      && modal.style.display !== 'none');
-    if (hasForegroundModal) return;
-
-    const { scrollTop, backgroundModals, observer } = statsDetailReturn;
-    if (observer) observer.disconnect();
-    statsDetailReturn = null;
-    backgroundModals.forEach(modal => modal.classList.remove('hidden'));
-    detailModal.classList.remove('hidden');
-    if (detailBody) detailBody.scrollTop = scrollTop;
-  };
-  const observer = new MutationObserver(() => {
-    if (!pending) {
-      pending = true;
-      setTimeout(check, 0);
-    }
-  });
-  observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
-  statsDetailReturn.observer = observer;
-}
-
+// Adaptador de estadísticas: el panel compartido recibe las ocurrencias ya
+// filtradas que contabilizó el gráfico.
 function openStatsDetailPanel(titleText, sections, emptyText = 'No hubo tareas en este periodo.') {
-  const modal = document.getElementById('stats-cell-modal');
-  const list = document.getElementById('stats-cell-list');
-  const title = document.getElementById('stats-cell-title');
-  if (!modal || !list) return;
-
-  if (title) title.textContent = titleText || 'Tareas';
-  statsDetailSections = sections;
-  statsDetailEmptyText = emptyText;
-  renderStatsDetailResults();
-  modal.classList.remove('hidden');
-}
-
-function renderStatsDetailResults() {
-  const list = document.getElementById('stats-cell-list');
-  if (!list) return;
-  const sortBtn = document.getElementById('stats-cell-sort-btn');
-  if (sortBtn) {
-    sortBtn.classList.toggle('active', statsDetailSortDesc);
-    sortBtn.setAttribute('aria-pressed', String(statsDetailSortDesc));
-    sortBtn.title = statsDetailSortDesc
-      ? 'Más recientes primero (clic para invertir)'
-      : 'Más antiguas primero (clic para invertir)';
-  }
-  // Igual que el Buscador: invertir tanto los días como las tareas de cada día,
-  // conservando los datos originales para poder restablecer el orden.
-  const sections = statsDetailSortDesc ? statsDetailSections.slice().reverse() : statsDetailSections;
-  list.innerHTML = '';
-  sections.forEach(section => {
-    const head = document.createElement('div');
-    head.className = 'buscador-list-date';
-    head.textContent = section.heading;
-    list.appendChild(head);
-
-    if (!section.occurrences.length) {
-      const empty = document.createElement('div');
-      empty.className = 'stats-cell-empty';
-      empty.textContent = statsDetailEmptyText;
-      list.appendChild(empty);
-      return;
-    }
-
-    const occurrences = statsDetailSortDesc ? section.occurrences.slice().reverse() : section.occurrences;
-    occurrences.forEach(occ => {
-      const card = createTaskCard(occ.task, occ.dateStr).cloneNode(true);
-      card.draggable = false;
-      card.classList.remove('activity-hidden', 'dragging');
-      card.classList.add('buscador-card', 'stats-cell-card');
-      card.title = 'Abrir en el editor';
-      card.addEventListener('click', () => openTaskFromStatsDetail(occ.task.id, occ.dateStr));
-      list.appendChild(card);
-    });
+  openTaskResultsPanel({
+    getData: () => ({ title: titleText || 'Tareas', sections, emptyText })
   });
 }
 
@@ -4373,7 +4256,7 @@ function openStatsChartDetail(group, startDate, endDate) {
     byDate.get(occ.dateStr).push(occ);
   });
   let sections = Array.from(byDate, ([dateStr, dayOccurrences]) => ({
-    heading: statsDetailDateLabel(dateStr),
+    heading: taskResultsDateLabel(dateStr),
     occurrences: dayOccurrences
   }));
 
@@ -4381,8 +4264,8 @@ function openStatsChartDetail(group, startDate, endDate) {
   // no hay tareas contabilizadas para ese día, semana o mes.
   if (!sections.length) {
     const heading = hasRange && lastDate !== startDate
-      ? `${statsDetailDateLabel(startDate)} – ${statsDetailDateLabel(lastDate)}`
-      : statsDetailDateLabel(startDate);
+      ? `${taskResultsDateLabel(startDate)} – ${taskResultsDateLabel(lastDate)}`
+      : taskResultsDateLabel(startDate);
     sections = [{ heading, occurrences: [] }];
   }
   openStatsDetailPanel(group.displayName || group.name, sections);
@@ -4417,21 +4300,6 @@ function openStatsCellDetail(dateStr, hour) {
 }
 
 document.addEventListener('click', (e) => {
-  const sortBtn = e.target.closest && e.target.closest('#stats-cell-sort-btn');
-  if (sortBtn) {
-    e.preventDefault();
-    e.stopPropagation();
-    statsDetailSortDesc = !statsDetailSortDesc;
-    renderStatsDetailResults();
-    const body = document.querySelector('#stats-cell-modal .stats-cell-body');
-    if (body) body.scrollTop = 0;
-    return;
-  }
-  const backBtn = e.target.closest && e.target.closest('#stats-cell-back-btn');
-  if (backBtn) {
-    document.getElementById('stats-cell-modal')?.classList.add('hidden');
-    return;
-  }
   const cell = e.target.closest && e.target.closest('#general-stats-modal .habit-cell, #general-stats-modal .heatmap-cell');
   if (!cell || !cell.dataset.date) return;
   getOrCreateChartTooltip().classList.remove('visible');

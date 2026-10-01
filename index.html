@@ -954,10 +954,6 @@
       <div class="modal-header">
         <h2 id="buscador-modal-title">Buscador</h2>
         <div class="modal-header-actions">
-          <!-- Invertir el orden de los resultados (solo en la vista de resultados) -->
-          <button id="buscador-sort-btn" type="button" class="icon-button hidden" title="Invertir orden" aria-label="Invertir orden">
-            <img src="icons/sort.svg" alt="Ordenar" width="15" height="15">
-          </button>
           <button class="close-modal-btn" data-modal="buscador-modal">
             <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
           </button>
@@ -1047,16 +1043,34 @@
           </div>
         </div>
       </div>
-      <!-- Vista 2: lista de resultados (mismo alto que la vista 1) -->
-      <div class="modal-body buscador-results-view hidden" id="buscador-results-view">
-        <div id="buscador-list" class="buscador-list"></div>
-      </div>
       <div class="modal-footer buscador-footer">
-        <button type="button" class="btn btn-primary hidden" id="buscador-back-btn">Regresar</button>
         <button type="button" class="btn btn-primary hidden" id="buscador-view-btn">Ver resultados</button>
         <span class="buscador-footer-spacer"></span>
-        <button type="button" class="btn btn-secondary hidden" id="buscador-export-btn">Exportar</button>
         <button type="button" class="btn btn-primary" id="buscador-accept-btn">Buscar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel único: resultados del Buscador y detalle de todos los gráficos. -->
+  <div id="task-results-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2 id="task-results-title">Tareas</h2>
+        <div class="modal-header-actions">
+          <button id="task-results-sort-btn" type="button" class="icon-button" title="Invertir orden" aria-label="Invertir orden" aria-pressed="false">
+            <img src="icons/sort.svg" alt="Ordenar" width="15" height="15">
+          </button>
+          <button class="close-modal-btn" data-modal="task-results-modal">
+            <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+          </button>
+        </div>
+      </div>
+      <div id="task-results-body" class="modal-body task-results-body">
+        <div id="task-results-list" class="buscador-list"></div>
+      </div>
+      <div class="modal-footer task-results-footer">
+        <button type="button" class="btn btn-primary" id="task-results-back-btn">Regresar</button>
+        <button type="button" class="btn btn-secondary hidden" id="task-results-export-btn">Exportar</button>
       </div>
     </div>
   </div>
@@ -1148,29 +1162,6 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="stats-group-edit-cancel-btn">Cancelar</button>
         <button type="button" class="btn btn-primary" id="stats-group-edit-save-btn">Guardar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: TAREAS DE UN CUADRITO (Hábitos / Mapa de calor) -->
-  <div id="stats-cell-modal" class="modal-backdrop hidden">
-    <div class="modal-content tags-modal-w">
-      <div class="modal-header">
-        <h2 id="stats-cell-title">Tareas</h2>
-        <div class="modal-header-actions">
-          <button id="stats-cell-sort-btn" type="button" class="icon-button" title="Invertir orden" aria-label="Invertir orden" aria-pressed="false">
-            <img src="icons/sort.svg" alt="Ordenar" width="15" height="15">
-          </button>
-          <button class="close-modal-btn" data-modal="stats-cell-modal">
-            <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
-          </button>
-        </div>
-      </div>
-      <div class="modal-body stats-cell-body">
-        <div id="stats-cell-list" class="buscador-list"></div>
-      </div>
-      <div class="modal-footer stats-cell-footer">
-        <button type="button" class="btn btn-primary" id="stats-cell-back-btn">Regresar</button>
       </div>
     </div>
   </div>
@@ -1587,5 +1578,6 @@
   <script src="app-4-estadisticas.js?v=20260925"></script>
   <script src="app-5-etiquetas.js?v=20260925"></script>
   <script src="app-6-herramientas.js?v=20260925"></script>
+  <script src="app-7-resultados.js?v=20260925"></script>
 </body>
 </html>
