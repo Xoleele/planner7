@@ -299,15 +299,16 @@ html:not(.mobile-mode) .app-container {
   filter: brightness(0);
 }
 
-/* Cronómetro activo: el botón se muestra en rojo y parpadeando mientras hay un
-   cronómetro corriendo (incluso reanudado tras cerrar la app). */
-#timer-btn.timer-active img {
+/* Rojo y parpadeo compartidos por el cronómetro activo y el aviso de checklist. */
+#timer-btn.timer-active img,
+#nav-view-toggle-btn.checklist-pending img {
   /* Tinta el icono SVG a un rojo intenso. */
   filter: invert(28%) sepia(96%) saturate(7000%) hue-rotate(356deg) brightness(95%) contrast(118%);
   animation: timerBlink 1.5s ease-in-out infinite;
 }
 
-#timer-btn.timer-active:hover {
+#timer-btn.timer-active:hover,
+#nav-view-toggle-btn.checklist-pending:hover {
   background-color: rgba(255, 0, 0, 0.08);
 }
 

@@ -1476,6 +1476,7 @@ function showCenterToast(message) {
 }
 
 async function saveTasksToStorage() {
+  updateChecklistPendingIndicator();
   if (!currentUser) return;
   // Tareas recién archivadas → a la lista visible del panel de Archivados.
   if (typeof syncArchiveListAssignments === 'function') syncArchiveListAssignments();
@@ -1543,6 +1544,7 @@ function mergeTaskLists(cloudTasks, localTasks) {
 }
 
 function saveTagsToStorage() {
+  updateChecklistPendingIndicator();
   saveTags(tags);
 }
 
@@ -2390,6 +2392,7 @@ function moveTaskCardInPlace(container, card, dateStr, nowCompleted) {
 }
 
 function renderWeeklyCalendar(targetWrapper = document) {
+  updateChecklistPendingIndicator();
   // En móvil, el feed continuo se gestiona por separado
   if (isMobile()) {
     if (mobileScrollInit) {
@@ -2956,11 +2959,15 @@ function autoCompletePastTasks() {
 
 // Revisa ahora y luego cada 30 s (y al volver a la pestaña).
 function startAutoCompleteClock() {
-  autoCompletePastTasks();
+  const tick = () => {
+    autoCompletePastTasks();
+    updateChecklistPendingIndicator();
+  };
+  tick();
   if (autoCompleteTimer) return;
-  autoCompleteTimer = setInterval(autoCompletePastTasks, 30000);
+  autoCompleteTimer = setInterval(tick, 30000);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') autoCompletePastTasks();
+    if (document.visibilityState === 'visible') tick();
   });
 }
 
@@ -3111,7 +3118,7 @@ function toggleCronograma() {
   cronogramaActive = !cronogramaActive;
   document.body.classList.toggle('cronograma-active', cronogramaActive);
   if (!cronogramaActive && taskPlacement) endTaskPlacement();
-  showModeToast(cronogramaActive ? 'Modo Línea de tiempo' : 'Modo Lista de tareas');
+  showModeToast(cronogramaActive ? 'Modo Línea de tiempo' : 'Modo Checklist');
 
   // Recordar la vista elegida para la próxima vez que se abra la app.
   try {
@@ -3167,7 +3174,8 @@ function toggleCronograma() {
 function updateViewToggleMenuLabel() {
   const btn = document.getElementById('nav-view-toggle-btn');
   if (btn) {
-    btn.title = cronogramaActive ? 'Vista Lista de tareas' : 'Vista Línea de tiempo';
+    btn.title = cronogramaActive ? 'Vista Checklist' : 'Vista Línea de tiempo';
+    btn.setAttribute('aria-label', btn.title);
     const img = btn.querySelector('img');
     if (img) {
       if (cronogramaActive) {
@@ -3177,12 +3185,30 @@ function updateViewToggleMenuLabel() {
         img.setAttribute('height', '17');
       } else {
         img.src = 'icons/to do.svg';
-        img.alt = 'Modo lista de tareas';
+        img.alt = 'Modo checklist';
         img.setAttribute('width', '21');
         img.setAttribute('height', '21');
       }
     }
   }
+  updateChecklistPendingIndicator();
+}
+
+// Siempre evalúa HOY, independientemente de la fecha navegada y del horario.
+function updateChecklistPendingIndicator() {
+  const btn = document.getElementById('nav-view-toggle-btn');
+  if (!btn) return;
+  const today = new Date();
+  const todayStr = formatDate(today);
+  const hasPending = cronogramaActive && tasks.some(task => {
+    if (!checkTaskOccurrence(task, today)) return false;
+    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+    if (tag && tag.visible === false) return false;
+    return task.recurrence && task.recurrence.enabled
+      ? !(task.completedOccurrences || []).includes(todayStr)
+      : !task.completed;
+  });
+  btn.classList.toggle('checklist-pending', hasPending);
 }
 
 // Aplica al iniciar la vista guardada en localStorage. Si el usuario dejó la
@@ -3910,6 +3936,7 @@ function dropTaskOnCronograma(taskId, colEl, clientY, isCopy) {
 }
 
 function renderCronograma() {
+  updateChecklistPendingIndicator();
   // Si hay un arrastre en curso, NO reconstruir: borraría el bloque que el
   // usuario tiene agarrado y provocaría saltos. Se re-renderiza al soltar.
   if (crDrag) return;
