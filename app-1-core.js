@@ -56,6 +56,16 @@ let defaultTaskDurationMin = 60;
 // Se elige en Preferencias (preferences.showTaskDescriptions). Por defecto, se muestra.
 let showTaskDescriptions = true;
 
+const COMPLETED_TASK_FADE_OPTIONS = ['both', 'horario', 'checklist', 'none'];
+let completedTaskFadeMode = 'both';
+
+function applyCompletedTaskFade() {
+  document.body.style.setProperty('--completed-horario-opacity',
+    completedTaskFadeMode === 'both' || completedTaskFadeMode === 'horario' ? '0.4' : '1');
+  document.body.style.setProperty('--completed-checklist-opacity',
+    completedTaskFadeMode === 'both' || completedTaskFadeMode === 'checklist' ? '0.4' : '1');
+}
+
 // Aplica la visibilidad de las descripciones (clase en <body>, ver style.css).
 function applyTaskDescriptionVisibility() {
   document.body.classList.toggle('hide-task-desc', !showTaskDescriptions);
@@ -69,6 +79,9 @@ function applyUserSettingsFromPrefs(prefs) {
   defaultTaskDurationMin = DEFAULT_TASK_DURATION_OPTIONS.includes(d) ? d : 60;
   showTaskDescriptions = prefs.showTaskDescriptions !== false;
   applyTaskDescriptionVisibility();
+  completedTaskFadeMode = COMPLETED_TASK_FADE_OPTIONS.includes(prefs.completedTaskFadeMode)
+    ? prefs.completedTaskFadeMode : 'both';
+  applyCompletedTaskFade();
   // Estadísticas: grupos de actividades (panel "Agrupar actividades").
   if (typeof setStatsActivityGroupsFromPrefs === 'function') setStatsActivityGroupsFromPrefs(prefs);
   // Estadísticas diarias: grupos ocultos (globales, todos los días).
@@ -703,6 +716,8 @@ function openSettingsModal() {
   toggle.checked = autoSetEndTimeOnComplete;
   durationSel.value = String(defaultTaskDurationMin);
   if (descToggle) descToggle.checked = showTaskDescriptions;
+  const completedFadeSelect = document.getElementById('setting-completed-fade');
+  if (completedFadeSelect) completedFadeSelect.value = completedTaskFadeMode;
   modal.querySelectorAll('.settings-info').forEach(el => el.classList.add('hidden'));
   modal.querySelectorAll('.settings-info-btn').forEach(b => b.classList.remove('active'));
   if (modal.dataset.bound !== 'true') {
@@ -769,6 +784,12 @@ function saveSettingsModal() {
     showTaskDescriptions = descToggle.checked;
     changes.showTaskDescriptions = showTaskDescriptions;
     applyTaskDescriptionVisibility();
+  }
+  const completedFadeSelect = document.getElementById('setting-completed-fade');
+  if (completedFadeSelect && COMPLETED_TASK_FADE_OPTIONS.includes(completedFadeSelect.value)) {
+    completedTaskFadeMode = completedFadeSelect.value;
+    changes.completedTaskFadeMode = completedTaskFadeMode;
+    applyCompletedTaskFade();
   }
   closeSettingsModal();
   saveSettingPreferences(changes);

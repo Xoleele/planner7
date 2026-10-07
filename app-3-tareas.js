@@ -639,7 +639,7 @@ async function commitCronogramaDragResult(drag) {
     return;
   }
 
-  const newDateStr = drag.targetColEl ? drag.targetColEl.dataset.date : null;
+  let newDateStr = drag.targetColEl ? drag.targetColEl.dataset.date : null;
   // Al SOLTAR: proponer el ajuste si el inicio cae sobre otra tarea, pero
   // esperar la decisión antes de modificar datos o registrar el deshacer.
   let newStartMin = drag.newStartMin;
@@ -657,13 +657,20 @@ async function commitCronogramaDragResult(drag) {
            Math.abs(r.start - origRange.endMin) <= tol;     // vecina siguiente
   };
   const snappedStart = snapStartAfterTaskBelow(targetDateStr, newStartMin, drag.task.id, wasGluedTo);
-  if (snappedStart !== newStartMin && snappedStart < 1440) {
-    const choice = await askCronogramaOverlap(newStartMin, snappedStart);
+  if (snappedStart !== newStartMin) {
+    const beforeStart = snapStartBeforeTaskBelow(targetDateStr, newStartMin, drag.durationMin, drag.task.id, wasGluedTo);
+    const choice = await askCronogramaOverlap();
     if (choice === 'cancel' || !tasks.includes(drag.task)) {
       renderCronograma();
       return;
     }
-    if (choice === 'adjust') newStartMin = snappedStart;
+    if (choice === 'adjust-end') newStartMin = snappedStart;
+    if (choice === 'adjust-start') newStartMin = beforeStart;
+    // Conservar la duración cuando el ajuste cruza el límite del día.
+    if (newStartMin < 0 || newStartMin >= 1440) {
+      newDateStr = formatDate(addDays(new Date(targetDateStr + 'T00:00:00'), Math.floor(newStartMin / 1440)));
+      newStartMin = ((newStartMin % 1440) + 1440) % 1440;
+    }
   }
   const newEndMin = newStartMin + drag.durationMin; // puede superar 1440 (cruza medianoche)
 
@@ -746,7 +753,7 @@ async function commitCronogramaDragResult(drag) {
 }
 
 // Mismo diseño que el aviso de conflicto de hora de fin.
-function askCronogramaOverlap(droppedStart, proposedStart) {
+function askCronogramaOverlap() {
   return new Promise(resolve => {
     const previousFocus = document.activeElement;
     const overlay = document.createElement('div');
@@ -764,18 +771,7 @@ function askCronogramaOverlap(droppedStart, proposedStart) {
     const description = document.createElement('p');
     description.id = 'horario-overlap-desc';
     description.className = 'endtime-conflict-desc';
-    description.textContent = 'La hora de inicio coincide con otra tarea. ¿Quieres moverla al final de las tareas que ocupan ese horario? Se conservará su duración. Si eliges Conservar, quedará donde la soltaste.';
-    const info = document.createElement('div');
-    info.className = 'endtime-conflict-info';
-    for (const [label, minutes] of [['Al soltar', droppedStart], ['Inicio propuesto', proposedStart]]) {
-      const row = document.createElement('div');
-      const caption = document.createElement('span');
-      caption.textContent = label;
-      const value = document.createElement('strong');
-      value.textContent = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-      row.append(caption, value);
-      info.appendChild(row);
-    }
+    description.textContent = 'La hora de inicio coincide con otra tarea.';
     const actions = document.createElement('div');
     actions.className = 'endtime-conflict-actions';
     const buttons = [];
@@ -795,21 +791,21 @@ function askCronogramaOverlap(droppedStart, proposedStart) {
         buttons[(index + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length].focus();
       }
     };
-    for (const [label, choice] of [['Cancelar', 'cancel'], ['Conservar', 'keep'], ['Ajustar', 'adjust']]) {
+    for (const [label, choice] of [['Conservar', 'keep'], ['Ajustar al final', 'adjust-end'], ['Ajustar al inicio', 'adjust-start'], ['Cancelar', 'cancel']]) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = choice === 'adjust' ? 'btn btn-primary' : 'btn btn-secondary';
+      button.className = choice === 'keep' ? 'btn btn-primary' : 'btn btn-secondary';
       button.textContent = label;
       button.addEventListener('click', () => finish(choice));
       buttons.push(button);
       actions.appendChild(button);
     }
-    box.append(title, description, info, actions);
+    box.append(title, description, actions);
     overlay.appendChild(box);
     overlay.addEventListener('click', e => { if (e.target === overlay) finish('cancel'); });
     document.body.appendChild(overlay);
     document.addEventListener('keydown', onKey, true);
-    buttons[1].focus();
+    buttons[0].focus();
   });
 }
 

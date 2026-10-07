@@ -633,7 +633,7 @@ html:not(.mobile-mode) .app-container {
 
 /* Completed task card state styles */
 .task-card.completed {
-  opacity: 0.40;
+  opacity: var(--completed-checklist-opacity, 0.40);
 }
 
 .task-card.completed .task-card-title,
@@ -4992,6 +4992,7 @@ body.cronograma-active .planner-grid { display: none; }
    contenido no cabe, se recorta con overflow oculto. */
 .cr-task-block {
   position: absolute;
+  isolation: isolate; /* El contenido de cada tarea respeta el orden por duración. */
   left: 3px;
   right: 3px;
   border-radius: var(--radius-md);
@@ -5104,7 +5105,7 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
    (.task-card.completed). El checkbox se mantiene más visible con su propia
    regla de arriba para que se pueda volver a marcar como pendiente. */
 .cr-task-block.completed {
-  opacity: 0.40;
+  opacity: var(--completed-horario-opacity, 0.40);
 }
 .cr-task-block.completed .cr-task-title,
 .cr-task-block.completed .cr-task-time-row,
@@ -5438,6 +5439,18 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 }
 .horario-overlap-overlay {
   z-index: 3000;
+}
+.horario-overlap-overlay .endtime-conflict-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+.horario-overlap-overlay .endtime-conflict-actions .btn {
+  flex: 0 0 auto;
+  width: 100%;
+}
+.horario-overlap-overlay .btn-primary {
+  background-color: #000;
+  color: #fff;
 }
 .endtime-conflict-title {
   margin: 0 0 8px;
@@ -5911,6 +5924,12 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .settings-label label { cursor: pointer; }
 .settings-label label { white-space: nowrap; }
 .settings-row select { width: auto; min-width: 96px; flex: 0 0 auto; }
+.settings-row.settings-row-stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.settings-row-stacked select { width: 100%; min-width: 0; }
 .settings-info-btn {
   display: inline-flex;
   align-items: center;

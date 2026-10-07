@@ -1279,6 +1279,8 @@ function resetApp(clearCache = false) {
   }
   // Limpiar el snapshot en memoria para no mezclar estados entre cuentas.
   lastSyncedById = new Map();
+  completedTaskFadeMode = 'both';
+  applyCompletedTaskFade();
   tasks = [];
   tags = [];
   notes = {};
@@ -3484,7 +3486,11 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
 // Devuelve el número de bloques dibujados.
 function renderCronogramaDayBlocks(colEl, date) {
   const dateStr = formatDate(date);
-  let count = 0;
+  const blocks = [];
+  const addBlock = (block, range) => {
+    const duration = (range.crossesMidnight ? range.rawEndMin + 1440 : range.rawEndMin) - range.startMin;
+    blocks.push({ block, duration });
+  };
 
   const isTaskCompleted = (task, dStr) => task.recurrence && task.recurrence.enabled
     ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
@@ -3507,8 +3513,7 @@ function renderCronogramaDayBlocks(colEl, date) {
       isTaskCompleted(task, dateStr), tag, task, dateStr
     );
     if (!block) return; // tareas < CR_MIN_BLOCK_MIN no se dibujan
-    colEl.appendChild(block);
-    count++;
+    addBlock(block, range);
   });
 
   // (b) Cola de las tareas del día ANTERIOR que cruzaron medianoche.
@@ -3533,11 +3538,14 @@ function renderCronogramaDayBlocks(colEl, date) {
       isTaskCompleted(task, prevDateStr), tag, task, prevDateStr, true
     );
     if (!block) return; // colas < CR_MIN_BLOCK_MIN no se dibujan
-    colEl.appendChild(block);
-    count++;
+    addBlock(block, range);
   });
 
-  return count;
+  // Las más cortas se pintan al final y quedan encima. El sort es estable:
+  // a igual duración se conserva el orden previo, incluyendo las colas.
+  blocks.sort((a, b) => b.duration - a.duration);
+  blocks.forEach(({ block }) => colEl.appendChild(block));
+  return blocks.length;
 }
 
 // Maneja el clic en un espacio vacío de una columna del horario para crear una
@@ -3810,6 +3818,22 @@ function snapStartAfterTaskBelow(dateStr, startMin, excludeTaskId, ignoreRange) 
     s = below.end;
   }
   return s;
+}
+
+// Coloca la tarea antes de la que cubre el inicio soltado, conservando su
+// duración. Si hay otras tareas ocupando ese hueco, sigue hacia atrás.
+function snapStartBeforeTaskBelow(dateStr, startMin, durationMin, excludeTaskId, ignoreRange) {
+  const ranges = getVisibleTaskRangesForDate(dateStr, excludeTaskId)
+    .filter(r => !(ignoreRange && ignoreRange(r)));
+  const below = ranges.find(r => startMin >= r.start && startMin < r.end);
+  if (!below) return startMin;
+  let end = below.start;
+  for (let i = 0; i < ranges.length; i++) {
+    const previous = ranges.find(r => r.start < end && r.end > end - durationMin);
+    if (!previous) break;
+    end = previous.start;
+  }
+  return end - durationMin;
 }
 
 // Convierte la coordenada Y del puntero (px de viewport) al MINUTO lógico dentro
