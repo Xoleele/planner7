@@ -609,7 +609,7 @@ function clearCronogramaHeaderTargets() {
 // que la limpieza específica del input (listeners, captura) ya se haya hecho y
 // que crDrag ya esté en null. Si no hubo movimiento real, trata el gesto como
 // un click y no toca los datos.
-function commitCronogramaDragResult(drag) {
+async function commitCronogramaDragResult(drag) {
   if (!drag.moved) return; // fue un click, no un arrastre
 
   // Evitar que el click posterior abra el modal de edición.
@@ -640,8 +640,8 @@ function commitCronogramaDragResult(drag) {
   }
 
   const newDateStr = drag.targetColEl ? drag.targetColEl.dataset.date : null;
-  // Al SOLTAR (no durante el arrastre): si el inicio cae sobre otra tarea, la
-  // tarea empieza justo cuando termina esa (encadenando si hay varias seguidas).
+  // Al SOLTAR: proponer el ajuste si el inicio cae sobre otra tarea, pero
+  // esperar la decisión antes de modificar datos o registrar el deshacer.
   let newStartMin = drag.newStartMin;
   // Excepción: si se suelta sobre la tarea que estaba PEGADA a la arrastrada (fin
   // de una = inicio de la otra, con el margen de TOLERANCIA_ADYACENCIA_MIN), NO
@@ -657,7 +657,14 @@ function commitCronogramaDragResult(drag) {
            Math.abs(r.start - origRange.endMin) <= tol;     // vecina siguiente
   };
   const snappedStart = snapStartAfterTaskBelow(targetDateStr, newStartMin, drag.task.id, wasGluedTo);
-  if (snappedStart < 1440) newStartMin = snappedStart;
+  if (snappedStart !== newStartMin && snappedStart < 1440) {
+    const choice = await askCronogramaOverlap(newStartMin, snappedStart);
+    if (choice === 'cancel' || !tasks.includes(drag.task)) {
+      renderCronograma();
+      return;
+    }
+    if (choice === 'adjust') newStartMin = snappedStart;
+  }
   const newEndMin = newStartMin + drag.durationMin; // puede superar 1440 (cruza medianoche)
 
   // ── CTRL/CMD → COPIAR (crear un clon independiente) ────────────────────────
@@ -736,6 +743,74 @@ function commitCronogramaDragResult(drag) {
   } else {
     openAdjacentTasksModal(pendingAdjacent.affectations);
   }
+}
+
+// Mismo diseño que el aviso de conflicto de hora de fin.
+function askCronogramaOverlap(droppedStart, proposedStart) {
+  return new Promise(resolve => {
+    const previousFocus = document.activeElement;
+    const overlay = document.createElement('div');
+    overlay.className = 'endtime-conflict-overlay horario-overlap-overlay';
+    const box = document.createElement('div');
+    box.className = 'endtime-conflict-box';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-labelledby', 'horario-overlap-title');
+    box.setAttribute('aria-describedby', 'horario-overlap-desc');
+    const title = document.createElement('h3');
+    title.id = 'horario-overlap-title';
+    title.className = 'endtime-conflict-title';
+    title.textContent = 'Tareas superpuestas';
+    const description = document.createElement('p');
+    description.id = 'horario-overlap-desc';
+    description.className = 'endtime-conflict-desc';
+    description.textContent = 'La hora de inicio coincide con otra tarea. ¿Quieres moverla al final de las tareas que ocupan ese horario? Se conservará su duración. Si eliges Conservar, quedará donde la soltaste.';
+    const info = document.createElement('div');
+    info.className = 'endtime-conflict-info';
+    for (const [label, minutes] of [['Al soltar', droppedStart], ['Inicio propuesto', proposedStart]]) {
+      const row = document.createElement('div');
+      const caption = document.createElement('span');
+      caption.textContent = label;
+      const value = document.createElement('strong');
+      value.textContent = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+      row.append(caption, value);
+      info.appendChild(row);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'endtime-conflict-actions';
+    const buttons = [];
+    const finish = choice => {
+      document.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+      if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+      resolve(choice);
+    };
+    const onKey = e => {
+      // Evitar que los atajos del calendario actúen detrás del diálogo.
+      e.stopImmediatePropagation();
+      if (e.key === 'Escape') { e.preventDefault(); finish('cancel'); }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const index = buttons.indexOf(document.activeElement);
+        buttons[(index + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length].focus();
+      }
+    };
+    for (const [label, choice] of [['Cancelar', 'cancel'], ['Conservar', 'keep'], ['Ajustar', 'adjust']]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = choice === 'adjust' ? 'btn btn-primary' : 'btn btn-secondary';
+      button.textContent = label;
+      button.addEventListener('click', () => finish(choice));
+      buttons.push(button);
+      actions.appendChild(button);
+    }
+    box.append(title, description, info, actions);
+    overlay.appendChild(box);
+    overlay.addEventListener('click', e => { if (e.target === overlay) finish('cancel'); });
+    document.body.appendChild(overlay);
+    document.addEventListener('keydown', onKey, true);
+    buttons[1].focus();
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1707,7 +1782,7 @@ function createTaskCard(task, occurrenceDate) {
 // iniciar el cronómetro de esa tarea (tras confirmación). Funciona con ratón y
 // táctil. Si se dispara el long-press, se anula el click de completar que vendría
 // después. Reutilizable por las tarjetas del planner y los bloques del horario.
-const CHECKBOX_TIMER_LONGPRESS_MS = 1500; // mantener presionado el checkbox → colocar en la línea de tiempo
+const CHECKBOX_TIMER_LONGPRESS_MS = 1500; // mantener presionado el checkbox → colocar en el horario
 function attachCheckboxLongPressTimer(checkBtn, task, occurrenceDate) {
   let pressTimer = null;
   let longPressed = false;
@@ -1750,9 +1825,9 @@ function attachCheckboxLongPressTimer(checkBtn, task, occurrenceDate) {
   }, true); // captura: corre antes que el listener de completar
 }
 
-// ─── Colocar tarea en la línea de tiempo (long-press en el checkbox) ─────────
+// ─── Colocar tarea en el horario (long-press en el checkbox) ─────────
 // Al mantener presionado el checkbox de una tarea en el modo Lista de tareas se
-// cambia al modo Línea de tiempo y el usuario elige dónde colocarla (clic/toque
+// cambia al modo Horario y el usuario elige dónde colocarla (clic/toque
 // en un día y hora, en intervalos de 30 min). Si la tarea no tiene duración, se
 // le asigna la duración por defecto de Preferencias. Al colocarla, queda
 // marcada como COMPLETADA. Esc o "Cancelar" abandonan sin cambios.
@@ -1823,7 +1898,7 @@ function showTaskPlacementBanner() {
   const text = document.createElement('span');
   text.textContent = isMobile()
     ? 'Arrastra «' + taskPlacement.title + '» o toca una hora'
-    : 'Haz clic en la línea de tiempo para colocar «' + taskPlacement.title + '»';
+    : 'Haz clic en el horario para colocar «' + taskPlacement.title + '»';
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'btn btn-secondary';
@@ -2021,13 +2096,13 @@ function handleDragStart(e) {
   e.dataTransfer.setData('text/plain', draggedTaskId);
   e.dataTransfer.effectAllowed = 'copyMove';
   document.body.classList.add('dragging-active');
-  // Escritorio en modo Línea de tiempo: sustituir la imagen nativa de arrastre
+  // Escritorio en modo Horario: sustituir la imagen nativa de arrastre
   // por una tarjeta propia, que se oculta sobre el horario (ahí se ve la vista
   // previa del bloque). Así no se ven dos previsualizaciones a la vez.
   if (cronogramaActive && !isMobile()) startCronogramaDragFollower(this, e);
 }
 
-// ── Tarjeta que sigue al cursor al arrastrar (HTML5) en modo Línea de tiempo ──
+// ── Tarjeta que sigue al cursor al arrastrar (HTML5) en modo Horario ──
 let crDragFollower = null;
 let crDragFollowerOffset = { x: 0, y: 0 };
 
@@ -3193,7 +3268,7 @@ function openTaskModal(taskId = null, occurrenceDate = null) {
   if (!selectedTaskId) {
     const titleEl = document.getElementById('task-input-title');
     titleEl.focus();
-    // En el modo Línea de tiempo el modal se abre desde un `pointerdown`; el `mouseup`/
+    // En el modo Horario el modal se abre desde un `pointerdown`; el `mouseup`/
     // `click` que le sigue puede robar el foco recién puesto. Reaplicamos el foco
     // tras finalizar el gesto para que se pueda escribir el título de inmediato,
     // igual que en la lista de tareas. Dos respaldos (rAF y un timeout breve) cubren los
@@ -3288,7 +3363,7 @@ function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
           startTime, endTime, duration, recurrence, alarm } = formData;
 
   // Si la tarea se guarda sin título, asignar uno automático. Esto cubre todos
-  // los flujos de creación/edición (modo linea de tiempo y modo lista de tareas, escritorio y
+  // los flujos de creación/edición (modo horario y modo checklist, escritorio y
   // móvil), ya que todos pasan por aquí.
   if (!title || !title.trim()) {
     title = 'Tarea sin título';

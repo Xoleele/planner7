@@ -5436,6 +5436,9 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   padding: 22px 22px 18px;
   box-sizing: border-box;
 }
+.horario-overlap-overlay {
+  z-index: 3000;
+}
 .endtime-conflict-title {
   margin: 0 0 8px;
   font-size: 17px;
@@ -5976,7 +5979,7 @@ body.hide-task-desc .cr-task-desc {
   display: none !important;
 }
 
-/* Colocar tarea en la línea de tiempo (long-press en el checkbox). */
+/* Colocar tarea en el horario (long-press en el checkbox). */
 .task-placement-banner {
   position: fixed;
   left: 50%;

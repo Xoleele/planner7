@@ -2530,7 +2530,7 @@ const CRONOGRAMA_DAY_NAMES = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNE
 // (el mismo patrón que activa las "duraciones"). Devuelve { startMin, endMin }
 // en minutos desde medianoche, o null si la descripción no empieza con un rango
 // válido. Para rangos que cruzan medianoche (fin <= inicio) se recorta el fin a
-// las 24:00 (1440) para que el bloque no desborde la línea de tiempo del día.
+// las 24:00 (1440) para que el bloque no desbordel horario del día.
 function parseTimeRangeFromDescription(description) {
   if (!description || typeof description !== 'string') return null;
   const s = description.trimStart();
@@ -3118,7 +3118,7 @@ function toggleCronograma() {
   cronogramaActive = !cronogramaActive;
   document.body.classList.toggle('cronograma-active', cronogramaActive);
   if (!cronogramaActive && taskPlacement) endTaskPlacement();
-  showModeToast(cronogramaActive ? 'Modo Línea de tiempo' : 'Modo Checklist');
+  showModeToast(cronogramaActive ? 'Modo Horario' : 'Modo Checklist');
 
   // Recordar la vista elegida para la próxima vez que se abra la app.
   try {
@@ -3158,7 +3158,7 @@ function toggleCronograma() {
       });
     } else {
       // Escritorio: la lista de tareas debe mostrar la MISMA semana que se
-      // estaba viendo en la línea de tiempo (ambas comparten currentWeekStart,
+      // estaba viendo en el horario (ambas comparten currentWeekStart,
       // pero la lista no se redibujaba al volver y quedaba en la semana vieja).
       renderWeeklyCalendar();
       const label = document.getElementById('week-range-label');
@@ -3174,13 +3174,13 @@ function toggleCronograma() {
 function updateViewToggleMenuLabel() {
   const btn = document.getElementById('nav-view-toggle-btn');
   if (btn) {
-    btn.title = cronogramaActive ? 'Vista Checklist' : 'Vista Línea de tiempo';
+    btn.title = cronogramaActive ? 'Vista Checklist' : 'Vista Horario';
     btn.setAttribute('aria-label', btn.title);
     const img = btn.querySelector('img');
     if (img) {
       if (cronogramaActive) {
         img.src = 'icons/clock.svg';
-        img.alt = 'Modo línea de tiempo';
+        img.alt = 'Modo horario';
         img.setAttribute('width', '17');
         img.setAttribute('height', '17');
       } else {
