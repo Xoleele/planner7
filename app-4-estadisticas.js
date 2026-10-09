@@ -44,7 +44,7 @@ function resolveStatsMerge(map, key) {
 // ─── Estadísticas generales (menú de usuario): ajustes de ETIQUETAS guardados ──
 // Se guardan en la cuenta solo las elecciones relacionadas con etiquetas:
 //  · generalStatsHiddenTags: etiquetas ocultas en la lista (todas las vistas/periodos).
-//  · generalStatsLineTags:   etiquetas elegidas en el gráfico Lineal (máx. 3).
+//  · generalStatsLineTags:   etiquetas elegidas en el gráfico Lineal.
 //  · generalStatsHabitTag:   etiqueta elegida en Hábitos / Mapa de calor.
 // (Las fusiones de actividades ya son globales y se guardan aparte.)
 let generalStatsHiddenTags = new Set();
@@ -71,6 +71,26 @@ function saveGeneralStatsTagPrefs() {
 function rememberGeneralStatsLineTags() {
   generalStatsSavedLineTags = [...lineStatsActiveTags];
   saveGeneralStatsTagPrefs();
+}
+
+// Shift + clic: aislar una actividad o volver a activar todas las del listado.
+function toggleStatsActivityIsolation(groupName, groupedList, excludedSet, prefix) {
+  const isLine = prefix === 'general-stats' && generalStatsChartType === 'lineal';
+  const names = groupedList.map(group => group.name);
+  const active = names.filter(name => isLine ? lineStatsActiveTags.includes(name) : !excludedSet.has(name));
+  const enableAll = active.length === 0 || (active.length === 1 && active[0] === groupName);
+  if (isLine) {
+    lineStatsActiveTags = enableAll ? names : [groupName];
+    lineStatsNeedsAutoSelect = false;
+    rememberGeneralStatsLineTags();
+  } else {
+    names.forEach(name => {
+      if (enableAll || name === groupName) excludedSet.delete(name);
+      else excludedSet.add(name);
+    });
+    if (excludedSet === statsHiddenGroups) saveStatsHiddenGroups();
+    if (excludedSet === generalStatsHiddenTags) saveGeneralStatsTagPrefs();
+  }
 }
 
 // El usuario eligió la etiqueta de Hábitos / Mapa de calor.
@@ -1306,8 +1326,6 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   const rangeKey = typeof dateParam === 'string' ? dateParam : `range_${dateParam.from}_${dateParam.to}`;
   // Estadísticas generales: etiquetas ocultas globales (guardadas en la cuenta).
   const excludedSet = prefix === 'general-stats' ? generalStatsHiddenTags : getExcludedSetForDate(rangeKey);
-  const includedGroups = groupedList.filter(g => !excludedSet.has(g.name));
-  const totalIncludedMins = includedGroups.reduce((sum, g) => sum + g.minutes, 0);
   
   // Initialize lineStatsActiveTags if empty in lineal mode
   if (prefix === 'general-stats' && generalStatsChartType === 'lineal' && lineStatsNeedsAutoSelect && lineStatsActiveTags.length === 0) {
@@ -1320,6 +1338,19 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   if (prefix === 'general-stats' && generalStatsChartType === 'lineal') {
     lineStatsNeedsAutoSelect = false;
   }
+  const includedGroups = groupedList.filter(g => prefix === 'general-stats' && generalStatsChartType === 'lineal'
+    ? lineStatsActiveTags.includes(g.name) : !excludedSet.has(g.name));
+  const totalIncludedMins = includedGroups.reduce((sum, g) => sum + g.minutes, 0);
+  const handleShiftActivityClick = (e, group) => {
+    if (!e.shiftKey) return false;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    toggleStatsActivityIsolation(group.name, groupedList, excludedSet, prefix);
+    const tooltip = document.getElementById('stats-chart-tooltip');
+    if (tooltip) tooltip.classList.remove('visible');
+    renderDailyStatsPanel(panelEl, dateParam);
+    return true;
+  };
 
   // Renderizar gráfico
   const chartContainer = chartPlaceholder.parentElement;
@@ -1406,9 +1437,10 @@ function renderDailyStatsPanel(panelEl, dateParam) {
         const tooltip = getOrCreateChartTooltip();
         tooltip.classList.remove('visible');
       });
-      circle.addEventListener('click', () => {
+      circle.addEventListener('click', (e) => {
         const group = groupedList[Number(circle.dataset.statsGroupIndex)];
         if (!group) return;
+        if (handleShiftActivityClick(e, group)) return;
         getOrCreateChartTooltip().classList.remove('visible');
         openStatsChartDetail(group, circle.dataset.statsStartDate, circle.dataset.statsEndDate);
       });
@@ -1445,12 +1477,13 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     slice.addEventListener('mouseleave', () => {
       getOrCreateChartTooltip().classList.remove('visible');
     });
-    slice.addEventListener('click', () => {
+    slice.addEventListener('click', (e) => {
       const sourceGroups = prefix === 'general-stats' && generalStatsChartType === 'barras-apiladas'
         ? groupedList
         : includedGroups;
       const group = sourceGroups[Number(slice.dataset.statsGroupIndex)];
       if (!group) return;
+      if (handleShiftActivityClick(e, group)) return;
       getOrCreateChartTooltip().classList.remove('visible');
       openStatsChartDetail(group, slice.dataset.statsStartDate, slice.dataset.statsEndDate);
     });
@@ -1530,6 +1563,8 @@ function renderDailyStatsPanel(panelEl, dateParam) {
       
       const tr = document.createElement('tr');
       tr.className = 'daily-stats-row';
+      // Capturar antes de editar, combinar o usar el botón + de la fila.
+      tr.addEventListener('click', e => handleShiftActivityClick(e, group), true);
       if (statsMergeModeActive && statsMergeFirstSelected === group.name) {
         tr.classList.add('merge-selected');
       }
@@ -1636,13 +1671,9 @@ function renderDailyStatsPanel(panelEl, dateParam) {
             rememberGeneralStatsLineTags();
             renderDailyStatsPanel(panelEl, dateParam);
           } else {
-            if (lineStatsActiveTags.length >= 3) {
-              showCenterToast('Puedes seleccionar un máximo de 3 actividades.');
-            } else {
-              lineStatsActiveTags.push(group.name);
-              rememberGeneralStatsLineTags();
-              renderDailyStatsPanel(panelEl, dateParam);
-            }
+            lineStatsActiveTags.push(group.name);
+            rememberGeneralStatsLineTags();
+            renderDailyStatsPanel(panelEl, dateParam);
           }
         } else {
           if (isExcluded) {
@@ -1999,7 +2030,7 @@ function estadisticasGenerales(dateStr, resetFilter = false) {
       const savedAll = generalStatsSavedLineTags || [];
       if (generalStatsSavedLineTags && (savedLine.length > 0 || savedAll.length === 0)) {
         // (Si el usuario dejó todas apagadas, se respeta.)
-        lineStatsActiveTags = savedLine.slice(0, 3);
+        lineStatsActiveTags = [...savedLine];
         lineStatsNeedsAutoSelect = false;
       } else {
         lineStatsActiveTags = [];
@@ -3123,7 +3154,7 @@ function handleStatsMergeClick(group, tr) {
     }
 
     // Gráfico lineal: si la actividad absorbida estaba seleccionada como línea,
-    // su lugar lo ocupa la actividad destino (sin pasar el máximo de 3).
+    // su lugar lo ocupa la actividad destino.
     if (activeStatsPrefix === 'general-stats' && generalStatsChartType === 'lineal'
         && lineStatsActiveTags.includes(group.name)) {
       lineStatsActiveTags = lineStatsActiveTags.filter(n => n !== group.name);

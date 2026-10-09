@@ -93,7 +93,7 @@ function applyUserSettingsFromPrefs(prefs) {
   if (typeof generalStatsHiddenTags !== 'undefined') {
     generalStatsHiddenTags.clear();
     (Array.isArray(prefs.generalStatsHiddenTags) ? prefs.generalStatsHiddenTags : []).forEach(n => generalStatsHiddenTags.add(n));
-    generalStatsSavedLineTags = Array.isArray(prefs.generalStatsLineTags) ? prefs.generalStatsLineTags.slice(0, 3) : null;
+    generalStatsSavedLineTags = Array.isArray(prefs.generalStatsLineTags) ? [...prefs.generalStatsLineTags] : null;
     // Hábitos y Mapa de calor guardan su actividad por separado. Si solo existe
     // la elección antigua (una para ambos), se usa como punto de partida.
     const oldHabit = prefs.generalStatsHabitTag || null;
