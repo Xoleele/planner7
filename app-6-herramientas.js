@@ -523,13 +523,14 @@ function setupEventListeners() {
 
   // Navegación con flechas del teclado (solo escritorio)
   document.addEventListener('keydown', (e) => {
+    if ((e.key === 'c' || e.key === 'C') && (e.isComposing || e.repeat)) return;
     // Atajos que abren una ventana también la cierran (B = Buscador,
-    // L = Actividades). Solo si esa ventana es la única abierta y no se está
+    // L = Actividades, C = Configuración). Solo si esa ventana es la única abierta y no se está
     // escribiendo en un campo. Se cierra con su propia X para que corra la
     // misma lógica de cierre.
     if (!e.ctrlKey && !e.metaKey && !e.altKey && !isMobile()) {
       const k = (e.key || '').toLowerCase();
-      const targetId = k === 'b' ? 'buscador-modal' : k === 'l' ? 'tags-modal' : null;
+      const targetId = k === 'b' ? 'buscador-modal' : k === 'l' ? 'tags-modal' : k === 'c' ? 'settings-modal' : null;
       const target = targetId && document.getElementById(targetId);
       if (target && !target.classList.contains('hidden')) {
         const ae = document.activeElement;
@@ -638,6 +639,12 @@ function setupEventListeners() {
       const dd = document.getElementById('user-dropdown');
       if (dd) dd.remove();
       openBuscadorModal();
+    } else if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (tag === 'SELECT' || isAnyOverlayOpen()) return;
+      e.preventDefault();
+      const dd = document.getElementById('user-dropdown');
+      if (dd) dd.remove();
+      openSettingsModal();
     } else if ((e.key === 'l' || e.key === 'L') && !e.ctrlKey && !e.metaKey && !e.altKey) {
       // Atajo L: abrir el panel de actividades, solo si no hay ninguna ventana abierta.
       if (isAnyOverlayOpen()) return;

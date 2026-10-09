@@ -5925,12 +5925,11 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 .settings-label label { cursor: pointer; }
 .settings-label label { white-space: nowrap; }
 .settings-row select { width: auto; min-width: 96px; flex: 0 0 auto; }
-.settings-row.settings-row-stacked {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
+.settings-row #setting-completed-fade {
+  width: 136px;
+  padding-left: 8px;
+  padding-right: 8px;
 }
-.settings-row-stacked select { width: 100%; min-width: 0; }
 .settings-info-btn {
   display: inline-flex;
   align-items: center;
