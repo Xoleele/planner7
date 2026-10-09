@@ -875,6 +875,7 @@ function applyActivityIsolation() {
   document.querySelectorAll('.cronograma-grid .cr-task-block[data-task-id]').forEach(block => {
     block.classList.toggle('activity-hidden', isTaskHiddenByActivityIsolation(byId.get(block.dataset.taskId)));
   });
+  document.querySelectorAll('.cronograma-grid .cr-day-col').forEach(updateCronogramaOverlapOffsets);
 }
 
 function isolateActivity(tagId) {
@@ -3545,7 +3546,27 @@ function renderCronogramaDayBlocks(colEl, date) {
   // a igual duración se conserva el orden previo, incluyendo las colas.
   blocks.sort((a, b) => b.duration - a.duration);
   blocks.forEach(({ block }) => colEl.appendChild(block));
+  updateCronogramaOverlapOffsets(colEl);
   return blocks.length;
+}
+
+// Seguir el orden de pintado: cada tarjeta deja ver el borde de las que tapa.
+function updateCronogramaOverlapOffsets(colEl) {
+  const visibleBlocks = [];
+  colEl.querySelectorAll('.cr-task-block[data-task-id]').forEach(block => {
+    block.style.removeProperty('--cr-overlap-offset');
+    if (block.classList.contains('activity-hidden')) return;
+    const start = Number(block.dataset.topMin);
+    const end = Number(block.dataset.bottomMin);
+    let depth = 0;
+    visibleBlocks.forEach(behind => {
+      if (start < behind.end && end > behind.start) {
+        depth = Math.max(depth, behind.depth + 1);
+      }
+    });
+    block.style.setProperty('--cr-overlap-offset', (depth * 8) + 'px');
+    visibleBlocks.push({ start, end, depth });
+  });
 }
 
 // Maneja el clic en un espacio vacío de una columna del horario para crear una

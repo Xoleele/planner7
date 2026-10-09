@@ -4993,7 +4993,8 @@ body.cronograma-active .planner-grid { display: none; }
 .cr-task-block {
   position: absolute;
   isolation: isolate; /* El contenido de cada tarea respeta el orden por duración. */
-  left: 3px;
+  /* Sangría por superposición; limitarla para conservar espacio en columnas estrechas. */
+  left: calc(3px + min(var(--cr-overlap-offset, 0px), 40%));
   right: 3px;
   border-radius: var(--radius-md);
   padding: 12px 30px 12px 14px;
