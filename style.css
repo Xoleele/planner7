@@ -5697,6 +5697,10 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   background-color: #fafafa;
 }
 
+.daily-stats-total-duration {
+  white-space: nowrap;
+}
+
 .daily-stats-totals-wrapper {
   margin-top: 4px;
   border-top: 1.5px solid var(--border-light);

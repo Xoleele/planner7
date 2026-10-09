@@ -435,7 +435,7 @@ function renderStackedBarChartSVG(occurrences, dates, groupedList, excludedSet) 
   
   let unit = 'dias';
   let qty = dates.length;
-  if (periodVal === 'personalizado' && generalStatsDateRange) {
+  if ((periodVal === 'personalizado' || periodVal === '8semanas') && generalStatsDateRange) {
     unit = generalStatsDateRange.unit || 'dias';
     qty = generalStatsDateRange.qty || dates.length;
   } else if (periodVal === 'semanal' || periodVal === '7dias') {
@@ -566,10 +566,10 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   const x_right = 190;
   const plotWidth = x_right - x_left;
 
-  // Periodo personalizado en semanas o meses (igual que en Barras apiladas):
+  // Periodos en semanas o meses (igual que en Barras apiladas):
   // cada punto suma las horas de una semana / mes en lugar de un día.
   const rng = generalStatsDateRange;
-  const bucketDays = (rng && rng.custom && (rng.unit === 'semanas' || rng.unit === 'meses'))
+  const bucketDays = (rng && (rng.unit === 'semanas' || rng.unit === 'meses'))
     ? (rng.unit === 'semanas' ? 7 : 30) : 1;
   const bucketUnit = bucketDays === 7 ? 'Semana' : (bucketDays === 30 ? 'Mes' : '');
   const buckets = [];
@@ -1672,13 +1672,12 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     trTotal.className = 'daily-stats-total-row';
     trTotal.style.fontWeight = '700';
     
-    const tdTotalName = document.createElement('td');
-    tdTotalName.textContent = '';
-    trTotal.appendChild(tdTotalName);
-    
     const tdTotalDuration = document.createElement('td');
+    // Aprovechar el espacio vacío de la actividad para que el total crezca
+    // hacia la izquierda sin invadir la columna del porcentaje.
+    tdTotalDuration.colSpan = 2;
+    tdTotalDuration.className = 'daily-stats-total-duration';
     tdTotalDuration.style.textAlign = 'right';
-    tdTotalDuration.style.width = '62px';
     tdTotalDuration.textContent = minutesToReadable(totalIncludedMins);
     trTotal.appendChild(tdTotalDuration);
     
@@ -1918,10 +1917,11 @@ function updatePeriodSelectOptions() {
   if (generalStatsChartType === 'barras-apiladas') {
     periodSelect.innerHTML = `
       <option value="7dias">Últimos 7 días</option>
+      <option value="8semanas">Últimas 8 semanas</option>
       <option value="semanal">Semanal</option>
       <option value="personalizado">Personalizado</option>
     `;
-    if (currentVal === 'semanal' || currentVal === 'personalizado') {
+    if (currentVal === '8semanas' || currentVal === 'semanal' || currentVal === 'personalizado') {
       periodSelect.value = currentVal;
     } else {
       periodSelect.value = '7dias';
@@ -1930,10 +1930,11 @@ function updatePeriodSelectOptions() {
     periodSelect.innerHTML = `
       <option value="10dias">Últimos 10 días</option>
       <option value="30dias">Últimos 30 días</option>
+      <option value="12semanas">Últimas 12 semanas</option>
       <option value="semanal">Semanal</option>
       <option value="personalizado">Personalizado</option>
     `;
-    if (currentVal === '10dias' || currentVal === '30dias' || currentVal === 'semanal' || currentVal === 'personalizado') {
+    if (currentVal === '10dias' || currentVal === '30dias' || currentVal === '12semanas' || currentVal === 'semanal' || currentVal === 'personalizado') {
       periodSelect.value = currentVal;
     } else {
       periodSelect.value = '10dias';
@@ -2105,6 +2106,12 @@ function rememberGeneralStatsPeriod() {
 
 // Rango de fechas para un valor del selector de periodo.
 function generalStatsRangeForPeriod(v, refDateStr) {
+  if (v === '8semanas') {
+    return { ...lastNDaysRange(56, refDateStr), unit: 'semanas', qty: 8 };
+  }
+  if (v === '12semanas') {
+    return { ...lastNDaysRange(84, refDateStr), unit: 'semanas', qty: 12 };
+  }
   const m = /^(\d+)dias$/.exec(v);
   if (m) return lastNDaysRange(parseInt(m[1], 10), refDateStr, generalStatsChartType === 'habitos');
   if (v === 'semanal') {
@@ -2175,6 +2182,9 @@ function handleGeneralStatsPeriodChange() {
     renderGeneralStatsForRange();
   } else if (val === '10dias') {
     generalStatsDateRange = lastNDaysRange(10);
+    renderGeneralStatsForRange();
+  } else if (val === '8semanas' || val === '12semanas') {
+    generalStatsDateRange = generalStatsRangeForPeriod(val);
     renderGeneralStatsForRange();
   } else if (val === '7dias') {
     generalStatsDateRange = lastNDaysRange(7);
