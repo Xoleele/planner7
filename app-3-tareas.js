@@ -236,7 +236,7 @@ function startCronogramaDrag(block, task, e) {
     targetColEl: block.parentElement,
     originalStartMin: range.startMin,
     newStartMin: range.startMin,
-    sourceDate: task.date,        // día de origen (para copiar/mover)
+    sourceDate: block.parentElement.dataset.date || task.date, // ocurrencia arrastrada
     copy: !!(e.ctrlKey || e.metaKey), // Ctrl/Cmd → copiar en vez de mover
     overTrash: false,             // ¿el puntero está sobre la papelera?
     overBriefcase: false,         // ¿el puntero está sobre el archivado (maletín)?
@@ -649,7 +649,7 @@ async function commitCronogramaDragResult(drag) {
   // pregunta si modificar la vecina.
   const origRange = getTaskTimeRange(drag.task);
   const origDateStr = drag.sourceDate || drag.task.date;
-  const targetDateStr = newDateStr || drag.task.date;
+  const targetDateStr = newDateStr || origDateStr;
   const wasGluedTo = (r) => {
     if (!origRange || r.tail || targetDateStr !== origDateStr) return false;
     const tol = TOLERANCIA_ADYACENCIA_MIN;
@@ -680,7 +680,7 @@ async function commitCronogramaDragResult(drag) {
     const clon = {
       ...drag.task,
       id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
-      date: newDateStr || drag.task.date,
+      date: newDateStr || origDateStr,
       startTime: toHHMM(newStartMin),
       endTime: toHHMM(newEndMin)
     };
@@ -695,32 +695,80 @@ async function commitCronogramaDragResult(drag) {
 
   const oldStart = (getTaskTimeRange(drag.task) || {}).startMin;
   const sameTime = oldStart === newStartMin;
-  const sameDay = !newDateStr || newDateStr === drag.task.date;
-  if (sameTime && sameDay) {
+  const sameDay = !newDateStr || newDateStr === origDateStr;
+  const originalDuration = origRange
+    ? (origRange.crossesMidnight ? origRange.rawEndMin + 1440 : origRange.rawEndMin) - origRange.startMin
+    : drag.task.duration;
+  if (sameTime && sameDay && drag.durationMin === originalDuration) {
     renderCronograma(); // restaurar posición exacta por si el snap no cambió nada
     return;
+  }
+
+  const originalTask = drag.task;
+  const isRecurring = !!(originalTask.recurrence && originalTask.recurrence.enabled);
+  let scope = 'all';
+  if (isRecurring) {
+    renderCronograma();
+    scope = await askCronogramaRecurringScope();
+    if (scope === 'cancel' || !tasks.includes(originalTask)) {
+      renderCronograma();
+      return;
+    }
   }
 
   pushToUndoStack();
 
   // Guardar el horario ORIGINAL (para detección de adyacencia y para revertir si
   // el usuario cancela el aviso) ANTES de mutar la tarea.
-  const dragOldRange = getTaskAbsoluteRange(drag.task);
+  const dragOldRange = getTaskAbsoluteRange({ ...originalTask, date: origDateStr });
   const dragRevert = {
     startTime: drag.task.startTime,
     endTime: drag.task.endTime,
     date: drag.task.date,
     duration: drag.task.duration
   };
+  const originalRecurrence = isRecurring ? structuredClone(originalTask.recurrence) : null;
+  let restoreRecurringDrag = null;
+  if (isRecurring) {
+    restoreRecurringDrag = () => {
+      if (drag.task !== originalTask) tasks = tasks.filter(t => t !== drag.task);
+      Object.assign(originalTask, dragRevert, { recurrence: originalRecurrence });
+    };
+    if (scope === 'only-this') {
+      const standalone = {
+        ...originalTask,
+        id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+        date: newDateStr || origDateStr,
+        recurrence: null,
+        completed: !!(originalTask.completedOccurrences && originalTask.completedOccurrences.includes(origDateStr))
+      };
+      delete standalone.completedOccurrences;
+      delete standalone.positionOverrides;
+      if (!originalTask.recurrence.exceptions) originalTask.recurrence.exceptions = [];
+      if (!originalTask.recurrence.exceptions.includes(origDateStr)) originalTask.recurrence.exceptions.push(origDateStr);
+      tasks.push(standalone);
+      drag.task = standalone;
+    }
+  }
 
   // Actualizar la hora en los CAMPOS (manteniendo la duración). El fin se envuelve
   // a 24h si la tarea cruza medianoche.
   drag.task.startTime = toHHMM(newStartMin);
   drag.task.endTime = toHHMM(newEndMin);
+  drag.task.duration = drag.durationMin;
 
   // Cambiar el día si se soltó en otra columna.
-  if (newDateStr && newDateStr !== drag.task.date) {
-    drag.task.date = newDateStr;
+  if (newDateStr && newDateStr !== origDateStr) {
+    if (isRecurring && scope === 'all' && drag.task.recurrence.unit === 'weekly') {
+      const sourceDay = getAppDayIndex(new Date(origDateStr + 'T00:00:00'));
+      const targetDay = getAppDayIndex(new Date(newDateStr + 'T00:00:00'));
+      if (drag.task.recurrence.days) {
+        drag.task.recurrence.days = [...new Set(drag.task.recurrence.days.map(day => day === sourceDay ? targetDay : day))].sort((a, b) => a - b);
+      }
+      if (newDateStr < drag.task.date) drag.task.date = newDateStr;
+    } else {
+      drag.task.date = newDateStr;
+    }
   }
 
   // ── Aviso de tareas adyacentes tras el arrastre ───────────────────────────
@@ -729,13 +777,16 @@ async function commitCronogramaDragResult(drag) {
   // usuario decida (Conservar / Modificar). "Cancelar" revierte el arrastre.
   let adjacentPending = false;
   if (drag.task.startTime && drag.task.endTime && dragOldRange) {
-    const affectations = findAdjacentAffectedTasks(drag.task, dragOldRange);
+    const affectations = findAdjacentAffectedTasks(
+      { ...drag.task, date: newDateStr || origDateStr }, dragOldRange
+    ).filter(aff => aff.task !== originalTask);
     if (affectations.length > 0) {
       adjacentPending = true;
       pendingAdjacent = {
         mode: 'drag',
         task: drag.task,
         revert: dragRevert,
+        restore: restoreRecurringDrag,
         affectations
       };
     }
@@ -887,7 +938,7 @@ function beginCronogramaTouchDrag() {
     originColEl: block.parentElement,
     originTopPx: range.startMin,
     ghost: null,
-    sourceDate: task.date,
+    sourceDate: block.parentElement.dataset.date || task.date,
     copy: false,        // copiar con Ctrl es solo de escritorio
     overTrash: false,
     overBriefcase: false,
@@ -3291,6 +3342,7 @@ function closeTaskModal() {
 let pendingEditFormData = null;
 let pendingEditTaskId = null;
 let pendingEditOccurrenceDate = null;
+let pendingCronogramaScopeResolve = null;
 
 // Contexto pendiente para el aviso de tareas adyacentes (horario coincidente).
 let pendingAdjacent = null; // { formData, taskId, occurrenceDate, affectations }
@@ -3305,12 +3357,24 @@ function openEditRecurringModal() {
   if (modal) modal.classList.remove('hidden');
 }
 
-function closeEditRecurringModal() {
+function askCronogramaRecurringScope() {
+  return new Promise(resolve => {
+    pendingCronogramaScopeResolve = resolve;
+    openEditRecurringModal();
+  });
+}
+
+function closeEditRecurringModal(scope = 'cancel') {
   const modal = document.getElementById('edit-recurring-modal');
   if (modal) modal.classList.add('hidden');
   pendingEditFormData = null;
   pendingEditTaskId = null;
   pendingEditOccurrenceDate = null;
+  if (pendingCronogramaScopeResolve) {
+    const resolve = pendingCronogramaScopeResolve;
+    pendingCronogramaScopeResolve = null;
+    resolve(scope);
+  }
 }
 
 // ─── Aviso de tareas adyacentes (horario coincidente) ─────────────────────

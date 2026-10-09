@@ -1092,12 +1092,15 @@ function setupEventListeners() {
     //    revertir la tarea a su horario original (sin persistir el arrastre).
     const onCancel = () => {
       if (pendingAdjacent && pendingAdjacent.mode === 'drag') {
-        const { task, revert } = pendingAdjacent;
+        const { task, revert, restore } = pendingAdjacent;
         if (task && revert) {
-          task.startTime = revert.startTime;
-          task.endTime = revert.endTime;
-          task.date = revert.date;
-          if (revert.duration !== undefined) task.duration = revert.duration;
+          if (restore) restore();
+          else {
+            task.startTime = revert.startTime;
+            task.endTime = revert.endTime;
+            task.date = revert.date;
+            if (revert.duration !== undefined) task.duration = revert.duration;
+          }
           // El arrastre nunca se guardó; al revertir basta con re-render. No es
           // necesario guardar (el estado persistido sigue siendo el original).
           if (typeof renderCronograma === 'function') renderCronograma();
@@ -1349,6 +1352,10 @@ function setupEventListeners() {
   });
   const editOnlyThisBtn = document.getElementById('edit-only-this-btn');
   if (editOnlyThisBtn) editOnlyThisBtn.addEventListener('click', () => {
+    if (pendingCronogramaScopeResolve) {
+      closeEditRecurringModal('only-this');
+      return;
+    }
     if (pendingMoveTask) {
       executeMoveTask('only-this', pendingMoveTask); pendingMoveTask = null;
     } else if (pendingEditFormData) {
@@ -1359,6 +1366,10 @@ function setupEventListeners() {
   });
   const editAllBtn = document.getElementById('edit-all-occurrences-btn');
   if (editAllBtn) editAllBtn.addEventListener('click', () => {
+    if (pendingCronogramaScopeResolve) {
+      closeEditRecurringModal('all');
+      return;
+    }
     if (pendingMoveTask) {
       executeMoveTask('all', pendingMoveTask); pendingMoveTask = null;
     } else if (pendingEditFormData) {
