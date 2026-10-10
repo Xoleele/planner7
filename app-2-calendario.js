@@ -3557,9 +3557,11 @@ function updateCronogramaOverlapOffsets(colEl) {
   const visibleBlocks = [];
   colEl.querySelectorAll('.cr-task-block[data-task-id]').forEach(block => {
     block.style.removeProperty('--cr-overlap-offset');
-    if (block.classList.contains('activity-hidden')) return;
     const start = Number(block.dataset.topMin);
     const end = Number(block.dataset.bottomMin);
+    // Restablecer la altura real antes de recalcular las uniones visibles.
+    block.style.height = (end - start) + 'px';
+    if (block.classList.contains('activity-hidden')) return;
     let depth = 0;
     visibleBlocks.forEach(behind => {
       if (start < behind.end && end > behind.start) {
@@ -3567,7 +3569,16 @@ function updateCronogramaOverlapOffsets(colEl) {
       }
     });
     block.style.setProperty('--cr-overlap-offset', (depth * 5) + 'px');
-    visibleBlocks.push({ start, end, depth });
+    visibleBlocks.push({ block, start, end, depth });
+  });
+  // El escalado del escritorio puede dejar una costura clara entre dos bordes
+  // que coinciden. Prolongar 1px el bloque anterior cubre ese suavizado; la
+  // siguiente tarjeta se pinta encima. Los rangos horarios conservan su valor.
+  const starts = new Set(visibleBlocks.map(({ start }) => start));
+  visibleBlocks.forEach(({ block, start, end }) => {
+    if (end < 1440 && starts.has(end)) {
+      block.style.height = (end - start + 1) + 'px';
+    }
   });
 }
 
