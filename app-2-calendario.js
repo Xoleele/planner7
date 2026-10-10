@@ -3488,9 +3488,9 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
 function renderCronogramaDayBlocks(colEl, date) {
   const dateStr = formatDate(date);
   const blocks = [];
-  const addBlock = (block, range) => {
-    const duration = (range.crossesMidnight ? range.rawEndMin + 1440 : range.rawEndMin) - range.startMin;
-    blocks.push({ block, duration });
+  const addBlock = (block, range, dayOffset = 0) => {
+    const startMin = range.startMin + dayOffset * 1440;
+    blocks.push({ block, startMin });
   };
 
   const isTaskCompleted = (task, dStr) => task.recurrence && task.recurrence.enabled
@@ -3539,12 +3539,13 @@ function renderCronogramaDayBlocks(colEl, date) {
       isTaskCompleted(task, prevDateStr), tag, task, prevDateStr, true
     );
     if (!block) return; // colas < CR_MIN_BLOCK_MIN no se dibujan
-    addBlock(block, range);
+    addBlock(block, range, -1);
   });
 
-  // Las más cortas se pintan al final y quedan encima. El sort es estable:
-  // a igual duración se conserva el orden previo, incluyendo las colas.
-  blocks.sort((a, b) => b.duration - a.duration);
+  // Las que empiezan después se pintan al final y quedan encima. Las colas
+  // conservan su inicio en el día anterior, no el recorte visible de las 00:00.
+  // A igual inicio se conserva el orden previo (sort estable).
+  blocks.sort((a, b) => a.startMin - b.startMin);
   blocks.forEach(({ block }) => colEl.appendChild(block));
   updateCronogramaOverlapOffsets(colEl);
   return blocks.length;
@@ -3564,7 +3565,7 @@ function updateCronogramaOverlapOffsets(colEl) {
         depth = Math.max(depth, behind.depth + 1);
       }
     });
-    block.style.setProperty('--cr-overlap-offset', (depth * 8) + 'px');
+    block.style.setProperty('--cr-overlap-offset', (depth * 5) + 'px');
     visibleBlocks.push({ start, end, depth });
   });
 }

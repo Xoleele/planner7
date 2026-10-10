@@ -4992,7 +4992,7 @@ body.cronograma-active .planner-grid { display: none; }
    contenido no cabe, se recorta con overflow oculto. */
 .cr-task-block {
   position: absolute;
-  isolation: isolate; /* El contenido de cada tarea respeta el orden por duración. */
+  isolation: isolate; /* El contenido de cada tarea respeta el orden por inicio. */
   /* Sangría por superposición; limitarla para conservar espacio en columnas estrechas. */
   left: calc(3px + min(var(--cr-overlap-offset, 0px), 40%));
   right: 3px;
