@@ -526,6 +526,7 @@ function applyCronogramaDragMove(clientX, clientY) {
 
   // Mover visualmente el bloque (alto fijo = duración, recortado a fin de día).
   crDrag.block.style.top = startMin + 'px';
+  crDrag.block.style.setProperty('--cr-grid-offset', -startMin + 'px');
   const visibleEnd = Math.min(startMin + crDrag.durationMin, 1440);
   crDrag.block.style.height = Math.max(visibleEnd - startMin, Math.min(16, crDrag.durationMin)) + 'px';
 

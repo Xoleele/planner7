@@ -5111,6 +5111,20 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   background-color: color-mix(in srgb,
     var(--tag-bg, #f2f2f7) calc(var(--completed-horario-opacity, 0.40) * 100%),
     var(--bg-card, #ffffff));
+  /* Reproducir las líneas del fondo sin dejar ver otras tarjetas. */
+  background-image: linear-gradient(to bottom,
+    color-mix(in srgb,
+      var(--tag-bg, #f2f2f7) calc(var(--completed-horario-opacity, 0.40) * 100%),
+      var(--border-light)) 0 1px,
+    transparent 1px);
+  /* Un mosaico de una hora evita reiniciar las líneas al repetir la tarjeta. */
+  background-size: 100% var(--hour-height, 60px);
+  background-repeat: repeat-y;
+  background-position: 0 var(--cr-grid-offset, 0px);
+  background-origin: border-box;
+}
+.cr-task-block.completed.cr-floating {
+  background-image: none;
 }
 .cr-task-block.completed .cr-task-title,
 .cr-task-block.completed .cr-task-time-row,

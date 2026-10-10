@@ -3325,6 +3325,7 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   // altura REAL para no tapar visualmente la tarea que viene justo después.
   const heightPx = Math.max(bottomMin - topMin, Math.min(16, durationMin));
   block.style.top = topMin + 'px';
+  block.style.setProperty('--cr-grid-offset', -topMin + 'px');
   block.style.height = heightPx + 'px';
   // Guardar el rango REAL (minutos) para distinguir clics dentro de la tarea de
   // clics en el píxel sobrante cuando la altura visual se infla al mínimo (16px).
