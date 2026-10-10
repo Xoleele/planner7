@@ -49,6 +49,29 @@
     <p class="stats-period" id="stats-period"></p>
     <div id="stats-list"></div>
   </dialog>
+  <dialog class="stats-dialog habit-editor" id="habit-editor" aria-labelledby="habit-editor-title">
+    <form id="habit-form">
+      <header class="stats-header">
+        <h2 id="habit-editor-title">Editar hábito</h2>
+        <div class="modal-header-actions">
+          <button class="icon-button delete-habit" id="delete-habit" type="button" title="Eliminar hábito" aria-label="Eliminar hábito"><img src="icons/trash.svg" alt=""></button>
+          <button class="icon-button" id="close-editor" type="button" aria-label="Cerrar editor"><img src="icons/close.svg" alt=""></button>
+        </div>
+      </header>
+      <label class="field-label" for="habit-name">Nombre</label>
+      <input class="habit-input" id="habit-name" name="name" maxlength="60" required autocomplete="off" placeholder="Nombre del hábito">
+      <fieldset class="icon-fieldset">
+        <legend class="field-label">Icono</legend>
+        <div class="icon-picker" id="icon-picker"></div>
+      </fieldset>
+      <footer class="editor-actions">
+        <div class="editor-save-actions">
+          <button class="form-button" id="cancel-editor" type="button">Cancelar</button>
+          <button class="form-button primary" type="submit" id="save-habit">Guardar</button>
+        </div>
+      </footer>
+    </form>
+  </dialog>
   <div class="sr-only" id="announcement" role="status" aria-live="polite"></div>
 </body>
 </html>
