@@ -5122,6 +5122,12 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   background-repeat: repeat-y;
   background-position: 0 var(--cr-grid-offset, 0px);
   background-origin: border-box;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast),
+    opacity var(--transition-fast), background-position var(--transition-fast);
+}
+/* Compensar la elevación también durante la animación del hover. */
+body:not(.mobile-mode) .cr-task-block.completed:not(.cr-dragging):hover {
+  background-position: 0 calc(var(--cr-grid-offset, 0px) + 2px);
 }
 .cr-task-block.completed.cr-floating {
   background-image: none;
