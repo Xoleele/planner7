@@ -15,6 +15,7 @@ global, asi que el comportamiento es identico a un solo archivo.
 - `app-5-etiquetas.js`    → Reordenar etiquetas, selector de color, categorizacion automatica, selector de fecha.
 - `app-6-herramientas.js` → Cronometro, buscador, feed movil, maletin, listeners globales (DOMContentLoaded, online, etc.), recuperarHoras.
 - `app-7-resultados.js`   → Panel compartido de resultados del buscador y estadísticas: tarjetas, orden, cierre y navegación al editor. Ambos orígenes usan el mismo HTML (`task-results-modal`) y este controlador; los cambios de presentación y acciones comunes se hacen aquí.
+- `app-8-habitos.js`      → Habit Tracker integrado en un Shadow DOM, acceso desde el header y sincronización por usuario en `habit_data`. No comparte datos con `tasks` ni `user_data`.
 
 Reglas al editar estos archivos:
 - NO declarar una misma variable global con const/let en dos archivos (rompe la carga).

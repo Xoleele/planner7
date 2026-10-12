@@ -20,7 +20,7 @@ Sigue estos pasos **una sola vez** antes de abrir la app.
 3. Copia y pega todo el contenido del archivo **`supabase_setup.sql`** (está en la misma carpeta que este archivo).
 4. Haz clic en **Run**.
 
-Esto crea las tablas `tasks` y `user_data` con las políticas de seguridad necesarias para que cada usuario solo pueda acceder a sus propios datos.
+Esto crea las tablas `tasks`, `user_data` y `habit_data` con las políticas de seguridad necesarias para que cada usuario solo pueda acceder a sus propios datos. En un proyecto existente, consulta `HABITOS_SETUP.md` para agregar únicamente la tabla de hábitos.
 
 ---
 
@@ -83,5 +83,6 @@ Cuando abras la app verás una pantalla de autenticación.
 |-------|-------------|
 | `tasks` | Una fila por tarea. La columna `data` guarda el objeto completo de la tarea en JSON. |
 | `user_data` | Una fila por usuario. Columnas `tags` (array de etiquetas) y `preferences` (objeto con título y otras preferencias). |
+| `habit_data` | Historial de hábitos por usuario, separado de las tareas; incluye `data`, `revision` y `updated_at`. |
 
-Ambas tablas tienen **Row Level Security (RLS)** activado: Supabase garantiza automáticamente que cada usuario solo pueda leer y escribir sus propios datos.
+Las tres tablas tienen **Row Level Security (RLS)** activado: cada usuario solo puede leer y escribir sus propios datos.
