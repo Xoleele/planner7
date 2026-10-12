@@ -1,13 +1,19 @@
 # Hábitos dentro de Planner7
 
-El botón de diana del header abre el Habit Tracker. `app-8-habitos.js` conserva
+La opción «Hábitos» del menú de usuario, encima de «Herramientas», abre el Habit
+Tracker. `app-8-habitos.js` conserva
 registros, iconos, reordenamiento y estadísticas del prototipo.
+En escritorio, `H` abre/cierra Hábitos y `T` vuelve a la fecha actual con el botón
+«Hoy». No se activan al escribir ni por encima de otras ventanas abiertas.
 Su interfaz usa Shadow DOM para aislar estilos, IDs y eventos del calendario.
 Los controles de fecha simulada y datos inventados del prototipo no se muestran.
 El selector de iconos incluye búsqueda por nombre y cinco etiquetas internas por
 icono, principalmente en español. La búsqueda ignora tildes y mayúsculas; las
 etiquetas no aparecen en la interfaz ni se guardan en el historial del usuario.
 La cuadrícula del selector muestra cinco iconos por fila.
+Los nombres de los iconos están en español; las variantes que comparten nombre
+se numeran («Libro 1», «Libro 2»…). Estos nombres se usan también en la búsqueda
+y en las etiquetas accesibles, sin cambiar los nombres de hábitos del usuario.
 La creación de identificadores admite HTTPS y HTTP por IP local (por ejemplo,
 `http://192.168.1.4:3000`); usa `crypto.getRandomValues` cuando no hay `randomUUID`.
 

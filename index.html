@@ -120,8 +120,8 @@
               <line x1="14" y1="11" x2="14" y2="17"></line>
             </svg>
           </button>
-          <!-- Botón Hábitos -->
-          <button id="habitos-btn" type="button" title="Hábitos y objetivos" aria-label="Abrir hábitos" aria-expanded="false" aria-controls="habitos-tool" class="icon-button">
+          <!-- Acceso interno a Hábitos; el botón visible está en el menú de usuario. -->
+          <button id="habitos-btn" type="button" title="Hábitos y objetivos" aria-label="Abrir hábitos" aria-expanded="false" aria-controls="habitos-tool" class="icon-button" style="display:none;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/>
               <path d="M12 7a5 5 0 1 0 5 5"/>
@@ -150,7 +150,7 @@
           </button>
         </div>
         <!-- Avatar de Usuario (Inactivo) -->
-        <div class="user-avatar" title="Perfil de usuario (Inactivo)">
+        <div class="user-avatar" title="Perfil de usuario (Inactivo)" tabindex="-1">
           <span>U</span>
         </div>
       </div>
@@ -893,7 +893,8 @@
           <div class="shortcut-row"><span class="shortcut-keys"><kbd>K</kbd></span><span class="shortcut-desc">Alternar entre Checklist y Horario</span></div>
           <div class="shortcut-row"><span class="shortcut-keys"><kbd>B</kbd></span><span class="shortcut-desc">Abrir / cerrar buscador</span></div>
           <div class="shortcut-row"><span class="shortcut-keys"><kbd>E</kbd></span><span class="shortcut-desc">Abrir / cerrar estadísticas</span></div>
-          <div class="shortcut-row"><span class="shortcut-keys"><kbd>H</kbd></span><span class="shortcut-desc">Ir a la semana actual</span></div>
+          <div class="shortcut-row"><span class="shortcut-keys"><kbd>H</kbd></span><span class="shortcut-desc">Abrir / cerrar Hábitos</span></div>
+          <div class="shortcut-row"><span class="shortcut-keys"><kbd>T</kbd></span><span class="shortcut-desc">Ir al día actual</span></div>
           <div class="shortcut-row"><span class="shortcut-keys"><kbd>A</kbd></span><span class="shortcut-desc">Abrir / cerrar Archivados</span></div>
           <div class="shortcut-row"><span class="shortcut-keys"><kbd>L</kbd></span><span class="shortcut-desc">Abrir / cerrar panel de actividades</span></div>
           <div class="shortcut-row"><span class="shortcut-keys"><kbd>C</kbd></span><span class="shortcut-desc">Abrir / cerrar Configuración</span></div>
@@ -1612,13 +1613,13 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <!-- La app esta dividida en varios archivos que se cargan EN ORDEN (mismo ambito
        global, comportamiento identico a un solo archivo). El orden importa. -->
-  <script src="app-1-core.js?v=20260925"></script>
+  <script src="app-1-core.js?v=20261012"></script>
   <script src="app-2-calendario.js?v=20260925"></script>
   <script src="app-3-tareas.js?v=20260925"></script>
   <script src="app-4-estadisticas.js?v=20260925"></script>
   <script src="app-5-etiquetas.js?v=20260925"></script>
-  <script src="app-6-herramientas.js?v=20260925"></script>
+  <script src="app-6-herramientas.js?v=20261012"></script>
   <script src="app-7-resultados.js?v=20260925"></script>
-  <script src="app-8-habitos.js?v=20261012-16"></script>
+  <script src="app-8-habitos.js?v=20261012-22"></script>
 </body>
 </html>

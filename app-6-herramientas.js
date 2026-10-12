@@ -523,7 +523,7 @@ function setupEventListeners() {
 
   // Navegación con flechas del teclado (solo escritorio)
   document.addEventListener('keydown', (e) => {
-    if ((e.key === 'c' || e.key === 'C') && (e.isComposing || e.repeat)) return;
+    if (['c', 'h', 't'].includes(e.key.toLowerCase()) && (e.isComposing || e.repeat)) return;
     // Atajos que abren una ventana también la cierran (B = Buscador,
     // L = Actividades, C = Configuración). Solo si esa ventana es la única abierta y no se está
     // escribiendo en un campo. Se cierra con su propia X para que corra la
@@ -658,8 +658,14 @@ function setupEventListeners() {
       e.preventDefault();
       toggleBriefcaseDrawer();
     } else if ((e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      // Atajo H: ir a la semana actual (igual que el botón "Hoy").
-      if (isAnyOverlayOpen()) return;
+      // Atajo H: abrir Hábitos.
+      if (tag === 'SELECT' || isAnyOverlayOpen()) return;
+      e.preventDefault();
+      document.getElementById('user-dropdown')?.remove();
+      document.getElementById('habitos-btn')?.click();
+    } else if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Atajo T: volver a la fecha actual (igual que el botón "Hoy").
+      if (tag === 'SELECT' || isAnyOverlayOpen()) return;
       e.preventDefault();
       const todayBtn = document.getElementById('today-btn');
       if (todayBtn) todayBtn.click();

@@ -26,13 +26,19 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
         document.getElementById('splash-screen')?.remove();
         document.body.classList.remove('not-logged-in');
         document.querySelectorAll('.modal-backdrop').forEach(el => el.classList.add('hidden'));
-        window.currentUser = { id: user };
+        window.currentUser = { id: user, email: user + '@planner7.test' };
         window.fakeCloud = JSON.parse(localStorage.getItem('test-cloud') || '{}');
         window.offline = false;
         window.ops = [];
         window.showAuthScreen = () => { window.authShown = true; };
         window.showHistoryNotification = text => { window.notice = text; };
         window.plannerKeys = 0;
+        window.todayClicks = 0;
+        document.getElementById('today-btn').addEventListener('click', () => window.todayClicks++);
+        window.isMobile = () => innerWidth <= 768;
+        window.activeStatsPrefix = 'daily-stats';
+        window.currentDailyStatsDate = null;
+        window.isAnyOverlayOpen = () => [...document.querySelectorAll('.modal-backdrop')].some(modal => !modal.classList.contains('hidden') && modal.style.display !== 'none') || Boolean(document.getElementById('habitos-tool') && !document.getElementById('habitos-tool').hidden);
         window.addEventListener('keydown', () => window.plannerKeys++);
         window.sb = {
           auth: { onAuthStateChange(callback) { window.authCallback = callback; } },
@@ -64,11 +70,16 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
       }, user);
       const calendar = read('app-2-calendario.js');
       await page.addScriptTag({ content: calendar.slice(calendar.indexOf('function setSaveStatus('), calendar.indexOf('// Muestra un mensaje breve centrado')) });
+      const toolsSource = read('app-6-herramientas.js');
+      await page.addScriptTag({ content: toolsSource.slice(toolsSource.indexOf('  // Navegación con flechas del teclado (solo escritorio)'), toolsSource.indexOf('  // Datepicker Integration')) });
       await page.addScriptTag({ content: read('app-8-habitos.js') });
+      const coreSource = read('app-1-core.js');
+      await page.addScriptTag({ content: coreSource.slice(coreSource.indexOf('function setupUserMenu()'), coreSource.indexOf('function initializeEmptyCalendar()')) + '\nsetupUserMenu();' });
     }
     const tool = page.locator('#habitos-tool'); // Playwright atraviesa Shadow DOM.
     const shadow = selector => tool.locator(selector);
-    const open = async () => { await page.locator('#habitos-btn').click(); await tool.waitFor({ state: 'visible' }); };
+    const access = async () => { await page.locator('.user-avatar').click(); await page.locator('#habitos-menu-btn').click(); };
+    const open = async () => { await access(); await tool.waitFor({ state: 'visible' }); assert.equal(await page.locator('#user-dropdown').count(), 0); };
     const saved = async () => { await page.waitForFunction(() => document.getElementById('habitos-tool').shadowRoot.getElementById('cloud-status').textContent === 'Guardado en tu cuenta'); };
     const cache = user => page.evaluate(user => JSON.parse(localStorage.getItem('planner7.habitos.v1:' + user)), user);
 
@@ -76,6 +87,36 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert.equal(await page.evaluate(() => typeof crypto.randomUUID), 'undefined');
     await page.evaluate(() => localStorage.setItem('habit-tracker.history.v2', '{"private":"prototipo"}'));
     const bodyFont = await page.locator('body').evaluate(el => getComputedStyle(el).fontFamily);
+    assert(await page.locator('#habitos-btn').isHidden(), 'Ya no existe un acceso visible en el header');
+    await page.locator('.user-avatar').click();
+    assert.deepEqual(await page.locator('#user-dropdown [data-view="main"] button').evaluateAll(buttons => buttons.slice(0, 2).map(button => button.id)), ['habitos-menu-btn', 'tools-menu-btn']);
+    await page.locator('.user-avatar').click();
+    await page.keyboard.press('t');
+    assert.equal(await page.evaluate(() => todayClicks), 1, 'T usa el botón Hoy');
+    await page.keyboard.press('h');
+    await tool.waitFor({ state: 'visible' });
+    assert.equal(await page.evaluate(() => todayClicks), 1, 'H ya no cambia la fecha');
+    await page.keyboard.press('H');
+    assert(await tool.isHidden(), 'H también cierra Hábitos');
+    await page.evaluate(() => {
+      for (const init of [{ key: 'h', ctrlKey: true }, { key: 'h', repeat: true }, { key: 'h', isComposing: true }]) document.body.dispatchEvent(new KeyboardEvent('keydown', { ...init, bubbles: true }));
+      const input = document.createElement('input');
+      input.id = 'shortcut-test-input';
+      document.body.append(input);
+      input.focus();
+    });
+    await page.keyboard.type('ht');
+    assert(await tool.isHidden(), 'Los atajos no se activan al escribir');
+    assert.equal(await page.evaluate(() => todayClicks), 1);
+    await page.evaluate(() => {
+      document.getElementById('shortcut-test-input').remove();
+      document.getElementById('shortcuts-modal').classList.remove('hidden');
+    });
+    await page.keyboard.press('h');
+    await page.keyboard.press('t');
+    assert(await tool.isHidden(), 'Otra ventana impide abrir Hábitos');
+    assert.equal(await page.evaluate(() => todayClicks), 1);
+    await page.evaluate(() => { document.getElementById('shortcuts-modal').classList.add('hidden'); window.plannerKeys = 0; });
     await open();
     assert.equal(await shadow('#habit-record-heading').textContent(), 'Registro');
     assert(await shadow('#habit-record-heading').isVisible());
@@ -96,8 +137,9 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await shadow('#habit-name').fill('Leer cada día');
     await shadow('#choose-habit-icon').click();
     const iconCount = await shadow('#icon-picker button').count();
-    const iconSizes = await shadow('#icon-picker svg').evaluateAll(icons => icons.map(svg => ({ height: svg.getBoundingClientRect().height, width: svg.getBoundingClientRect().width })));
-    assert(iconSizes.every(size => Math.abs(size.height - 24.64) < .1), 'Todos los iconos del selector son un 12% menores');
+    const iconSizes = await shadow('#icon-picker svg').evaluateAll(icons => icons.map(svg => ({ icon: svg.dataset.icon, height: svg.getBoundingClientRect().height, width: svg.getBoundingClientRect().width })));
+    const compactIcons = ['swimming.svg', 'lucide/video.svg', 'lucide/glasses.svg'];
+    assert(iconSizes.every(size => Math.abs(size.height - (compactIcons.includes(size.icon) ? 19.712 : 24.64)) < .1), 'Nadar, vídeo y anteojos se reducen proporcionalmente un 20% adicional');
     assert(Math.abs((await shadow('#selected-habit-icon').boundingBox()).height - 21.12) < .1, 'La vista previa también se reduce un 12%');
     assert(new Set(iconSizes.map(size => Math.round(size.width))).size > 1, 'El ancho conserva la proporción de cada dibujo');
     const strokeSizes = await shadow('#icon-picker svg').evaluateAll(icons => icons.flatMap(svg => [...svg.querySelectorAll('path,circle,ellipse,line,polyline,polygon,rect')].filter(shape => getComputedStyle(shape).stroke !== 'none').map(shape => ({ width: getComputedStyle(shape).strokeWidth, effect: getComputedStyle(shape).vectorEffect }))));
@@ -106,6 +148,12 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     if (process.env.HABITOS_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.HABITOS_SCREENSHOTS, 'habitos-iconos.png') });
     assert.equal(await shadow('#icon-picker').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 5);
     const iconFiles = await shadow('#icon-picker button').evaluateAll(buttons => buttons.map(button => button.dataset.icon));
+    const iconLabels = await shadow('#icon-picker button').evaluateAll(buttons => buttons.map(button => button.title));
+    assert.equal(new Set(iconLabels).size, iconLabels.length, 'Las variantes tienen nombres distintos y numerados');
+    for (const label of ['Libro 1', 'Libro 2', 'Libro 3', 'Campana 1', 'Campana 2', 'Nadar', 'Vídeo', 'Anteojos', 'Alarma', 'Micrófono', 'Control de videojuegos']) {
+      assert(iconLabels.includes(label), `Nombre en español: ${label}`);
+    }
+    assert(await shadow('#icon-picker button').evaluateAll(buttons => buttons.every(button => button.getAttribute('aria-label') === button.title)), 'Los nombres accesibles también están traducidos');
     for (const removed of ['lucide/sun-medium.svg', 'lucide/music-4.svg', 'lucide/square-pen.svg', 'lucide/clock-4.svg', 'target.svg', 'droplets.svg', 'lucide/shield-plus.svg']) {
       assert(!iconFiles.includes(removed), `Variante redundante fuera del selector: ${removed}`);
     }
@@ -121,7 +169,7 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await shadow('#habit-icon-search').fill('  HIDRATACION  ');
     assert.equal(await shadow('#icon-picker button').count(), 1);
     assert.equal(await shadow('#icon-picker button').getAttribute('data-icon'), 'lucide/droplet.svg');
-    assert.equal(await shadow('#icon-picker button').getAttribute('title'), 'droplet');
+    assert.equal(await shadow('#icon-picker button').getAttribute('title'), 'Agua');
     assert(!(await shadow('#icon-dialog').textContent()).includes('hidratación'), 'Etiquetas invisibles');
     await shadow('#habit-icon-search').fill('gaming');
     assert.equal(await shadow('#icon-picker button').getAttribute('data-icon'), 'lucide/gamepad-2.svg');
@@ -137,13 +185,13 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert.equal(await shadow('#icon-picker button').count(), iconCount);
     assert(!(await shadow('#icon-search-empty').isVisible()));
     await shadow('#habit-icon-search').fill('lectura');
-    assert(await shadow('#icon-picker button[title="Libro"]').isVisible());
-    await shadow('#icon-picker button[title="Libro"]').click();
+    assert(await shadow('#icon-picker button[title="Libro 1"]').isVisible());
+    await shadow('#icon-picker button[title="Libro 1"]').click();
     assert.equal(await shadow('#habit-icon-value').evaluate(el => el.value), 'book-open.svg');
     await shadow('#choose-habit-icon').click();
     assert.equal(await shadow('#habit-icon-search').evaluate(el => el.value), '');
     assert.equal(await shadow('#icon-picker button').count(), iconCount);
-    assert.equal(await shadow('#icon-picker button[title="Libro"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(await shadow('#icon-picker button[title="Libro 1"]').getAttribute('aria-pressed'), 'true');
     await shadow('#close-icon-dialog').click();
     const selectorBeforeSave = await shadow('#record-selector-toggle').boundingBox();
     await shadow('#save-habit').click();
@@ -318,7 +366,7 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert(await tool.isVisible());
     await shadow('#close-tracker').click();
     assert(!(await page.locator('.app-container').evaluate(el => el.inert)));
-    assert.equal(await page.evaluate(() => document.activeElement.id), 'habitos-btn');
+    assert(await page.locator('.user-avatar').evaluate(el => document.activeElement === el));
 
     await boot();
     await open();
@@ -439,13 +487,13 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
 
     // Una cuenta sin copia no genera un historial vacío cuando falla la carga.
     await page.evaluate(() => { window.currentUser = { id: 'charlie' }; window.authCallback('SIGNED_IN', { user: window.currentUser }); window.offline = true; });
-    await page.locator('#habitos-btn').click();
+    await access();
     await page.waitForFunction(() => Boolean(window.notice));
     assert(await tool.isHidden());
     assert.equal(await cache('charlie'), null);
     assert(!(await page.evaluate(() => ops)).some(op => op.id === 'charlie' && op.op !== 'select'));
     await page.evaluate(() => { window.currentUser = null; window.authCallback('SIGNED_OUT', null); });
-    await page.locator('#habitos-btn').click();
+    await page.evaluate(() => document.getElementById('habitos-btn').click());
     assert(await page.evaluate(() => window.authShown));
     assert.deepEqual(errors, []);
     console.log('OK: inicio vacío, iconos, borrado, deshacer/rehacer, registros, nube, cuentas y móvil');
