@@ -1472,6 +1472,8 @@ function setupEventListeners() {
     // vista interna abierta, vuelve a la vista anterior (p. ej. Resultados →
     // Buscador; Editar tarea / Ajustes → Estadísticas).
     if (e.key === 'Escape' && !e.isComposing) {
+      if (e.repeat) { e.preventDefault(); return; }
+      if (e.defaultPrevented) return;
       if (handleGlobalEscape()) e.preventDefault();
     }
   });
@@ -2854,11 +2856,26 @@ function exportBuscadorResults() {
 // ─── Escape global ───────────────────────────────────────────────────────────
 // Devuelve true si cerró/retrocedió algo.
 function handleGlobalEscape() {
+  // Hábitos vive en un Shadow DOM y cierra su propia ventana superior.
+  const habits = document.getElementById('habitos-tool');
+  if (habits && !habits.hidden) {
+    const escape = new Event('planner7:escape', { cancelable: true });
+    habits.dispatchEvent(escape);
+    if (escape.defaultPrevented) return true;
+  }
   // Ventanitas propias que ya manejan Escape por su cuenta.
   if (typeof crDrag !== 'undefined' && crDrag) return false;
   if (typeof taskPlacement !== 'undefined' && taskPlacement) return false;
   if (document.querySelector('.endtime-conflict-overlay')) return false;
   if (document.getElementById('archive-list-menu')) return false;
+
+  // Los dialog nativos también conservan su lógica de cancelación.
+  const dialogs = [...document.querySelectorAll('dialog[open]')];
+  const dialog = document.activeElement?.closest('dialog[open]') || dialogs.at(-1);
+  if (dialog) {
+    if (dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) dialog.close();
+    return true;
+  }
 
   // Menú del usuario (avatar) y selector de fecha desplegable.
   const dd = document.getElementById('user-dropdown');
@@ -2915,8 +2932,20 @@ function closeOrGoBackInModal(modal) {
     'timer-modal': () => (typeof timerStartTime !== 'undefined' && timerStartTime) ? minimizeTimer() : modal.classList.add('hidden'),
     'confirm-modal': () => closeConfirmModal(),
     'task-modal': () => closeTaskModal(),
+    'edit-recurring-modal': () => closeEditRecurringModal('cancel'),
+    'adjacent-tasks-modal': () => closeAdjacentTasksModal(),
+    'delete-task-confirm-modal': () => closeDeleteTaskConfirmModal(),
     'tags-modal': () => closeTagsModal(),
+    'tag-edit-modal': () => closeTagEditModal(),
+    'new-tag-prompt-modal': () => closeNewTagPromptModal(),
+    'delete-tag-modal': () => closeDeleteTagModal(),
+    'settings-modal': () => closeSettingsModal(),
+    'archive-lists-modal': () => closeArchiveListsModal(),
+    'archive-delete-modal': () => closeArchiveDeleteModal(),
+    'copy-text-modal': () => closeCopyTextModal(),
+    'general-stats-custom-range-modal': () => closeGeneralStatsCustomRangeModal(),
     'notes-modal': () => closeNotesModal(),
+    'note-template-modal': () => closeNoteTemplateModal(),
     'notes-unsaved-modal': () => cancelDailyNotesClose(),
     'change-password-modal': () => closeChangePasswordModal(),
     'delete-account-modal': () => closeDeleteAccountModal()
@@ -2928,7 +2957,7 @@ function closeOrGoBackInModal(modal) {
   const btn = modal.querySelector(`.close-modal-btn[data-modal="${id}"]`)
     || modal.querySelector('.close-modal-btn[id$="close-btn"]')
     || modal.querySelector('[id$="cancel-btn"]');
-  if (btn && btn.offsetParent !== null) { btn.click(); return; }
+  if (btn && btn.getClientRects().length) { btn.click(); return; }
   modal.classList.add('hidden');
 }
 
