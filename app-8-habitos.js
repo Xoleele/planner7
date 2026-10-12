@@ -2717,6 +2717,11 @@ function icon(habit) {
     svg.setAttribute('viewBox', bounds.join(' '));
     svg.style.height = 'var(--habit-icon-height, 28px)';
     svg.style.width = 'calc(var(--habit-icon-height, 28px) * ' + (bounds[2] / bounds[3]) + ')';
+    // El grosor queda en píxeles de pantalla, independiente del viewBox y la escala.
+    svg.querySelectorAll('path,circle,ellipse,line,polyline,polygon,rect').forEach(shape => {
+      shape.setAttribute('vector-effect', 'non-scaling-stroke');
+      shape.style.strokeWidth = '2.25px';
+    });
   }
   return svg;
 }
@@ -2726,7 +2731,7 @@ function readSaved(key) {
 function normalizedHabits(items) {
   const ids = new Set();
   const result = (Array.isArray(items) ? items : []).filter(habit => {
-    if (!habit || typeof habit.id !== 'string' || typeof habit.name !== 'string' || !habit.name.trim() || !iconOptions.some(option => option.icon === habit.icon) || ids.has(habit.id)) return false;
+    if (!habit || typeof habit.id !== 'string' || typeof habit.name !== 'string' || !habit.name.trim() || !Object.hasOwn(HABIT_ICON_SVGS, habit.icon) || ids.has(habit.id)) return false;
     ids.add(habit.id);
     return true;
   }).slice(0, SLOT_COUNT).map(habit => ({ ...habit }));

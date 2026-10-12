@@ -99,6 +99,9 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     const iconSizes = await shadow('#icon-picker svg').evaluateAll(icons => icons.map(svg => ({ height: svg.getBoundingClientRect().height, width: svg.getBoundingClientRect().width })));
     assert(iconSizes.every(size => Math.abs(size.height - 28) < .1), 'Todos los iconos del selector tienen la misma altura');
     assert(new Set(iconSizes.map(size => Math.round(size.width))).size > 1, 'El ancho conserva la proporción de cada dibujo');
+    const strokeSizes = await shadow('#icon-picker svg').evaluateAll(icons => icons.flatMap(svg => [...svg.querySelectorAll('path,circle,ellipse,line,polyline,polygon,rect')].filter(shape => getComputedStyle(shape).stroke !== 'none').map(shape => ({ width: getComputedStyle(shape).strokeWidth, effect: getComputedStyle(shape).vectorEffect }))));
+    assert(strokeSizes.length > 0);
+    assert(strokeSizes.every(stroke => stroke.width === '2.25px' && stroke.effect === 'non-scaling-stroke'), 'Grosor uniforme de 2,25 píxeles independiente de la escala');
     if (process.env.HABITOS_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.HABITOS_SCREENSHOTS, 'habitos-iconos.png') });
     assert.equal(await shadow('#icon-picker').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 5);
     const iconFiles = await shadow('#icon-picker button').evaluateAll(buttons => buttons.map(button => button.dataset.icon));
