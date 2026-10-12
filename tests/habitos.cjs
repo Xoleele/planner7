@@ -147,8 +147,8 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert(strokeSizes.every(stroke => stroke.width === '2.25px' && stroke.effect === 'non-scaling-stroke'), 'Grosor uniforme de 2,25 píxeles independiente de la escala');
     const glyphs = shadow('#icon-picker svg[data-icon^="letter-"], #icon-picker svg[data-icon^="number-"]');
     assert.equal(await glyphs.count(), 35);
-    assert(await glyphs.evaluateAll(icons => icons.every(svg => !svg.querySelector('text') && svg.querySelector('path') && getComputedStyle(svg.querySelector('path')).strokeWidth === '2.25px')), 'Letras y números usan trazos, con el mismo grosor que los iconos');
-    const visibleHeights = await shadow('#icon-picker svg[data-icon^="letter-"], #icon-picker svg[data-icon^="number-"], #icon-picker svg[data-icon="sun.svg"]').evaluateAll(icons => icons.map(svg => svg.getBBox().height / svg.viewBox.baseVal.height * svg.getBoundingClientRect().height + 2.25));
+    assert(await glyphs.evaluateAll(icons => icons.every(svg => !svg.querySelector('text') && svg.querySelector('path') && svg.dataset.font === 'Quicksand' && svg.dataset.weight === '500' && getComputedStyle(svg.querySelector('path')).stroke === 'none')), 'Letras y números usan los contornos de Quicksand Medium sin depender de una fuente instalada');
+    const visibleHeights = await shadow('#icon-picker svg[data-icon^="letter-"], #icon-picker svg[data-icon^="number-"], #icon-picker svg[data-icon="sun.svg"]').evaluateAll(icons => icons.map(svg => svg.getBBox().height / svg.viewBox.baseVal.height * svg.getBoundingClientRect().height + (svg.dataset.font === 'Quicksand' ? 0 : 2.25)));
     assert(Math.max(...visibleHeights) - Math.min(...visibleHeights) < .1, 'Las letras y números tienen la misma altura visible que los símbolos');
     if (process.env.HABITOS_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.HABITOS_SCREENSHOTS, 'habitos-iconos.png') });
     assert.equal(await shadow('#icon-picker').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 5);
