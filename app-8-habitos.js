@@ -237,7 +237,7 @@ const HABIT_CSS = "/* Tokens y convenciones visuales de Planner7, aislados para 
     if (conflict) setConflict();
     else if (state.pending) showPending();
     else if (cloudError) status('Sin conexión · mostrando la copia de este dispositivo', 'error');
-    else status(state.data ? 'Guardado en tu cuenta' : 'Crea tu primer registro de hábitos');
+    else status(state.data ? 'Guardado en tu cuenta' : '');
     if (state.pending && !cloudError) flush();
   }
   button.addEventListener('click', open);
