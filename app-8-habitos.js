@@ -51,6 +51,45 @@ const HABIT_CSS = "/* Tokens y convenciones visuales de Planner7, aislados para 
         !Array.isArray(block.records));
   }
   const clone = value => JSON.parse(JSON.stringify(value));
+  const emptySyncData = () => ({ version: 2, blocks: [], hideEmptyDays: false });
+  function habitChanges(before, after) {
+    const changes = [];
+    const object = value => value && typeof value === 'object' && !Array.isArray(value);
+    function diff(old, next, path) {
+      if (JSON.stringify(old) === JSON.stringify(next)) return;
+      if (Array.isArray(old) && Array.isArray(next)) {
+        // Los registros se identifican por ID: crear/eliminar uno no reenvía los demás.
+        if (path.length === 1 && path[0] === 'blocks') {
+          const working = old.slice();
+          const ids = new Set(next.map(block => block.id));
+          for (let i = working.length - 1; i >= 0; i--) if (!ids.has(working[i].id)) {
+            changes.push({ op: 'remove', path: [...path, String(i)] }); working.splice(i, 1);
+          }
+          next.forEach((block, i) => {
+            if (working[i]?.id !== block.id) {
+              const from = working.findIndex(item => item.id === block.id);
+              const value = from < 0 ? block : working[from];
+              if (from >= 0) { changes.push({ op: 'remove', path: [...path, String(from)] }); working.splice(from, 1); }
+              changes.push({ op: 'insert', path: [...path, String(i)], value }); working.splice(i, 0, value);
+            }
+            diff(working[i], block, [...path, String(i)]);
+          });
+          return;
+        }
+        for (let i = 0; i < Math.min(old.length, next.length); i++) diff(old[i], next[i], [...path, String(i)]);
+        for (let i = old.length - 1; i >= next.length; i--) changes.push({ op: 'remove', path: [...path, String(i)] });
+        for (let i = old.length; i < next.length; i++) changes.push({ op: 'insert', path: [...path, String(i)], value: next[i] });
+      } else if (object(old) && object(next)) {
+        for (const key of Object.keys(old)) if (!Object.hasOwn(next, key)) changes.push({ op: 'remove', path: [...path, key] });
+        for (const key of Object.keys(next)) {
+          if (!Object.hasOwn(old, key)) changes.push({ op: 'set', path: [...path, key], value: next[key] });
+          else diff(old[key], next[key], [...path, key]);
+        }
+      } else changes.push({ op: 'set', path, value: next });
+    }
+    diff(before, after, []);
+    return changes;
+  }
   function cleanHabitData(data) {
     if (!data) return data;
     return { ...data, blocks: data.blocks.map(block => {
@@ -65,7 +104,9 @@ const HABIT_CSS = "/* Tokens y convenciones visuales de Planner7, aislados para 
     try {
       const cached = JSON.parse(localStorage.getItem(cacheKey(id)));
       return cached?.user_id === id && validData(cached.data) &&
-        (cached.revision === null || Number.isSafeInteger(cached.revision)) ? { ...cached, data: cleanHabitData(cached.data) } : null;
+        (cached.revision === null || Number.isSafeInteger(cached.revision)) ? {
+          ...cached, data: cleanHabitData(cached.data), synced: validData(cached.synced) ? cached.synced : null
+        } : null;
     } catch { return null; }
   }
   function active(id, token) { return owner === id && currentUser?.id === id && epoch === token; }
@@ -130,15 +171,22 @@ const HABIT_CSS = "/* Tokens y convenciones visuales de Planner7, aislados para 
     try {
       // Comparación atómica de revisión: un dispositivo nunca sobrescribe cambios ajenos
       // sin que el usuario lo elija explícitamente en el aviso de conflicto.
-      const result = revision === null
-        ? await sb.from(TABLE).insert({ user_id: id, data: snapshot, revision: 1 }).select('revision').maybeSingle()
-        : await sb.from(TABLE).update({ data: snapshot, revision: revision + 1 })
-          .eq('user_id', id).eq('revision', revision).select('revision').maybeSingle();
+      let synced = state.synced;
+      if (revision !== null && !synced) {
+        const cloud = await fetchCloud(id);
+        if (!active(id, token)) return;
+        if (!cloud || cloud.revision !== revision) { setConflict(); return; }
+        synced = cloud.data;
+      }
+      const changes = habitChanges(synced || emptySyncData(), snapshot);
+      const result = changes.length
+        ? await sb.rpc('sync_habit_changes', { p_expected_revision: revision, p_changes: changes }).maybeSingle()
+        : { data: { revision } };
       if (!active(id, token)) return;
       if (result.error?.code === '23505' || (!result.error && !result.data)) { setConflict(); return; }
       if (result.error) throw result.error;
       const pending = JSON.stringify(state.data) !== JSON.stringify(snapshot);
-      saveCache({ ...state, revision: result.data.revision, pending });
+      saveCache({ ...state, synced: snapshot, revision: result.data.revision, pending });
       status(pending ? 'Sincronizando cambios…' : 'Guardado en tu cuenta');
       if (!pending) setSaveStatus('saved');
     } catch (error) {
@@ -217,8 +265,8 @@ const HABIT_CSS = "/* Tokens y convenciones visuales de Planner7, aislados para 
       if (!keepLocal && !cloud) throw new Error('No hay un historial en la nube para recuperar.');
       // Conservar la versión desplazada para no perder ninguna al resolver el conflicto.
       localStorage.setItem(cacheKey(id) + '.recovery', JSON.stringify({ local: state, cloud }));
-      saveCache(keepLocal ? { ...state, revision: cloud?.revision ?? null, pending: true } :
-        { user_id: id, data: cloud.data, revision: cloud.revision, pending: false });
+      saveCache(keepLocal ? { ...state, synced: cloud?.data ?? null, revision: cloud?.revision ?? null, pending: true } :
+        { user_id: id, data: cloud.data, synced: cloud.data, revision: cloud.revision, pending: false });
       conflict = false;
       if (!keepLocal) { undoStack = []; redoStack = []; render(); }
       status(keepLocal ? 'Pendiente de sincronizar' : 'Guardado en tu cuenta');
@@ -265,9 +313,10 @@ const HABIT_CSS = "/* Tokens y convenciones visuales de Planner7, aislados para 
       if (!active(id, token)) return;
       if (state?.pending) {
         if ((cloud?.revision ?? null) !== state.revision) conflict = true;
+        else state.synced = cloud?.data ?? null;
       } else {
         conflict = false;
-        state = cloud ? { user_id: id, data: cloud.data, revision: cloud.revision, pending: false } :
+        state = cloud ? { user_id: id, data: cloud.data, synced: cloud.data, revision: cloud.revision, pending: false } :
           { user_id: id, data: null, revision: null, pending: false };
         if (cloud) { try { saveCache(state); } catch { /* Se podrá visualizar; una edición avisará si falta espacio. */ } }
       }

@@ -42,6 +42,30 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
         window.addEventListener('keydown', () => window.plannerKeys++);
         window.sb = {
           auth: { onAuthStateChange(callback) { window.authCallback = callback; } },
+          rpc(name, args) {
+            if (name !== 'sync_habit_changes') throw Error('RPC desconocido');
+            return { async maybeSingle() {
+              const id = window.currentUser.id;
+              window.ops.push({ table: 'habit_data', op: 'patch', id, changes: structuredClone(args.p_changes) });
+              if (window.offline) return { error: { message: 'Sin conexión' } };
+              const row = window.fakeCloud[id];
+              if ((row?.revision ?? null) !== args.p_expected_revision) return { data: null };
+              const data = row ? structuredClone(row.data) : { version: 2, blocks: [], hideEmptyDays: false };
+              for (const change of args.p_changes) {
+                let parent = data;
+                for (const key of change.path.slice(0, -1)) parent = parent[key];
+                const key = change.path.at(-1);
+                if (change.op === 'remove') {
+                  if (Array.isArray(parent)) parent.splice(Number(key), 1); else delete parent[key];
+                } else if (change.op === 'insert') parent.splice(Number(key), 0, structuredClone(change.value));
+                else parent[key] = structuredClone(change.value);
+              }
+              const revision = (row?.revision ?? 0) + 1;
+              window.fakeCloud[id] = { data, revision };
+              localStorage.setItem('test-cloud', JSON.stringify(window.fakeCloud));
+              return { data: { revision } };
+            } };
+          },
           from(table) {
             if (table !== 'habit_data') throw new Error('El módulo accedió a otra tabla');
             const query = {
@@ -272,6 +296,10 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await shadow('.habit-cell').first().click();
     const readingBeforeDelete = (await cache('alice')).data;
     await saved();
+    const markChanges = await page.evaluate(() => ops.filter(op => op.op === 'patch').at(-1).changes);
+    assert.equal(markChanges.length, 1, 'Marcar un cuadrito envía una sola diferencia');
+    assert.deepEqual(markChanges[0].path.slice(0, 3), ['blocks', '0', 'records']);
+    assert.equal(markChanges[0].value, 'completed');
     await shadow('.habit-heading[title="Leer cada día"]').click();
     await shadow('#delete-habit').click();
     if (await shadow('#change-dialog').evaluate(el => el.open)) await shadow('#modify-record').click();

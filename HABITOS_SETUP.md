@@ -49,7 +49,8 @@ o adoptar un historial distinto de la nube. Una nueva edición descarta rehacer.
   `{version: 2, blocks, hideEmptyDays}`; `revision` evita sobrescribir cambios de
   otro dispositivo; `updated_at` registra la última sincronización.
 - Copia local: `planner7.habitos.v1:<UUID>`. Incluye el historial, la revisión
-  conocida y `pending`, para reintentar los cambios al recuperar conexión.
+  conocida, `synced` (última versión confirmada por Supabase) y `pending`, para
+  reintentar los cambios al recuperar conexión.
 - Conflictos: el panel permite elegir nube o dispositivo y conserva ambas versiones
   en `planner7.habitos.v1:<UUID>.recovery` antes de resolverlos.
 - Las tareas (`tasks`) y las etiquetas/preferencias de Planner7 (`user_data`) no
@@ -76,6 +77,23 @@ y se descartan referencias en memoria; las copias locales quedan separadas por U
 La primera apertura necesita conexión para comprobar el historial de la cuenta.
 Después de cargar el historial o guardar una edición localmente, el panel puede trabajar sin conexión.
 Las ediciones se guardan primero en ese navegador y se envían en serie a Supabase.
+La sincronización compara el historial con `synced` y envía únicamente operaciones
+de insertar, actualizar o eliminar los campos que cambiaron. Una marca diaria
+envía solo su fecha/hábito y estado. Crear o borrar un registro no reenvía los
+registros restantes. Los cambios rápidos se agrupan durante 350 ms.
+
+La función `public.sync_habit_changes` aplica cada lote en una transacción bajo
+RLS y verifica la revisión antes de escribir. Usa la identidad autenticada, sin
+aceptar un ID de usuario del cliente. Devuelve solamente la revisión confirmada.
+La migración `supabase/migrations/20261012214215_sync_habit_changes.sql` fue
+aplicada al mismo proyecto y se incluye también en `supabase_setup.sql`.
+Los datos existentes conservan su formato y la tabla `habit_data`; no se borran.
+El respaldo debe incluir esta función y sus permisos, además de la tabla.
+
+Este cambio reduce el tráfico de guardado; la carga inicial todavía obtiene el
+historial completo. PostgreSQL sigue actualizando el documento JSONB de la fila.
+Las copias locales y las pilas de deshacer siguen guardando historiales completos;
+esta mejora se limita a la sincronización incremental.
 Un aviso distingue copia local, envío pendiente, sincronización y conflicto.
 Si el navegador rechaza el guardado local, se revierte la edición y se muestra un aviso.
 
@@ -89,3 +107,16 @@ tablas existentes. No convertir hábitos en filas de `tasks` para exportarlos.
 
 `node tests/habitos.cjs` con Playwright disponible en `NODE_PATH`: interfaz real
 en navegador aislado y Supabase simulado; no accede a cuentas ni modifica producción.
+
+`node tests/habitos-sync.cjs` verifica las diferencias de marcas, preferencias,
+hábitos y registros; una marca en el historial sintético de 7.000 entradas envía
+87 bytes de diferencias frente a 181.537 bytes de historial completo.
+Se comprobó la función real en Supabase bajo el rol `authenticated`, incluyendo
+primer guardado, conflicto de revisión, aislamiento de usuario y rollback de un
+lote inválido. Todas las escrituras de prueba se revirtieron con `ROLLBACK`.
+
+La revisión de seguridad no señaló la nueva función. Detectó avisos previos,
+ajenos al módulo: `set_updated_at` con [search_path mutable](https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable),
+`rls_auto_enable` con ejecución para [anon](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable)
+y [authenticated](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable),
+y [protección contra contraseñas filtradas desactivada](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
