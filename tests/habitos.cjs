@@ -148,8 +148,42 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     const glyphs = shadow('#icon-picker svg[data-icon^="letter-"], #icon-picker svg[data-icon^="number-"]');
     assert.equal(await glyphs.count(), 35);
     assert(await glyphs.evaluateAll(icons => icons.every(svg => !svg.querySelector('text') && svg.querySelector('path') && svg.dataset.font === 'Quicksand' && svg.dataset.weight === '500' && getComputedStyle(svg.querySelector('path')).stroke === 'none')), 'Letras y números usan los contornos de Quicksand Medium sin depender de una fuente instalada');
-    const visibleHeights = await shadow('#icon-picker svg[data-icon^="letter-"], #icon-picker svg[data-icon^="number-"], #icon-picker svg[data-icon="sun.svg"]').evaluateAll(icons => icons.map(svg => svg.getBBox().height / svg.viewBox.baseVal.height * svg.getBoundingClientRect().height + (svg.dataset.font === 'Quicksand' ? 0 : 2.25)));
-    assert(Math.max(...visibleHeights) - Math.min(...visibleHeights) < .1, 'Las letras y números tienen la misma altura visible que los símbolos');
+    const paintBounds = await shadow('#icon-picker svg').evaluateAll(async icons => {
+      const results = [];
+      const zoom = 16, margin = 64;
+      for (const original of icons) {
+        const svg = original.cloneNode(true), box = original.viewBox.baseVal;
+        const rect = original.getBoundingClientRect();
+        const width = Math.round(rect.width * zoom), height = Math.round(rect.height * zoom);
+        svg.removeAttribute('style');
+        svg.setAttribute('width', width + margin * 2);
+        svg.setAttribute('height', height + margin * 2);
+        svg.setAttribute('viewBox', [box.x - margin / width * box.width, box.y - margin / height * box.height, box.width * (1 + margin * 2 / width), box.height * (1 + margin * 2 / height)].join(' '));
+        const shapeSelector = 'path,circle,ellipse,line,polyline,polygon,rect';
+        const originalShapes = original.querySelectorAll(shapeSelector);
+        if (svg.dataset.font !== 'Quicksand') svg.querySelectorAll(shapeSelector).forEach((shape, index) => {
+          if (getComputedStyle(originalShapes[index]).stroke !== 'none') shape.style.strokeWidth = (2.25 * zoom) + 'px';
+        });
+        const image = new Image();
+        const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
+        image.src = url;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = width + margin * 2; canvas.height = height + margin * 2;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(image, 0, 0);
+        URL.revokeObjectURL(url);
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        let top = canvas.height, bottom = -1;
+        for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) if (pixels[(y * canvas.width + x) * 4 + 3] > 0) { top = Math.min(top, y); bottom = Math.max(bottom, y); }
+        results.push({ icon: original.dataset.icon, height: (bottom - top + 1) / zoom, top: (top - margin) / zoom, expected: rect.height });
+      }
+      return results;
+    });
+    for (const bounds of paintBounds) {
+      assert(Math.abs(bounds.height - bounds.expected) < .2, `Altura del dibujo visible: ${bounds.icon} (${bounds.height} / ${bounds.expected})`);
+      assert(Math.abs(bounds.top) < .2, `Sin margen blanco superior: ${bounds.icon} (${bounds.top})`);
+    }
     if (process.env.HABITOS_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.HABITOS_SCREENSHOTS, 'habitos-iconos.png') });
     assert.equal(await shadow('#icon-picker').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 5);
     const iconFiles = await shadow('#icon-picker button').evaluateAll(buttons => buttons.map(button => button.dataset.icon));
