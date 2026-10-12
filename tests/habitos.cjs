@@ -75,7 +75,9 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await page.evaluate(() => localStorage.setItem('habit-tracker.history.v2', '{"private":"prototipo"}'));
     const bodyFont = await page.locator('body').evaluate(el => getComputedStyle(el).fontFamily);
     await open();
-    assert.equal(await shadow('.habit-heading').count(), 7);
+    assert.equal(await shadow('.habit-heading').count(), 5);
+    assert.equal(await shadow('.habit-heading:not(.empty)').count(), 0);
+    assert.equal(await shadow('.habit-cell').count(), 0);
     assert.equal(await shadow('.test-controls').count(), 0);
     assert.equal(await page.locator('body').evaluate(el => getComputedStyle(el).fontFamily), bodyFont);
     assert.equal(await shadow('.tracker-body').evaluate(el => getComputedStyle(el).display), 'flex');
@@ -83,10 +85,11 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert(await page.locator('.app-container').evaluate(el => el.inert));
     assert.equal((await page.evaluate(() => ops)).filter(op => op.op !== 'select').length, 0, 'Abrir no crea datos');
 
-    await shadow('.habit-heading.empty').click();
+    await shadow('.habit-heading.empty').first().click();
     await shadow('#habit-name').fill('Leer cada día');
     await shadow('#choose-habit-icon').click();
     const iconCount = await shadow('#icon-picker button').count();
+    assert.equal(await shadow('#icon-picker').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 5);
     const iconFiles = await shadow('#icon-picker button').evaluateAll(buttons => buttons.map(button => button.dataset.icon));
     for (const icon of iconFiles) {
       const tags = iconTags[icon.split('/').pop().replace(/\.svg$/, '')];
@@ -127,6 +130,113 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert((await cache('alice')).data.blocks[0].habits.some(h => h?.name === 'Leer cada día'));
     assert.match((await cache('alice')).data.blocks[0].id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     assert.match((await cache('alice')).data.blocks[0].habits.find(h => h?.name === 'Leer cada día').id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    await page.keyboard.press('Control+z');
+    assert.equal(await shadow('.habit-heading:not(.empty)').count(), 0, 'Deshacer creación');
+    await page.keyboard.press('Control+y');
+    assert.equal(await shadow('.habit-heading[title="Leer cada día"]').count(), 1, 'Rehacer creación');
+    await saved();
+    await shadow('.habit-cell').first().click();
+    const readingBeforeDelete = (await cache('alice')).data;
+    await saved();
+    await shadow('.habit-heading[title="Leer cada día"]').click();
+    await shadow('#delete-habit').click();
+    if (await shadow('#change-dialog').evaluate(el => el.open)) await shadow('#modify-record').click();
+    await saved();
+    const deletedData = (await cache('alice')).data;
+    assert.equal(deletedData.blocks[0].habits.filter(Boolean).length, 0);
+    assert.deepEqual(deletedData.blocks[0].records, {});
+    assert(!('retiredHabits' in deletedData.blocks[0]));
+    assert.equal(await shadow('.retired-record').count(), 0);
+    await page.keyboard.press('Control+z');
+    assert.deepEqual((await cache('alice')).data, readingBeforeDelete, 'Deshacer recupera hábito y marcas');
+    await page.keyboard.press('Control+y');
+    assert.equal(await shadow('.habit-cell').count(), 0, 'Rehacer borrado');
+    await page.keyboard.press('Control+z');
+    await saved();
+    await shadow('.habit-cell').first().click();
+    const branched = (await cache('alice')).data;
+    await page.keyboard.press('Control+y');
+    assert.deepEqual((await cache('alice')).data, branched, 'Una nueva edición descarta rehacer');
+    await page.keyboard.press('Control+z');
+    // Renombrar y cambiar icono se deshace como una sola edición.
+    await shadow('.habit-heading[title="Leer cada día"]').click();
+    await shadow('#habit-name').fill('Leer novelas');
+    await shadow('#choose-habit-icon').click();
+    await shadow('#habit-icon-search').fill('hidratacion');
+    await shadow('#icon-picker button').click();
+    await shadow('#save-habit').click();
+    if (await shadow('#change-dialog').evaluate(el => el.open)) await shadow('#modify-record').click();
+    await page.keyboard.press('Control+z');
+    assert.equal(await shadow('.habit-heading[title="Leer cada día"] svg').getAttribute('data-icon'), 'book-open.svg');
+    await page.keyboard.press('Control+y');
+    assert.equal(await shadow('.habit-heading[title="Leer novelas"] svg').getAttribute('data-icon'), 'droplets.svg');
+    await page.keyboard.press('Control+z');
+    await shadow('.habit-heading[title="Leer cada día"]').click();
+    const beforeDraft = (await cache('alice')).data;
+    await shadow('#habit-name').press('End');
+    await shadow('#habit-name').pressSequentially(' borrador');
+    await page.keyboard.press('Control+z');
+    assert(await shadow('#habit-editor').evaluate(el => el.open), 'Deshacer texto mantiene el editor');
+    assert.deepEqual((await cache('alice')).data, beforeDraft, 'Deshacer nativo no cambia hábitos guardados');
+    assert.equal(await shadow('#habit-name').inputValue(), 'Leer cada día');
+    await shadow('#cancel-editor').click();
+    // Preferencia de vista y marcas participan en el mismo historial.
+    await shadow('#hide-empty-days').check();
+    await page.keyboard.press('Control+z');
+    assert(!(await shadow('#hide-empty-days').isChecked()));
+    await page.keyboard.press('Control+y');
+    assert(await shadow('#hide-empty-days').isChecked());
+    await page.keyboard.press('Control+z');
+    await shadow('.habit-row time').first().click({ modifiers: ['Control'] });
+    assert.deepEqual((await cache('alice')).data.blocks[0].records, {});
+    await page.keyboard.press('Control+z');
+    assert.deepEqual((await cache('alice')).data.blocks[0].records, readingBeforeDelete.blocks[0].records);
+    // Crear y borrar un registro; deshacer restaura períodos e historial completos.
+    await shadow('#record-selector-toggle').click();
+    await shadow('#create-record').click();
+    const twoRecords = (await cache('alice')).data;
+    assert.equal(twoRecords.blocks.length, 2);
+    await page.keyboard.press('Control+z');
+    assert.equal((await cache('alice')).data.blocks.length, 1);
+    await page.keyboard.press('Control+y');
+    assert.deepEqual((await cache('alice')).data, twoRecords);
+    await shadow('#record-selector-toggle').click();
+    await shadow('.delete-record').first().click();
+    await shadow('#confirm-delete-record').click();
+    assert.equal((await cache('alice')).data.blocks.length, 1);
+    await page.keyboard.press('Control+z');
+    assert.deepEqual((await cache('alice')).data, twoRecords);
+    await page.keyboard.press('Control+z'); // Volver a un registro para las pruebas de nube.
+    await saved();
+    await shadow('#close-tracker').click();
+    // Hábitos de prueba creados explícitamente en una cuenta ya existente.
+    await page.evaluate(() => {
+      const block = fakeCloud.alice.data.blocks[0];
+      block.habits = [
+        { id: 'sun', name: 'Sol usuario', icon: 'sun.svg' },
+        { id: 'exercise', name: 'Ejercicio usuario', icon: 'dumbbell.svg' },
+        { id: 'food', name: 'Comida usuario', icon: 'cooking.svg' },
+        ...block.habits.filter(Boolean)
+      ];
+      fakeCloud.alice.revision++;
+      localStorage.setItem('test-cloud', JSON.stringify(fakeCloud));
+    });
+    await open();
+    const originalOrder = (await cache('alice')).data.blocks[0].habits;
+    const from = await shadow('.habit-heading[data-habit="sun"]').boundingBox();
+    const to = await shadow('.habit-heading[data-habit="food"]').boundingBox();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(500); // Activación real del arrastre por pulsación larga.
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 5 });
+    await page.mouse.up();
+    const reordered = (await cache('alice')).data.blocks[0].habits;
+    assert.notDeepEqual(reordered, originalOrder);
+    await page.keyboard.press('Control+z');
+    assert.deepEqual((await cache('alice')).data.blocks[0].habits, originalOrder);
+    await page.keyboard.press('Control+y');
+    assert.deepEqual((await cache('alice')).data.blocks[0].habits, reordered);
+    await page.keyboard.press('Control+z');
     const cell = shadow('.habit-cell[data-habit="sun"]').first();
     await cell.click();
     assert.equal(await cell.getAttribute('data-state'), 'completed');
@@ -136,6 +246,13 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await cell.click();
     assert.equal(await cell.getAttribute('data-state'), 'pending');
     await cell.click();
+    await saved();
+    await shadow('#close-tracker').click();
+    await open();
+    await page.keyboard.press('Control+z');
+    assert.equal(await cell.getAttribute('data-state'), 'pending', 'Historial disponible tras cerrar y abrir el panel');
+    await page.keyboard.press('Control+y');
+    assert.equal(await cell.getAttribute('data-state'), 'completed');
     await saved();
     if (process.env.HABITOS_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.HABITOS_SCREENSHOTS, 'habitos-desktop.png') });
     await shadow('#show-stats').click();
@@ -217,8 +334,14 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert(await tool.isHidden());
     await open();
     assert.equal(await shadow('.habit-heading[title="Leer cada día"]').count(), 0);
-    assert.equal(await shadow('.habit-cell[data-habit="sun"]').first().getAttribute('data-state'), 'pending');
-    await shadow('.habit-cell[data-habit="food"]').first().click();
+    assert.equal(await shadow('.habit-heading:not(.empty)').count(), 0);
+    await page.keyboard.press('Control+z');
+    assert.equal(await shadow('.habit-heading:not(.empty)').count(), 0, 'Historial aislado por cuenta');
+    await shadow('.habit-heading.empty').first().click();
+    await shadow('#habit-name').fill('Comida Bob');
+    await shadow('#save-habit').click();
+    if (await shadow('#change-dialog').evaluate(el => el.open)) await shadow('#modify-record').click();
+    await shadow('.habit-cell').first().click();
     await saved();
     assert.equal((await cache('bob')).user_id, 'bob');
     assert.equal((await cache('alice')).data.blocks[0].habits[0].name, 'Sol desde otra sesión');
@@ -227,6 +350,37 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await page.setViewportSize({ width: 380, height: 780 });
     assert(await shadow('.tracker').evaluate(el => { const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; }));
     if (process.env.HABITOS_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.HABITOS_SCREENSHOTS, 'habitos-mobile.png') });
+    await shadow('#close-tracker').click();
+
+    // Compatibilidad con datos antiguos: sin sección retirada ni marcas huérfanas.
+    await page.evaluate(() => {
+      const habit = { id: 'shared', name: 'Rutina activa', icon: 'sun.svg' };
+      const today = new Date();
+      const key = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+      fakeCloud.legacy = { revision: 1, data: { version: 2, blocks: [
+        { id:'current-legacy', startDate:'2026-10-11', endDate:null, habits:[habit,...Array(6).fill(null)],
+          retiredHabits:[{id:'removed',name:'Ya eliminado',icon:'book-open.svg'}], records:{[key+':shared']:'completed',[key+':removed']:'completed'} },
+        { id:'older-legacy',startDate:'2026-10-10',endDate:'2026-10-10',habits:[habit,...Array(6).fill(null)],retiredHabits:[],records:{'2026-10-10:shared':'failed'} }
+      ] } };
+      currentUser = { id: 'legacy' }; authCallback('SIGNED_IN', { user: currentUser });
+    });
+    await open();
+    assert.equal(await shadow('.retired-record').count(), 0);
+    const legacyData = (await cache('legacy')).data;
+    assert(legacyData.blocks.every(block => !('retiredHabits' in block)));
+    assert(!Object.keys(legacyData.blocks[0].records).some(key => key.endsWith(':removed')));
+    const olderData = legacyData.blocks[1];
+    await shadow('.habit-heading[data-habit="shared"]').click();
+    await shadow('#delete-habit').click();
+    if (await shadow('#change-dialog').evaluate(el => el.open)) await shadow('#modify-record').click();
+    await saved();
+    assert.deepEqual((await cache('legacy')).data.blocks[0].records, {});
+    assert.deepEqual((await cache('legacy')).data.blocks[1], olderData, 'Borrar de un registro no cambia otros registros');
+    await page.keyboard.press('Control+z');
+    assert.deepEqual((await cache('legacy')).data, legacyData);
+    await page.keyboard.press('Control+y');
+    assert.deepEqual((await cache('legacy')).data.blocks[0].records, {});
+    await saved();
     await shadow('#close-tracker').click();
 
     // Una cuenta sin copia no genera un historial vacío cuando falla la carga.
@@ -240,7 +394,7 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await page.locator('#habitos-btn').click();
     assert(await page.evaluate(() => window.authShown));
     assert.deepEqual(errors, []);
-    console.log('OK: hábitos, nube, copia local, conflictos, cuentas, teclado y móvil');
+    console.log('OK: inicio vacío, iconos, borrado, deshacer/rehacer, registros, nube, cuentas y móvil');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
 

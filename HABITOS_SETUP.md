@@ -1,14 +1,35 @@
 # Hábitos dentro de Planner7
 
 El botón de diana del header abre el Habit Tracker. `app-8-habitos.js` conserva
-registros, hábitos retirados, iconos, reordenamiento y estadísticas del prototipo.
+registros, iconos, reordenamiento y estadísticas del prototipo.
 Su interfaz usa Shadow DOM para aislar estilos, IDs y eventos del calendario.
 Los controles de fecha simulada y datos inventados del prototipo no se muestran.
 El selector de iconos incluye búsqueda por nombre y cinco etiquetas internas por
 icono, principalmente en español. La búsqueda ignora tildes y mayúsculas; las
 etiquetas no aparecen en la interfaz ni se guardan en el historial del usuario.
+La cuadrícula del selector muestra cinco iconos por fila.
 La creación de identificadores admite HTTPS y HTTP por IP local (por ejemplo,
 `http://192.168.1.4:3000`); usa `crypto.getRandomValues` cuando no hay `randomUUID`.
+
+Las cuentas sin historial comienzan con todos los espacios vacíos. Los hábitos
+ya guardados de cuentas existentes se conservan.
+
+## Borrado y deshacer
+
+Al borrar un hábito del registro, se elimina junto con sus marcas; no existe una
+sección de hábitos retirados. Los campos `retiredHabits` de versiones anteriores
+y las marcas que no pertenecen a hábitos activos se descartan al cargar y quedan
+fuera del siguiente guardado. Otros registros mantienen sus propios hábitos.
+
+`Ctrl+Z` deshace y `Ctrl+Y` rehace creaciones, ediciones de nombre/icono, borrados,
+marcas, limpieza de días, reordenamientos, cambios del filtro de días y creación
+o eliminación de registros. Cada operación restaura una copia completa del
+historial y se sincroniza mediante el guardado habitual. `Ctrl+Shift+Z` también
+rehace. Al escribir en un campo se mantiene el deshacer nativo de texto.
+
+Las pilas de deshacer/rehacer son de la sesión de la cuenta en esta página y se
+conservan al cerrar y reabrir el panel. Se vacían al recargar, cambiar de cuenta
+o adoptar un historial distinto de la nube. Una nueva edición descarta rehacer.
 
 ## Almacenamiento
 
