@@ -4,6 +4,9 @@ El botón de diana del header abre el Habit Tracker. `app-8-habitos.js` conserva
 registros, hábitos retirados, iconos, reordenamiento y estadísticas del prototipo.
 Su interfaz usa Shadow DOM para aislar estilos, IDs y eventos del calendario.
 Los controles de fecha simulada y datos inventados del prototipo no se muestran.
+El selector de iconos incluye búsqueda por nombre y cinco etiquetas internas por
+icono, principalmente en español. La búsqueda ignora tildes y mayúsculas; las
+etiquetas no aparecen en la interfaz ni se guardan en el historial del usuario.
 La creación de identificadores admite HTTPS y HTTP por IP local (por ejemplo,
 `http://192.168.1.4:3000`); usa `crypto.getRandomValues` cuando no hay `randomUUID`.
 

@@ -31,8 +31,8 @@
   const app = document.querySelector('.app-container');
 
   // Interfaz e iconos del prototipo Habit Tracker, aislados con Shadow DOM.
-const HABIT_HTML = "\n  \n  <section class=\"modal-backdrop\" id=\"tracker-backdrop\">\n    <div class=\"tracker-shell\">\n      \n    <div class=\"modal-content tracker\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"tracker-title\">\n      <header class=\"modal-header\">\n        <h1 id=\"tracker-title\">Hábitos</h1>\n        <div class=\"modal-header-actions\">\n          <button class=\"icon-button\" id=\"show-stats\" aria-label=\"Ver estadísticas\" title=\"Estadísticas\">\n            <svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"bar-chart.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M3 3v18h18\"/>\n  <path d=\"m7 14 4-4 3 3 5-6\"/>\n</svg>\n          </button>\n          <button class=\"icon-button\" id=\"close-tracker\" aria-label=\"Cerrar Habit Tracker\" title=\"Cerrar\">\n            <svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg>\n          </button>\n        </div>\n      </header>\n      <div class=\"tracker-body\"><div class=\"cloud-sync\"><span id=\"cloud-status\" role=\"status\" aria-live=\"polite\"></span><button id=\"cloud-retry\" type=\"button\" hidden>Reintentar</button><button id=\"cloud-remote\" type=\"button\" hidden>Usar nube</button><button id=\"cloud-local\" type=\"button\" hidden>Guardar mis cambios</button></div>\n        <div class=\"record-selector\" id=\"record-selector\">\n          <button class=\"record-selector-toggle\" id=\"record-selector-toggle\" type=\"button\" aria-expanded=\"false\" aria-controls=\"record-selector-menu\" aria-label=\"Seleccionar registro\">\n            <span id=\"selected-record-label\">Registro actual</span><span class=\"record-chevron\" aria-hidden=\"true\"></span>\n          </button>\n          <div class=\"record-selector-menu\" id=\"record-selector-menu\" hidden>\n            <div id=\"record-options\"></div>\n            <button class=\"create-record\" id=\"create-record\" type=\"button\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"plus.svg\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg>Crear nuevo registro</button>\n          </div>\n        </div>\n        <label class=\"empty-days-filter\"><input id=\"hide-empty-days\" type=\"checkbox\">Ocultar días sin marcar</label>\n        <div class=\"history\">\n          <div class=\"history-viewport\" id=\"history-viewport\" tabindex=\"0\" aria-label=\"Registro de hábitos, del día más reciente al más antiguo\">\n            <div class=\"habit-grid\" id=\"habit-grid\"></div>\n          </div>\n          <div class=\"scroll-rail\" aria-hidden=\"true\">\n            <button class=\"scroll-arrow up\" id=\"scroll-up\" tabindex=\"-1\" aria-label=\"Subir fechas\"></button>\n            <div class=\"scroll-track\" id=\"scroll-track\"><div class=\"scroll-thumb\" id=\"scroll-thumb\"></div></div>\n            <button class=\"scroll-arrow down\" id=\"scroll-down\" tabindex=\"-1\" aria-label=\"Bajar fechas\"></button>\n          </div>\n        </div>\n      </div>\n    </div>\n    </div>\n  </section>\n  <dialog class=\"stats-dialog\" id=\"stats-dialog\" aria-labelledby=\"stats-title\">\n    <header class=\"stats-header\">\n      <h2 id=\"stats-title\">Estadísticas</h2>\n      <button class=\"icon-button\" id=\"close-stats\" aria-label=\"Cerrar estadísticas\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n    </header>\n    <div class=\"stats-filters\">\n      <label class=\"stats-filter\" for=\"stats-chart-type\">Gráfico\n        <select id=\"stats-chart-type\"><option value=\"line\">Lineal</option><option value=\"squares\">Cuadritos</option></select>\n      </label>\n      <label class=\"stats-filter\" for=\"stats-habit\">Hábito\n        <select id=\"stats-habit\"></select>\n      </label>\n      <label class=\"stats-filter\" for=\"stats-show\">MOSTRAR\n        <select id=\"stats-show\"></select>\n      </label>\n    </div>\n    <section class=\"stats-chart-section\" id=\"stats-line-section\" aria-labelledby=\"line-chart-title\">\n      <div class=\"stats-chart-header\">\n        <h3 id=\"line-chart-title\">Lineal</h3>\n      </div>\n      <p class=\"stats-chart-description\">Porcentaje de cumplimiento del hábito por período. Solo cuentan los días marcados como completado o no realizado.</p>\n      <div id=\"stats-line-chart\"></div>\n    </section>\n    <section class=\"stats-chart-section\" id=\"stats-squares-section\" aria-labelledby=\"habit-chart-title\" hidden>\n      <h3 id=\"habit-chart-title\">Habit Tracker</h3>\n      <p class=\"stats-chart-summary\" id=\"stats-habit-summary\"></p>\n      <label class=\"empty-days-filter\"><input id=\"stats-hide-empty-days\" type=\"checkbox\">Ocultar días sin marcar</label>\n      <div class=\"stats-habit-grid\" id=\"stats-habit-chart\"></div>\n      <p class=\"stats-chart-description\" id=\"stats-empty-message\" hidden>No hay días marcados en este período.</p>\n    </section>\n    <div class=\"stats-chart-tooltip\" id=\"stats-day-tooltip\" role=\"tooltip\" hidden></div>\n  </dialog>\n  <dialog class=\"stats-dialog\" id=\"stats-range-dialog\" aria-labelledby=\"stats-range-title\">\n    <form id=\"stats-range-form\">\n      <header class=\"stats-header\">\n        <h2 id=\"stats-range-title\">Período personalizado</h2>\n        <button class=\"icon-button\" id=\"close-stats-range\" type=\"button\" aria-label=\"Cancelar período personalizado\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n      </header>\n      <fieldset class=\"stats-range-fields\" id=\"stats-range-fields\">\n        <label class=\"stats-filter\" for=\"stats-end-date\">Día de término<input id=\"stats-end-date\" type=\"date\" required></label>\n        <div class=\"stats-range-row\">\n          <label class=\"stats-filter\" for=\"stats-unit\">Unidad<select id=\"stats-unit\"><option value=\"days\">Días</option><option value=\"weeks\">Semanas</option><option value=\"months\">Meses</option></select></label>\n          <label class=\"stats-filter\" for=\"stats-quantity\">Cantidad<input id=\"stats-quantity\" type=\"number\" min=\"1\" max=\"366\" step=\"1\" value=\"30\" required></label>\n        </div>\n      </fieldset>\n      <label class=\"empty-days-filter stats-record-mode\"><input id=\"stats-use-record\" type=\"checkbox\">Usar un registro completo</label>\n      <label class=\"stats-filter stats-range-record\" for=\"stats-record\">Registro<select id=\"stats-record\" disabled></select></label>\n      <p class=\"stats-chart-description\" id=\"stats-range-preview\" aria-live=\"polite\"></p>\n      <footer class=\"editor-actions\"><div class=\"editor-save-actions\"><button class=\"form-button\" id=\"cancel-stats-range\" type=\"button\">Cancelar</button><button class=\"form-button primary\" type=\"submit\">Aplicar</button></div></footer>\n    </form>\n  </dialog>\n  <dialog class=\"stats-dialog habit-editor\" id=\"habit-editor\" aria-labelledby=\"habit-editor-title\">\n    <form id=\"habit-form\">\n      <header class=\"stats-header\">\n        <h2 id=\"habit-editor-title\">Editar hábito</h2>\n        <div class=\"modal-header-actions\">\n          <button class=\"icon-button delete-habit\" id=\"delete-habit\" type=\"button\" title=\"Eliminar hábito\" aria-label=\"Eliminar hábito\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"trash.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <polyline points=\"3 6 5 6 21 6\"/>\n  <path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/>\n  <line x1=\"10\" y1=\"11\" x2=\"10\" y2=\"17\"/>\n  <line x1=\"14\" y1=\"11\" x2=\"14\" y2=\"17\"/>\n</svg></button>\n          <button class=\"icon-button\" id=\"close-editor\" type=\"button\" aria-label=\"Cerrar editor\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n        </div>\n      </header>\n      <label class=\"field-label\" for=\"habit-name\">Nombre</label>\n      <div class=\"habit-name-row\">\n        <input class=\"habit-input\" id=\"habit-name\" name=\"name\" maxlength=\"60\" required autocomplete=\"off\" placeholder=\"Nombre del hábito\">\n        <button class=\"choose-habit-icon\" id=\"choose-habit-icon\" type=\"button\" aria-label=\"Cambiar icono\" title=\"Cambiar icono\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"sun.svg\" id=\"selected-habit-icon\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\" fill=\"currentColor\"/><path d=\"M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"/></svg></button>\n      </div>\n      <input id=\"habit-icon-value\" name=\"icon\" type=\"hidden\" value=\"sun.svg\">\n      <footer class=\"editor-actions\">\n        <div class=\"editor-save-actions\">\n          <button class=\"form-button\" id=\"cancel-editor\" type=\"button\">Cancelar</button>\n          <button class=\"form-button primary\" type=\"submit\" id=\"save-habit\">Guardar</button>\n        </div>\n      </footer>\n    </form>\n  </dialog>\n  <dialog class=\"stats-dialog\" id=\"icon-dialog\" aria-labelledby=\"icon-dialog-title\">\n    <header class=\"stats-header\">\n      <h2 id=\"icon-dialog-title\">Elegir icono</h2>\n      <button class=\"icon-button\" id=\"close-icon-dialog\" type=\"button\" aria-label=\"Cerrar selector de iconos\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n    </header>\n    <div class=\"icon-picker\" id=\"icon-picker\"></div>\n  </dialog>\n  <dialog class=\"stats-dialog\" id=\"change-dialog\" aria-labelledby=\"change-title\">\n    <header class=\"stats-header\">\n      <h2 id=\"change-title\">¿Cómo aplicar este cambio?</h2>\n      <button class=\"icon-button\" id=\"close-change\" type=\"button\" aria-label=\"Cancelar cambio\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n    </header>\n    <div class=\"change-options\">\n      <button class=\"change-option primary\" id=\"new-record\"><strong>Crear un nuevo registro</strong></button>\n      <button class=\"change-option\" id=\"modify-record\"><strong>Modificar el registro actual</strong></button>\n    </div>\n    <footer class=\"editor-actions\"><button class=\"form-button\" id=\"cancel-change\">Cancelar</button></footer>\n  </dialog>\n  <dialog class=\"stats-dialog\" id=\"delete-record-dialog\" aria-labelledby=\"delete-record-title\" aria-describedby=\"delete-record-description\">\n    <header class=\"stats-header\">\n      <h2 id=\"delete-record-title\">Eliminar registro</h2>\n      <button class=\"icon-button\" id=\"close-delete-record\" type=\"button\" aria-label=\"Cancelar eliminación\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n    </header>\n    <p class=\"change-description\" id=\"delete-record-description\"></p>\n    <footer class=\"editor-actions\">\n      <div class=\"editor-save-actions\">\n        <button class=\"form-button\" id=\"cancel-delete-record\">Cancelar</button>\n        <button class=\"form-button danger\" id=\"confirm-delete-record\">Eliminar registro</button>\n      </div>\n    </footer>\n  </dialog>\n  <dialog class=\"stats-dialog\" id=\"record-notice-dialog\" aria-labelledby=\"record-notice-title\" aria-describedby=\"record-notice-description\">\n    <header class=\"stats-header\"><h2 id=\"record-notice-title\">No se puede crear otro registro</h2></header>\n    <p class=\"change-description\" id=\"record-notice-description\">El registro actual solo contiene el día de hoy. Podrás crear otro a partir de mañana. Mientras tanto, puedes modificar este registro.</p>\n    <footer class=\"editor-actions\"><button class=\"form-button primary\" id=\"close-record-notice\" type=\"button\">Entendido</button></footer>\n  </dialog>\n  <div class=\"sr-only\" id=\"announcement\" role=\"status\" aria-live=\"polite\"></div>\n";
-const HABIT_CSS = "/* Tokens y convenciones visuales de Planner7, aislados para este prototipo. */\n:host {\n  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;\n  --bg-app: #ffffff;\n  --bg-card: #ffffff;\n  --text-main: #111111;\n  --text-muted: #86868b;\n  --border-light: #e5e5ea;\n  --border-focus: #111111;\n  --bg-hover: #f2f2f7;\n  --overlay-bg: rgba(102, 102, 102, .55);\n  --radius-sm: 6px;\n  --radius-md: 10px;\n  --radius-lg: 16px;\n  --shadow-sm: 0 1px 3px rgba(0, 0, 0, .02), 0 1px 2px rgba(0, 0, 0, .04);\n  --shadow-lg: 0 12px 30px rgba(0, 0, 0, .06), 0 4px 12px rgba(0, 0, 0, .03);\n  --transition-fast: .15s cubic-bezier(.4, 0, .2, 1);\n  --date-width: 48px;\n  --grid-gap: clamp(3px, 1.6cqw, 10px);\n  --rail-width: 12px;\n  --rail-gap: 16px;\n}\n* { box-sizing: border-box; }\n.habit-body {\n  margin: 0;\n  min-height: 100dvh;\n  font-family: var(--font-primary);\n  color: var(--text-main);\n  background: var(--bg-app);\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;\n}\nbutton { font: inherit; -webkit-tap-highlight-color: transparent; }\nbutton:focus-visible, [tabindex]:focus-visible {\n  outline: 2px solid var(--text-main);\n  outline-offset: 4px;\n}\n[hidden] { display: none !important; }\n.modal-backdrop {\n  position: fixed;\n  inset: 0;\n  display: grid;\n  place-items: center;\n  padding: 32px 20px;\n  background: var(--overlay-bg);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n}\n.modal-content {\n  background: var(--bg-card);\n  border: 1px solid rgba(0, 0, 0, .08);\n  box-shadow: var(--shadow-lg);\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n}\n.tracker {\n  width: min(480px, 100%);\n  height: min(900px, 90dvh);\n  border-radius: var(--radius-lg);\n}\n.tracker-shell { display: flex; align-items: flex-start; gap: 16px; width: min(638px, 100%); }\n.tracker-shell .tracker { min-width: 0; flex: 1; }\n.test-controls { display: flex; flex-direction: column; gap: 8px; flex: 0 0 142px; padding-top: 12px; }\n.test-controls-title { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }\n.test-button { padding: 10px 12px; min-height: 38px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: white; color: var(--text-main); font-size: 12px; text-align: left; cursor: pointer; }\n.test-button:hover { background: var(--bg-hover); }\n.test-button:disabled { opacity: .45; cursor: default; }\n.test-button[aria-pressed=\"true\"] { background: var(--text-main); color: white; }\n.test-date { font-size: 11px; line-height: 1.5; }\n@media (max-width: 760px) {\n  .tracker-shell { flex-direction: column; gap: 12px; width: min(480px, 100%); }\n  .test-controls { flex: none; width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; padding-top: 0; gap: 6px; }\n  .test-controls-title { display: none; }\n  .test-button { flex: 1; text-align: center; padding: 8px 6px; }\n  .test-date { flex-basis: 100%; }\n  .tracker-shell .tracker { flex: none; width: 100%; height: min(900px, calc(100dvh - 144px)); }\n}\n.modal-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  flex: 0 0 auto;\n  gap: 12px;\n  padding: 20px 24px;\n  border-bottom: 1px solid var(--border-light);\n}\nh1 {\n  margin: 0;\n  font-size: 18px;\n  line-height: 1.2;\n  font-weight: 700;\n  letter-spacing: -.02em;\n}\n.modal-header-actions { display: flex; align-items: center; gap: 8px; }\n.icon-button {\n  background: none;\n  border: 0;\n  cursor: pointer;\n  display: grid;\n  place-items: center;\n  flex: 0 0 auto;\n  width: 28px;\n  height: 28px;\n  padding: 4px;\n  border-radius: 50%;\n  transition: background-color var(--transition-fast);\n}\n.icon-button:hover { background: #f2f2f7; }\n.icon-button svg { width: 20px; height: 20px; }\n.icon-button svg, .habit-heading svg, .choose-habit-icon svg, .icon-option svg, .create-record svg { stroke-width: 1.75; }\n.habit-heading svg text, .choose-habit-icon svg text, .icon-option svg text { font-weight: 500; }\n.tracker-body {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n  min-height: 0;\n  padding: 20px 24px 24px;\n}\n.habit-headings, .habit-row {\n  display: grid;\n  grid-template-columns: var(--date-width) repeat(var(--habit-columns, 5), minmax(0, 1fr));\n  gap: var(--grid-gap);\n  align-items: center;\n}\n.record-selector { position: relative; align-self: flex-start; max-width: 100%; margin-bottom: 18px; }\n.record-selector-toggle { display: flex; align-items: center; gap: 14px; min-height: 38px; max-width: 100%; padding: 9px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: white; color: var(--text-main); cursor: pointer; font-size: 13px; text-align: left; }\n.record-selector-toggle:hover { background: var(--bg-hover); }\n.record-chevron { width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); flex: 0 0 auto; margin: 0 2px 4px; }\n.record-selector-toggle[aria-expanded=\"true\"] .record-chevron { transform: rotate(225deg); margin-bottom: 0; }\n.record-selector-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; width: 340px; max-width: calc(100vw - 74px); padding: 6px; background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); }\n#record-options { max-height: min(320px, 40dvh); overflow-y: auto; }\n.record-option { display: flex; align-items: center; gap: 4px; border-radius: var(--radius-sm); padding-right: 6px; }\n.record-option.selected { background: var(--bg-hover); }\n.record-option-select { flex: 1; min-width: 0; padding: 12px 8px; border: 0; background: none; color: var(--text-main); font-size: 13px; cursor: pointer; text-align: left; border-radius: var(--radius-sm); }\n.record-option-select:hover { background: var(--bg-hover); }\n.create-record { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 8px; border: 0; border-top: 1px solid var(--border-light); background: white; font-size: 13px; color: var(--text-main); cursor: pointer; text-align: left; }\n.create-record:hover { background: var(--bg-hover); }\n.create-record svg { width: 16px; height: 16px; }\n.habit-headings {\n  flex: 0 0 auto;\n  padding-bottom: 18px;\n  height: 54px;\n}\n.habit-heading {\n  display: grid; place-items: center; height: 36px;\n  width: 100%; padding: 0; border: 0; border-radius: var(--radius-md);\n  background: none; cursor: pointer;\n}\n.habit-heading:hover { background: #f2f2f7; }\n.habit-heading.empty { opacity: .45; }\n.habit-heading.empty:hover { opacity: 1; }\n.habit-heading svg { width: 28px; height: 28px;  }\n.history { display: flex; gap: var(--rail-gap); flex: 1; min-height: 0; }\n.empty-days-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: var(--text-muted); font-size: 12px; cursor: pointer; }\n.empty-days-filter input { margin: 0; width: 16px; height: 16px; accent-color: var(--text-main); }\n.empty-record-message { margin: 8px 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }\n.history-viewport {\n  container-type: inline-size;\n  flex: 1;\n  min-width: 0;\n  overflow-y: auto;\n  overflow-x: hidden;\n  scrollbar-width: none;\n  overscroll-behavior: contain;\n  scroll-padding-top: 64px;\n}\n.history-viewport::-webkit-scrollbar { display: none; }\n.habit-grid { display: grid; gap: var(--grid-gap); }\n.record-block { display: grid; gap: var(--grid-gap); }\n.record-block + .record-block { border-top: 1px solid var(--border-light); margin-top: 16px; padding-top: 18px; }\n.record-label { margin: 0; color: var(--text-muted); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; line-height: 1.5; }\n.record-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }\n.delete-record { width: 26px; height: 26px; padding: 5px; }\n.delete-record svg { width: 16px; height: 16px; opacity: .55; }\n.delete-record:hover svg { opacity: 1; }\n.form-button.danger { background: #ff3b30; border-color: #ff3b30; color: white; }\n.form-button.danger:hover { background: #e33229; }\n.record-block .habit-headings { position: sticky; top: 0; z-index: 2; align-self: start; background: var(--bg-card); padding-bottom: 12px; border-bottom: 1px solid var(--border-light); }\n.retired-record .habit-headings { z-index: 3; }\n.habit-heading.archived { cursor: default; }\n.habit-heading.archived:hover { background: none; }\n.retired-record { border-top: 1px dashed var(--border-light); padding-top: 16px; margin-top: 12px; display: grid; gap: var(--grid-gap); }\n.change-description { color: var(--text-muted); font-size: 14px; line-height: 1.5; margin: 18px 0; }\n.change-options { display: grid; gap: 10px; margin-top: 18px; }\n.change-option { text-align: left; cursor: pointer; padding: 16px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: white; color: var(--text-main); }\n.change-option:hover { background: #f2f2f7; border-color: var(--text-main); }\n.change-option.primary { background: var(--text-main); border-color: var(--text-main); color: white; }\n.change-option.primary:hover { background: #333; }\n.change-option strong { display: block; font-size: 14px; }\n.habit-row time {\n  font-size: 14px;\n  line-height: 1;\n  font-weight: 600;\n  color: var(--text-muted);\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n.habit-cell {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 100%;\n  aspect-ratio: 1;\n  border: 0;\n  border-radius: var(--radius-md);\n  padding: 0;\n  background: #e9e9ec;\n  cursor: pointer;\n  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);\n}\n.habit-cell:hover { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .85); }\n.habit-cell[data-state=\"completed\"] { background: #34c759; }\n.habit-cell[data-state=\"failed\"] { background: #ff3b30; }\n.habit-cell:focus-visible { outline-offset: -4px; }\n.habit-heading[data-habit], .habit-cell {\n  position: relative;\n  touch-action: pan-y;\n  user-select: none;\n  -webkit-user-select: none;\n  -webkit-touch-callout: none;\n}\n.habit-heading svg, .habit-cell svg { pointer-events: none; }\n.habit-column-shifting {\n  transform: translateX(var(--habit-drag-x, 0px));\n  transition: transform var(--transition-fast);\n}\n.habit-column-dragging {\n  transform: translateX(var(--habit-drag-x, 0px));\n  z-index: 3;\n  box-shadow: 0 4px 12px rgba(0, 0, 0, .16);\n  cursor: grabbing;\n}\n.reordering-habits, .reordering-habits * { cursor: grabbing !important; }\n.habit-empty { width: 100%; aspect-ratio: 1; }\n.scroll-rail { display: flex; flex-direction: column; flex: 0 0 var(--rail-width); gap: 10px; }\n.scroll-arrow {\n  display: grid;\n  place-items: center;\n  width: 100%;\n  height: 14px;\n  flex: 0 0 14px;\n  padding: 0;\n  border: 0;\n  background: none;\n  cursor: pointer;\n}\n.scroll-arrow::after { content: ''; width: 6px; height: 6px; border-top: 1.5px solid var(--text-muted); border-left: 1.5px solid var(--text-muted); }\n.scroll-arrow.up::after { transform: rotate(45deg); }\n.scroll-arrow.down::after { transform: rotate(225deg); }\n.scroll-arrow:disabled { opacity: .5; cursor: default; }\n.scroll-track { position: relative; flex: 1; min-height: 0; cursor: pointer; }\n.scroll-thumb {\n  position: absolute;\n  top: 0;\n  left: 3px;\n  width: 6px;\n  min-height: 32px;\n  background: #c7c7cc;\n  border-radius: 999px;\n  cursor: grab;\n  touch-action: none;\n}\n.scroll-thumb:active { cursor: grabbing; }\n.scroll-thumb:hover { background: #8e8e93; }\n.launcher { min-height: 100dvh; display: grid; place-items: center; }\n.open-tracker {\n  border: 1px solid var(--border-light);\n  background: white;\n  color: var(--text-main);\n  border-radius: var(--radius-lg);\n  padding: 18px 24px;\n  box-shadow: var(--shadow-lg);\n  cursor: pointer;\n}\n.stats-dialog {\n  width: min(420px, calc(100vw - 32px));\n  max-height: calc(100dvh - 48px);\n  overflow: auto;\n  padding: 24px;\n  border: 1px solid rgba(0, 0, 0, .08);\n  border-radius: var(--radius-lg);\n  box-shadow: var(--shadow-lg);\n  color: var(--text-main);\n}\n.stats-dialog::backdrop { background: var(--overlay-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }\n.stats-dialog { background: var(--bg-card); scrollbar-width: thin; scrollbar-color: #c7c7cc transparent; }\n.stats-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -24px -24px 0; padding: 20px 24px; border-bottom: 1px solid var(--border-light); }\n.stats-header h2 { font-size: 18px; font-weight: 700; letter-spacing: -.02em; margin: 0; }\n#stats-dialog { width: min(760px, calc(100vw - 32px)); }\n.stats-filter { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-muted); min-width: 0; }\n.stats-filter select { max-width: 100%; width: 100%; min-width: 0; padding: 6px 10px; height: 38px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main); font: 400 13px var(--font-primary); text-transform: none; letter-spacing: normal; }\n.stats-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.5fr); gap: 12px; align-items: end; margin-top: 20px; }\n.stats-range-fields { border: 0; padding: 0; margin: 20px 0 0; display: grid; gap: 12px; min-width: 0; }\n.stats-range-fields:disabled { opacity: .45; }\n.stats-range-fields .stats-filter, .stats-range-record { flex-direction: column; align-items: flex-start; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; }\n.stats-range-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }\n.stats-record-mode { margin-top: 24px; color: var(--text-main); }\n.stats-range-record select:disabled { opacity: .45; }\n.stats-filters .stats-filter { flex-direction: column; align-items: flex-start; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }\n.stats-filter input { width: 100%; min-width: 0; height: 38px; padding: 6px 10px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main); font: 400 13px var(--font-primary); }\n.stats-filter input[type=\"date\"] { padding: 6px 12px; }\n.stats-filter select:focus, .stats-filter input:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 2px rgba(0, 0, 0, .05); }\n.stats-compliance-percent { color: var(--text-muted); font-weight: 600; }\n.stats-chart-section { margin-top: 28px; container-type: inline-size; }\n.stats-chart-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }\n.stats-chart-section h3 { font-size: 15px; margin: 0; font-weight: 600; }\n.stats-chart-description { font-size: 12px; line-height: 1.5; color: var(--text-muted); margin: 10px 0; }\n.stats-chart-summary { font-size: 13px; margin: 16px 0; }\n#stats-line-chart svg { display: block; width: 100%; height: auto; }\n.stats-habit-grid { display: grid; grid-template-columns: repeat(15, minmax(0, 1fr)); gap: clamp(1px, .5cqw, 4px); padding: 6px 0; }\n.stats-day { aspect-ratio: 1; border-radius: 3px; background: #e9e9ec; }\n.stats-day[data-state=\"completed\"] { background: #34c759; }\n.stats-day[data-state=\"failed\"] { background: #ff3b30; }\n.stats-day:hover, .stats-day:focus-visible { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .85); outline: none; }\n.stats-chart-tooltip { position: fixed; pointer-events: none; background: rgba(0, 0, 0, .85); color: #fff; padding: 4px 8px; font-size: 11px; font-weight: 600; border-radius: 4px; z-index: 10; white-space: nowrap; line-height: 1.4; }\n@media (max-width: 560px) {\n  .stats-dialog { padding: 20px; }\n  .stats-header { margin: -20px -20px 0; padding: 18px 20px; }\n  .stats-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }\n  .stats-filters > .stats-filter:last-child { grid-column: 1 / -1; }\n  #stats-line-chart text { font-size: 6px; }\n  .stats-habit-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); }\n}\n.field-label { display: block; font-size: 11.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin: 24px 0 6px; }\n.habit-input {\n  width: 100%; height: 38px; padding: 8px 0; border: none; border-bottom: 1.5px solid var(--border-light);\n  border-radius: 0; background: var(--bg-card); font: inherit; font-size: 18px; font-weight: 600; color: var(--text-main);\n}\n.habit-input:focus { outline: none; border-color: var(--text-main); }\n.habit-input:focus-visible { outline: none; border-bottom-color: var(--border-focus); }\n.habit-name-row { display: flex; align-items: center; gap: 12px; }\n.habit-name-row .habit-input { min-width: 0; flex: 1; }\n.choose-habit-icon { display: grid; place-items: center; flex: 0 0 38px; height: 38px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: white; cursor: pointer; }\n.choose-habit-icon:hover { background: #f2f2f7; }\n.choose-habit-icon svg { width: 24px; height: 24px; }\n.icon-picker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }\n.icon-option { display: grid; place-items: center; aspect-ratio: 1; padding: 0; background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); cursor: pointer; }\n.icon-option svg { width: 28px; height: 28px; }\n.icon-option:hover { background: #f2f2f7; }\n.icon-option[aria-pressed=\"true\"] { background: #f2f2f7; border-color: var(--text-main); }\n.editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 24px -24px -24px; padding: 16px 24px; border-top: 1px solid var(--border-light); }\n.delete-habit svg { color: #ff3b30; }\n.editor-save-actions { display: flex; gap: 8px; margin-left: auto; }\n.form-button { border: 1px solid var(--border-light); background: white; padding: 10px 18px; border-radius: var(--radius-md); cursor: pointer; font-size: 13px; font-weight: 600; transition: background-color var(--transition-fast), border-color var(--transition-fast); }\n.form-button:hover { background: #f2f2f7; }\n.form-button.primary { background: var(--text-main); border-color: var(--text-main); color: white; }\n.form-button.primary:hover { background: #333; }\n.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }\n@media (max-width: 560px) {\n  :host { --date-width: 46px; --rail-width: 14px; --rail-gap: 8px; }\n  .modal-backdrop { padding: 16px; }\n  .tracker-shell { width: 100%; }\n  .tracker { height: calc(100dvh - 32px); border-radius: var(--radius-lg); }\n  .modal-header { padding: 18px 20px; }\n  .modal-header-actions { gap: 4px; }\n  .tracker-body { padding: 16px 16px 20px; }\n  .habit-headings { height: 48px; padding-bottom: 12px; }\n  .habit-heading svg { width: min(24px, 90%); height: 24px; }\n  .habit-row time { font-size: 12px; }\n  .habit-cell { border-radius: var(--radius-md); }\n  .scroll-thumb { left: 4px; width: 6px; }\n  .editor-actions { margin: 24px -20px -20px; padding: 16px 20px; }\n}\n@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }\n\n.habit-body { background:transparent; }\n:host { position:fixed; inset:0; z-index:2500; font-family:var(--font-primary); color:var(--text-main); }\n:host([hidden]) { display:none !important; }\n.tracker-shell { width:min(480px,100%); }\n.tracker-shell .tracker { height:min(900px,90dvh); }\n.cloud-sync { display:flex; gap:8px; align-items:center; flex-wrap:wrap; color:var(--text-muted); font-size:11px; line-height:1.5; margin-bottom:12px; }\n.cloud-sync button { background:white; border:1px solid var(--border-light); border-radius:6px; padding:5px 8px; cursor:pointer; }\n.cloud-sync [data-mode=\"conflict\"],.cloud-sync [data-mode=\"error\"] { color:#9d4b20; }\n@media(max-width:600px) { .modal-backdrop { padding:16px 12px; } .tracker-shell .tracker { height:calc(100dvh - 32px); } }\n";
+const HABIT_HTML = "\n  \n  <section class=\"modal-backdrop\" id=\"tracker-backdrop\">\n    <div class=\"tracker-shell\">\n      \n    <div class=\"modal-content tracker\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"tracker-title\">\n      <header class=\"modal-header\">\n        <h1 id=\"tracker-title\">Hábitos</h1>\n        <div class=\"modal-header-actions\">\n          <button class=\"icon-button\" id=\"show-stats\" aria-label=\"Ver estadísticas\" title=\"Estadísticas\">\n            <svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"bar-chart.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <path d=\"M3 3v18h18\"/>\n  <path d=\"m7 14 4-4 3 3 5-6\"/>\n</svg>\n          </button>\n          <button class=\"icon-button\" id=\"close-tracker\" aria-label=\"Cerrar Habit Tracker\" title=\"Cerrar\">\n            <svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg>\n          </button>\n        </div>\n      </header>\n      <div class=\"tracker-body\"><div class=\"cloud-sync\"><span id=\"cloud-status\" role=\"status\" aria-live=\"polite\"></span><button id=\"cloud-retry\" type=\"button\" hidden>Reintentar</button><button id=\"cloud-remote\" type=\"button\" hidden>Usar nube</button><button id=\"cloud-local\" type=\"button\" hidden>Guardar mis cambios</button></div>\n        <div class=\"record-selector\" id=\"record-selector\">\n          <button class=\"record-selector-toggle\" id=\"record-selector-toggle\" type=\"button\" aria-expanded=\"false\" aria-controls=\"record-selector-menu\" aria-label=\"Seleccionar registro\">\n            <span id=\"selected-record-label\">Registro actual</span><span class=\"record-chevron\" aria-hidden=\"true\"></span>\n          </button>\n          <div class=\"record-selector-menu\" id=\"record-selector-menu\" hidden>\n            <div id=\"record-options\"></div>\n            <button class=\"create-record\" id=\"create-record\" type=\"button\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"plus.svg\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg>Crear nuevo registro</button>\n          </div>\n        </div>\n        <label class=\"empty-days-filter\"><input id=\"hide-empty-days\" type=\"checkbox\">Ocultar días sin marcar</label>\n        <div class=\"history\">\n          <div class=\"history-viewport\" id=\"history-viewport\" tabindex=\"0\" aria-label=\"Registro de hábitos, del día más reciente al más antiguo\">\n            <div class=\"habit-grid\" id=\"habit-grid\"></div>\n          </div>\n          <div class=\"scroll-rail\" aria-hidden=\"true\">\n            <button class=\"scroll-arrow up\" id=\"scroll-up\" tabindex=\"-1\" aria-label=\"Subir fechas\"></button>\n            <div class=\"scroll-track\" id=\"scroll-track\"><div class=\"scroll-thumb\" id=\"scroll-thumb\"></div></div>\n            <button class=\"scroll-arrow down\" id=\"scroll-down\" tabindex=\"-1\" aria-label=\"Bajar fechas\"></button>\n          </div>\n        </div>\n      </div>\n    </div>\n    </div>\n  </section>\n  <dialog class=\"stats-dialog\" id=\"stats-dialog\" aria-labelledby=\"stats-title\">\n    <header class=\"stats-header\">\n      <h2 id=\"stats-title\">Estadísticas</h2>\n      <button class=\"icon-button\" id=\"close-stats\" aria-label=\"Cerrar estadísticas\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n    </header>\n    <div class=\"stats-filters\">\n      <label class=\"stats-filter\" for=\"stats-chart-type\">Gráfico\n        <select id=\"stats-chart-type\"><option value=\"line\">Lineal</option><option value=\"squares\">Cuadritos</option></select>\n      </label>\n      <label class=\"stats-filter\" for=\"stats-habit\">Hábito\n        <select id=\"stats-habit\"></select>\n      </label>\n      <label class=\"stats-filter\" for=\"stats-show\">MOSTRAR\n        <select id=\"stats-show\"></select>\n      </label>\n    </div>\n    <section class=\"stats-chart-section\" id=\"stats-line-section\" aria-labelledby=\"line-chart-title\">\n      <div class=\"stats-chart-header\">\n        <h3 id=\"line-chart-title\">Lineal</h3>\n      </div>\n      <p class=\"stats-chart-description\">Porcentaje de cumplimiento del hábito por período. Solo cuentan los días marcados como completado o no realizado.</p>\n      <div id=\"stats-line-chart\"></div>\n    </section>\n    <section class=\"stats-chart-section\" id=\"stats-squares-section\" aria-labelledby=\"habit-chart-title\" hidden>\n      <h3 id=\"habit-chart-title\">Habit Tracker</h3>\n      <p class=\"stats-chart-summary\" id=\"stats-habit-summary\"></p>\n      <label class=\"empty-days-filter\"><input id=\"stats-hide-empty-days\" type=\"checkbox\">Ocultar días sin marcar</label>\n      <div class=\"stats-habit-grid\" id=\"stats-habit-chart\"></div>\n      <p class=\"stats-chart-description\" id=\"stats-empty-message\" hidden>No hay días marcados en este período.</p>\n    </section>\n    <div class=\"stats-chart-tooltip\" id=\"stats-day-tooltip\" role=\"tooltip\" hidden></div>\n  </dialog>\n  <dialog class=\"stats-dialog\" id=\"stats-range-dialog\" aria-labelledby=\"stats-range-title\">\n    <form id=\"stats-range-form\">\n      <header class=\"stats-header\">\n        <h2 id=\"stats-range-title\">Período personalizado</h2>\n        <button class=\"icon-button\" id=\"close-stats-range\" type=\"button\" aria-label=\"Cancelar período personalizado\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n      </header>\n      <fieldset class=\"stats-range-fields\" id=\"stats-range-fields\">\n        <label class=\"stats-filter\" for=\"stats-end-date\">Día de término<input id=\"stats-end-date\" type=\"date\" required></label>\n        <div class=\"stats-range-row\">\n          <label class=\"stats-filter\" for=\"stats-unit\">Unidad<select id=\"stats-unit\"><option value=\"days\">Días</option><option value=\"weeks\">Semanas</option><option value=\"months\">Meses</option></select></label>\n          <label class=\"stats-filter\" for=\"stats-quantity\">Cantidad<input id=\"stats-quantity\" type=\"number\" min=\"1\" max=\"366\" step=\"1\" value=\"30\" required></label>\n        </div>\n      </fieldset>\n      <label class=\"empty-days-filter stats-record-mode\"><input id=\"stats-use-record\" type=\"checkbox\">Usar un registro completo</label>\n      <label class=\"stats-filter stats-range-record\" for=\"stats-record\">Registro<select id=\"stats-record\" disabled></select></label>\n      <p class=\"stats-chart-description\" id=\"stats-range-preview\" aria-live=\"polite\"></p>\n      <footer class=\"editor-actions\"><div class=\"editor-save-actions\"><button class=\"form-button\" id=\"cancel-stats-range\" type=\"button\">Cancelar</button><button class=\"form-button primary\" type=\"submit\">Aplicar</button></div></footer>\n    </form>\n  </dialog>\n  <dialog class=\"stats-dialog habit-editor\" id=\"habit-editor\" aria-labelledby=\"habit-editor-title\">\n    <form id=\"habit-form\">\n      <header class=\"stats-header\">\n        <h2 id=\"habit-editor-title\">Editar hábito</h2>\n        <div class=\"modal-header-actions\">\n          <button class=\"icon-button delete-habit\" id=\"delete-habit\" type=\"button\" title=\"Eliminar hábito\" aria-label=\"Eliminar hábito\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"trash.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <polyline points=\"3 6 5 6 21 6\"/>\n  <path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/>\n  <line x1=\"10\" y1=\"11\" x2=\"10\" y2=\"17\"/>\n  <line x1=\"14\" y1=\"11\" x2=\"14\" y2=\"17\"/>\n</svg></button>\n          <button class=\"icon-button\" id=\"close-editor\" type=\"button\" aria-label=\"Cerrar editor\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n        </div>\n      </header>\n      <label class=\"field-label\" for=\"habit-name\">Nombre</label>\n      <div class=\"habit-name-row\">\n        <input class=\"habit-input\" id=\"habit-name\" name=\"name\" maxlength=\"60\" required autocomplete=\"off\" placeholder=\"Nombre del hábito\">\n        <button class=\"choose-habit-icon\" id=\"choose-habit-icon\" type=\"button\" aria-label=\"Cambiar icono\" title=\"Cambiar icono\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"sun.svg\" id=\"selected-habit-icon\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"4\" fill=\"currentColor\"/><path d=\"M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4\"/></svg></button>\n      </div>\n      <input id=\"habit-icon-value\" name=\"icon\" type=\"hidden\" value=\"sun.svg\">\n      <footer class=\"editor-actions\">\n        <div class=\"editor-save-actions\">\n          <button class=\"form-button\" id=\"cancel-editor\" type=\"button\">Cancelar</button>\n          <button class=\"form-button primary\" type=\"submit\" id=\"save-habit\">Guardar</button>\n        </div>\n      </footer>\n    </form>\n  </dialog>\n  <dialog class=\"stats-dialog\" id=\"icon-dialog\" aria-labelledby=\"icon-dialog-title\">\n    <header class=\"stats-header\">\n      <h2 id=\"icon-dialog-title\">Elegir icono</h2>\n      <button class=\"icon-button\" id=\"close-icon-dialog\" type=\"button\" aria-label=\"Cerrar selector de iconos\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n    </header>\n    <label class=\"sr-only\" for=\"habit-icon-search\">Buscar iconos</label>\n    <input class=\"icon-search\" id=\"habit-icon-search\" type=\"search\" placeholder=\"Buscar iconos…\" autocomplete=\"off\" aria-controls=\"icon-picker\">\n    <p class=\"icon-search-empty\" id=\"icon-search-empty\" role=\"status\" hidden>No se encontraron iconos.</p>\n    <div class=\"icon-picker\" id=\"icon-picker\"></div>\n  </dialog>\n  <dialog class=\"stats-dialog\" id=\"change-dialog\" aria-labelledby=\"change-title\">\n    <header class=\"stats-header\">\n      <h2 id=\"change-title\">¿Cómo aplicar este cambio?</h2>\n      <button class=\"icon-button\" id=\"close-change\" type=\"button\" aria-label=\"Cancelar cambio\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n    </header>\n    <div class=\"change-options\">\n      <button class=\"change-option primary\" id=\"new-record\"><strong>Crear un nuevo registro</strong></button>\n      <button class=\"change-option\" id=\"modify-record\"><strong>Modificar el registro actual</strong></button>\n    </div>\n    <footer class=\"editor-actions\"><button class=\"form-button\" id=\"cancel-change\">Cancelar</button></footer>\n  </dialog>\n  <dialog class=\"stats-dialog\" id=\"delete-record-dialog\" aria-labelledby=\"delete-record-title\" aria-describedby=\"delete-record-description\">\n    <header class=\"stats-header\">\n      <h2 id=\"delete-record-title\">Eliminar registro</h2>\n      <button class=\"icon-button\" id=\"close-delete-record\" type=\"button\" aria-label=\"Cancelar eliminación\"><svg aria-hidden=\"true\" focusable=\"false\" data-icon=\"close.svg\" xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">\n  <line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/>\n  <line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/>\n</svg></button>\n    </header>\n    <p class=\"change-description\" id=\"delete-record-description\"></p>\n    <footer class=\"editor-actions\">\n      <div class=\"editor-save-actions\">\n        <button class=\"form-button\" id=\"cancel-delete-record\">Cancelar</button>\n        <button class=\"form-button danger\" id=\"confirm-delete-record\">Eliminar registro</button>\n      </div>\n    </footer>\n  </dialog>\n  <dialog class=\"stats-dialog\" id=\"record-notice-dialog\" aria-labelledby=\"record-notice-title\" aria-describedby=\"record-notice-description\">\n    <header class=\"stats-header\"><h2 id=\"record-notice-title\">No se puede crear otro registro</h2></header>\n    <p class=\"change-description\" id=\"record-notice-description\">El registro actual solo contiene el día de hoy. Podrás crear otro a partir de mañana. Mientras tanto, puedes modificar este registro.</p>\n    <footer class=\"editor-actions\"><button class=\"form-button primary\" id=\"close-record-notice\" type=\"button\">Entendido</button></footer>\n  </dialog>\n  <div class=\"sr-only\" id=\"announcement\" role=\"status\" aria-live=\"polite\"></div>\n";
+const HABIT_CSS = "/* Tokens y convenciones visuales de Planner7, aislados para este prototipo. */\n:host {\n  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;\n  --bg-app: #ffffff;\n  --bg-card: #ffffff;\n  --text-main: #111111;\n  --text-muted: #86868b;\n  --border-light: #e5e5ea;\n  --border-focus: #111111;\n  --bg-hover: #f2f2f7;\n  --overlay-bg: rgba(102, 102, 102, .55);\n  --radius-sm: 6px;\n  --radius-md: 10px;\n  --radius-lg: 16px;\n  --shadow-sm: 0 1px 3px rgba(0, 0, 0, .02), 0 1px 2px rgba(0, 0, 0, .04);\n  --shadow-lg: 0 12px 30px rgba(0, 0, 0, .06), 0 4px 12px rgba(0, 0, 0, .03);\n  --transition-fast: .15s cubic-bezier(.4, 0, .2, 1);\n  --date-width: 48px;\n  --grid-gap: clamp(3px, 1.6cqw, 10px);\n  --rail-width: 12px;\n  --rail-gap: 16px;\n}\n* { box-sizing: border-box; }\n.habit-body {\n  margin: 0;\n  min-height: 100dvh;\n  font-family: var(--font-primary);\n  color: var(--text-main);\n  background: var(--bg-app);\n  -webkit-font-smoothing: antialiased;\n  -moz-osx-font-smoothing: grayscale;\n}\nbutton { font: inherit; -webkit-tap-highlight-color: transparent; }\nbutton:focus-visible, [tabindex]:focus-visible {\n  outline: 2px solid var(--text-main);\n  outline-offset: 4px;\n}\n[hidden] { display: none !important; }\n.modal-backdrop {\n  position: fixed;\n  inset: 0;\n  display: grid;\n  place-items: center;\n  padding: 32px 20px;\n  background: var(--overlay-bg);\n  backdrop-filter: blur(12px);\n  -webkit-backdrop-filter: blur(12px);\n}\n.modal-content {\n  background: var(--bg-card);\n  border: 1px solid rgba(0, 0, 0, .08);\n  box-shadow: var(--shadow-lg);\n  display: flex;\n  flex-direction: column;\n  overflow: hidden;\n}\n.tracker {\n  width: min(480px, 100%);\n  height: min(900px, 90dvh);\n  border-radius: var(--radius-lg);\n}\n.tracker-shell { display: flex; align-items: flex-start; gap: 16px; width: min(638px, 100%); }\n.tracker-shell .tracker { min-width: 0; flex: 1; }\n.test-controls { display: flex; flex-direction: column; gap: 8px; flex: 0 0 142px; padding-top: 12px; }\n.test-controls-title { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }\n.test-button { padding: 10px 12px; min-height: 38px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: white; color: var(--text-main); font-size: 12px; text-align: left; cursor: pointer; }\n.test-button:hover { background: var(--bg-hover); }\n.test-button:disabled { opacity: .45; cursor: default; }\n.test-button[aria-pressed=\"true\"] { background: var(--text-main); color: white; }\n.test-date { font-size: 11px; line-height: 1.5; }\n@media (max-width: 760px) {\n  .tracker-shell { flex-direction: column; gap: 12px; width: min(480px, 100%); }\n  .test-controls { flex: none; width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; padding-top: 0; gap: 6px; }\n  .test-controls-title { display: none; }\n  .test-button { flex: 1; text-align: center; padding: 8px 6px; }\n  .test-date { flex-basis: 100%; }\n  .tracker-shell .tracker { flex: none; width: 100%; height: min(900px, calc(100dvh - 144px)); }\n}\n.modal-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  flex: 0 0 auto;\n  gap: 12px;\n  padding: 20px 24px;\n  border-bottom: 1px solid var(--border-light);\n}\nh1 {\n  margin: 0;\n  font-size: 18px;\n  line-height: 1.2;\n  font-weight: 700;\n  letter-spacing: -.02em;\n}\n.modal-header-actions { display: flex; align-items: center; gap: 8px; }\n.icon-button {\n  background: none;\n  border: 0;\n  cursor: pointer;\n  display: grid;\n  place-items: center;\n  flex: 0 0 auto;\n  width: 28px;\n  height: 28px;\n  padding: 4px;\n  border-radius: 50%;\n  transition: background-color var(--transition-fast);\n}\n.icon-button:hover { background: #f2f2f7; }\n.icon-button svg { width: 20px; height: 20px; }\n.icon-button svg, .habit-heading svg, .choose-habit-icon svg, .icon-option svg, .create-record svg { stroke-width: 1.75; }\n.habit-heading svg text, .choose-habit-icon svg text, .icon-option svg text { font-weight: 500; }\n.tracker-body {\n  display: flex;\n  flex-direction: column;\n  flex: 1;\n  min-height: 0;\n  padding: 20px 24px 24px;\n}\n.habit-headings, .habit-row {\n  display: grid;\n  grid-template-columns: var(--date-width) repeat(var(--habit-columns, 5), minmax(0, 1fr));\n  gap: var(--grid-gap);\n  align-items: center;\n}\n.record-selector { position: relative; align-self: flex-start; max-width: 100%; margin-bottom: 18px; }\n.record-selector-toggle { display: flex; align-items: center; gap: 14px; min-height: 38px; max-width: 100%; padding: 9px 12px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: white; color: var(--text-main); cursor: pointer; font-size: 13px; text-align: left; }\n.record-selector-toggle:hover { background: var(--bg-hover); }\n.record-chevron { width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); flex: 0 0 auto; margin: 0 2px 4px; }\n.record-selector-toggle[aria-expanded=\"true\"] .record-chevron { transform: rotate(225deg); margin-bottom: 0; }\n.record-selector-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; width: 340px; max-width: calc(100vw - 74px); padding: 6px; background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); }\n#record-options { max-height: min(320px, 40dvh); overflow-y: auto; }\n.record-option { display: flex; align-items: center; gap: 4px; border-radius: var(--radius-sm); padding-right: 6px; }\n.record-option.selected { background: var(--bg-hover); }\n.record-option-select { flex: 1; min-width: 0; padding: 12px 8px; border: 0; background: none; color: var(--text-main); font-size: 13px; cursor: pointer; text-align: left; border-radius: var(--radius-sm); }\n.record-option-select:hover { background: var(--bg-hover); }\n.create-record { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 8px; border: 0; border-top: 1px solid var(--border-light); background: white; font-size: 13px; color: var(--text-main); cursor: pointer; text-align: left; }\n.create-record:hover { background: var(--bg-hover); }\n.create-record svg { width: 16px; height: 16px; }\n.habit-headings {\n  flex: 0 0 auto;\n  padding-bottom: 18px;\n  height: 54px;\n}\n.habit-heading {\n  display: grid; place-items: center; height: 36px;\n  width: 100%; padding: 0; border: 0; border-radius: var(--radius-md);\n  background: none; cursor: pointer;\n}\n.habit-heading:hover { background: #f2f2f7; }\n.habit-heading.empty { opacity: .45; }\n.habit-heading.empty:hover { opacity: 1; }\n.habit-heading svg { width: 28px; height: 28px;  }\n.history { display: flex; gap: var(--rail-gap); flex: 1; min-height: 0; }\n.empty-days-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: var(--text-muted); font-size: 12px; cursor: pointer; }\n.empty-days-filter input { margin: 0; width: 16px; height: 16px; accent-color: var(--text-main); }\n.empty-record-message { margin: 8px 0; color: var(--text-muted); font-size: 13px; line-height: 1.5; }\n.history-viewport {\n  container-type: inline-size;\n  flex: 1;\n  min-width: 0;\n  overflow-y: auto;\n  overflow-x: hidden;\n  scrollbar-width: none;\n  overscroll-behavior: contain;\n  scroll-padding-top: 64px;\n}\n.history-viewport::-webkit-scrollbar { display: none; }\n.habit-grid { display: grid; gap: var(--grid-gap); }\n.record-block { display: grid; gap: var(--grid-gap); }\n.record-block + .record-block { border-top: 1px solid var(--border-light); margin-top: 16px; padding-top: 18px; }\n.record-label { margin: 0; color: var(--text-muted); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; line-height: 1.5; }\n.record-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }\n.delete-record { width: 26px; height: 26px; padding: 5px; }\n.delete-record svg { width: 16px; height: 16px; opacity: .55; }\n.delete-record:hover svg { opacity: 1; }\n.form-button.danger { background: #ff3b30; border-color: #ff3b30; color: white; }\n.form-button.danger:hover { background: #e33229; }\n.record-block .habit-headings { position: sticky; top: 0; z-index: 2; align-self: start; background: var(--bg-card); padding-bottom: 12px; border-bottom: 1px solid var(--border-light); }\n.retired-record .habit-headings { z-index: 3; }\n.habit-heading.archived { cursor: default; }\n.habit-heading.archived:hover { background: none; }\n.retired-record { border-top: 1px dashed var(--border-light); padding-top: 16px; margin-top: 12px; display: grid; gap: var(--grid-gap); }\n.change-description { color: var(--text-muted); font-size: 14px; line-height: 1.5; margin: 18px 0; }\n.change-options { display: grid; gap: 10px; margin-top: 18px; }\n.change-option { text-align: left; cursor: pointer; padding: 16px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: white; color: var(--text-main); }\n.change-option:hover { background: #f2f2f7; border-color: var(--text-main); }\n.change-option.primary { background: var(--text-main); border-color: var(--text-main); color: white; }\n.change-option.primary:hover { background: #333; }\n.change-option strong { display: block; font-size: 14px; }\n.habit-row time {\n  font-size: 14px;\n  line-height: 1;\n  font-weight: 600;\n  color: var(--text-muted);\n  font-variant-numeric: tabular-nums;\n  white-space: nowrap;\n}\n.habit-cell {\n  position: relative;\n  display: grid;\n  place-items: center;\n  width: 100%;\n  aspect-ratio: 1;\n  border: 0;\n  border-radius: var(--radius-md);\n  padding: 0;\n  background: #e9e9ec;\n  cursor: pointer;\n  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);\n}\n.habit-cell:hover { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .85); }\n.habit-cell[data-state=\"completed\"] { background: #34c759; }\n.habit-cell[data-state=\"failed\"] { background: #ff3b30; }\n.habit-cell:focus-visible { outline-offset: -4px; }\n.habit-heading[data-habit], .habit-cell {\n  position: relative;\n  touch-action: pan-y;\n  user-select: none;\n  -webkit-user-select: none;\n  -webkit-touch-callout: none;\n}\n.habit-heading svg, .habit-cell svg { pointer-events: none; }\n.habit-column-shifting {\n  transform: translateX(var(--habit-drag-x, 0px));\n  transition: transform var(--transition-fast);\n}\n.habit-column-dragging {\n  transform: translateX(var(--habit-drag-x, 0px));\n  z-index: 3;\n  box-shadow: 0 4px 12px rgba(0, 0, 0, .16);\n  cursor: grabbing;\n}\n.reordering-habits, .reordering-habits * { cursor: grabbing !important; }\n.habit-empty { width: 100%; aspect-ratio: 1; }\n.scroll-rail { display: flex; flex-direction: column; flex: 0 0 var(--rail-width); gap: 10px; }\n.scroll-arrow {\n  display: grid;\n  place-items: center;\n  width: 100%;\n  height: 14px;\n  flex: 0 0 14px;\n  padding: 0;\n  border: 0;\n  background: none;\n  cursor: pointer;\n}\n.scroll-arrow::after { content: ''; width: 6px; height: 6px; border-top: 1.5px solid var(--text-muted); border-left: 1.5px solid var(--text-muted); }\n.scroll-arrow.up::after { transform: rotate(45deg); }\n.scroll-arrow.down::after { transform: rotate(225deg); }\n.scroll-arrow:disabled { opacity: .5; cursor: default; }\n.scroll-track { position: relative; flex: 1; min-height: 0; cursor: pointer; }\n.scroll-thumb {\n  position: absolute;\n  top: 0;\n  left: 3px;\n  width: 6px;\n  min-height: 32px;\n  background: #c7c7cc;\n  border-radius: 999px;\n  cursor: grab;\n  touch-action: none;\n}\n.scroll-thumb:active { cursor: grabbing; }\n.scroll-thumb:hover { background: #8e8e93; }\n.launcher { min-height: 100dvh; display: grid; place-items: center; }\n.open-tracker {\n  border: 1px solid var(--border-light);\n  background: white;\n  color: var(--text-main);\n  border-radius: var(--radius-lg);\n  padding: 18px 24px;\n  box-shadow: var(--shadow-lg);\n  cursor: pointer;\n}\n.stats-dialog {\n  width: min(420px, calc(100vw - 32px));\n  max-height: calc(100dvh - 48px);\n  overflow: auto;\n  padding: 24px;\n  border: 1px solid rgba(0, 0, 0, .08);\n  border-radius: var(--radius-lg);\n  box-shadow: var(--shadow-lg);\n  color: var(--text-main);\n}\n.stats-dialog::backdrop { background: var(--overlay-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }\n.stats-dialog { background: var(--bg-card); scrollbar-width: thin; scrollbar-color: #c7c7cc transparent; }\n.stats-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -24px -24px 0; padding: 20px 24px; border-bottom: 1px solid var(--border-light); }\n.stats-header h2 { font-size: 18px; font-weight: 700; letter-spacing: -.02em; margin: 0; }\n#stats-dialog { width: min(760px, calc(100vw - 32px)); }\n.stats-filter { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-muted); min-width: 0; }\n.stats-filter select { max-width: 100%; width: 100%; min-width: 0; padding: 6px 10px; height: 38px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main); font: 400 13px var(--font-primary); text-transform: none; letter-spacing: normal; }\n.stats-filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.5fr); gap: 12px; align-items: end; margin-top: 20px; }\n.stats-range-fields { border: 0; padding: 0; margin: 20px 0 0; display: grid; gap: 12px; min-width: 0; }\n.stats-range-fields:disabled { opacity: .45; }\n.stats-range-fields .stats-filter, .stats-range-record { flex-direction: column; align-items: flex-start; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; }\n.stats-range-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }\n.stats-record-mode { margin-top: 24px; color: var(--text-main); }\n.stats-range-record select:disabled { opacity: .45; }\n.stats-filters .stats-filter { flex-direction: column; align-items: flex-start; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }\n.stats-filter input { width: 100%; min-width: 0; height: 38px; padding: 6px 10px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: var(--bg-card); color: var(--text-main); font: 400 13px var(--font-primary); }\n.stats-filter input[type=\"date\"] { padding: 6px 12px; }\n.stats-filter select:focus, .stats-filter input:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 2px rgba(0, 0, 0, .05); }\n.stats-compliance-percent { color: var(--text-muted); font-weight: 600; }\n.stats-chart-section { margin-top: 28px; container-type: inline-size; }\n.stats-chart-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }\n.stats-chart-section h3 { font-size: 15px; margin: 0; font-weight: 600; }\n.stats-chart-description { font-size: 12px; line-height: 1.5; color: var(--text-muted); margin: 10px 0; }\n.stats-chart-summary { font-size: 13px; margin: 16px 0; }\n#stats-line-chart svg { display: block; width: 100%; height: auto; }\n.stats-habit-grid { display: grid; grid-template-columns: repeat(15, minmax(0, 1fr)); gap: clamp(1px, .5cqw, 4px); padding: 6px 0; }\n.stats-day { aspect-ratio: 1; border-radius: 3px; background: #e9e9ec; }\n.stats-day[data-state=\"completed\"] { background: #34c759; }\n.stats-day[data-state=\"failed\"] { background: #ff3b30; }\n.stats-day:hover, .stats-day:focus-visible { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .85); outline: none; }\n.stats-chart-tooltip { position: fixed; pointer-events: none; background: rgba(0, 0, 0, .85); color: #fff; padding: 4px 8px; font-size: 11px; font-weight: 600; border-radius: 4px; z-index: 10; white-space: nowrap; line-height: 1.4; }\n@media (max-width: 560px) {\n  .stats-dialog { padding: 20px; }\n  .stats-header { margin: -20px -20px 0; padding: 18px 20px; }\n  .stats-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }\n  .stats-filters > .stats-filter:last-child { grid-column: 1 / -1; }\n  #stats-line-chart text { font-size: 6px; }\n  .stats-habit-grid { grid-template-columns: repeat(10, minmax(0, 1fr)); }\n}\n.field-label { display: block; font-size: 11.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin: 24px 0 6px; }\n.habit-input {\n  width: 100%; height: 38px; padding: 8px 0; border: none; border-bottom: 1.5px solid var(--border-light);\n  border-radius: 0; background: var(--bg-card); font: inherit; font-size: 18px; font-weight: 600; color: var(--text-main);\n}\n.habit-input:focus { outline: none; border-color: var(--text-main); }\n.habit-input:focus-visible { outline: none; border-bottom-color: var(--border-focus); }\n.habit-name-row { display: flex; align-items: center; gap: 12px; }\n.habit-name-row .habit-input { min-width: 0; flex: 1; }\n.choose-habit-icon { display: grid; place-items: center; flex: 0 0 38px; height: 38px; border: 1px solid var(--border-light); border-radius: var(--radius-md); background: white; cursor: pointer; }\n.choose-habit-icon:hover { background: #f2f2f7; }\n.choose-habit-icon svg { width: 24px; height: 24px; }\n.icon-picker { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }\n.icon-option { display: grid; place-items: center; aspect-ratio: 1; padding: 0; background: white; border: 1px solid var(--border-light); border-radius: var(--radius-md); cursor: pointer; }\n.icon-option svg { width: 28px; height: 28px; }\n.icon-option:hover { background: #f2f2f7; }\n.icon-option[aria-pressed=\"true\"] { background: #f2f2f7; border-color: var(--text-main); }\n.editor-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 24px -24px -24px; padding: 16px 24px; border-top: 1px solid var(--border-light); }\n.delete-habit svg { color: #ff3b30; }\n.editor-save-actions { display: flex; gap: 8px; margin-left: auto; }\n.form-button { border: 1px solid var(--border-light); background: white; padding: 10px 18px; border-radius: var(--radius-md); cursor: pointer; font-size: 13px; font-weight: 600; transition: background-color var(--transition-fast), border-color var(--transition-fast); }\n.form-button:hover { background: #f2f2f7; }\n.form-button.primary { background: var(--text-main); border-color: var(--text-main); color: white; }\n.form-button.primary:hover { background: #333; }\n.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }\n@media (max-width: 560px) {\n  :host { --date-width: 46px; --rail-width: 14px; --rail-gap: 8px; }\n  .modal-backdrop { padding: 16px; }\n  .tracker-shell { width: 100%; }\n  .tracker { height: calc(100dvh - 32px); border-radius: var(--radius-lg); }\n  .modal-header { padding: 18px 20px; }\n  .modal-header-actions { gap: 4px; }\n  .tracker-body { padding: 16px 16px 20px; }\n  .habit-headings { height: 48px; padding-bottom: 12px; }\n  .habit-heading svg { width: min(24px, 90%); height: 24px; }\n  .habit-row time { font-size: 12px; }\n  .habit-cell { border-radius: var(--radius-md); }\n  .scroll-thumb { left: 4px; width: 6px; }\n  .editor-actions { margin: 24px -20px -20px; padding: 16px 20px; }\n}\n@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }\n\n.habit-body { background:transparent; }\n:host { position:fixed; inset:0; z-index:2500; font-family:var(--font-primary); color:var(--text-main); }\n:host([hidden]) { display:none !important; }\n.tracker-shell { width:min(480px,100%); }\n.tracker-shell .tracker { height:min(900px,90dvh); }\n.cloud-sync { display:flex; gap:8px; align-items:center; flex-wrap:wrap; color:var(--text-muted); font-size:11px; line-height:1.5; margin-bottom:12px; }\n.cloud-sync button { background:white; border:1px solid var(--border-light); border-radius:6px; padding:5px 8px; cursor:pointer; }\n.cloud-sync [data-mode=\"conflict\"],.cloud-sync [data-mode=\"error\"] { color:#9d4b20; }\n@media(max-width:600px) { .modal-backdrop { padding:16px 12px; } .tracker-shell .tracker { height:calc(100dvh - 32px); } }\n\n.icon-search { display:block; width:100%; margin-top:20px; padding:11px 12px; border:1px solid var(--border-light); border-radius:var(--radius-md); background:var(--bg-card); color:var(--text-main); font:inherit; font-size:16px; }\n.icon-search:focus-visible { outline:2px solid var(--border-focus); outline-offset:2px; }\n.icon-picker { margin-top:16px; }\n.icon-search-empty { margin:20px 0 0; color:var(--text-muted); font-size:13px; }\n";
 
   function validDay(value) {
     if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -1116,6 +1116,1437 @@ const existingIconOptions = [
   ...Array.from('ABCDEFGHIJKLMNOPQRSTUVWXYZ', letter => ({ icon: 'letter-' + letter.toLowerCase() + '.svg', name: 'Letra ' + letter })),
   ...Array.from({ length: 9 }, (_, index) => ({ icon: 'number-' + (index + 1) + '.svg', name: 'Número ' + (index + 1) }))
 ];
+// Metadatos de búsqueda: cinco etiquetas por icono; no se añaden al DOM.
+const HABIT_ICON_TAGS = Object.freeze({
+  "alarm-clock": [
+    "alarma",
+    "despertar",
+    "mañana",
+    "puntualidad",
+    "recordatorio"
+  ],
+  "eye": [
+    "ojo",
+    "visión",
+    "mirar",
+    "observar",
+    "vista"
+  ],
+  "map-pin": [
+    "ubicación",
+    "mapa",
+    "lugar",
+    "destino",
+    "localización"
+  ],
+  "star": [
+    "estrella",
+    "favorito",
+    "logro",
+    "destacar",
+    "prioridad"
+  ],
+  "pencil": [
+    "lápiz",
+    "escribir",
+    "dibujar",
+    "apuntes",
+    "estudiar"
+  ],
+  "file-text": [
+    "documento",
+    "texto",
+    "archivo",
+    "informe",
+    "lectura"
+  ],
+  "square-pen": [
+    "editar",
+    "redactar",
+    "escribir",
+    "notas",
+    "corregir"
+  ],
+  "trash": [
+    "basura",
+    "limpiar",
+    "eliminar",
+    "desechar",
+    "orden"
+  ],
+  "heart": [
+    "corazón",
+    "amor",
+    "salud",
+    "afecto",
+    "bienestar"
+  ],
+  "shopping-cart": [
+    "compras",
+    "carrito",
+    "supermercado",
+    "mercado",
+    "abastecer"
+  ],
+  "bell": [
+    "campana",
+    "aviso",
+    "notificación",
+    "recordatorio",
+    "alerta"
+  ],
+  "users-round": [
+    "personas",
+    "grupo",
+    "equipo",
+    "amistad",
+    "comunidad"
+  ],
+  "message-circle": [
+    "conversación",
+    "chat",
+    "hablar",
+    "mensaje",
+    "comunicación"
+  ],
+  "brain": [
+    "cerebro",
+    "mente",
+    "pensar",
+    "memoria",
+    "concentración"
+  ],
+  "camera": [
+    "cámara",
+    "fotografía",
+    "foto",
+    "retratar",
+    "recuerdos"
+  ],
+  "sun": [
+    "sol",
+    "luz natural",
+    "mañana",
+    "exterior",
+    "vitamina d"
+  ],
+  "briefcase-business": [
+    "trabajo",
+    "oficina",
+    "negocio",
+    "empleo",
+    "profesión"
+  ],
+  "circle-dollar-sign": [
+    "dinero",
+    "ahorro",
+    "finanzas",
+    "presupuesto",
+    "pago"
+  ],
+  "flame": [
+    "fuego",
+    "energía",
+    "motivación",
+    "calor",
+    "intensidad"
+  ],
+  "package": [
+    "paquete",
+    "entrega",
+    "envío",
+    "pedido",
+    "caja"
+  ],
+  "moon": [
+    "luna",
+    "noche",
+    "dormir",
+    "descanso",
+    "sueño"
+  ],
+  "message-square": [
+    "mensaje",
+    "chat",
+    "comunicar",
+    "escribir",
+    "conversación"
+  ],
+  "wrench": [
+    "llave inglesa",
+    "reparar",
+    "mantenimiento",
+    "herramienta",
+    "arreglar"
+  ],
+  "ban": [
+    "prohibir",
+    "evitar",
+    "detener",
+    "restricción",
+    "dejar"
+  ],
+  "clipboard-list": [
+    "lista",
+    "pendientes",
+    "planificar",
+    "organizar",
+    "anotar"
+  ],
+  "dollar-sign": [
+    "dólar",
+    "dinero",
+    "gastos",
+    "ingresos",
+    "finanzas"
+  ],
+  "messages-square": [
+    "mensajes",
+    "diálogo",
+    "conversaciones",
+    "contactar",
+    "comunicación"
+  ],
+  "trophy": [
+    "trofeo",
+    "premio",
+    "logro",
+    "victoria",
+    "competencia"
+  ],
+  "notebook-pen": [
+    "cuaderno",
+    "diario",
+    "apuntes",
+    "escribir",
+    "reflexión"
+  ],
+  "lock-keyhole": [
+    "candado",
+    "seguridad",
+    "privacidad",
+    "proteger",
+    "cerrar"
+  ],
+  "smartphone": [
+    "teléfono",
+    "celular",
+    "pantalla",
+    "desconectar",
+    "móvil"
+  ],
+  "video": [
+    "video",
+    "grabar",
+    "filmar",
+    "película",
+    "contenido"
+  ],
+  "paperclip": [
+    "clip",
+    "adjuntar",
+    "papeles",
+    "documentos",
+    "unir"
+  ],
+  "calendar-clock": [
+    "calendario",
+    "agenda",
+    "horario",
+    "cita",
+    "planificar"
+  ],
+  "mic": [
+    "micrófono",
+    "cantar",
+    "voz",
+    "podcast",
+    "grabar"
+  ],
+  "gift": [
+    "regalo",
+    "obsequio",
+    "sorpresa",
+    "celebrar",
+    "cumpleaños"
+  ],
+  "pin": [
+    "chincheta",
+    "fijar",
+    "recordatorio",
+    "marcar",
+    "prioridad"
+  ],
+  "rotate-cw": [
+    "girar",
+    "rotar",
+    "reiniciar",
+    "volver",
+    "renovar"
+  ],
+  "palette": [
+    "paleta",
+    "arte",
+    "pintar",
+    "colores",
+    "creatividad"
+  ],
+  "key-round": [
+    "llave",
+    "acceso",
+    "abrir",
+    "seguridad",
+    "entrada"
+  ],
+  "book-open-text": [
+    "leer",
+    "lectura",
+    "libro",
+    "estudio",
+    "aprender"
+  ],
+  "timer": [
+    "cronómetro",
+    "tiempo",
+    "medir",
+    "entrenar",
+    "pomodoro"
+  ],
+  "car": [
+    "auto",
+    "coche",
+    "conducir",
+    "transporte",
+    "viajar"
+  ],
+  "leaf": [
+    "hoja",
+    "naturaleza",
+    "ecología",
+    "plantas",
+    "verde"
+  ],
+  "hourglass": [
+    "reloj de arena",
+    "espera",
+    "tiempo",
+    "paciencia",
+    "pausa"
+  ],
+  "chart-line": [
+    "gráfico",
+    "progreso",
+    "estadísticas",
+    "seguimiento",
+    "resultados"
+  ],
+  "earth": [
+    "tierra",
+    "planeta",
+    "mundo",
+    "ambiente",
+    "geografía"
+  ],
+  "list-checks": [
+    "tareas",
+    "lista",
+    "completar",
+    "organizar",
+    "pendientes"
+  ],
+  "square-check": [
+    "completado",
+    "cumplir",
+    "check",
+    "marcar",
+    "terminar"
+  ],
+  "calendar-check": [
+    "calendario",
+    "asistencia",
+    "cumplimiento",
+    "agenda",
+    "planificación"
+  ],
+  "folder-open": [
+    "carpeta",
+    "archivos",
+    "documentos",
+    "organizar",
+    "clasificar"
+  ],
+  "calculator": [
+    "calculadora",
+    "matemáticas",
+    "calcular",
+    "cuentas",
+    "números"
+  ],
+  "bell-ring": [
+    "alarma",
+    "campana",
+    "aviso",
+    "recordatorio",
+    "notificación"
+  ],
+  "sprout": [
+    "brote",
+    "crecer",
+    "plantar",
+    "semilla",
+    "jardinería"
+  ],
+  "utensils": [
+    "comer",
+    "cubiertos",
+    "alimentación",
+    "comida",
+    "restaurante"
+  ],
+  "volume-2": [
+    "volumen",
+    "sonido",
+    "escuchar",
+    "audio",
+    "altavoz"
+  ],
+  "party-popper": [
+    "fiesta",
+    "celebrar",
+    "felicidad",
+    "evento",
+    "diversión"
+  ],
+  "monitor": [
+    "monitor",
+    "pantalla",
+    "computador",
+    "escritorio",
+    "trabajo"
+  ],
+  "repeat": [
+    "repetir",
+    "rutina",
+    "constancia",
+    "ciclo",
+    "hábito"
+  ],
+  "apple": [
+    "manzana",
+    "fruta",
+    "alimentación",
+    "nutrición",
+    "saludable"
+  ],
+  "coffee": [
+    "café",
+    "bebida",
+    "desayuno",
+    "cafeína",
+    "pausa"
+  ],
+  "heart-pulse": [
+    "corazón",
+    "pulso",
+    "salud",
+    "cardio",
+    "bienestar"
+  ],
+  "dumbbell": [
+    "ejercicio",
+    "pesas",
+    "gimnasio",
+    "fuerza",
+    "entrenamiento"
+  ],
+  "paw-print": [
+    "huella",
+    "mascota",
+    "animales",
+    "cuidado",
+    "veterinario"
+  ],
+  "hammer": [
+    "martillo",
+    "construir",
+    "reparar",
+    "herramienta",
+    "bricolaje"
+  ],
+  "shirt": [
+    "ropa",
+    "camiseta",
+    "vestirse",
+    "lavandería",
+    "vestuario"
+  ],
+  "clapperboard": [
+    "cine",
+    "película",
+    "video",
+    "filmar",
+    "audiovisual"
+  ],
+  "puzzle": [
+    "rompecabezas",
+    "juego",
+    "resolver",
+    "lógica",
+    "pensar"
+  ],
+  "clock-4": [
+    "reloj",
+    "hora",
+    "rutina",
+    "horario",
+    "puntualidad"
+  ],
+  "gamepad-2": [
+    "videojuegos",
+    "jugar",
+    "gaming",
+    "consola",
+    "entretenimiento"
+  ],
+  "music": [
+    "música",
+    "escuchar",
+    "canción",
+    "melodía",
+    "ritmo"
+  ],
+  "laptop": [
+    "portátil",
+    "computador",
+    "trabajar",
+    "estudiar",
+    "tecnología"
+  ],
+  "handbag": [
+    "bolso",
+    "cartera",
+    "compras",
+    "accesorios",
+    "salir"
+  ],
+  "hamburger": [
+    "hamburguesa",
+    "comida",
+    "alimentación",
+    "comer",
+    "restaurante"
+  ],
+  "droplet": [
+    "agua",
+    "gota",
+    "hidratar",
+    "beber",
+    "líquido"
+  ],
+  "baby": [
+    "bebé",
+    "crianza",
+    "infancia",
+    "familia",
+    "cuidar"
+  ],
+  "biceps-flexed": [
+    "bíceps",
+    "fuerza",
+    "músculo",
+    "entrenar",
+    "ejercicio"
+  ],
+  "ruler": [
+    "regla",
+    "medir",
+    "diseño",
+    "dibujo",
+    "precisión"
+  ],
+  "shield-plus": [
+    "salud",
+    "protección",
+    "prevención",
+    "seguro",
+    "cuidado"
+  ],
+  "binoculars": [
+    "binoculares",
+    "explorar",
+    "observar",
+    "excursión",
+    "naturaleza"
+  ],
+  "bike": [
+    "bicicleta",
+    "ciclismo",
+    "pedalear",
+    "ejercicio",
+    "transporte"
+  ],
+  "headphones": [
+    "audífonos",
+    "auriculares",
+    "escuchar",
+    "música",
+    "audio"
+  ],
+  "shuffle": [
+    "aleatorio",
+    "mezclar",
+    "variar",
+    "cambiar",
+    "música"
+  ],
+  "pill": [
+    "medicamento",
+    "pastilla",
+    "vitamina",
+    "tratamiento",
+    "salud"
+  ],
+  "cat": [
+    "gato",
+    "mascota",
+    "felino",
+    "cuidar",
+    "animales"
+  ],
+  "dog": [
+    "perro",
+    "mascota",
+    "pasear",
+    "cuidar",
+    "animales"
+  ],
+  "cooking-pot": [
+    "olla",
+    "cocinar",
+    "comida",
+    "receta",
+    "alimentación"
+  ],
+  "bed-double": [
+    "cama",
+    "dormir",
+    "descansar",
+    "sueño",
+    "dormitorio"
+  ],
+  "anchor": [
+    "ancla",
+    "barco",
+    "estabilidad",
+    "mar",
+    "navegar"
+  ],
+  "paintbrush": [
+    "pincel",
+    "pintar",
+    "arte",
+    "creatividad",
+    "dibujo"
+  ],
+  "bird": [
+    "ave",
+    "pájaro",
+    "naturaleza",
+    "animales",
+    "observar"
+  ],
+  "recycle": [
+    "reciclar",
+    "ecología",
+    "residuos",
+    "reutilizar",
+    "ambiente"
+  ],
+  "flag-triangle-right": [
+    "bandera",
+    "meta",
+    "objetivo",
+    "destino",
+    "logro"
+  ],
+  "venus": [
+    "mujer",
+    "femenino",
+    "venus",
+    "género",
+    "feminidad"
+  ],
+  "mars": [
+    "hombre",
+    "masculino",
+    "marte",
+    "género",
+    "masculinidad"
+  ],
+  "chevrons-left-right": [
+    "código",
+    "programar",
+    "desarrollo",
+    "informática",
+    "software"
+  ],
+  "syringe": [
+    "jeringa",
+    "vacuna",
+    "inyección",
+    "medicina",
+    "salud"
+  ],
+  "banana": [
+    "plátano",
+    "banana",
+    "fruta",
+    "nutrición",
+    "alimentación"
+  ],
+  "glasses": [
+    "lentes",
+    "gafas",
+    "visión",
+    "leer",
+    "vista"
+  ],
+  "fish": [
+    "pescado",
+    "pez",
+    "proteína",
+    "alimentación",
+    "mar"
+  ],
+  "soup": [
+    "sopa",
+    "comida",
+    "cocinar",
+    "alimentación",
+    "caliente"
+  ],
+  "sun-medium": [
+    "sol",
+    "luz",
+    "día",
+    "aire libre",
+    "energía"
+  ],
+  "flower-2": [
+    "flor",
+    "jardín",
+    "naturaleza",
+    "plantas",
+    "cuidar"
+  ],
+  "bath": [
+    "bañera",
+    "baño",
+    "relajación",
+    "higiene",
+    "descansar"
+  ],
+  "wine": [
+    "vino",
+    "copa",
+    "bebida",
+    "alcohol",
+    "celebrar"
+  ],
+  "pizza": [
+    "pizza",
+    "comida",
+    "comer",
+    "alimentación",
+    "restaurante"
+  ],
+  "bone": [
+    "hueso",
+    "mascota",
+    "perro",
+    "esqueleto",
+    "salud"
+  ],
+  "toilet": [
+    "inodoro",
+    "baño",
+    "higiene",
+    "limpieza",
+    "aseo"
+  ],
+  "beer": [
+    "cerveza",
+    "bebida",
+    "alcohol",
+    "reunión",
+    "moderación"
+  ],
+  "chess-knight": [
+    "ajedrez",
+    "caballo",
+    "estrategia",
+    "jugar",
+    "lógica"
+  ],
+  "carrot": [
+    "zanahoria",
+    "verdura",
+    "vegetal",
+    "nutrición",
+    "alimentación"
+  ],
+  "music-4": [
+    "música",
+    "canción",
+    "melodía",
+    "componer",
+    "ritmo"
+  ],
+  "guitar": [
+    "guitarra",
+    "instrumento",
+    "música",
+    "practicar",
+    "tocar"
+  ],
+  "volume-1": [
+    "sonido",
+    "volumen",
+    "audio",
+    "escuchar",
+    "silencio"
+  ],
+  "fire-extinguisher": [
+    "extintor",
+    "incendio",
+    "seguridad",
+    "prevención",
+    "emergencia"
+  ],
+  "drum": [
+    "batería",
+    "tambor",
+    "percusión",
+    "música",
+    "ritmo"
+  ],
+  "sailboat": [
+    "velero",
+    "barco",
+    "navegar",
+    "mar",
+    "viajar"
+  ],
+  "candy": [
+    "caramelo",
+    "dulce",
+    "azúcar",
+    "golosina",
+    "alimentación"
+  ],
+  "lamp-desk": [
+    "lámpara",
+    "escritorio",
+    "estudiar",
+    "leer",
+    "iluminación"
+  ],
+  "flask-round": [
+    "matraz",
+    "ciencia",
+    "experimento",
+    "química",
+    "laboratorio"
+  ],
+  "ham": [
+    "jamón",
+    "proteína",
+    "comida",
+    "alimentación",
+    "cocinar"
+  ],
+  "lamp": [
+    "lámpara",
+    "luz",
+    "iluminar",
+    "hogar",
+    "lectura"
+  ],
+  "playing-cards-fan": [
+    "cartas",
+    "naipes",
+    "jugar",
+    "juego de mesa",
+    "entretenimiento"
+  ],
+  "broom": [
+    "escoba",
+    "barrer",
+    "limpiar",
+    "aseo",
+    "hogar"
+  ],
+  "stretch-vertical": [
+    "estirar",
+    "flexibilidad",
+    "movilidad",
+    "ejercicio",
+    "elongación"
+  ],
+  "lollipop": [
+    "paleta",
+    "chupete",
+    "dulce",
+    "azúcar",
+    "golosina"
+  ],
+  "search": [
+    "buscar",
+    "lupa",
+    "investigar",
+    "explorar",
+    "encontrar"
+  ],
+  "house": [
+    "casa",
+    "hogar",
+    "familia",
+    "orden",
+    "cuidar"
+  ],
+  "mail": [
+    "correo",
+    "email",
+    "mensaje",
+    "comunicación",
+    "bandeja"
+  ],
+  "triangle-alert": [
+    "alerta",
+    "advertencia",
+    "precaución",
+    "riesgo",
+    "atención"
+  ],
+  "shield-check": [
+    "seguridad",
+    "protección",
+    "verificar",
+    "confianza",
+    "prevención"
+  ],
+  "globe": [
+    "globo",
+    "mundo",
+    "viajar",
+    "geografía",
+    "idiomas"
+  ],
+  "send": [
+    "enviar",
+    "mensaje",
+    "comunicar",
+    "contactar",
+    "compartir"
+  ],
+  "user-round": [
+    "persona",
+    "usuario",
+    "perfil",
+    "autocuidado",
+    "identidad"
+  ],
+  "zap": [
+    "rayo",
+    "energía",
+    "electricidad",
+    "velocidad",
+    "activación"
+  ],
+  "bot": [
+    "robot",
+    "automatizar",
+    "tecnología",
+    "inteligencia artificial",
+    "asistente"
+  ],
+  "refresh-cw": [
+    "actualizar",
+    "renovar",
+    "reiniciar",
+    "repetir",
+    "sincronizar"
+  ],
+  "rocket": [
+    "cohete",
+    "lanzar",
+    "avance",
+    "despegar",
+    "proyecto"
+  ],
+  "chart-no-axes-combined": [
+    "gráfico",
+    "crecimiento",
+    "progreso",
+    "estadísticas",
+    "rendimiento"
+  ],
+  "flag": [
+    "bandera",
+    "meta",
+    "objetivo",
+    "marcar",
+    "logro"
+  ],
+  "megaphone": [
+    "megáfono",
+    "anunciar",
+    "difundir",
+    "comunicar",
+    "voz"
+  ],
+  "tag": [
+    "etiqueta",
+    "categoría",
+    "clasificar",
+    "organizar",
+    "identificar"
+  ],
+  "gem": [
+    "gema",
+    "diamante",
+    "valor",
+    "joya",
+    "tesoro"
+  ],
+  "book-open": [
+    "libro",
+    "leer",
+    "lectura",
+    "estudiar",
+    "aprender"
+  ],
+  "book-text": [
+    "libro",
+    "texto",
+    "lectura",
+    "estudio",
+    "conocimiento"
+  ],
+  "clock": [
+    "reloj",
+    "hora",
+    "rutina",
+    "puntualidad",
+    "horario"
+  ],
+  "cooking": [
+    "cocinar",
+    "cocina",
+    "receta",
+    "alimentación",
+    "comida"
+  ],
+  "edit": [
+    "escribir",
+    "diario",
+    "redactar",
+    "notas",
+    "editar"
+  ],
+  "target": [
+    "objetivo",
+    "meta",
+    "diana",
+    "concentración",
+    "logro"
+  ],
+  "droplets": [
+    "agua",
+    "hidratación",
+    "beber",
+    "líquido",
+    "salud"
+  ],
+  "footprints": [
+    "pasos",
+    "caminar",
+    "pasear",
+    "actividad",
+    "senderismo"
+  ],
+  "bed": [
+    "dormir",
+    "cama",
+    "sueño",
+    "descansar",
+    "reposo"
+  ],
+  "medal": [
+    "medalla",
+    "premio",
+    "logro",
+    "victoria",
+    "recompensa"
+  ],
+  "person-standing": [
+    "persona",
+    "postura",
+    "cuerpo",
+    "estar de pie",
+    "movilidad"
+  ],
+  "smile": [
+    "sonrisa",
+    "felicidad",
+    "alegría",
+    "ánimo",
+    "bienestar"
+  ],
+  "instagram": [
+    "instagram",
+    "redes sociales",
+    "fotografía",
+    "publicar",
+    "contenido"
+  ],
+  "settings": [
+    "ajustes",
+    "configuración",
+    "opciones",
+    "preferencias",
+    "organizar"
+  ],
+  "cannabis": [
+    "cannabis",
+    "marihuana",
+    "planta",
+    "consumo",
+    "moderación"
+  ],
+  "cross-symbol": [
+    "cruz",
+    "fe",
+    "religión",
+    "oración",
+    "espiritualidad"
+  ],
+  "swimming": [
+    "natación",
+    "nadar",
+    "piscina",
+    "agua",
+    "deporte"
+  ],
+  "ball-basketball": [
+    "baloncesto",
+    "básquetbol",
+    "basketball",
+    "pelota",
+    "deporte"
+  ],
+  "baguette": [
+    "pan",
+    "baguette",
+    "panadería",
+    "desayuno",
+    "alimentación"
+  ],
+  "play-football": [
+    "fútbol",
+    "pelota",
+    "soccer",
+    "deporte",
+    "jugar"
+  ],
+  "cut": [
+    "tijeras",
+    "cortar",
+    "manualidades",
+    "recortar",
+    "crear"
+  ],
+  "walk": [
+    "caminar",
+    "pasear",
+    "andar",
+    "pasos",
+    "actividad"
+  ],
+  "target-arrow": [
+    "objetivo",
+    "meta",
+    "diana",
+    "flecha",
+    "logro"
+  ],
+  "wifi": [
+    "wifi",
+    "internet",
+    "conexión",
+    "red",
+    "conectividad"
+  ],
+  "thumbs-up": [
+    "aprobar",
+    "bien",
+    "pulgar arriba",
+    "positivo",
+    "motivación"
+  ],
+  "save": [
+    "guardar",
+    "respaldo",
+    "archivo",
+    "conservar",
+    "persistir"
+  ],
+  "letter-a": [
+    "a",
+    "letra a",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-b": [
+    "b",
+    "letra b",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-c": [
+    "c",
+    "letra c",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-d": [
+    "d",
+    "letra d",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-e": [
+    "e",
+    "letra e",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-f": [
+    "f",
+    "letra f",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-g": [
+    "g",
+    "letra g",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-h": [
+    "h",
+    "letra h",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-i": [
+    "i",
+    "letra i",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-j": [
+    "j",
+    "letra j",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-k": [
+    "k",
+    "letra k",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-l": [
+    "l",
+    "letra l",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-m": [
+    "m",
+    "letra m",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-n": [
+    "n",
+    "letra n",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-o": [
+    "o",
+    "letra o",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-p": [
+    "p",
+    "letra p",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-q": [
+    "q",
+    "letra q",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-r": [
+    "r",
+    "letra r",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-s": [
+    "s",
+    "letra s",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-t": [
+    "t",
+    "letra t",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-u": [
+    "u",
+    "letra u",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-v": [
+    "v",
+    "letra v",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-w": [
+    "w",
+    "letra w",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-x": [
+    "x",
+    "letra x",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-y": [
+    "y",
+    "letra y",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "letter-z": [
+    "z",
+    "letra z",
+    "alfabeto",
+    "inicial",
+    "abecedario"
+  ],
+  "number-1": [
+    "1",
+    "uno",
+    "número",
+    "cantidad",
+    "conteo"
+  ],
+  "number-2": [
+    "2",
+    "dos",
+    "número",
+    "cantidad",
+    "conteo"
+  ],
+  "number-3": [
+    "3",
+    "tres",
+    "número",
+    "cantidad",
+    "conteo"
+  ],
+  "number-4": [
+    "4",
+    "cuatro",
+    "número",
+    "cantidad",
+    "conteo"
+  ],
+  "number-5": [
+    "5",
+    "cinco",
+    "número",
+    "cantidad",
+    "conteo"
+  ],
+  "number-6": [
+    "6",
+    "seis",
+    "número",
+    "cantidad",
+    "conteo"
+  ],
+  "number-7": [
+    "7",
+    "siete",
+    "número",
+    "cantidad",
+    "conteo"
+  ],
+  "number-8": [
+    "8",
+    "ocho",
+    "número",
+    "cantidad",
+    "conteo"
+  ],
+  "number-9": [
+    "9",
+    "nueve",
+    "número",
+    "cantidad",
+    "conteo"
+  ]
+});
 // Orden por afinidad temática dentro de una sola cuadrícula.
 const iconThemeOrder = [
   'utensils cooking cooking-pot soup hamburger pizza ham fish apple banana carrot baguette coffee wine beer candy lollipop',
@@ -1149,6 +2580,15 @@ const iconOptions = [
   ...existingIconOptions,
   ...LUCIDE_ICON_OPTIONS.filter(option => !existingIconOptions.some(existing => existing.icon === option.icon))
 ].sort((left, right) => iconThemePosition(left) - iconThemePosition(right));
+function normalizeIconSearch(value) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+const searchableIcons = iconOptions.map(option => ({
+  ...option,
+  // Las etiquetas viven únicamente en memoria; title y aria-label conservan el nombre.
+  search: normalizeIconSearch([option.name, option.icon.split('/').pop().replace(/\.svg$/, '').replace(/-/g, ' '),
+    ...HABIT_ICON_TAGS[option.icon.split('/').pop().replace(/\.svg$/, '')]].join(' '))
+}));
 const viewport = document.getElementById('history-viewport');
 const grid = document.getElementById('habit-grid');
 const track = document.getElementById('scroll-track');
@@ -1682,10 +3122,13 @@ function selectHabitIcon(value) {
   const option = iconOptions.find(item => item.icon === value);
   document.getElementById('choose-habit-icon').setAttribute('aria-label', 'Cambiar icono: ' + option.name);
 }
-document.getElementById('choose-habit-icon').addEventListener('click', () => {
+const iconSearch = document.getElementById('habit-icon-search');
+function renderIconPicker() {
   const picker = document.getElementById('icon-picker');
+  const query = normalizeIconSearch(iconSearch.value);
+  const matches = searchableIcons.filter(option => option.search.includes(query));
   picker.replaceChildren();
-  iconOptions.forEach(option => {
+  matches.forEach(option => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'icon-option';
@@ -1700,8 +3143,14 @@ document.getElementById('choose-habit-icon').addEventListener('click', () => {
     });
     picker.append(button);
   });
+  document.getElementById('icon-search-empty').hidden = matches.length > 0;
+}
+iconSearch.addEventListener('input', renderIconPicker);
+document.getElementById('choose-habit-icon').addEventListener('click', () => {
+  iconSearch.value = '';
+  renderIconPicker();
   iconDialog.showModal();
-  picker.querySelector('[aria-pressed="true"]')?.focus();
+  iconSearch.focus();
 });
 document.getElementById('close-icon-dialog').addEventListener('click', () => iconDialog.close());
 
