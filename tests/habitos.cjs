@@ -62,6 +62,8 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
           }
         };
       }, user);
+      const calendar = read('app-2-calendario.js');
+      await page.addScriptTag({ content: calendar.slice(calendar.indexOf('function setSaveStatus('), calendar.indexOf('// Muestra un mensaje breve centrado')) });
       await page.addScriptTag({ content: read('app-8-habitos.js') });
     }
     const tool = page.locator('#habitos-tool'); // Playwright atraviesa Shadow DOM.
@@ -75,9 +77,14 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await page.evaluate(() => localStorage.setItem('habit-tracker.history.v2', '{"private":"prototipo"}'));
     const bodyFont = await page.locator('body').evaluate(el => getComputedStyle(el).fontFamily);
     await open();
+    assert.equal(await shadow('#habit-record-heading').textContent(), 'Registro');
+    assert(await shadow('#habit-record-heading').isVisible());
+    assert.match(await shadow('#selected-record-label').textContent(), /^Actual \(.+ — .+\)$/);
+    assert(!(await shadow('.cloud-sync').isVisible()), 'El estado normal no sustituye el título Registro');
     assert.equal(await shadow('.habit-heading').count(), 5);
     assert.equal(await shadow('.habit-heading:not(.empty)').count(), 0);
     assert.equal(await shadow('.habit-cell').count(), 0);
+    assert.equal(await shadow('.habit-row').count(), 1, 'Sin datos solo se muestra hoy');
     assert.equal(await shadow('.test-controls').count(), 0);
     assert.equal(await page.locator('body').evaluate(el => getComputedStyle(el).fontFamily), bodyFont);
     assert.equal(await shadow('.tracker-body').evaluate(el => getComputedStyle(el).display), 'flex');
@@ -91,6 +98,12 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     const iconCount = await shadow('#icon-picker button').count();
     assert.equal(await shadow('#icon-picker').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 5);
     const iconFiles = await shadow('#icon-picker button').evaluateAll(buttons => buttons.map(button => button.dataset.icon));
+    for (const removed of ['lucide/sun-medium.svg', 'lucide/music-4.svg', 'lucide/square-pen.svg', 'lucide/clock-4.svg', 'target.svg', 'droplets.svg', 'lucide/shield-plus.svg']) {
+      assert(!iconFiles.includes(removed), `Variante redundante fuera del selector: ${removed}`);
+    }
+    for (const retained of ['sun.svg', 'music.svg', 'edit.svg', 'clock.svg', 'target-arrow.svg', 'lucide/droplet.svg', 'lucide/shield-check.svg']) {
+      assert(iconFiles.includes(retained), `Se conserva una opción de cada par: ${retained}`);
+    }
     for (const icon of iconFiles) {
       const tags = iconTags[icon.split('/').pop().replace(/\.svg$/, '')];
       assert.equal(tags?.length, 5, `Cinco etiquetas para ${icon}`);
@@ -99,8 +112,8 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert.equal(await shadow('#habit-icon-search').evaluate(el => el.getRootNode().activeElement.id), 'habit-icon-search');
     await shadow('#habit-icon-search').fill('  HIDRATACION  ');
     assert.equal(await shadow('#icon-picker button').count(), 1);
-    assert.equal(await shadow('#icon-picker button').getAttribute('data-icon'), 'droplets.svg');
-    assert.equal(await shadow('#icon-picker button').getAttribute('title'), 'Agua');
+    assert.equal(await shadow('#icon-picker button').getAttribute('data-icon'), 'lucide/droplet.svg');
+    assert.equal(await shadow('#icon-picker button').getAttribute('title'), 'droplet');
     assert(!(await shadow('#icon-dialog').textContent()).includes('hidratación'), 'Etiquetas invisibles');
     await shadow('#habit-icon-search').fill('gaming');
     assert.equal(await shadow('#icon-picker button').getAttribute('data-icon'), 'lucide/gamepad-2.svg');
@@ -124,9 +137,15 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert.equal(await shadow('#icon-picker button').count(), iconCount);
     assert.equal(await shadow('#icon-picker button[title="Libro"]').getAttribute('aria-pressed'), 'true');
     await shadow('#close-icon-dialog').click();
+    const selectorBeforeSave = await shadow('#record-selector-toggle').boundingBox();
     await shadow('#save-habit').click();
-    if (await shadow('#change-dialog').evaluate(el => el.open)) await shadow('#modify-record').click();
+    assert(!(await shadow('.cloud-sync').isVisible()), 'Guardar no muestra mensajes dentro de la cuadrícula');
+    assert(!(await shadow('#change-dialog').evaluate(el => el.open)), 'El primer hábito no pregunta por otro registro');
     await saved();
+    assert.equal(await page.locator('#save-status').textContent(), 'Guardado ✓');
+    assert(await page.locator('#save-status').evaluate(el => el.classList.contains('saved') && el.classList.contains('visible')));
+    assert.equal(await page.locator('#save-status').evaluate(el => getComputedStyle(el).pointerEvents), 'none');
+    assert.deepEqual(await shadow('#record-selector-toggle').boundingBox(), selectorBeforeSave, 'Los controles mantienen su posición al guardar');
     assert((await cache('alice')).data.blocks[0].habits.some(h => h?.name === 'Leer cada día'));
     assert.match((await cache('alice')).data.blocks[0].id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     assert.match((await cache('alice')).data.blocks[0].habits.find(h => h?.name === 'Leer cada día').id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
@@ -169,7 +188,7 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await page.keyboard.press('Control+z');
     assert.equal(await shadow('.habit-heading[title="Leer cada día"] svg').getAttribute('data-icon'), 'book-open.svg');
     await page.keyboard.press('Control+y');
-    assert.equal(await shadow('.habit-heading[title="Leer novelas"] svg').getAttribute('data-icon'), 'droplets.svg');
+    assert.equal(await shadow('.habit-heading[title="Leer novelas"] svg').getAttribute('data-icon'), 'lucide/droplet.svg');
     await page.keyboard.press('Control+z');
     await shadow('.habit-heading[title="Leer cada día"]').click();
     const beforeDraft = (await cache('alice')).data;
@@ -191,6 +210,28 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert.deepEqual((await cache('alice')).data.blocks[0].records, {});
     await page.keyboard.press('Control+z');
     assert.deepEqual((await cache('alice')).data.blocks[0].records, readingBeforeDelete.blocks[0].records);
+    // Un registro real iniciado ayer conserva su período y ofrece actualizarlo.
+    await saved();
+    await shadow('#close-tracker').click();
+    await page.evaluate(() => {
+      const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+      fakeCloud.alice.data.blocks[0].startDate = yesterday.getFullYear() + '-' + String(yesterday.getMonth()+1).padStart(2,'0') + '-' + String(yesterday.getDate()).padStart(2,'0');
+      fakeCloud.alice.revision++;
+      localStorage.setItem('test-cloud', JSON.stringify(fakeCloud));
+    });
+    await open();
+    assert.equal(await shadow('.habit-row').count(), 2, 'Un registro con historial conserva sus días');
+    await shadow('.habit-heading[title="Leer cada día"]').click();
+    await shadow('#habit-name').fill('Leer diariamente');
+    await shadow('#save-habit').click();
+    assert(await shadow('#change-dialog').evaluate(el => el.open));
+    assert.equal(await shadow('#modify-record').textContent(), 'Actualizar registro actual');
+    assert(await shadow('#modify-record').evaluate(el => el.classList.contains('primary')));
+    assert(!(await shadow('#new-record').evaluate(el => el.classList.contains('primary'))));
+    assert.equal(await shadow('.change-options button').first().getAttribute('id'), 'modify-record');
+    await shadow('#modify-record').click();
+    await page.keyboard.press('Control+z');
+    await saved();
     // Crear y borrar un registro; deshacer restaura períodos e historial completos.
     await shadow('#record-selector-toggle').click();
     await shadow('#create-record').click();
@@ -201,6 +242,8 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await page.keyboard.press('Control+y');
     assert.deepEqual((await cache('alice')).data, twoRecords);
     await shadow('#record-selector-toggle').click();
+    assert.match(await shadow('.record-option-select').nth(0).textContent(), /^N°1 \(.+ — .+\)$/);
+    assert.match(await shadow('.record-option-select').nth(1).textContent(), /^Actual \(.+ — .+\)$/);
     await shadow('.delete-record').first().click();
     await shadow('#confirm-delete-record').click();
     assert.equal((await cache('alice')).data.blocks.length, 1);
@@ -274,9 +317,11 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert.equal(await shadow('.habit-heading[title="Leer cada día"]').count(), 1);
     assert.equal(await shadow('.habit-cell[data-habit="sun"]').first().getAttribute('data-state'), 'completed');
     await page.evaluate(() => { window.offline = true; });
+    const selectorBeforeOffline = await shadow('#record-selector-toggle').boundingBox();
     await shadow('.habit-cell[data-habit="exercise"]').first().click();
     await page.waitForFunction(() => document.getElementById('habitos-tool').shadowRoot.getElementById('cloud-status').textContent.includes('no se pudo sincronizar'));
     assert((await cache('alice')).pending);
+    assert.deepEqual(await shadow('#record-selector-toggle').boundingBox(), selectorBeforeOffline, 'Los errores tampoco desplazan los controles');
     await shadow('#close-tracker').click();
     await open();
     assert.equal(await shadow('.habit-cell[data-habit="exercise"]').first().getAttribute('data-state'), 'completed');

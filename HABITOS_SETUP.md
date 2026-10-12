@@ -11,8 +11,14 @@ La cuadrícula del selector muestra cinco iconos por fila.
 La creación de identificadores admite HTTPS y HTTP por IP local (por ejemplo,
 `http://192.168.1.4:3000`); usa `crypto.getRandomValues` cuando no hay `randomUUID`.
 
-Las cuentas sin historial comienzan con todos los espacios vacíos. Los hábitos
-ya guardados de cuentas existentes se conservan.
+Las cuentas sin historial comienzan con todos los espacios vacíos y solo el día
+actual. Crear el primer hábito actualiza ese registro sin preguntar por un nuevo
+registro. Los hábitos ya guardados de cuentas existentes se conservan. Cuando un
+cambio requiere confirmación, «Actualizar registro actual» es la opción destacada.
+El selector lleva el título secundario «Registro» y ordena los períodos como
+«N°1», «N°2»… y «Actual», todos con su rango de fechas. El estado normal de
+guardado usa el mismo aviso flotante de Planner7. Los errores y conflictos se
+muestran con sus acciones en un aviso flotante, sin desplazar los controles.
 
 ## Borrado y deshacer
 
