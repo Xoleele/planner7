@@ -3,6 +3,15 @@
   'use strict';
   const CACHE_PREFIX = 'planner7.habitos.v1:';
   const TABLE = 'habit_data';
+  function habitId() {
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+    // getRandomValues también funciona al servir la app por HTTP en la red local.
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+  }
   const host = document.createElement('div');
   host.id = 'habitos-tool';
   host.hidden = true;
@@ -1255,7 +1264,7 @@ function loadBlocks() {
   start.setDate(start.getDate() - (hasLegacyData ? 30 : 2));
   const existingDates = Object.keys(migratedRecords).map(key => key.slice(0, 10)).filter(validDay).sort();
   const startDate = existingDates[0] && existingDates[0] < dateKey(start) ? existingDates[0] : dateKey(start);
-  return [{ id: crypto.randomUUID(), startDate, endDate: null,
+  return [{ id: habitId(), startDate, endDate: null,
     habits: normalizedHabits(legacyHabits), retiredHabits: [], records: migratedRecords }];
 }
 let blocks = loadBlocks();
@@ -1558,7 +1567,7 @@ document.getElementById('confirm-delete-record').addEventListener('click', () =>
   const previous = blocks;
   blocks = blocks.filter(block => block.id !== deletingBlockId);
   if (!blocks.length) {
-    blocks.unshift({ id: crypto.randomUUID(), startDate: initialHistoryStart(), endDate: null,
+    blocks.unshift({ id: habitId(), startDate: initialHistoryStart(), endDate: null,
       habits: Array(SLOT_COUNT).fill(null), retiredHabits: [], records: {} });
   } else if (index === 0) {
     const promoted = blocks[0];
@@ -1610,7 +1619,7 @@ function applyHabitChange(createNew) {
     return;
   }
   if (createNew) {
-    const next = { id: crypto.randomUUID(), startDate: dateKey(today), endDate: null,
+    const next = { id: habitId(), startDate: dateKey(today), endDate: null,
       habits: change.habits, retiredHabits: [], records: {} };
     closePreviousBlock(blocks[0], next);
     blocks.unshift(next);
@@ -1716,7 +1725,7 @@ habitForm.addEventListener('submit', event => {
     nameInput.reportValidity();
     return;
   }
-  const habit = { id: existing?.id || crypto.randomUUID(), name, icon: selectedIcon };
+  const habit = { id: existing?.id || habitId(), name, icon: selectedIcon };
   const next = block.habits.map(item => item ? { ...item } : null);
   next[editingIndex] = habit;
   requestHabitChange([...next.filter(Boolean), ...next.filter(item => !item)], { focusId: habit.id, block });

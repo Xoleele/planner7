@@ -19,7 +19,8 @@ const read = name => fs.readFileSync(path.join(base, name), 'utf8');
       return file === 'index.html' ? route.fulfill({ contentType: 'text/html', body: read(file).replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, '') }) : route.fulfill({ path: path.join(base, file) });
     });
     async function boot(user = 'alice') {
-      await page.goto('https://planner7.test/');
+      // HTTP con hostname no local: reproduce el acceso por IP sin randomUUID.
+      await page.goto('http://planner7.test/');
       await page.evaluate(user => {
         document.getElementById('splash-screen')?.remove();
         document.body.classList.remove('not-logged-in');
@@ -69,6 +70,7 @@ const read = name => fs.readFileSync(path.join(base, name), 'utf8');
     const cache = user => page.evaluate(user => JSON.parse(localStorage.getItem('planner7.habitos.v1:' + user)), user);
 
     await boot();
+    assert.equal(await page.evaluate(() => typeof crypto.randomUUID), 'undefined');
     await page.evaluate(() => localStorage.setItem('habit-tracker.history.v2', '{"private":"prototipo"}'));
     const bodyFont = await page.locator('body').evaluate(el => getComputedStyle(el).fontFamily);
     await open();
@@ -88,6 +90,8 @@ const read = name => fs.readFileSync(path.join(base, name), 'utf8');
     if (await shadow('#change-dialog').evaluate(el => el.open)) await shadow('#modify-record').click();
     await saved();
     assert((await cache('alice')).data.blocks[0].habits.some(h => h?.name === 'Leer cada día'));
+    assert.match((await cache('alice')).data.blocks[0].id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    assert.match((await cache('alice')).data.blocks[0].habits.find(h => h?.name === 'Leer cada día').id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     const cell = shadow('.habit-cell[data-habit="sun"]').first();
     await cell.click();
     assert.equal(await cell.getAttribute('data-state'), 'completed');
