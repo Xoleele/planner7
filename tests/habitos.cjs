@@ -97,7 +97,8 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await shadow('#choose-habit-icon').click();
     const iconCount = await shadow('#icon-picker button').count();
     const iconSizes = await shadow('#icon-picker svg').evaluateAll(icons => icons.map(svg => ({ height: svg.getBoundingClientRect().height, width: svg.getBoundingClientRect().width })));
-    assert(iconSizes.every(size => Math.abs(size.height - 28) < .1), 'Todos los iconos del selector tienen la misma altura');
+    assert(iconSizes.every(size => Math.abs(size.height - 24.64) < .1), 'Todos los iconos del selector son un 12% menores');
+    assert(Math.abs((await shadow('#selected-habit-icon').boundingBox()).height - 21.12) < .1, 'La vista previa también se reduce un 12%');
     assert(new Set(iconSizes.map(size => Math.round(size.width))).size > 1, 'El ancho conserva la proporción de cada dibujo');
     const strokeSizes = await shadow('#icon-picker svg').evaluateAll(icons => icons.flatMap(svg => [...svg.querySelectorAll('path,circle,ellipse,line,polyline,polygon,rect')].filter(shape => getComputedStyle(shape).stroke !== 'none').map(shape => ({ width: getComputedStyle(shape).strokeWidth, effect: getComputedStyle(shape).vectorEffect }))));
     assert(strokeSizes.length > 0);
@@ -400,6 +401,7 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert.equal(await page.evaluate(() => localStorage.getItem('habit-tracker.history.v2')), '{"private":"prototipo"}');
     assert.equal(await page.evaluate(() => plannerKeys), 0, 'Teclas de hábitos aisladas de Planner');
     await page.setViewportSize({ width: 380, height: 780 });
+    assert(Math.abs((await shadow('.habit-heading:not(.empty) svg').first().boundingBox()).height - 21.12) < .1, 'La reducción también se aplica a los registros en móvil');
     assert(await shadow('.tracker').evaluate(el => { const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; }));
     if (process.env.HABITOS_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.HABITOS_SCREENSHOTS, 'habitos-mobile.png') });
     await shadow('#close-tracker').click();
