@@ -145,6 +145,11 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     const strokeSizes = await shadow('#icon-picker svg').evaluateAll(icons => icons.flatMap(svg => [...svg.querySelectorAll('path,circle,ellipse,line,polyline,polygon,rect')].filter(shape => getComputedStyle(shape).stroke !== 'none').map(shape => ({ width: getComputedStyle(shape).strokeWidth, effect: getComputedStyle(shape).vectorEffect }))));
     assert(strokeSizes.length > 0);
     assert(strokeSizes.every(stroke => stroke.width === '2.25px' && stroke.effect === 'non-scaling-stroke'), 'Grosor uniforme de 2,25 píxeles independiente de la escala');
+    const glyphs = shadow('#icon-picker svg[data-icon^="letter-"], #icon-picker svg[data-icon^="number-"]');
+    assert.equal(await glyphs.count(), 35);
+    assert(await glyphs.evaluateAll(icons => icons.every(svg => !svg.querySelector('text') && svg.querySelector('path') && getComputedStyle(svg.querySelector('path')).strokeWidth === '2.25px')), 'Letras y números usan trazos, con el mismo grosor que los iconos');
+    const visibleHeights = await shadow('#icon-picker svg[data-icon^="letter-"], #icon-picker svg[data-icon^="number-"], #icon-picker svg[data-icon="sun.svg"]').evaluateAll(icons => icons.map(svg => svg.getBBox().height / svg.viewBox.baseVal.height * svg.getBoundingClientRect().height + 2.25));
+    assert(Math.max(...visibleHeights) - Math.min(...visibleHeights) < .1, 'Las letras y números tienen la misma altura visible que los símbolos');
     if (process.env.HABITOS_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.HABITOS_SCREENSHOTS, 'habitos-iconos.png') });
     assert.equal(await shadow('#icon-picker').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 5);
     const iconFiles = await shadow('#icon-picker button').evaluateAll(buttons => buttons.map(button => button.dataset.icon));
@@ -185,6 +190,13 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     assert.equal(await shadow('#icon-picker button').count(), iconCount);
     assert(!(await shadow('#icon-search-empty').isVisible()));
     await shadow('#habit-icon-search').fill('lectura');
+    if (process.env.HABITOS_SCREENSHOTS) {
+      await shadow('#habit-icon-search').fill('letra');
+      await page.screenshot({ path:path.join(process.env.HABITOS_SCREENSHOTS, 'habitos-letras.png') });
+      await shadow('#habit-icon-search').fill('numero');
+      await page.screenshot({ path:path.join(process.env.HABITOS_SCREENSHOTS, 'habitos-numeros.png') });
+      await shadow('#habit-icon-search').fill('lectura');
+    }
     assert(await shadow('#icon-picker button[title="Libro 1"]').isVisible());
     await shadow('#icon-picker button[title="Libro 1"]').click();
     assert.equal(await shadow('#habit-icon-value').evaluate(el => el.value), 'book-open.svg');
