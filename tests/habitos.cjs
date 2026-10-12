@@ -96,6 +96,10 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await shadow('#habit-name').fill('Leer cada día');
     await shadow('#choose-habit-icon').click();
     const iconCount = await shadow('#icon-picker button').count();
+    const iconSizes = await shadow('#icon-picker svg').evaluateAll(icons => icons.map(svg => ({ height: svg.getBoundingClientRect().height, width: svg.getBoundingClientRect().width })));
+    assert(iconSizes.every(size => Math.abs(size.height - 28) < .1), 'Todos los iconos del selector tienen la misma altura');
+    assert(new Set(iconSizes.map(size => Math.round(size.width))).size > 1, 'El ancho conserva la proporción de cada dibujo');
+    if (process.env.HABITOS_SCREENSHOTS) await page.screenshot({ path: path.join(process.env.HABITOS_SCREENSHOTS, 'habitos-iconos.png') });
     assert.equal(await shadow('#icon-picker').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 5);
     const iconFiles = await shadow('#icon-picker button').evaluateAll(buttons => buttons.map(button => button.dataset.icon));
     for (const removed of ['lucide/sun-medium.svg', 'lucide/music-4.svg', 'lucide/square-pen.svg', 'lucide/clock-4.svg', 'target.svg', 'droplets.svg', 'lucide/shield-plus.svg']) {
