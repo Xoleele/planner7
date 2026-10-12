@@ -138,8 +138,8 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
     await shadow('#choose-habit-icon').click();
     const iconCount = await shadow('#icon-picker button').count();
     const iconSizes = await shadow('#icon-picker svg').evaluateAll(icons => icons.map(svg => ({ icon: svg.dataset.icon, height: svg.getBoundingClientRect().height, width: svg.getBoundingClientRect().width })));
-    const compactIcons = ['swimming.svg', 'lucide/video.svg', 'lucide/glasses.svg'];
-    assert(iconSizes.every(size => Math.abs(size.height - (compactIcons.includes(size.icon) ? 19.712 : 24.64)) < .1), 'Nadar, vídeo y anteojos se reducen proporcionalmente un 20% adicional');
+    const compactIcons = ['swimming.svg', 'lucide/video.svg', 'lucide/glasses.svg', 'lucide/car.svg'];
+    assert(iconSizes.every(size => Math.abs(size.height - (compactIcons.includes(size.icon) ? 19.712 : 24.64)) < .1), 'Nadar, vídeo, anteojos y auto se reducen proporcionalmente un 20% adicional');
     assert(Math.abs((await shadow('#selected-habit-icon').boundingBox()).height - 21.12) < .1, 'La vista previa también se reduce un 12%');
     assert(new Set(iconSizes.map(size => Math.round(size.width))).size > 1, 'El ancho conserva la proporción de cada dibujo');
     const strokeSizes = await shadow('#icon-picker svg').evaluateAll(icons => icons.flatMap(svg => [...svg.querySelectorAll('path,circle,ellipse,line,polyline,polygon,rect')].filter(shape => getComputedStyle(shape).stroke !== 'none').map(shape => ({ width: getComputedStyle(shape).strokeWidth, effect: getComputedStyle(shape).vectorEffect }))));
@@ -154,7 +154,7 @@ const iconTags = JSON.parse(read('app-8-habitos.js').match(/const HABIT_ICON_TAG
       assert(iconLabels.includes(label), `Nombre en español: ${label}`);
     }
     assert(await shadow('#icon-picker button').evaluateAll(buttons => buttons.every(button => button.getAttribute('aria-label') === button.title)), 'Los nombres accesibles también están traducidos');
-    for (const removed of ['lucide/sun-medium.svg', 'lucide/music-4.svg', 'lucide/square-pen.svg', 'lucide/clock-4.svg', 'target.svg', 'droplets.svg', 'lucide/shield-plus.svg']) {
+    for (const removed of ['lucide/sun-medium.svg', 'lucide/music-4.svg', 'lucide/square-pen.svg', 'lucide/clock-4.svg', 'target.svg', 'droplets.svg', 'lucide/shield-plus.svg', 'wifi.svg', 'lucide/list-checks.svg']) {
       assert(!iconFiles.includes(removed), `Variante redundante fuera del selector: ${removed}`);
     }
     for (const retained of ['sun.svg', 'music.svg', 'edit.svg', 'clock.svg', 'target-arrow.svg', 'lucide/droplet.svg', 'lucide/shield-check.svg']) {

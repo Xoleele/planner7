@@ -2640,7 +2640,8 @@ function iconThemePosition(option) {
 // Se conservan los SVG para mostrar hábitos guardados que ya usan estas variantes.
 const redundantHabitIcons = new Set([
   'lucide/sun-medium.svg', 'lucide/music-4.svg', 'lucide/square-pen.svg',
-  'lucide/clock-4.svg', 'target.svg', 'droplets.svg', 'lucide/shield-plus.svg'
+  'lucide/clock-4.svg', 'target.svg', 'droplets.svg', 'lucide/shield-plus.svg',
+  'wifi.svg', 'lucide/list-checks.svg'
 ]);
 const iconOptions = [
   ...existingIconOptions,
@@ -2727,7 +2728,7 @@ function recordState(key, source = records) {
   return source[key] === 'failed' ? 'failed' : 'pending';
 }
 const stateLabels = { pending: 'sin registrar', completed: 'completado', failed: 'no realizado' };
-const compactHabitIcons = new Set(['swimming.svg', 'lucide/video.svg', 'lucide/glasses.svg']);
+const compactHabitIcons = new Set(['swimming.svg', 'lucide/video.svg', 'lucide/glasses.svg', 'lucide/car.svg']);
 function icon(habit) {
   const template = document.createElement('template');
   template.innerHTML = HABIT_ICON_SVGS[habit.icon] || HABIT_ICON_SVGS['sun.svg'];

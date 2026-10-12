@@ -850,6 +850,12 @@ function setupUserMenu() {
       <hr class="user-dropdown-divider">
       <!-- Vista principal del menú -->
       <div class="user-dropdown-view" data-view="main">
+        <button id="habitos-menu-btn" class="user-dropdown-item" title="Atajo: H" aria-controls="habitos-tool" aria-haspopup="dialog">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0M12 7a5 5 0 1 0 5 5M13 3.055a9 9 0 1 0 7.941 7.945M15 6v3h3l3 -3h-3v-3l-3 3M15 9l-3 3"/>
+          </svg>
+          Hábitos
+        </button>
         <button id="tools-menu-btn" class="user-dropdown-item">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
@@ -902,6 +908,12 @@ function setupUserMenu() {
       </div>
     `;
     avatar.appendChild(dropdown);
+
+    document.getElementById('habitos-menu-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      dropdown.remove();
+      document.getElementById('habitos-btn')?.click();
+    });
 
     // Herramientas: cambia el contenido del MISMO menú al submenú (sin ventana).
     const showDropdownView = (name) => {
