@@ -463,6 +463,10 @@ function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetCo
 }
 
 async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumnContainer, clientY, isCopy = false) {
+  if (typeof taskMultiDragEntries !== 'undefined' && taskMultiDragEntries?.length > 1) {
+    moveTaskSelectionToDate(taskMultiDragEntries, { id: String(taskId), date: sourceDateStr || '' }, targetDateStr, targetColumnContainer, clientY, isCopy);
+    return;
+  }
   const taskIndex = tasks.findIndex(t => t.id === taskId);
   if (taskIndex === -1) return;
 
@@ -2446,6 +2450,7 @@ function moveTaskCardInPlace(container, card, dateStr, nowCompleted) {
 }
 
 function renderWeeklyCalendar(targetWrapper = document) {
+  if (typeof refreshTaskSelection === 'function') refreshTaskSelection();
   updateChecklistPendingIndicator();
   // En móvil, el feed continuo se gestiona por separado
   if (isMobile()) {
@@ -3384,6 +3389,8 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
   block.dataset.bottomMin = String(bottomMin);
   if (task) {
     block.dataset.taskId = String(task.id);
+    block.dataset.occurrenceDate = occurrenceDate || task.date || '';
+    if (typeof decorateTaskSelection === 'function') decorateTaskSelection(block, task.id, block.dataset.occurrenceDate);
     if (isTaskHiddenByActivityIsolation(task)) block.classList.add('activity-hidden');
     // Escritorio: click derecho → "Aislar actividad" / "Restablecer".
     block.addEventListener('contextmenu', (e) => {
@@ -3997,6 +4004,10 @@ document.addEventListener('dragend', () => {
 });
 
 function dropTaskOnCronograma(taskId, colEl, clientY, isCopy) {
+  if (typeof taskMultiDragEntries !== 'undefined' && taskMultiDragEntries?.length > 1) {
+    dropTaskSelectionOnCronograma(taskMultiDragEntries, { id: String(taskId), date: draggedTaskSourceDate || '' }, colEl, clientY, isCopy);
+    return;
+  }
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
   const dateStr = colEl.dataset.date;

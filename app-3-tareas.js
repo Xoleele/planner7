@@ -228,6 +228,7 @@ function startCronogramaDrag(block, task, e) {
     // Y del puntero al agarrar y top original del bloque (en minutos/px). El
     // movimiento se calcula como un DELTA puro desde aquí, evitando saltos.
     grabClientY: e.clientY,
+    grabClientX: e.clientX,
     grabOffsetX,
     grabOffsetY,
     blockWidth: blockRect.width,
@@ -237,6 +238,7 @@ function startCronogramaDrag(block, task, e) {
     originalStartMin: range.startMin,
     newStartMin: range.startMin,
     sourceDate: block.parentElement.dataset.date || task.date, // ocurrencia arrastrada
+    selectionEntries: typeof getTaskSelectionDragEntries === 'function' ? getTaskSelectionDragEntries(task.id, block.dataset.occurrenceDate || task.date) : [],
     copy: !!(e.ctrlKey || e.metaKey), // Ctrl/Cmd → copiar en vez de mover
     overTrash: false,             // ¿el puntero está sobre la papelera?
     overBriefcase: false,         // ¿el puntero está sobre el archivado (maletín)?
@@ -251,8 +253,7 @@ function startCronogramaDrag(block, task, e) {
   block.style.pointerEvents = 'none'; // que no intercepte el hit-test de columnas
   try { block.setPointerCapture(e.pointerId); } catch (_) {}
 
-  // Si ya se arranca con Ctrl, mostrar el fantasma del original desde el inicio.
-  syncCronogramaCopyGhost();
+  // El fantasma aparece al superar el umbral de arrastre, para permitir Ctrl+clic.
 
   // Mostrar la papelera (mismo botón #trash-btn que el planner): aparece al poner
   // body.dragging-active y se oculta al soltar/cancelar.
@@ -333,6 +334,7 @@ function onCronogramaDragKey(e) {
 // tocaron, así que el render restaura todo).
 function cancelCronogramaDrag() {
   if (!crDrag) return;
+  if (typeof stopTaskSelectionPreview === 'function') stopTaskSelectionPreview();
   const drag = crDrag;
   crDrag = null;
 
@@ -365,6 +367,8 @@ function cancelCronogramaDrag() {
 
 function onCronogramaDragMove(e) {
   if (!crDrag) return;
+  if (!crDrag.moved && Math.hypot(e.clientX - crDrag.grabClientX, e.clientY - crDrag.grabClientY) < 4) return;
+  if (!crDrag.moved && typeof startTaskSelectionPreview === 'function') startTaskSelectionPreview(crDrag, { clientX: crDrag.grabClientX, clientY: crDrag.grabClientY });
   // Actualizar el modo copia en vivo según Ctrl/Cmd (el usuario puede pulsarlo o
   // soltarlo a mitad del arrastre).
   crDrag.copy = !!(e.ctrlKey || e.metaKey);
@@ -374,6 +378,7 @@ function onCronogramaDragMove(e) {
   crEdgeScroll.lastX = e.clientX;
   crEdgeScroll.lastY = e.clientY;
   applyCronogramaDragMove(e.clientX, e.clientY);
+  if (typeof updateTaskSelectionPreview === 'function') updateTaskSelectionPreview(e, crDrag.copy);
   // Auto-scroll de borde también con ratón: si el cursor se acerca al borde
   // superior/inferior del horario, desplazar la vista automáticamente (mismo
   // mecanismo que el arrastre táctil). Pero si el bloque está FLOTANDO sobre el
@@ -554,6 +559,7 @@ function applyCronogramaDragMove(clientX, clientY) {
 
 function onCronogramaDragEnd(e) {
   if (!crDrag) return;
+  if (typeof stopTaskSelectionPreview === 'function') stopTaskSelectionPreview();
   // Si se suelta en mitad de una animación de cambio de semana/día, aterrizar
   // primero el bloque en la columna/hora correctas antes de confirmar.
   if (crHorizAnimating) {
@@ -585,6 +591,11 @@ function onCronogramaDragEnd(e) {
   document.body.classList.remove('dragging-active');
   clearCronogramaHeaderTargets();
 
+  if (!drag.moved && (e.ctrlKey || e.metaKey) && typeof toggleTaskSelection === 'function') {
+    toggleTaskSelection(drag.task.id, drag.sourceDate);
+    taskSelectionClickBlockedUntil = Date.now() + 300;
+    return;
+  }
   commitCronogramaDragResult(drag);
 }
 
@@ -621,6 +632,11 @@ async function commitCronogramaDragResult(drag) {
     const m = ((min % 1440) + 1440) % 1440;
     return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   };
+
+  if (drag.selectionEntries?.length > 1 && typeof commitTaskSelectionCronogramaDrag === 'function') {
+    commitTaskSelectionCronogramaDrag(drag);
+    return;
+  }
 
   // ── SOLTAR EN LA PAPELERA → ELIMINAR ───────────────────────────────────────
   // Igual que el planner: si se soltó sobre #trash-btn, se elimina la tarea
@@ -1832,6 +1848,7 @@ function createTaskCard(task, occurrenceDate) {
 
   card.appendChild(checkBtn);
 
+  if (typeof decorateTaskSelection === 'function') decorateTaskSelection(card, task.id, occurrenceDate);
   return card;
 }
 
@@ -2149,6 +2166,10 @@ let draggedTaskSourceDate = null;
 function handleDragStart(e) {
   draggedTaskId = this.dataset.id;
   draggedTaskSourceDate = this.dataset.occurrenceDate;
+  if (typeof getTaskSelectionDragEntries === 'function') {
+    taskMultiDragEntries = getTaskSelectionDragEntries(draggedTaskId, draggedTaskSourceDate);
+    startTaskSelectionNativeDrag(this, e);
+  }
   this.classList.add('dragging');
   e.dataTransfer.setData('text/plain', draggedTaskId);
   e.dataTransfer.effectAllowed = 'copyMove';
@@ -2156,7 +2177,7 @@ function handleDragStart(e) {
   // Escritorio en modo Horario: sustituir la imagen nativa de arrastre
   // por una tarjeta propia, que se oculta sobre el horario (ahí se ve la vista
   // previa del bloque). Así no se ven dos previsualizaciones a la vez.
-  if (cronogramaActive && !isMobile()) startCronogramaDragFollower(this, e);
+  if (cronogramaActive && !isMobile() && !(typeof taskMultiDragEntries !== 'undefined' && taskMultiDragEntries?.length > 1)) startCronogramaDragFollower(this, e);
 }
 
 // ── Tarjeta que sigue al cursor al arrastrar (HTML5) en modo Horario ──
@@ -2201,6 +2222,12 @@ function stopCronogramaDragFollower() {
 }
 
 function handleDragEnd() {
+  if (typeof taskMultiDragEntries !== 'undefined') {
+    taskMultiDragEntries = null;
+    taskSelectionClickBlockedUntil = Date.now() + 300;
+    stopTaskSelectionPreview();
+    document.querySelectorAll('.task-selection-drag-origin').forEach(element => element.classList.remove('task-selection-drag-origin'));
+  }
   stopCronogramaDragFollower();
   this.classList.remove('dragging');
   
@@ -2418,6 +2445,10 @@ function setupDragAndDrop(targetWrapper = document) {
       const targetDateStr = column.dataset.date;
 
       if (!id || !targetDateStr) return;
+      if (typeof taskMultiDragEntries !== 'undefined' && taskMultiDragEntries?.length > 1) {
+        moveTaskToDate(id, draggedTaskSourceDate, targetDateStr, container, e.clientY, e.ctrlKey || e.metaKey);
+        return;
+      }
 
       // Si se suelta sobre la seccion de completadas y la tarea arrastrada es
       // una completada del MISMO dia, reordenar entre completadas en vez de

@@ -4271,7 +4271,11 @@ function renderBriefcaseTasks() {
 
 // (Redundant toggleBriefcaseDrawer removed)
 
-async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null) {
+async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null, isCopy = false) {
+  if (typeof taskMultiDragEntries !== 'undefined' && taskMultiDragEntries?.length > 1) {
+    archiveTaskSelection(taskMultiDragEntries, { id: String(taskId), date: sourceDateStr || '' }, clientY, isCopy);
+    return;
+  }
   const taskIndex = tasks.findIndex(t => t.id === taskId);
   if (taskIndex === -1) return;
 
@@ -4376,6 +4380,10 @@ async function moveTaskToBriefcase(taskId, clientY = null, sourceDateStr = null)
   renderBriefcaseTasks();
 }
 async function deleteTask(taskId, occurrenceDate) {
+  if (typeof taskMultiDragEntries !== 'undefined' && taskMultiDragEntries?.length > 1) {
+    requestDeleteTaskSelection(taskMultiDragEntries.map(entry => ({ ...entry })));
+    return;
+  }
   const task = tasks.find(t => t.id === taskId);
   if (!task) return;
 
@@ -4416,7 +4424,11 @@ function setupTrashDragAndDrop() {
   }
 }
 
-async function reorderBriefcaseTask(taskId, container, clientY) {
+async function reorderBriefcaseTask(taskId, container, clientY, isCopy = false) {
+  if (typeof taskMultiDragEntries !== 'undefined' && taskMultiDragEntries?.length > 1) {
+    reorderTaskSelectionInBriefcase(taskMultiDragEntries, container, clientY, isCopy);
+    return;
+  }
   const afterElement = getDragAfterElement(container, clientY);
   const briefcaseTasks = tasks.filter(t => !t.date);
   briefcaseTasks.sort(compareArchivedTasks);
@@ -4464,7 +4476,7 @@ function setupBriefcaseDragAndDrop() {
       briefcaseBtn.classList.remove('drag-over');
       const id = e.dataTransfer.getData('text/plain');
       if (!id) return;
-      moveTaskToBriefcase(id, null, draggedTaskSourceDate);
+      moveTaskToBriefcase(id, null, draggedTaskSourceDate, e.ctrlKey || e.metaKey);
     });
   }
 
@@ -4510,7 +4522,7 @@ function setupBriefcaseDragAndDrop() {
       const id = e.dataTransfer.getData('text/plain');
       if (!id) return;
 
-      moveTaskToBriefcase(id, e.clientY, draggedTaskSourceDate);
+      moveTaskToBriefcase(id, e.clientY, draggedTaskSourceDate, e.ctrlKey || e.metaKey);
     });
   }
 }
