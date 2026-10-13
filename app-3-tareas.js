@@ -710,7 +710,7 @@ async function commitCronogramaDragResult(drag) {
   let scope = 'all';
   if (isRecurring) {
     renderCronograma();
-    scope = await askCronogramaRecurringScope();
+    scope = await askCronogramaRecurringScope(originalTask, origDateStr);
     if (scope === 'cancel' || !tasks.includes(originalTask)) {
       renderCronograma();
       return;
@@ -729,13 +729,21 @@ async function commitCronogramaDragResult(drag) {
     duration: drag.task.duration
   };
   const originalRecurrence = isRecurring ? structuredClone(originalTask.recurrence) : null;
+  const originalTaskSnapshot = isRecurring ? structuredClone(originalTask) : null;
   let restoreRecurringDrag = null;
   if (isRecurring) {
     restoreRecurringDrag = () => {
       if (drag.task !== originalTask) tasks = tasks.filter(t => t !== drag.task);
       Object.assign(originalTask, dragRevert, { recurrence: originalRecurrence });
+      if (scope === 'following') Object.assign(originalTask, originalTaskSnapshot);
     };
-    if (scope === 'only-this') {
+    if (scope === 'following') {
+      const split = prepareRecurringSplit(originalTask, origDateStr);
+      if (!split) { renderCronograma(); return; }
+      Object.assign(originalTask, split.past);
+      tasks.push(split.future);
+      drag.task = split.future;
+    } else if (scope === 'only-this') {
       const standalone = {
         ...originalTask,
         id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
@@ -760,7 +768,7 @@ async function commitCronogramaDragResult(drag) {
 
   // Cambiar el día si se soltó en otra columna.
   if (newDateStr && newDateStr !== origDateStr) {
-    if (isRecurring && scope === 'all' && drag.task.recurrence.unit === 'weekly') {
+    if (isRecurring && (scope === 'all' || scope === 'following') && drag.task.recurrence.unit === 'weekly') {
       const sourceDay = getAppDayIndex(new Date(origDateStr + 'T00:00:00'));
       const targetDay = getAppDayIndex(new Date(newDateStr + 'T00:00:00'));
       if (drag.task.recurrence.days) {
@@ -769,6 +777,7 @@ async function commitCronogramaDragResult(drag) {
       if (newDateStr < drag.task.date) drag.task.date = newDateStr;
     } else {
       drag.task.date = newDateStr;
+      if (drag.task.recurrence?.anchorDate) drag.task.recurrence.anchorDate = newDateStr;
     }
   }
 
@@ -3353,15 +3362,17 @@ let pendingAdjacent = null; // { formData, taskId, occurrenceDate, affectations 
 // se aplica a la tarea cuando se hace click en Guardar (submit del formulario).
 let pendingCompleteState = null;
 
-function openEditRecurringModal() {
+function openEditRecurringModal(task = tasks.find(t => t.id === pendingEditTaskId), occurrenceDate = pendingEditOccurrenceDate) {
+  const followingButton = document.getElementById('edit-following-btn');
+  if (followingButton) followingButton.classList.toggle('hidden', !hasEarlierRecurringOccurrence(task, occurrenceDate));
   const modal = document.getElementById('edit-recurring-modal');
   if (modal) modal.classList.remove('hidden');
 }
 
-function askCronogramaRecurringScope() {
+function askCronogramaRecurringScope(task, occurrenceDate) {
   return new Promise(resolve => {
     pendingCronogramaScopeResolve = resolve;
-    openEditRecurringModal();
+    openEditRecurringModal(task, occurrenceDate);
   });
 }
 
@@ -3415,6 +3426,7 @@ function escapeHtmlAdj(str) {
 /**
  * Aplica los cambios del formulario de tarea.
  *  scope: 'all'       -> modifica la tarea/serie completa (comportamiento normal)
+ *         'following' -> divide la serie y modifica esta ocurrencia y las siguientes.
  *         'only-this' -> separa la ocurrencia indicada como tarea independiente,
  *                        dejando la serie original intacta en los demas dias.
  */
@@ -3440,7 +3452,29 @@ function applyTaskChanges(scope, formData, taskId, occurrenceDate) {
       const oldTask = tasks[idx];
       const dateChanged = oldTask.date !== date;
 
-      if (scope === 'only-this' && oldTask.recurrence && oldTask.recurrence.enabled && occurrenceDate) {
+      if (scope === 'following') {
+        const split = prepareRecurringSplit(oldTask, occurrenceDate);
+        if (!split) return;
+        const future = split.future;
+        const originalRecurrence = oldTask.recurrence;
+        const unchangedDate = date === oldTask.date;
+        const futureDate = unchangedDate ? occurrenceDate : date;
+        if (recurrence?.enabled) {
+          recurrence = structuredClone(recurrence);
+          recurrence.exceptions = (recurrence.exceptions || []).filter(day => day >= occurrenceDate);
+          const sameCycle = recurrence.unit === originalRecurrence.unit &&
+            (recurrence.interval || recurrence.weeksInterval || 1) === (originalRecurrence.interval || originalRecurrence.weeksInterval || 1);
+          if (unchangedDate && sameCycle) recurrence.anchorDate = originalRecurrence.anchorDate || oldTask.date;
+          if (recurrence.endType === 'count' && originalRecurrence.endType === 'count' && recurrence.endCount === originalRecurrence.endCount) {
+            recurrence.endCount = split.future.recurrence.endCount;
+          }
+        }
+        Object.assign(future, { title, description, tagId, date: futureDate, startTime, endTime, duration, recurrence, alarm });
+        Object.assign(oldTask, split.past);
+        tasks.push(future);
+        if (pendingCompleteState !== null) applyPendingCompleteState(future, futureDate, pendingCompleteState);
+        adjustPositionForModifiedTime(future);
+      } else if (scope === 'only-this' && oldTask.recurrence && oldTask.recurrence.enabled && occurrenceDate) {
         // Separar esta ocurrencia: excluirla de la serie y crear tarea independiente.
         if (!oldTask.recurrence.exceptions) oldTask.recurrence.exceptions = [];
         if (!oldTask.recurrence.exceptions.includes(occurrenceDate)) {

@@ -1243,8 +1243,13 @@ function setupEventListeners() {
                        startTime, endTime, duration, recurrence, alarm };
 
     // ¿Es la edicion de una tarea recurrente existente sobre una ocurrencia
-    // concreta? Entonces preguntamos: todas / solo esta.
+    // concreta? Entonces preguntamos el alcance del cambio.
     const existingForScope = selectedTaskId ? tasks.find(t => t.id === selectedTaskId) : null;
+    if (recurrence && existingForScope?.recurrence?.anchorDate && date === existingForScope.date &&
+        recurrence.unit === existingForScope.recurrence.unit &&
+        recurrence.interval === (existingForScope.recurrence.interval || existingForScope.recurrence.weeksInterval || 1)) {
+      recurrence.anchorDate = existingForScope.recurrence.anchorDate;
+    }
     const isRecurringEdit = existingForScope && existingForScope.recurrence &&
                             existingForScope.recurrence.enabled && !isBriefcase &&
                             selectedOccurrenceDate;
@@ -1371,6 +1376,19 @@ function setupEventListeners() {
     closeTaskModal();
   });
   const editAllBtn = document.getElementById('edit-all-occurrences-btn');
+  document.getElementById('edit-following-btn')?.addEventListener('click', () => {
+    if (pendingCronogramaScopeResolve) {
+      closeEditRecurringModal('following');
+      return;
+    }
+    if (pendingMoveTask) {
+      executeMoveTask('following', pendingMoveTask); pendingMoveTask = null;
+    } else if (pendingEditFormData) {
+      applyTaskChanges('following', pendingEditFormData, pendingEditTaskId, pendingEditOccurrenceDate);
+    }
+    closeEditRecurringModal();
+    closeTaskModal();
+  });
   if (editAllBtn) editAllBtn.addEventListener('click', () => {
     if (pendingCronogramaScopeResolve) {
       closeEditRecurringModal('all');

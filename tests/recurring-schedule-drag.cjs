@@ -54,13 +54,13 @@ function setup(scope = 'all', { adjacent = false, recurring = true } = {}) {
   {
     const hidden = new Set(['hidden']);
     const modal = { classList: { add: name => hidden.add(name), remove: name => hidden.delete(name) } };
-    const ctx = vm.createContext({ document: { getElementById: () => modal } });
+    const ctx = vm.createContext({ tasks: [], document: { getElementById: id => id === 'edit-following-btn' ? null : modal } });
     vm.runInContext('let pendingCronogramaScopeResolve = null; let pendingEditFormData = null; let pendingEditTaskId = null; let pendingEditOccurrenceDate = null;', ctx);
     for (const name of ['openEditRecurringModal', 'askCronogramaRecurringScope', 'closeEditRecurringModal']) {
       const a = source.indexOf('function ' + name + '(');
       vm.runInContext(source.slice(a, source.indexOf('\n}', a) + 2), ctx);
     }
-    for (const scope of ['only-this', 'all', undefined]) {
+    for (const scope of ['only-this', 'all', 'following', undefined]) {
       const choice = ctx.askCronogramaRecurringScope();
       assert.equal(hidden.has('hidden'), false);
       ctx.closeEditRecurringModal(scope);

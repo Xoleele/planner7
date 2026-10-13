@@ -378,7 +378,10 @@ let pendingMoveTask = null;
 function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetColumnContainer, clientY }) {
   const taskIndex = tasks.findIndex(t => t.id === taskId);
   if (taskIndex === -1) return;
-  const task = tasks[taskIndex];
+  let task = tasks[taskIndex];
+  const split = scope === 'following' ? prepareRecurringSplit(task, sourceDateStr) : null;
+  if (scope === 'following' && !split) return;
+  if (split) task = split.future;
   if (scope === 'only-this') {
     const standalone = { ...task, id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000), date: targetDateStr, recurrence: null };
     delete standalone.completedOccurrences;
@@ -406,6 +409,7 @@ function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetCo
     // Guardar estado original para posible reversión
     const originalDate = task.date;
     const originalRecurrenceDays = task.recurrence && task.recurrence.days ? [...task.recurrence.days] : null;
+    const originalAnchorDate = task.recurrence.anchorDate;
 
     const newBaseDate = new Date(targetDateStr + 'T00:00:00');
     if (task.recurrence.unit === 'weekly' && sourceDateStr) {
@@ -418,6 +422,7 @@ function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetCo
     } else {
       const prevBase = new Date(task.date + 'T00:00:00');
       task.date = targetDateStr;
+      if (task.recurrence.anchorDate && task.recurrence.unit !== 'weekly') task.recurrence.anchorDate = targetDateStr;
       if (task.recurrence.unit === 'weekly') {
         const shift = getAppDayIndex(newBaseDate) - getAppDayIndex(prevBase);
         if (shift !== 0 && task.recurrence.days) {
@@ -428,7 +433,7 @@ function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetCo
     }
     const afterEl = getDragAfterElement(targetColumnContainer, clientY);
     const checkDate = new Date(targetDateStr + 'T00:00:00');
-    const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate) && t.id !== task.id);
+    const dayTasks = tasks.filter(t => checkTaskOccurrence(t, checkDate) && t.id !== task.id && (!split || t.id !== taskId));
     sortDayTasks(dayTasks, targetDateStr);
     let insertIndex = dayTasks.length;
     if (afterEl) { const idx = dayTasks.findIndex(t => t.id === afterEl.dataset.id); if (idx !== -1) insertIndex = idx; }
@@ -437,6 +442,8 @@ function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetCo
     if (!resolveTimedReorderOnDrop(dayTasks, task, targetDateStr, sourceDateStr)) {
       // Revertir cambios en la tarea original
       task.date = originalDate;
+      if (originalAnchorDate) task.recurrence.anchorDate = originalAnchorDate;
+      else delete task.recurrence.anchorDate;
       if (task.recurrence && originalRecurrenceDays) {
         task.recurrence.days = originalRecurrenceDays;
       }
@@ -445,6 +452,10 @@ function executeMoveTask(scope, { taskId, sourceDateStr, targetDateStr, targetCo
     }
 
     pushToUndoStack();
+    if (split) {
+      Object.assign(tasks[taskIndex], split.past);
+      tasks.push(task);
+    }
     dayTasks.forEach((t, i) => setEffectivePosition(t, targetDateStr, i * 10));
   }
   saveTasksToStorage();
@@ -466,8 +477,7 @@ async function moveTaskToDate(taskId, sourceDateStr, targetDateStr, targetColumn
       && originalTask.recurrence && originalTask.recurrence.enabled
       && sourceDateStr !== targetDateStr) {
     pendingMoveTask = { taskId, sourceDateStr, targetDateStr, targetColumnContainer, clientY };
-    const modal = document.getElementById('edit-recurring-modal');
-    if (modal) modal.classList.remove('hidden');
+    openEditRecurringModal(originalTask, sourceDateStr);
     return;
   }
 
@@ -2014,7 +2024,46 @@ function getAppDayIndex(date) {
 }
 
 // --- Calculation of Occurrences for Recurrences ---
-// Pure pattern matcher that checks if a checkDate matches the task recurrence rules (ignoring exceptions and end limits)
+function hasEarlierRecurringOccurrence(task, occurrenceDate) {
+  if (!task || !task.date || !task.recurrence?.enabled || !occurrenceDate || occurrenceDate <= task.date) return false;
+  const day = new Date(task.date + 'T00:00:00');
+  const limit = new Date(occurrenceDate + 'T00:00:00');
+  while (day < limit) {
+    if (checkTaskOccurrence(task, day)) return true;
+    day.setDate(day.getDate() + 1);
+  }
+  return false;
+}
+
+// Preparar sin mutar: el arrastre puede cancelarse antes de guardar.
+function prepareRecurringSplit(task, occurrenceDate) {
+  if (!hasEarlierRecurringOccurrence(task, occurrenceDate)) return null;
+  const previousDay = new Date(occurrenceDate + 'T00:00:00');
+  previousDay.setDate(previousDay.getDate() - 1);
+  const past = structuredClone(task);
+  const future = structuredClone(task);
+  const previousCount = countOccurrencesInRange(task, new Date(task.date + 'T00:00:00'), previousDay);
+  future.id = 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+  future.date = occurrenceDate;
+  future.recurrence.anchorDate = task.recurrence.anchorDate || task.date;
+  if (future.recurrence.endType === 'count') {
+    future.recurrence.endCount = Math.max(0, future.recurrence.endCount - previousCount);
+  }
+  past.recurrence.endType = 'date';
+  past.recurrence.endDate = formatDate(previousDay);
+  past.recurrence.endCount = null;
+  past.recurrence.exceptions = (task.recurrence.exceptions || []).filter(date => date < occurrenceDate);
+  future.recurrence.exceptions = (task.recurrence.exceptions || []).filter(date => date >= occurrenceDate);
+  past.completedOccurrences = (task.completedOccurrences || []).filter(date => date < occurrenceDate);
+  future.completedOccurrences = (task.completedOccurrences || []).filter(date => date >= occurrenceDate);
+  if (task.positionOverrides) {
+    past.positionOverrides = Object.fromEntries(Object.entries(task.positionOverrides).filter(([date]) => date < occurrenceDate));
+    future.positionOverrides = Object.fromEntries(Object.entries(task.positionOverrides).filter(([date]) => date >= occurrenceDate));
+  }
+  return { past, future };
+}
+
+// Comprueba el patrón, sin excepciones ni límites de finalización.
 function matchesRecurrenceRulePattern(task, checkDate) {
   if (!task.recurrence || !task.recurrence.enabled) {
     return false;
@@ -2024,6 +2073,8 @@ function matchesRecurrenceRulePattern(task, checkDate) {
   if (checkDate < baseDate) {
     return false;
   }
+  // Una serie dividida conserva el ciclo original aunque empiece más tarde.
+  const anchorDate = new Date((task.recurrence.anchorDate || task.date) + 'T00:00:00');
 
   const unit = task.recurrence.unit || 'weekly';
   const interval = task.recurrence.interval || task.recurrence.weeksInterval || 1;
@@ -2033,7 +2084,7 @@ function matchesRecurrenceRulePattern(task, checkDate) {
     if (!task.recurrence.days || !task.recurrence.days.includes(appDay)) {
       return false;
     }
-    const baseMonday = getMondayOf(baseDate);
+    const baseMonday = getMondayOf(anchorDate);
     const checkMonday = getMondayOf(checkDate);
     const msDiff = checkMonday.getTime() - baseMonday.getTime();
     const weeksDiff = Math.round(msDiff / (7 * 24 * 60 * 60 * 1000));
@@ -2041,18 +2092,18 @@ function matchesRecurrenceRulePattern(task, checkDate) {
   }
 
   if (unit === 'monthly') {
-    if (checkDate.getDate() !== baseDate.getDate()) {
+    if (checkDate.getDate() !== anchorDate.getDate()) {
       return false;
     }
-    const monthsDiff = (checkDate.getFullYear() - baseDate.getFullYear()) * 12 + (checkDate.getMonth() - baseDate.getMonth());
+    const monthsDiff = (checkDate.getFullYear() - anchorDate.getFullYear()) * 12 + (checkDate.getMonth() - anchorDate.getMonth());
     return monthsDiff >= 0 && monthsDiff % interval === 0;
   }
 
   if (unit === 'yearly') {
-    if (checkDate.getDate() !== baseDate.getDate() || checkDate.getMonth() !== baseDate.getMonth()) {
+    if (checkDate.getDate() !== anchorDate.getDate() || checkDate.getMonth() !== anchorDate.getMonth()) {
       return false;
     }
-    const yearsDiff = checkDate.getFullYear() - baseDate.getFullYear();
+    const yearsDiff = checkDate.getFullYear() - anchorDate.getFullYear();
     return yearsDiff >= 0 && yearsDiff % interval === 0;
   }
 
