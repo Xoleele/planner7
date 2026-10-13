@@ -3614,6 +3614,7 @@ function renderCronogramaDayBlocks(colEl, date) {
 function updateCronogramaOverlapOffsets(colEl) {
   const visibleBlocks = [];
   colEl.querySelectorAll('.cr-task-block[data-task-id]').forEach(block => {
+    if (block.classList.contains('task-selection-time-origin')) return;
     block.style.removeProperty('--cr-overlap-offset');
     const start = Number(block.dataset.topMin);
     const end = Number(block.dataset.bottomMin);
@@ -3964,7 +3965,8 @@ function cronogramaDropDurationMin(task) {
 // Vista previa al arrastrar una tarea (desde Archivados) sobre el horario: el
 // mismo bloque punteado y semitransparente que al "colocar tarea" con el
 // checkbox, en la hora exacta donde quedará al soltar.
-function showCronogramaDropPreview(taskId, colEl, clientY) {
+function showCronogramaDropPreview(taskId, colEl, clientY, isCopy = false) {
+  if (colEl && typeof showTaskSelectionCronogramaDropPreview === 'function' && showTaskSelectionCronogramaDropPreview(taskId, colEl, clientY, isCopy)) return;
   const task = tasks.find(t => t.id === taskId);
   if (!task || !colEl) { hideCronogramaDropPreview(); return; }
   let ghost = document.getElementById('cr-drop-preview');
@@ -3993,6 +3995,7 @@ function showCronogramaDropPreview(taskId, colEl, clientY) {
 }
 
 function hideCronogramaDropPreview() {
+  if (typeof taskMultiDragPreview !== 'undefined' && taskMultiDragPreview?.kind === 'native') stopTaskSelectionPreview();
   const ghost = document.getElementById('cr-drop-preview');
   if (ghost) ghost.remove();
 }
@@ -4183,13 +4186,13 @@ function renderCronograma() {
         e.preventDefault();
         e.dataTransfer.dropEffect = (e.ctrlKey || e.metaKey) ? 'copy' : 'move';
         colEl.classList.add('cr-drag-over');
-        showCronogramaDropPreview(draggedTaskId, colEl, e.clientY);
+        showCronogramaDropPreview(draggedTaskId, colEl, e.clientY, e.ctrlKey || e.metaKey);
       });
       colEl.addEventListener('dragleave', (e) => {
         if (colEl.contains(e.relatedTarget)) return;
         colEl.classList.remove('cr-drag-over');
         const g = document.getElementById('cr-drop-preview');
-        if (g && g.parentNode === colEl) hideCronogramaDropPreview();
+        if ((g && g.parentNode === colEl) || (typeof taskMultiDragPreview !== 'undefined' && taskMultiDragPreview?.kind === 'native')) hideCronogramaDropPreview();
       });
       colEl.addEventListener('drop', (e) => {
         e.preventDefault();

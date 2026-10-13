@@ -4470,34 +4470,15 @@ html:not(.mobile-mode) .briefcase-drawer.is-moving {
   box-shadow: 0 8px 22px #0004;
 }
 .task-selection-drag-origin { opacity: 0.3 !important; }
+.cr-task-block.task-selection-time-origin { opacity: 0 !important; pointer-events: none !important; transition: none !important; }
+.task-selection-time-preview, .task-selection-time-preview * { pointer-events: none !important; }
 .task-selection-native-preview { position: fixed; left: -1000px; top: 0; pointer-events: none; }
 .task-selection-native-count { display: block; padding: 4px 12px; border-radius: 8px; background: #222; color: white; font: 600 13px sans-serif; }
-.task-selection-toolbar {
-  position: fixed;
-  bottom: 18px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1100;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  max-width: calc(100vw - 24px);
-  border: 1px solid var(--border-light);
-  border-radius: 12px;
-  background: var(--bg-card, #fff);
-  color: var(--text-main, #222);
-  box-shadow: 0 6px 24px #0003;
-  font-size: 13px;
-}
-.task-selection-toolbar button { border: 0; border-radius: 7px; padding: 7px 10px; background: #eee; color: #222; cursor: pointer; white-space: nowrap; }
-.task-selection-toolbar [data-delete-selection] { background: #ffe8e8; color: #a51717; }
 .task-selection-confirm { position: fixed; inset: 0; z-index: 20000; background: #0005; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .task-selection-confirm-box { background: var(--bg-card, #fff); color: var(--text-main, #222); border-radius: 14px; padding: 24px; max-width: 440px; box-shadow: 0 10px 40px #0004; }
 .task-selection-confirm-box h2 { font-size: 19px; margin: 0 0 12px; }
 .task-selection-confirm-box p { line-height: 1.5; margin: 0 0 20px; }
 .task-selection-confirm-box > div { display: flex; justify-content: flex-end; gap: 10px; }
-@media (max-width: 600px) { .task-selection-toolbar { flex-wrap: wrap; justify-content: center; gap: 6px; width: max-content; } }
 @media (prefers-reduced-motion: reduce) { .task-multi-selected, .task-selection-border rect { animation: none; } }
 
 #trash-btn.drag-over {
@@ -5198,7 +5179,8 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
 body:not(.mobile-mode) .cr-task-block.completed:not(.cr-dragging):hover {
   background-position: 0 calc(var(--cr-grid-offset, 0px) + 2px);
 }
-.cr-task-block.completed.cr-floating {
+.cr-task-block.completed.cr-floating,
+.cr-task-block.completed.task-multi-selected {
   background-image: none;
 }
 .cr-task-block.completed .cr-task-title,

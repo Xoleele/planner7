@@ -106,4 +106,18 @@ for(const copy of [false,true]) {
   assert.equal(ctx.tasks.find(t=>t.id==='a').position,0);assert.equal(ctx.tasks.find(t=>t.id==='b').position,10);
   assert.equal(ctx.tasks.find(t=>t.id==='c').position,20);
 }
-console.log('Selección múltiple: movimiento, copia, eliminación, recurrencia, horarios, archivos, cancelación y deshacer verificados.');
+// La vista previa y el guardado deben coincidir, incluyendo fechas y recortes de medianoche.
+for (const timeDelta of [-600, 0, 60, 1000]) {
+  const {ctx}=setup();
+  const selected=[...entries,{id:'r',date:'2026-10-14'},{id:'archived',date:''}];
+  const preview=ctx.projectTaskSelectionSchedule(selected,entries[0],'2026-10-13',timeDelta,0);
+  const plan=ctx.planTaskSelectionChange(selected,entries[0],'2026-10-13',{timeDelta});
+  preview.forEach((item,index)=>{
+    const result=plan.tasks.find(task=>task.id===plan.selection[index].id);
+    assert.equal(item.task.date,plan.selection[index].date);
+    assert.equal(item.task.startTime,result.startTime);assert.equal(item.task.endTime,result.endTime);
+    assert.equal(item.duration,result.duration);
+  });
+  assert.equal(ctx.tasks[0].date,'2026-10-12');
+}
+console.log('Selección múltiple: movimiento, copia, eliminación, recurrencia, horarios, vista previa, archivos, cancelación y deshacer verificados.');

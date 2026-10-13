@@ -271,6 +271,10 @@ function startCronogramaDrag(block, task, e) {
 // viéndose fijo en su sitio. Cuando no se copia (mover), no hay fantasma.
 function syncCronogramaCopyGhost() {
   if (!crDrag) return;
+  if (crDrag.selectionEntries?.length > 1) {
+    if (crDrag.ghost) { crDrag.ghost.remove(); crDrag.ghost = null; }
+    return; // La vista previa del grupo incluye también los originales al copiar.
+  }
 
   // Modo copia activo y aún no hay fantasma → crearlo en la posición original.
   if (crDrag.copy && !crDrag.ghost && crDrag.originColEl) {
@@ -326,6 +330,7 @@ function onCronogramaDragKey(e) {
   if (crDrag && (e.key === 'Control' || e.key === 'Meta')) {
     crDrag.copy = !!(e.ctrlKey || e.metaKey);
     syncCronogramaCopyGhost();
+    if (crDrag.moved && typeof updateTaskSelectionPreview === 'function') updateTaskSelectionPreview({ clientX: crEdgeScroll.lastX, clientY: crEdgeScroll.lastY }, crDrag.copy);
   }
 }
 
@@ -378,7 +383,6 @@ function onCronogramaDragMove(e) {
   crEdgeScroll.lastX = e.clientX;
   crEdgeScroll.lastY = e.clientY;
   applyCronogramaDragMove(e.clientX, e.clientY);
-  if (typeof updateTaskSelectionPreview === 'function') updateTaskSelectionPreview(e, crDrag.copy);
   // Auto-scroll de borde también con ratón: si el cursor se acerca al borde
   // superior/inferior del horario, desplazar la vista automáticamente (mismo
   // mecanismo que el arrastre táctil). Pero si el bloque está FLOTANDO sobre el
@@ -439,6 +443,7 @@ function applyCronogramaDragMove(clientX, clientY) {
     enterCronogramaFloat();
     crDrag.block.style.left = (clientX - crDrag.grabOffsetX) + 'px';
     crDrag.block.style.top = (clientY - crDrag.grabOffsetY) + 'px';
+    if (typeof updateTaskSelectionPreview === 'function') updateTaskSelectionPreview({ clientX, clientY }, crDrag.copy);
     return;
   }
 
@@ -488,6 +493,7 @@ function applyCronogramaDragMove(clientX, clientY) {
     crDrag.block.style.left = (clientX - crDrag.grabOffsetX) + 'px';
     crDrag.block.style.top = (clientY - crDrag.grabOffsetY) + 'px';
     if (crDrag.targetColEl) crDrag.targetColEl.classList.remove('cr-drag-over');
+    if (typeof updateTaskSelectionPreview === 'function') updateTaskSelectionPreview({ clientX, clientY }, crDrag.copy);
     return; // flotando: no recolocar por columna/hora
   }
   // Si venía flotando y vuelve al horario, restaurar el posicionamiento normal.
@@ -555,17 +561,18 @@ function applyCronogramaDragMove(clientX, clientY) {
       durEl.textContent = dur ? ` (${dur})` : '';
     }
   }
+  if (typeof updateTaskSelectionPreview === 'function') updateTaskSelectionPreview({ clientX, clientY }, crDrag.copy);
 }
 
 function onCronogramaDragEnd(e) {
   if (!crDrag) return;
-  if (typeof stopTaskSelectionPreview === 'function') stopTaskSelectionPreview();
   // Si se suelta en mitad de una animación de cambio de semana/día, aterrizar
   // primero el bloque en la columna/hora correctas antes de confirmar.
   if (crHorizAnimating) {
     crHorizAnimating = false;
     crRebindAfterHorizontalChange();
   }
+  if (typeof stopTaskSelectionPreview === 'function') stopTaskSelectionPreview();
   const drag = crDrag;
   crDrag = null;
 

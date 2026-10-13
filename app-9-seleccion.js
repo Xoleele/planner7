@@ -1,7 +1,7 @@
 // La selección identifica apariciones: dos días de una serie son seleccionables por separado.
 const selectedTaskOccurrences = new Map();
 let taskMultiDragEntries = null;
-let taskMultiDragPreview = [];
+let taskMultiDragPreview = null;
 let taskMultiActionPending = false;
 let taskSelectionClickBlockedUntil = 0;
 
@@ -43,11 +43,6 @@ function refreshTaskSelection() {
   });
   const count = selectedTaskOccurrences.size;
   document.body.classList.toggle('has-task-selection', count > 0);
-  const toolbar = document.getElementById('task-selection-toolbar');
-  if (toolbar) {
-    toolbar.classList.toggle('hidden', !count);
-    toolbar.querySelector('[data-selection-count]').textContent = `${count} ${count === 1 ? 'tarea seleccionada' : 'tareas seleccionadas'}`;
-  }
 }
 
 function toggleTaskSelection(id, date) {
@@ -244,42 +239,158 @@ function requestDeleteTaskSelection(entries = [...selectedTaskOccurrences.values
   overlay.querySelector('[data-cancel]').focus();
 }
 
-function startTaskSelectionPreview(drag, event) {
-  stopTaskSelectionPreview();
-  if (!drag.selectionEntries || drag.selectionEntries.length < 2) return;
-  for (const entry of drag.selectionEntries) {
-    if (entry.id === String(drag.task.id) && entry.date === drag.sourceDate) continue;
-    const original = [...document.querySelectorAll('.task-multi-selected')].find(element => {
-      const candidate = taskSelectionEntry(element);
-      return candidate?.id === entry.id && candidate.date === entry.date && !element.classList.contains('cr-tail') && element.getClientRects().length > 0;
-    });
-    if (!original) continue;
-    const rect = original.getBoundingClientRect();
-    const ghost = original.cloneNode(true);
-    ghost.classList.add('task-selection-drag-preview');
-    Object.assign(ghost.style, { position: 'fixed', left: rect.left+'px', top: rect.top+'px', width:rect.width+'px', height:rect.height+'px', right:'auto', margin:'0' });
-    document.body.appendChild(ghost);
-    taskMultiDragPreview.push({ original, ghost, x:event.clientX, y:event.clientY });
-  }
-}
-
-function updateTaskSelectionPreview(event, copy) {
-  taskMultiDragPreview.forEach(({ original, ghost, x, y }) => {
-    ghost.style.transform = `translate(${event.clientX-x}px, ${event.clientY-y}px)`;
-    original.classList.toggle('task-selection-drag-origin', !copy);
+// Proyectar sin tocar los datos: las apariciones conservan distancia, duración y completado.
+function projectTaskSelectionSchedule(entries, anchor, targetDate, timeDelta = 0, startMin = null) {
+  const dayDelta = taskSelectionDayDelta(anchor.date || entries.find(entry => entry.date)?.date, targetDate);
+  let untimedOffset = 0;
+  return entries.flatMap(entry => {
+    const original = tasks.find(task => String(task.id) === entry.id);
+    if (!original) return [];
+    const range = getTaskTimeRange(original);
+    const duration = range ? (range.crossesMidnight ? range.rawEndMin + 1440 : range.rawEndMin) - range.startMin : (original.duration || 60);
+    if (!range && startMin === null) return [];
+    const shiftedStart = range ? range.startMin + timeDelta : startMin + untimedOffset;
+    if (!range) untimedOffset += duration;
+    const date = taskSelectionShiftDate(entry.date ? taskSelectionShiftDate(entry.date, dayDelta) : targetDate, Math.floor(shiftedStart / 1440));
+    const start = ((shiftedStart % 1440) + 1440) % 1440;
+    const task = { ...original, date, recurrence: null,
+      startTime: taskSelectionHHMM(start), endTime: taskSelectionHHMM(start + duration), duration,
+      completed: original.recurrence?.enabled ? !!original.completedOccurrences?.includes(entry.date) : !!original.completed };
+    return [{ entry, task, start, duration }];
   });
 }
 
+function startTaskSelectionPreview(drag, event) {
+  stopTaskSelectionPreview();
+  if (!drag.selectionEntries || drag.selectionEntries.length < 2) return;
+  const templates = [];
+  for (const entry of drag.selectionEntries) {
+    const original = [...document.querySelectorAll('.cr-task-block[data-task-id]')].find(element => {
+      const candidate = taskSelectionEntry(element);
+      return candidate?.id === entry.id && candidate.date === entry.date && !element.classList.contains('cr-tail') && element.getClientRects().length > 0;
+    });
+    if (original) templates.push({ entry, clone: original.cloneNode(true), rect: original.getBoundingClientRect() });
+  }
+  taskMultiDragPreview = { kind: 'pointer', drag, origins: new Set(), blocks: [], columns: [], templates,
+    x: event.clientX, y: event.clientY, signature: null };
+}
+
+function drawTaskSelectionSchedule(state, schedule, columns, role) {
+  for (const { entry, task, start, duration } of schedule) {
+    const tag = tags.find(tag => tag.id === task.tagId) || tags.find(tag => tag.id === 'default');
+    // Recortar cada tramo en su día, igual que renderCronogramaDayBlocks.
+    let remaining = duration, offset = 0, top = start;
+    while (remaining > 0) {
+      const date = taskSelectionShiftDate(task.date, offset);
+      const height = Math.min(remaining, 1440 - top);
+      for (const column of columns.filter(column => column.dataset.date === date)) {
+        const block = buildCronogramaBlock(top, top + height, (offset ? '↪ ' : '') + (task.title || '(Sin título)'),
+          task.description, task.completed, tag, task, entry.date, offset > 0);
+        if (!block) continue;
+        block.dataset.occurrenceDate = entry.date;
+        decorateTaskSelection(block, entry.id, entry.date);
+        block.classList.add('task-selection-time-preview');
+        block.dataset.previewRole = role;
+        block.dataset.selectionStart = String(start - offset * 1440);
+        block.setAttribute('aria-hidden', 'true');
+        column.appendChild(block);
+        state.blocks.push(block);
+      }
+      remaining -= height;
+      top = 0;
+      offset++;
+    }
+  }
+}
+
+function arrangeTaskSelectionPreviewColumns(columns) {
+  for (const column of columns) {
+    const blocks = [...column.querySelectorAll('.cr-task-block[data-task-id]:not(.task-selection-time-origin)')];
+    const start = block => {
+      if (block.dataset.selectionStart !== undefined) return Number(block.dataset.selectionStart);
+      const task = tasks.find(task => String(task.id) === block.dataset.taskId);
+      const range = task && getTaskTimeRange(task);
+      return range ? range.startMin - (block.classList.contains('cr-tail') ? 1440 : 0) : Number(block.dataset.topMin);
+    };
+    blocks.sort((a, b) => start(a) - start(b)).forEach(block => column.appendChild(block));
+    if (typeof updateCronogramaOverlapOffsets === 'function') updateCronogramaOverlapOffsets(column);
+  }
+}
+
+function renderTaskSelectionSchedulePreview(state, entries, anchor, targetDate, timeDelta, startMin, copy, columns, floating = false) {
+  const keys = new Set(entries.map(entry => taskOccurrenceKey(entry.id, entry.date)));
+  document.querySelectorAll('.cr-task-block[data-task-id]:not(.task-selection-time-preview):not(.task-selection-drag-preview):not(.cr-copy-ghost)').forEach(element => {
+    const entry = taskSelectionEntry(element);
+    if (!keys.has(taskOccurrenceKey(entry.id, entry.date))) return;
+    state.origins.add(element);
+    element.classList.toggle('task-selection-time-origin', !(floating && element === state.drag?.block));
+  });
+  const signature = JSON.stringify([targetDate, timeDelta, startMin, copy, floating]);
+  if (state.signature === signature && state.columns.length === columns.length && state.columns.every((column, index) => column === columns[index]) && state.blocks.every(block => block.isConnected)) return;
+  state.blocks.forEach(block => block.remove());
+  state.blocks = [];
+  state.signature = signature;
+  state.columns = columns;
+  if (copy) drawTaskSelectionSchedule(state, projectTaskSelectionSchedule(entries, anchor, anchor.date, 0), columns, 'source');
+  if (!floating) drawTaskSelectionSchedule(state, projectTaskSelectionSchedule(entries, anchor, targetDate, timeDelta, startMin ?? 0), columns, 'destination');
+  arrangeTaskSelectionPreviewColumns(columns);
+}
+
+function updateTaskSelectionPreview(event, copy) {
+  if (typeof crDrag === 'undefined' || !crDrag?.selectionEntries?.length || crDrag.selectionEntries.length < 2) return;
+  if (!taskMultiDragPreview || taskMultiDragPreview.drag !== crDrag) startTaskSelectionPreview(crDrag, { clientX: crDrag.grabClientX, clientY: crDrag.grabClientY });
+  const state = taskMultiDragPreview;
+  const drag = crDrag;
+  const floating = !!drag.floating;
+  const anchor = { id: String(drag.task.id), date: drag.sourceDate };
+  renderTaskSelectionSchedulePreview(state, drag.selectionEntries, anchor, drag.targetColEl?.dataset.date || drag.sourceDate,
+    drag.newStartMin - drag.originalStartMin, null, copy, drag.cols, floating);
+  // Fuera del horario, acompañar al bloque agarrado hasta la papelera o el archivo.
+  if (floating) {
+    state.templates.forEach(({ entry, clone, rect }) => {
+      if (entry.id === anchor.id && entry.date === anchor.date) return;
+      if (!clone.isConnected) {
+        clone.classList.add('task-selection-drag-preview');
+        Object.assign(clone.style, { position: 'fixed', left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px', right: 'auto', margin: '0' });
+        document.body.appendChild(clone);
+      }
+      clone.style.transform = `translate(${event.clientX - state.x}px, ${event.clientY - state.y}px)`;
+    });
+  } else state.templates.forEach(({ clone }) => clone.remove());
+}
+
+function showTaskSelectionCronogramaDropPreview(taskId, column, clientY, copy) {
+  const entries = taskMultiDragEntries;
+  if (!entries || entries.length < 2) return false;
+  if (!taskMultiDragPreview || taskMultiDragPreview.kind !== 'native') {
+    stopTaskSelectionPreview();
+    taskMultiDragPreview = { kind: 'native', origins: new Set(), blocks: [], columns: [], templates: [], signature: null };
+  }
+  const anchor = { id: String(taskId), date: draggedTaskSourceDate || '' };
+  const task = tasks.find(task => String(task.id) === anchor.id);
+  const range = task && getTaskTimeRange(task);
+  const startMin = cronogramaDropStartMin(column, clientY);
+  const columns = [...column.closest('#cronograma-grid').querySelectorAll('.cr-day-col')];
+  renderTaskSelectionSchedulePreview(taskMultiDragPreview, entries, anchor, column.dataset.date,
+    range ? startMin - range.startMin : 0, startMin, copy, columns);
+  return true;
+}
+
 function stopTaskSelectionPreview() {
-  taskMultiDragPreview.forEach(({original,ghost}) => {original.classList.remove('task-selection-drag-origin');ghost.remove();});
-  taskMultiDragPreview = [];
+  if (!taskMultiDragPreview) return;
+  const state = taskMultiDragPreview;
+  taskMultiDragPreview = null;
+  state.blocks.forEach(block => block.remove());
+  state.templates.forEach(({ clone }) => clone.remove());
+  state.origins.forEach(original => original.classList.remove('task-selection-time-origin'));
+  arrangeTaskSelectionPreviewColumns(state.columns.filter(column => column.isConnected));
 }
 
 function startTaskSelectionNativeDrag(card, event) {
   if (!taskMultiDragEntries || taskMultiDragEntries.length < 2) return;
   const image = document.createElement('div');
   image.className = 'task-selection-native-preview';
-  const cards = taskMultiDragEntries.slice(0, 3).map(entry => [...document.querySelectorAll('.task-multi-selected')].find(element => {
+  const cards = taskMultiDragEntries.map(entry => [...document.querySelectorAll('.task-multi-selected')].find(element => {
     const candidate = taskSelectionEntry(element);
     return candidate?.id === entry.id && candidate.date === entry.date && element.getClientRects().length > 0;
   })).filter(Boolean);
@@ -326,13 +437,6 @@ function archiveTaskSelection(entries, anchor, clientY = null, copy = false) {
 }
 
 function setupTaskMultiSelection() {
-  const toolbar = document.createElement('div');
-  toolbar.id = 'task-selection-toolbar'; toolbar.className = 'task-selection-toolbar hidden';
-  toolbar.setAttribute('role', 'region'); toolbar.setAttribute('aria-label', 'Selección de tareas');
-  toolbar.innerHTML = '<span data-selection-count aria-live="polite"></span><button type="button" data-delete-selection>Eliminar</button><button type="button" data-clear-selection>Deseleccionar · Esc</button>';
-  document.body.appendChild(toolbar);
-  toolbar.querySelector('[data-delete-selection]').addEventListener('click', () => requestDeleteTaskSelection());
-  toolbar.querySelector('[data-clear-selection]').addEventListener('click', clearTaskSelection);
   document.addEventListener('pointerdown', () => { taskSelectionClickBlockedUntil = 0; }, true);
   document.addEventListener('click', event => {
     if (!(event.ctrlKey || event.metaKey) || event.target.closest('.task-check-btn')) return;
@@ -363,7 +467,7 @@ function setupTaskMultiSelection() {
   });
   document.addEventListener('drag', event => {
     if (!taskMultiDragEntries || taskMultiDragEntries.length < 2) return;
-    document.querySelectorAll('.task-multi-selected').forEach(element => element.classList.toggle('task-selection-drag-origin', !(event.ctrlKey || event.metaKey)));
+    document.querySelectorAll('.task-multi-selected:not(.task-selection-time-preview)').forEach(element => element.classList.toggle('task-selection-drag-origin', !(event.ctrlKey || event.metaKey)));
   });
   document.addEventListener('dragend', () => {
     taskMultiDragEntries = null;

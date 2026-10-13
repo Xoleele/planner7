@@ -28,7 +28,7 @@ function extract(source, name) {
     <div class="cronograma-scroll"><div id="cronograma-grid"><div class="cr-day-col" data-date="2026-10-12"></div><div class="cr-day-col" data-date="2026-10-13"></div></div></div>`);
     await page.evaluate(() => {
       window.tasks=[{id:'a',title:'Preparar presentación',date:'2026-10-12',startTime:'09:00',endTime:'10:00',duration:60,position:0,tagId:'azul'},
-        {id:'b',title:'Revisar proyecto',description:'Revisión de cambios pendientes',date:'2026-10-12',startTime:'11:00',endTime:'12:30',duration:90,position:10,tagId:'verde'}];
+        {id:'b',title:'Revisar proyecto',description:'Revisión de cambios pendientes',date:'2026-10-12',startTime:'11:00',endTime:'12:30',duration:90,position:10,tagId:'verde',completed:true}];
       window.tags=[{id:'azul',color:{bg:'#247caf',text:'#fff',border:'#247caf'}},{id:'verde',color:{bg:'#487745',text:'#fff',border:'#487745'}}];
       window.opened=0;window.openTaskModal=()=>opened++;
       window.isMobile=()=>false;window.isTaskHiddenByActivityIsolation=()=>false;
@@ -39,6 +39,7 @@ function extract(source, name) {
       window.stopCronogramaEdgeScroll=window.clearCronogramaHorizontalEdge=window.updateCronogramaHorizontalEdge=window.updateCronogramaEdgeScroll=()=>{};
       window.stopCronogramaDragFollower=()=>{};
       window.formatDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      window.addDays=(date,days)=>{const result=new Date(date);result.setDate(result.getDate()+days);return result;};
       window.getTaskDurationMinutes=t=>t.duration;window.minutesToReadable=m=>`${m} min`;
       window.formatTaskTimeText=t=>`${t.startTime} - ${t.endTime}`;window.formatTaskDuration=()=>'';
       window.testUndoSnapshots=[];window.saved=0;window.pushToUndoStack=()=>testUndoSnapshots.push(structuredClone(tasks));window.saveTasksToStorage=()=>saved++;
@@ -53,14 +54,12 @@ function extract(source, name) {
         renderCronograma();refreshTaskSelection();
       };
       window.renderCronograma=()=>{
-        document.querySelectorAll('.cr-day-col').forEach(col=>{col.innerHTML='';for(const task of tasks.filter(t=>t.date===col.dataset.date)){
-          const range=getTaskTimeRange(task);const tag=tags.find(t=>t.id===task.tagId);
-          col.appendChild(buildCronogramaBlock(range.startMin,range.rawEndMin,task.title,task.description||'',false,tag,task,task.date,false));
-        }});
+        document.querySelectorAll('.cr-day-col').forEach(col=>{col.innerHTML='';renderCronogramaDayBlocks(col,new Date(col.dataset.date+'T00:00:00'));});
       };
     });
     const calendar=read('app-2-calendario.js'),editor=read('app-3-tareas.js');
-    for(const name of ['getTaskTimeRange','buildCronogramaBlock','moveTaskToDate']) await page.addScriptTag({content:extract(calendar,name)});
+    for(const name of ['getTaskTimeRange','buildCronogramaBlock','renderCronogramaDayBlocks','updateCronogramaOverlapOffsets','moveTaskToDate',
+      'cronogramaClickToMinutes','cronogramaDropStartMin','showCronogramaDropPreview','hideCronogramaDropPreview']) await page.addScriptTag({content:extract(calendar,name)});
     for(const name of ['createTaskCard','handleDragStart','handleDragEnd','startCronogramaDrag','syncCronogramaCopyGhost','onCronogramaDragKey',
       'cancelCronogramaDrag','onCronogramaDragMove','enterCronogramaFloat','exitCronogramaFloat','applyCronogramaDragMove','onCronogramaDragEnd',
       'clearCronogramaDragOver','clearCronogramaHeaderTargets','commitCronogramaDragResult']) await page.addScriptTag({content:extract(editor,name)});
@@ -70,12 +69,14 @@ function extract(source, name) {
     await card('a').click({modifiers:['Control']});await card('b').click({modifiers:['Control']});
     assert.equal(await page.evaluate(()=>opened),0);
     assert.equal(await page.locator('#list .task-multi-selected').count(),2);
-    assert.equal(await page.locator('[data-selection-count]').textContent(),'2 tareas seleccionadas');
+    assert.equal(await page.locator('#task-selection-toolbar').count(),0);
+    assert.equal(await page.locator('.cr-task-block[data-task-id="b"]').evaluate(el=>getComputedStyle(el).backgroundImage),'none');
     const appearance=await card('a').evaluate(element=>({fill:getComputedStyle(element).animationName,stroke:getComputedStyle(element.querySelector('.task-selection-border rect')).stroke,
       animation:getComputedStyle(element.querySelector('.task-selection-border rect')).animationName,text:getComputedStyle(element.querySelector('.task-card-title')).color}));
     assert.equal(appearance.fill,'taskSelectionFillPulse');assert.equal(appearance.stroke,'rgb(0, 0, 0)');assert.equal(appearance.animation,'taskSelectionMarch');assert.equal(appearance.text,'rgb(255, 255, 255)');
     if(process.env.PLANNER_SELECTION_SCREENSHOT) await page.screenshot({path:process.env.PLANNER_SELECTION_SCREENSHOT});
     await page.keyboard.press('Escape');assert.equal(await page.locator('.task-multi-selected').count(),0);
+    assert.notEqual(await page.locator('.cr-task-block[data-task-id="b"]').evaluate(el=>getComputedStyle(el).backgroundImage),'none');
     await card('a').click();assert.equal(await page.evaluate(()=>opened),1);
     // El clic con Ctrl en el horario también selecciona, incluso con pointer capture.
     await page.evaluate(()=>document.getElementById('list').style.display='none');
@@ -95,6 +96,11 @@ function extract(source, name) {
     await page.mouse.move(box.x+45,box.y+20);await page.mouse.down();
     assert.equal(await page.evaluate(()=>!!crDrag),true,'El bloque debe iniciar el gesto');
     await page.mouse.move(box.x+45,box.y+80,{steps:8});
+    assert.deepEqual(await page.locator('.task-selection-time-preview[data-preview-role="destination"]').evaluateAll(elements=>elements.map(el=>({id:el.dataset.taskId,date:el.parentElement.dataset.date,top:el.style.top}))),
+      [{id:'a',date:'2026-10-12',top:'600px'},{id:'b',date:'2026-10-12',top:'720px'}]);
+    assert.deepEqual(await page.evaluate(()=>tasks.map(t=>t.startTime)),['09:00','11:00']);
+    assert.equal(await page.locator('.cr-task-block.task-selection-time-origin').count(),2);
+    assert.ok(await page.locator('.cr-task-block.task-selection-time-origin').evaluateAll(blocks=>blocks.every(block=>getComputedStyle(block).opacity==='0')));
     const dragState=await page.evaluate(()=>({moved:crDrag?.moved,start:crDrag?.newStartMin,count:crDrag?.selectionEntries.length,trash:crDrag?.overTrash,archive:crDrag?.overBriefcase}));
     await page.mouse.up();
     const committed=await page.evaluate(()=>({saved,historyLength:testUndoSnapshots.length,dragActive:!!crDrag,selection:[...selectedTaskOccurrences.values()],data:tasks.map(t=>({id:t.id,date:t.date,time:t.startTime}))}));
@@ -104,7 +110,10 @@ function extract(source, name) {
     // Ctrl + arrastre real crea dos copias y deja intactos los originales.
     box=await block('a').boundingBox();
     await page.keyboard.down('Control');await page.mouse.move(box.x+45,box.y+20);await page.mouse.down();
-    await page.mouse.move(box.x+385,box.y+20,{steps:10});await page.mouse.up();await page.keyboard.up('Control');
+    await page.mouse.move(box.x+385,box.y+20,{steps:10});
+    assert.equal(await page.locator('.task-selection-time-preview[data-preview-role="source"]').count(),2);
+    assert.equal(await page.locator('.task-selection-time-preview[data-preview-role="destination"]').count(),2);
+    await page.mouse.up();await page.keyboard.up('Control');
     assert.equal(await page.evaluate(()=>tasks.length),4);
     assert.deepEqual(await page.evaluate(()=>tasks.slice(0,2).map(t=>t.date)),['2026-10-12','2026-10-12']);
     assert.deepEqual(await page.evaluate(()=>tasks.slice(2).map(t=>t.date)),['2026-10-13','2026-10-13']);
@@ -112,7 +121,7 @@ function extract(source, name) {
     // Supr abre la confirmación; cancelar conserva todo y eliminar guarda una sola vez.
     await page.keyboard.press('Delete');assert.equal(await page.locator('.task-selection-confirm').count(),1);
     await page.locator('.task-selection-confirm [data-cancel]').click();assert.equal(await page.evaluate(()=>tasks.length),4);
-    await page.locator('[data-delete-selection]').click();await page.locator('.task-selection-confirm [data-delete]').click();
+    await page.keyboard.press('Delete');await page.locator('.task-selection-confirm [data-delete]').click();
     assert.equal(await page.evaluate(()=>tasks.length),2);assert.equal(await page.evaluate(()=>testUndoSnapshots.length),3);
     // Arrastre HTML5 usa el grupo desde las tarjetas y respeta el modo copia.
     await page.evaluate(()=>{document.getElementById('list').style.display='flex';toggleTaskSelection('a','2026-10-12');toggleTaskSelection('b','2026-10-12');});
@@ -124,7 +133,55 @@ function extract(source, name) {
     });
     assert.equal(await page.evaluate(()=>tasks.length),4);assert.equal(await page.evaluate(()=>testUndoSnapshots.length),4);
     await page.keyboard.press('Escape');assert.equal(await page.locator('.task-multi-selected').count(),0);
+    // Medianoche: los dos tramos aparecen ANTES de soltar, y el original se oculta.
+    await page.evaluate(()=>{
+      tasks=tasks.slice(0,2);Object.assign(tasks[0],{startTime:'22:00',endTime:'23:00',duration:60,date:'2026-10-12'});
+      Object.assign(tasks[1],{startTime:'23:30',endTime:'00:30',duration:60,date:'2026-10-12'});
+      document.getElementById('list').style.display='none';renderWeeklyCalendar();
+      toggleTaskSelection('a','2026-10-12');toggleTaskSelection('b','2026-10-12');
+      document.querySelector('.cronograma-scroll').scrollTop=1220;
+    });
+    const previewSegments=()=>page.locator('.task-selection-time-preview[data-preview-role="destination"][data-task-id="b"]').evaluateAll(elements=>elements.map(el=>({date:el.parentElement.dataset.date,top:el.dataset.topMin,end:el.dataset.bottomMin,tail:el.classList.contains('cr-tail')})).sort((a,b)=>a.date.localeCompare(b.date)));
+    box=await block('a').boundingBox();
+    await page.mouse.move(box.x+45,box.y+20);await page.mouse.down();await page.mouse.move(box.x+45,box.y+40,{steps:4});
+    assert.deepEqual(await previewSegments(),[{date:'2026-10-12',top:'1430',end:'1440',tail:false},{date:'2026-10-13',top:'0',end:'50',tail:true}]);
+    assert.equal(await page.locator('.task-selection-time-preview.completed').first().evaluate(el=>getComputedStyle(el).backgroundImage),'none');
+    assert.equal(await page.evaluate(()=>tasks[1].startTime),'23:30');
+    if(process.env.PLANNER_SELECTION_SCREENSHOT) await page.screenshot({path:process.env.PLANNER_SELECTION_SCREENSHOT});
+    // Avanzar una hora hace pasar la tarea entera al día siguiente.
+    await page.mouse.move(box.x+45,box.y+80,{steps:5});
+    assert.deepEqual(await previewSegments(),[{date:'2026-10-13',top:'30',end:'90',tail:false}]);
+    await page.mouse.up();
+    assert.equal(await page.evaluate(()=>tasks[1].date),'2026-10-13');assert.equal(await page.evaluate(()=>tasks[1].startTime),'00:30');
+    // Retroceder: tramo final en el día anterior y cola en el día de origen.
+    await page.keyboard.press('Escape');
+    await page.evaluate(()=>{
+      Object.assign(tasks[0],{date:'2026-10-12',startTime:'02:00',endTime:'03:00'});
+      Object.assign(tasks[1],{date:'2026-10-12',startTime:'00:20',endTime:'01:20'});
+      const grid=document.getElementById('cronograma-grid');const previous=document.createElement('div');
+      previous.className='cr-day-col';previous.dataset.date='2026-10-11';grid.prepend(previous);
+      grid.style.width='1020px';document.querySelector('.cronograma-scroll').style.width='1035px';
+      renderWeeklyCalendar();toggleTaskSelection('a','2026-10-12');toggleTaskSelection('b','2026-10-12');
+      document.querySelector('.cronograma-scroll').scrollTop=0;
+    });
+    box=await block('a').boundingBox();
+    await page.mouse.move(box.x+45,box.y+20);await page.mouse.down();await page.mouse.move(box.x+45,box.y-20,{steps:5});
+    assert.deepEqual(await previewSegments(),[{date:'2026-10-11',top:'1420',end:'1440',tail:false},{date:'2026-10-12',top:'0',end:'40',tail:true}]);
+    await page.keyboard.press('Escape');await page.mouse.up();
+    assert.equal(await page.locator('.task-selection-time-preview').count(),0);
+    assert.equal(await page.locator('.task-selection-time-origin').count(),0);
+    assert.equal(await page.evaluate(()=>tasks[1].date),'2026-10-12');
+    // La vista previa HTML5 también usa todos los tramos del grupo.
+    await page.evaluate(()=>{
+      toggleTaskSelection('a','2026-10-12');toggleTaskSelection('b','2026-10-12');
+      taskMultiDragEntries=getTaskSelectionDragEntries('a','2026-10-12');draggedTaskSourceDate='2026-10-12';
+      const col=document.querySelector('.cr-day-col[data-date="2026-10-12"]');
+      showCronogramaDropPreview('a',col,col.getBoundingClientRect().top+80,false);
+    });
+    assert.deepEqual(await previewSegments(),[{date:'2026-10-11',top:'1420',end:'1440',tail:false},{date:'2026-10-12',top:'0',end:'40',tail:true}]);
+    await page.evaluate(()=>hideCronogramaDropPreview());
+    assert.equal(await page.locator('.task-selection-time-preview').count(),0);
     assert.deepEqual(errors,[]);
-    console.log('Interfaz verificada: Ctrl+clic, animaciones, Escape, movimiento, Ctrl+arrastre, HTML5, eliminación y deshacer agrupado.');
+    console.log('Interfaz verificada: sin barra, movimiento simultáneo, medianoche en ambos sentidos, copia, HTML5, completadas, Escape y Supr.');
   } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
