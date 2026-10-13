@@ -49,22 +49,16 @@ const entries=[{id:'a',date:'2026-10-12'},{id:'b',date:'2026-10-13'}];
   assert.equal(ctx.taskSelectionDayDelta('2026-09-05','2026-09-07'),2);
   assert.equal(ctx.taskSelectionShiftDate('2026-09-05',2),'2026-09-07');
 }
-for(const copy of [false,true]) {
-  const {ctx}=setup();const selected=[{id:'r',date:'2026-10-12'},{id:'r',date:'2026-10-14'}];
-  const plan=ctx.planTaskSelectionChange(selected,selected[0],'2026-10-13',{copy});
-  const series=plan.tasks.find(t=>t.id==='r');const copies=plan.selection.map(entry=>plan.tasks.find(t=>t.id===entry.id));
-  assert.equal(series.recurrence.exceptions.join(','),copy?'':'2026-10-12,2026-10-14');
-  assert.equal(copies[0].date,'2026-10-13');assert.equal(copies[1].date,'2026-10-15');
-  assert.equal(copies[0].recurrence,null);assert.equal(copies[0].completed,true);assert.equal(copies[1].completed,false);
-  assert.equal(copies[0].positionOverrides,undefined);assert.equal(copies[0].completedOccurrences,undefined);
-  assert.notEqual(copies[0].id,copies[1].id);assert.equal(ctx.tasks[2].recurrence.exceptions.length,0);
-}
-{
-  const {ctx}=setup();const selected=[{id:'r',date:'2026-10-12'},{id:'r',date:'2026-10-14'}];
-  const plan=ctx.planTaskSelectionChange(selected,selected[0],'2026-10-12');
-  assert.equal(plan.tasks.length,4);assert.equal(plan.tasks[2].date,'2026-10-05');
-  assert.equal(plan.tasks[2].recurrence.exceptions.length,0);
-  assert.equal(plan.selection.map(entry=>entry.date).join(','),'2026-10-12,2026-10-14');
+for (const options of [{timeDelta:60}, {copy:true,timeDelta:-600}, {archive:true}]) {
+  const {ctx}=setup();
+  const selected=[entries[0],{id:'r',date:'2026-10-12'},{id:'r',date:'2026-10-14'}];
+  const before=structuredClone(ctx.tasks[2]);
+  const plan=ctx.planTaskSelectionChange(selected,selected[0],'2026-10-13',options);
+  assert.deepEqual(plan.tasks.find(t=>t.id==='r'),before);
+  assert.equal(plan.selection.length,1);
+  assert.equal(plan.preservedSelection.length,2);
+  assert.equal(plan.tasks.length,options.copy?5:4);
+  assert.equal(ctx.projectTaskSelectionSchedule(selected,selected[0],'2026-10-13',60).length,1);
 }
 {
   const {ctx}=setup();const plan=ctx.planTaskSelectionChange(entries,entries[0],'2026-10-15',{copy:true});
@@ -73,7 +67,7 @@ for(const copy of [false,true]) {
 }
 {
   const {ctx}=setup();const selected=[...entries,{id:'r',date:'2026-10-12'}];
-  const plan=ctx.planTaskSelectionChange(selected,selected[0],'',{remove:true});
+  const plan=ctx.planTaskSelectionChange(selected,selected[0],'',{remove:true,deleteScopes:new Map([[ctx.taskOccurrenceKey('r','2026-10-12'),'only-this']])});
   assert.equal(plan.tasks.some(t=>t.id==='a'||t.id==='b'),false);assert.equal(plan.selection.length,0);
   assert.equal(plan.tasks.find(t=>t.id==='r').recurrence.exceptions.join(','),'2026-10-12');
   assert.equal(plan.tasks.find(t=>t.id==='r').recurrence.days.join(','),'1,3,5');
@@ -119,5 +113,13 @@ for (const timeDelta of [-600, 0, 60, 1000]) {
     assert.equal(item.duration,result.duration);
   });
   assert.equal(ctx.tasks[0].date,'2026-10-12');
+}
+for (const scope of ['all','only-this',undefined]) {
+  const {ctx}=setup();const selected=[entries[0],{id:'r',date:'2026-10-12'},{id:'r',date:'2026-10-14'}];
+  const deleteScopes=new Map([[ctx.taskOccurrenceKey('r','2026-10-12'),scope],[ctx.taskOccurrenceKey('r','2026-10-14'),scope]]);
+  const plan=ctx.planTaskSelectionChange(selected,selected[0],'',{remove:true,deleteScopes});
+  const series=plan.tasks.find(t=>t.id==='r');
+  if(scope==='all') assert.equal(series,undefined);
+  else assert.equal(series.recurrence.exceptions.length,scope==='only-this'?2:0);
 }
 console.log('Selección múltiple: movimiento, copia, eliminación, recurrencia, horarios, vista previa, archivos, cancelación y deshacer verificados.');

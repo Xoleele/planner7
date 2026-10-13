@@ -3,6 +3,7 @@ const selectedTaskOccurrences = new Map();
 let taskMultiDragEntries = null;
 let taskMultiDragPreview = null;
 let taskMultiActionPending = false;
+let taskSelectionDeleteScopeResolve = null;
 let taskSelectionClickBlockedUntil = 0;
 
 function taskOccurrenceKey(id, date) {
@@ -84,7 +85,7 @@ function taskSelectionHHMM(minutes) {
 }
 
 // Crear un plan independiente permite guardar y deshacer el grupo en un solo paso.
-function planTaskSelectionChange(entries, anchor, targetDate, { copy = false, timeDelta = null, startMin = null, archive = false, remove = false } = {}) {
+function planTaskSelectionChange(entries, anchor, targetDate, { copy = false, timeDelta = null, startMin = null, archive = false, remove = false, deleteScopes = new Map() } = {}) {
   const plannedTasks = structuredClone(tasks);
   const results = [];
   const dayDelta = taskSelectionDayDelta(anchor.date || entries.find(entry => entry.date)?.date, targetDate);
@@ -95,6 +96,12 @@ function planTaskSelectionChange(entries, anchor, targetDate, { copy = false, ti
     const recurring = !!original.recurrence?.enabled;
     if (remove) {
       if (recurring && entry.date) {
+        const scope = deleteScopes.get(taskOccurrenceKey(entry.id, entry.date));
+        if (scope === 'all') {
+          plannedTasks.splice(plannedTasks.indexOf(original), 1);
+          continue;
+        }
+        if (scope !== 'only-this') continue;
         original.recurrence.exceptions ||= [];
         if (!original.recurrence.exceptions.includes(entry.date)) original.recurrence.exceptions.push(entry.date);
       } else {
@@ -103,22 +110,18 @@ function planTaskSelectionChange(entries, anchor, targetDate, { copy = false, ti
       }
       continue;
     }
+    // Una selección múltiple nunca mueve, copia ni archiva una serie.
+    if (recurring) continue;
     let changed = original;
-    const changesOccurrence = recurring && (archive || dayDelta !== 0 || (timeDelta !== null && timeDelta !== 0) || (startMin !== null && !getTaskTimeRange(original)));
-    if (copy || changesOccurrence) {
+    if (copy) {
       changed = structuredClone(original);
       changed.id = 'task-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
       changed.recurrence = null;
-      changed.completed = recurring ? !!original.completedOccurrences?.includes(entry.date) : !!original.completed;
       delete changed.completedOccurrences;
       delete changed.positionOverrides;
-      if (recurring && !copy && entry.date) {
-        original.recurrence.exceptions ||= [];
-        if (!original.recurrence.exceptions.includes(entry.date)) original.recurrence.exceptions.push(entry.date);
-      }
       plannedTasks.push(changed);
     }
-    if (!recurring || copy || changesOccurrence) changed.date = archive ? '' : entry.date ? taskSelectionShiftDate(entry.date, dayDelta) : targetDate;
+    changed.date = archive ? '' : entry.date ? taskSelectionShiftDate(entry.date, dayDelta) : targetDate;
     if (archive) {
       const duration = typeof getTaskDurationMinutes === 'function' ? getTaskDurationMinutes(changed) : changed.duration;
       Object.assign(changed, { recurrence: null, startTime: null, endTime: null, alarm: false, duration });
@@ -133,9 +136,13 @@ function planTaskSelectionChange(entries, anchor, targetDate, { copy = false, ti
       changed.duration = duration;
       if (!range) untimedOffset += duration;
     }
-    results.push({ id: String(changed.id), date: recurring && !copy && !changesOccurrence ? entry.date : changed.date });
+    results.push({ id: String(changed.id), date: changed.date });
   }
-  return { tasks: plannedTasks, selection: results };
+  return { tasks: plannedTasks, selection: results, preservedSelection: remove ? [] : entries.filter(isTaskSelectionRecurring) };
+}
+
+function isTaskSelectionRecurring(entry) {
+  return !!tasks.find(task => String(task.id) === entry.id)?.recurrence?.enabled;
 }
 
 function commitTaskSelectionPlan(plan) {
@@ -148,7 +155,7 @@ function commitTaskSelectionPlan(plan) {
   if (typeof draggedTaskSourceDate !== 'undefined') draggedTaskSourceDate = null;
   tasks = plan.tasks;
   selectedTaskOccurrences.clear();
-  plan.selection.forEach(entry => selectedTaskOccurrences.set(taskOccurrenceKey(entry.id, entry.date), entry));
+  [...plan.selection, ...(plan.preservedSelection || [])].forEach(entry => selectedTaskOccurrences.set(taskOccurrenceKey(entry.id, entry.date), entry));
   saveTasksToStorage();
   renderWeeklyCalendar();
   if (typeof renderBriefcaseTasks === 'function') renderBriefcaseTasks();
@@ -159,7 +166,7 @@ function commitTaskSelectionPlan(plan) {
 function getTaskSelectionAfterElement(container, clientY, entries, copy) {
   if (!container) return null;
   if (copy || !container.querySelectorAll) return getDragAfterElement(container, clientY);
-  const selectedKeys = new Set(entries.map(entry => taskOccurrenceKey(entry.id, entry.date)));
+  const selectedKeys = new Set(entries.filter(entry => !isTaskSelectionRecurring(entry)).map(entry => taskOccurrenceKey(entry.id, entry.date)));
   const candidates = [...container.querySelectorAll('.task-card:not(.completed):not(.dragging):not(.touch-dragging)')].filter(element => {
     const entry = taskSelectionEntry(element);
     return !entry || !selectedKeys.has(taskOccurrenceKey(entry.id, entry.date));
@@ -184,7 +191,9 @@ function moveTaskSelectionToDate(entries, anchor, date, container, clientY, copy
     const group = plan.selection.filter(entry => entry.date === destination).map(entry => plan.tasks.find(task => String(task.id) === entry.id));
     dayTasks.splice(index, 0, ...group);
     if (!resolveTimedReorderOnDrop(dayTasks, group[0], destination, anchor.date)) { renderWeeklyCalendar(); return; }
-    dayTasks.forEach((task, position) => setEffectivePosition(task, destination, position * 10));
+    dayTasks.forEach((task, position) => {
+      if (!plan.preservedSelection.some(entry => entry.id === String(task.id))) setEffectivePosition(task, destination, position * 10);
+    });
   }
   commitTaskSelectionPlan(plan);
 }
@@ -209,13 +218,58 @@ function dropTaskSelectionOnCronograma(entries, anchor, column, clientY, copy) {
   commitTaskSelectionPlan(plan);
 }
 
+function askTaskSelectionDeleteScope(task, date) {
+  return new Promise(resolve => {
+    const modal = document.getElementById('confirm-modal');
+    const onChoice = event => {
+      const button = event.target.closest('#delete-only-this-btn, #delete-all-occurrences-btn');
+      if (!button) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      finish(button.id === 'delete-only-this-btn' ? 'only-this' : 'all');
+    };
+    const heading = modal.querySelector('h2');
+    const originalHeading = heading.textContent;
+    const finish = scope => {
+      taskSelectionDeleteScopeResolve = null;
+      modal.removeEventListener('click', onChoice, true);
+      heading.textContent = originalHeading;
+      closeConfirmModal();
+      resolve(scope);
+    };
+    taskSelectionDeleteScopeResolve = finish;
+    modal.addEventListener('click', onChoice, true);
+    openConfirmModal(task, date);
+    heading.textContent = `${task.title || '(Sin título)'} · ${date}`;
+    modal.querySelector('#delete-only-this-btn').focus();
+  });
+}
+
+async function deleteTaskSelectionWithScopes(entries) {
+  taskMultiActionPending = true;
+  const scopes = new Map(), entireSeries = new Set();
+  try {
+    for (const entry of entries.filter(isTaskSelectionRecurring)) {
+      if (entireSeries.has(entry.id)) continue;
+      const task = tasks.find(task => String(task.id) === entry.id);
+      const scope = await askTaskSelectionDeleteScope(task, entry.date);
+      if (scope === 'cancel') return;
+      scopes.set(taskOccurrenceKey(entry.id, entry.date), scope);
+      if (scope === 'all') entireSeries.add(entry.id);
+    }
+    const plan = planTaskSelectionChange(entries, entries[0], '', { remove: true, deleteScopes: scopes });
+    commitTaskSelectionPlan(plan);
+  } finally { taskMultiActionPending = false; }
+}
+
 function requestDeleteTaskSelection(entries = [...selectedTaskOccurrences.values()]) {
   if (!entries.length || taskMultiActionPending) return;
+  entries = entries.map(entry => ({ ...entry }));
+  if (entries.some(isTaskSelectionRecurring)) return deleteTaskSelectionWithScopes(entries);
   const overlay = document.createElement('div');
   overlay.className = 'task-selection-confirm';
   overlay.innerHTML = `<div class="task-selection-confirm-box" role="dialog" aria-modal="true" aria-labelledby="task-selection-delete-title">
     <h2 id="task-selection-delete-title">Eliminar ${entries.length} ${entries.length === 1 ? 'tarea' : 'tareas'}</h2>
-    <p>Se eliminarán las tareas seleccionadas. En tareas repetidas, solo se eliminarán las apariciones seleccionadas.</p>
+    <p>Se eliminarán las tareas seleccionadas.</p>
     <div><button type="button" class="btn btn-secondary" data-cancel>Cancelar</button><button type="button" class="btn btn-primary" data-delete>Eliminar</button></div>
   </div>`;
   taskMultiActionPending = true;
@@ -240,12 +294,13 @@ function requestDeleteTaskSelection(entries = [...selectedTaskOccurrences.values
 }
 
 // Proyectar sin tocar los datos: las apariciones conservan distancia, duración y completado.
-function projectTaskSelectionSchedule(entries, anchor, targetDate, timeDelta = 0, startMin = null) {
+function projectTaskSelectionSchedule(entries, anchor, targetDate, timeDelta = 0, startMin = null, stationary = false) {
   const dayDelta = taskSelectionDayDelta(anchor.date || entries.find(entry => entry.date)?.date, targetDate);
   let untimedOffset = 0;
   return entries.flatMap(entry => {
     const original = tasks.find(task => String(task.id) === entry.id);
     if (!original) return [];
+    if (original.recurrence?.enabled && !stationary) return [];
     const range = getTaskTimeRange(original);
     const duration = range ? (range.crossesMidnight ? range.rawEndMin + 1440 : range.rawEndMin) - range.startMin : (original.duration || 60);
     if (!range && startMin === null) return [];
@@ -265,6 +320,7 @@ function startTaskSelectionPreview(drag, event) {
   if (!drag.selectionEntries || drag.selectionEntries.length < 2) return;
   const templates = [];
   for (const entry of drag.selectionEntries) {
+    if (isTaskSelectionRecurring(entry)) continue;
     const original = [...document.querySelectorAll('.cr-task-block[data-task-id]')].find(element => {
       const candidate = taskSelectionEntry(element);
       return candidate?.id === entry.id && candidate.date === entry.date && !element.classList.contains('cr-tail') && element.getClientRects().length > 0;
@@ -323,7 +379,7 @@ function renderTaskSelectionSchedulePreview(state, entries, anchor, targetDate, 
     const entry = taskSelectionEntry(element);
     if (!keys.has(taskOccurrenceKey(entry.id, entry.date))) return;
     state.origins.add(element);
-    element.classList.toggle('task-selection-time-origin', !(floating && element === state.drag?.block));
+    element.classList.toggle('task-selection-time-origin', !(floating && element === state.drag?.block && !isTaskSelectionRecurring(entry)));
   });
   const signature = JSON.stringify([targetDate, timeDelta, startMin, copy, floating]);
   if (state.signature === signature && state.columns.length === columns.length && state.columns.every((column, index) => column === columns[index]) && state.blocks.every(block => block.isConnected)) return;
@@ -331,6 +387,9 @@ function renderTaskSelectionSchedulePreview(state, entries, anchor, targetDate, 
   state.blocks = [];
   state.signature = signature;
   state.columns = columns;
+  const recurring = entries.filter(isTaskSelectionRecurring);
+  // Dibujar las repeticiones en su lugar incluso si son el bloque agarrado.
+  drawTaskSelectionSchedule(state, projectTaskSelectionSchedule(recurring, anchor, anchor.date, 0, null, true), columns, 'stationary');
   if (copy) drawTaskSelectionSchedule(state, projectTaskSelectionSchedule(entries, anchor, anchor.date, 0), columns, 'source');
   if (!floating) drawTaskSelectionSchedule(state, projectTaskSelectionSchedule(entries, anchor, targetDate, timeDelta, startMin ?? 0), columns, 'destination');
   arrangeTaskSelectionPreviewColumns(columns);
@@ -390,7 +449,8 @@ function startTaskSelectionNativeDrag(card, event) {
   if (!taskMultiDragEntries || taskMultiDragEntries.length < 2) return;
   const image = document.createElement('div');
   image.className = 'task-selection-native-preview';
-  const cards = taskMultiDragEntries.map(entry => [...document.querySelectorAll('.task-multi-selected')].find(element => {
+  const movable = taskMultiDragEntries.filter(entry => !isTaskSelectionRecurring(entry));
+  const cards = movable.map(entry => [...document.querySelectorAll('.task-multi-selected')].find(element => {
     const candidate = taskSelectionEntry(element);
     return candidate?.id === entry.id && candidate.date === entry.date && element.getClientRects().length > 0;
   })).filter(Boolean);
@@ -400,11 +460,11 @@ function startTaskSelectionNativeDrag(card, event) {
     image.appendChild(clone);
   });
   const count = document.createElement('span');
-  count.className = 'task-selection-native-count'; count.textContent = `${taskMultiDragEntries.length} tareas`;
+  count.className = 'task-selection-native-count'; count.textContent = movable.length ? `${movable.length} tareas` : 'Solo eliminar';
   image.appendChild(count); document.body.appendChild(image);
   event.dataTransfer.setDragImage(image, 24, 24);
   setTimeout(() => image.remove(), 0);
-  document.querySelectorAll('.task-multi-selected').forEach(element => element.classList.toggle('task-selection-drag-origin', !(event.ctrlKey || event.metaKey)));
+  document.querySelectorAll('.task-multi-selected').forEach(element => element.classList.toggle('task-selection-drag-origin', !isTaskSelectionRecurring(taskSelectionEntry(element)) && !(event.ctrlKey || event.metaKey)));
 }
 
 function reorderTaskSelectionInBriefcase(entries, container, clientY, copy = false) {
@@ -467,7 +527,7 @@ function setupTaskMultiSelection() {
   });
   document.addEventListener('drag', event => {
     if (!taskMultiDragEntries || taskMultiDragEntries.length < 2) return;
-    document.querySelectorAll('.task-multi-selected:not(.task-selection-time-preview)').forEach(element => element.classList.toggle('task-selection-drag-origin', !(event.ctrlKey || event.metaKey)));
+    document.querySelectorAll('.task-multi-selected:not(.task-selection-time-preview)').forEach(element => element.classList.toggle('task-selection-drag-origin', !isTaskSelectionRecurring(taskSelectionEntry(element)) && !(event.ctrlKey || event.metaKey)));
   });
   document.addEventListener('dragend', () => {
     taskMultiDragEntries = null;

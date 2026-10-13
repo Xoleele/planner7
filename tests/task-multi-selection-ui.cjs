@@ -63,6 +63,10 @@ function extract(source, name) {
     for(const name of ['createTaskCard','handleDragStart','handleDragEnd','startCronogramaDrag','syncCronogramaCopyGhost','onCronogramaDragKey',
       'cancelCronogramaDrag','onCronogramaDragMove','enterCronogramaFloat','exitCronogramaFloat','applyCronogramaDragMove','onCronogramaDragEnd',
       'clearCronogramaDragOver','clearCronogramaHeaderTargets','commitCronogramaDragResult']) await page.addScriptTag({content:extract(editor,name)});
+    for(const name of ['openConfirmModal','closeConfirmModal']) await page.addScriptTag({content:extract(editor,name)});
+    const modalMarkup=read('index.html').split('<div id="confirm-modal"')[1].split('<div id="edit-recurring-modal"')[0];
+    await page.evaluate(markup=>document.body.insertAdjacentHTML('beforeend','<div id="confirm-modal"'+markup),modalMarkup);
+    await page.evaluate(()=>document.querySelectorAll('#confirm-modal .close-confirm-modal-btn, #confirm-modal .close-modal-btn').forEach(button=>button.addEventListener('click',()=>closeConfirmModal())));
     await page.addScriptTag({content:read('app-9-seleccion.js')});
     await page.evaluate(()=>{setupTaskMultiSelection();renderWeeklyCalendar();document.querySelector('.cronograma-scroll').scrollTop=480;});
     const card=id=>page.locator(`#list .task-card[data-id="${id}"]`);
@@ -181,6 +185,64 @@ function extract(source, name) {
     assert.deepEqual(await previewSegments(),[{date:'2026-10-11',top:'1420',end:'1440',tail:false},{date:'2026-10-12',top:'0',end:'40',tail:true}]);
     await page.evaluate(()=>hideCronogramaDropPreview());
     assert.equal(await page.locator('.task-selection-time-preview').count(),0);
+    // Las series permanecen inmóviles, incluso cuando se agarra su propio bloque.
+    for (const anchorId of ['a','b']) for (const copy of [false,true]) {
+      await page.evaluate(()=>{
+        taskMultiDragEntries=null;clearTaskSelection();tasks=tasks.slice(0,2);
+        Object.assign(tasks[0],{date:'2026-10-12',startTime:'09:00',endTime:'10:00'});
+        Object.assign(tasks[1],{date:'2026-10-12',startTime:'11:00',endTime:'12:00',recurrence:{enabled:true,unit:'daily',exceptions:[]}});
+        renderWeeklyCalendar();toggleTaskSelection('a','2026-10-12');toggleTaskSelection('b','2026-10-12');
+        document.querySelector('.cronograma-scroll').scrollTop=480;
+      });
+      const before=await page.evaluate(()=>JSON.stringify(tasks[1]));
+      box=await block(anchorId).boundingBox();
+      if(copy) await page.keyboard.down('Control');
+      await page.mouse.move(box.x+45,box.y+20);await page.mouse.down();await page.mouse.move(box.x+45,box.y+80,{steps:6});
+      assert.equal(await page.locator('[data-task-id="b"][data-preview-role="destination"]').count(),0);
+      assert.equal(await page.locator('[data-task-id="b"][data-preview-role="source"]').count(),0);
+      const stationary=page.locator('[data-task-id="b"][data-preview-role="stationary"]');
+      assert.equal(await stationary.count(),1);
+      assert.equal(await stationary.evaluate(el=>el.style.top),'660px');
+      assert.equal(await stationary.evaluate(el=>el.parentElement.dataset.date),'2026-10-12');
+      assert.equal(await page.locator('[data-task-id="a"][data-preview-role="destination"]').evaluate(el=>el.style.top),'600px');
+      await page.mouse.up();if(copy) await page.keyboard.up('Control');
+      assert.equal(await page.evaluate(()=>JSON.stringify(tasks[1])),before);
+      assert.equal(await page.evaluate(()=>tasks.length),copy?3:2);
+      assert.equal(await page.evaluate(copy=>tasks[copy?2:0].startTime,copy),'10:00');
+    }
+    // Decisiones individuales, cancelación atómica y serie completa una sola vez.
+    for (const mode of ['cancel','only-this','all']) {
+      await page.evaluate(()=>{
+        clearTaskSelection();tasks=tasks.slice(0,2);tasks[1].recurrence.exceptions=[];
+        renderWeeklyCalendar();toggleTaskSelection('a',tasks[0].date);toggleTaskSelection('b','2026-10-12');
+        // Añadir otra aparición sin depender del render simplificado de esta fixture.
+        selectedTaskOccurrences.set(taskOccurrenceKey('b','2026-10-13'),{id:'b',date:'2026-10-13'});
+      });
+      const before=await page.evaluate(()=>({data:JSON.stringify(tasks),undos:testUndoSnapshots.length}));
+      await page.keyboard.press('Delete');
+      assert.equal(await page.locator('#confirm-modal').evaluate(el=>el.classList.contains('hidden')),false);
+      if(mode==='all') await page.locator('#delete-all-occurrences-btn').click();
+      else {
+        await page.locator('#delete-only-this-btn').click();
+        assert.match(await page.locator('#confirm-modal h2').textContent(),/2026-10-13/);
+        assert.equal(await page.evaluate(()=>JSON.stringify(tasks)),before.data);
+        if(mode==='cancel') await page.locator('#confirm-modal .close-confirm-modal-btn').click();
+        else await page.locator('#delete-only-this-btn').click();
+      }
+      assert.equal(await page.locator('#confirm-modal').evaluate(el=>el.classList.contains('hidden')),true);
+      if(mode==='cancel') {
+        assert.equal(await page.evaluate(()=>JSON.stringify(tasks)),before.data);
+        assert.equal(await page.evaluate(()=>testUndoSnapshots.length),before.undos);
+      } else {
+        assert.equal(await page.evaluate(()=>testUndoSnapshots.length),before.undos+1);
+        if(mode==='all') assert.equal(await page.evaluate(()=>tasks.length),0);
+        else {
+          assert.deepEqual(await page.evaluate(()=>tasks[0].recurrence.exceptions),['2026-10-12','2026-10-13']);
+          // Restaurar la fixture para probar después la eliminación completa.
+          await page.evaluate(()=>tasks=structuredClone(testUndoSnapshots.at(-1)));
+        }
+      }
+    }
     assert.deepEqual(errors,[]);
     console.log('Interfaz verificada: sin barra, movimiento simultáneo, medianoche en ambos sentidos, copia, HTML5, completadas, Escape y Supr.');
   } finally {await browser.close();}

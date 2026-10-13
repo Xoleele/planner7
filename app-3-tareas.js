@@ -2177,7 +2177,7 @@ function handleDragStart(e) {
     taskMultiDragEntries = getTaskSelectionDragEntries(draggedTaskId, draggedTaskSourceDate);
     startTaskSelectionNativeDrag(this, e);
   }
-  this.classList.add('dragging');
+  if (!(taskMultiDragEntries?.length > 1 && isTaskSelectionRecurring({ id: draggedTaskId, date: draggedTaskSourceDate }))) this.classList.add('dragging');
   e.dataTransfer.setData('text/plain', draggedTaskId);
   e.dataTransfer.effectAllowed = 'copyMove';
   document.body.classList.add('dragging-active');
@@ -3595,6 +3595,10 @@ function openConfirmModal(task, occurrenceDate) {
 }
 
 function closeConfirmModal() {
+  if (typeof taskSelectionDeleteScopeResolve === 'function') {
+    taskSelectionDeleteScopeResolve('cancel');
+    return;
+  }
   document.getElementById('confirm-modal').classList.add('hidden');
 }
 
