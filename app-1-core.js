@@ -827,8 +827,15 @@ function saveSettingsModal() {
   const habitReminderInput = document.getElementById('setting-habit-reminder');
   if (habitReminderInput) {
     const value = habitReminderInput.value || '';
+    const previousTime = habitReminderTime;
     habitReminderTime = /^\d{2}:\d{2}$/.test(value) ? value : '';
     changes.habitReminderTime = habitReminderTime || null;
+    // Si cambia la hora, el recordatorio se reinicia: cuenta como que hoy aún no
+    // se ha mostrado (aparecerá al entrar a la app si ya pasó la nueva hora).
+    if (habitReminderTime && habitReminderTime !== previousTime) {
+      habitReminderLastShown = '';
+      changes.habitReminderLastShown = null;
+    }
   }
   closeSettingsModal();
   saveSettingPreferences(changes);
