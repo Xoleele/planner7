@@ -3328,18 +3328,31 @@ function expandMobileFeed(dir) {
   }
 }
 
+// Día que se está viendo en el checklist móvil. Se guarda aparte porque, mientras
+// el checklist está oculto (modo horario), el navegador puede perder la posición
+// de scroll del carrusel y medirla devolvía su primer día (el lunes de la semana
+// anterior), lo que mandaba al usuario a ese lunes al alternar de modo.
+let mobileFeedDate = null;
+
+function isMobileFeedVisible(grid) {
+  return !!grid && grid.getClientRects().length > 0 && grid.clientWidth > 0;
+}
+
 function getMobileVisibleDate() {
   const grid = document.querySelector('.planner-grid');
   if (!grid) return null;
+  // Oculto: no se puede medir; usar el último día conocido.
+  if (!isMobileFeedVisible(grid)) return mobileFeedDate ? new Date(mobileFeedDate) : null;
   const days = grid.querySelectorAll('.mobile-feed-day');
+  const gridRect = grid.getBoundingClientRect();
   for (const day of days) {
     const rect = day.getBoundingClientRect();
-    const gridRect = grid.getBoundingClientRect();
     if (rect.left >= gridRect.left - 10) {
-      return new Date(day.dataset.date + 'T00:00:00');
+      mobileFeedDate = new Date(day.dataset.date + 'T00:00:00');
+      return new Date(mobileFeedDate);
     }
   }
-  return null;
+  return mobileFeedDate ? new Date(mobileFeedDate) : null;
 }
 
 function scrollMobileFeedToDate(date) {
@@ -3348,6 +3361,7 @@ function scrollMobileFeedToDate(date) {
   const dateStr = formatDate(date);
   const targetEl = grid.querySelector(`.mobile-feed-day[data-date="${dateStr}"]`);
   if (targetEl) {
+    mobileFeedDate = new Date(dateStr + 'T00:00:00');
     grid.scrollLeft = targetEl.offsetLeft - 4;
   }
 }
@@ -3356,20 +3370,28 @@ function scrollMobileFeedToToday() {
   scrollMobileFeedToDate(new Date());
 }
 
-function jumpMobileFeedToDate(targetDate) {
+// `smooth = false` coloca el carrusel al instante (p. ej. al volver del horario,
+// donde una animación desde el inicio del carrusel no aporta nada).
+function jumpMobileFeedToDate(targetDate, smooth = true) {
   const grid = document.querySelector('.planner-grid');
   const dateStr = formatDate(new Date(targetDate));
   const existing = grid && grid.querySelector(`.mobile-feed-day[data-date="${dateStr}"]`);
+  mobileFeedDate = new Date(dateStr + 'T00:00:00');
 
   if (existing) {
     // El día ya está en el feed infinito — solo scrollear
-    grid.scrollTo({ left: existing.offsetLeft - 4, behavior: 'smooth' });
+    grid.scrollTo({ left: existing.offsetLeft - 4, behavior: smooth ? 'smooth' : 'auto' });
     updateWeekLabelFromScroll();
   } else {
     // Reconstruir centrado en esa fecha
     const monday = getMondayOf(new Date(targetDate));
     currentWeekStart = monday;
     buildMobileFeed(monday);
+    if (!smooth) {
+      scrollMobileFeedToDate(new Date(targetDate));
+      updateWeekLabelFromScroll();
+      return;
+    }
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         scrollMobileFeedToDate(new Date(targetDate));
@@ -3381,7 +3403,7 @@ function jumpMobileFeedToDate(targetDate) {
 
 function updateWeekLabelFromScroll() {
   const grid = document.querySelector('.planner-grid');
-  if (!grid) return;
+  if (!grid || !isMobileFeedVisible(grid)) return; // oculto: no medir (daría su primer día)
   const days = grid.querySelectorAll('.mobile-feed-day');
   let visibleDay = null;
   for (const day of days) {
@@ -3394,6 +3416,7 @@ function updateWeekLabelFromScroll() {
   }
   if (visibleDay) {
     const date = new Date(visibleDay.dataset.date + 'T00:00:00');
+    mobileFeedDate = new Date(date);
     currentWeekStart = getMondayOf(date);
     document.getElementById('week-range-label').textContent = formatSingleDate(date);
   }

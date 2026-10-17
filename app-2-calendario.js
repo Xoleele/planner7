@@ -2497,8 +2497,11 @@ function renderWeeklyCalendar(targetWrapper = document) {
     if (mobileScrollInit) {
       updateMobileFeedTasks();
     }
-    // Actualizar label de semana (planner móvil: con nombre del día).
-    const visibleDate = getMobileVisibleDate() || new Date();
+    // Actualizar label de semana (planner móvil: con nombre del día). Con el
+    // horario activo, la etiqueta muestra el día del horario, no el del checklist.
+    const visibleDate = cronogramaActive
+      ? (cronogramaMobileDate || new Date())
+      : (getMobileVisibleDate() || new Date());
     document.getElementById('week-range-label').textContent = formatSingleDate(visibleDate);
     // Si el horario está activo, mantenerlo sincronizado también en móvil. Sin
     // esto, cuando las tareas llegan de la nube DESPUÉS del primer render del
@@ -3251,10 +3254,11 @@ function toggleCronograma() {
     // En móvil, al volver al planner, colocar el feed en el día que se estaba
     // viendo en el horario (en lugar de forzar siempre hoy).
     if (isMobile()) {
+      // Al instante y sin animación: si se esperaba a los siguientes frames y se
+      // animaba desde el inicio del carrusel, alternar rápido de vuelta al horario
+      // leía ese inicio (el lunes de la semana anterior) como día visible.
       const targetDate = mobileKeepDate || cronogramaMobileDate || new Date();
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => jumpMobileFeedToDate(targetDate));
-      });
+      jumpMobileFeedToDate(targetDate, false);
     } else {
       // Escritorio: la lista de tareas debe mostrar la MISMA semana que se
       // estaba viendo en el horario (ambas comparten currentWeekStart,
