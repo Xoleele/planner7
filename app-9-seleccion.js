@@ -543,7 +543,7 @@ function setupTaskMultiSelection() {
 // Mantener presionada una tarea (sin mover el dedo) activa la selección; luego
 // un toque simple agrega o quita tareas. Un botón inferior cancela la selección.
 // Mover, archivar y eliminar el grupo reutiliza la lógica de escritorio.
-const TASK_SELECTION_TOUCH_HOLD_MS = 1000; // 1 s (más largo que el long-press de arrastre)
+const TASK_SELECTION_TOUCH_HOLD_MS = 1500; // 1,5 s (más largo que el long-press de arrastre)
 let taskSelectionTouchHold = null;
 let taskSelectionTouchClickBlocked = false;
 
