@@ -3494,7 +3494,7 @@ function closeEditRecurringModal(scope = 'cancel') {
 // Aviso de tareas "pegadas": mismo diseño minimalista que "Tareas superpuestas"
 // (askCronogramaOverlap). Cada opción reutiliza los botones del modal original
 // (#adjacent-tasks-modal, que queda oculto), que contienen la lógica:
-//   Separar          → Conservar (la vecina queda donde está)
+//   Despegar tareas  → Conservar (la vecina queda donde está)
 //   Mantener pegadas → Modificar (la vecina se ajusta para seguir pegada)
 //   Cancelar         → Cancelar (revierte el arrastre / vuelve al editor)
 function openAdjacentTasksModal(affectations) {
@@ -3539,7 +3539,7 @@ function openAdjacentTasksModal(affectations) {
       buttons[(index + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length].focus();
     }
   };
-  for (const [label, choice] of [['Separar', 'keep'], ['Mantener "pegadas"', 'modify'], ['Cancelar', 'cancel']]) {
+  for (const [label, choice] of [['Despegar tareas', 'keep'], ['Mantener "pegadas"', 'modify'], ['Cancelar', 'cancel']]) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = choice === 'keep' ? 'btn btn-primary' : 'btn btn-secondary';
