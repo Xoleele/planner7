@@ -1705,7 +1705,7 @@ function createTaskCard(task, occurrenceDate) {
       openTaskContextMenu(e.clientX, e.clientY, task, col ? parseInt(col.dataset.day, 10) : NaN);
     }
   });
-  if (isTaskHiddenByActivityIsolation(task)) card.classList.add('activity-hidden');
+  if (isTaskHiddenByActivityIsolation(task, card.dataset.occurrenceDate || '')) card.classList.add('activity-hidden');
 
   // Checkbox Button
   const checkBtn = document.createElement('button');

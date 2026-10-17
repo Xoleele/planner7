@@ -854,15 +854,14 @@ function applyDayIsolation() {
 // Ctrl+Z / Ctrl+Y: cada aislar / restablecer es un paso deshacible.
 function pushIsolationUndo() {
   if (typeof pushUndoEntry === 'function') {
-    pushUndoEntry({ isolation: { day: isolatedDay, tagId: isolatedTagId, groupId: isolatedGroupId } });
+    pushUndoEntry({ isolation: captureIsolationState() });
   }
 }
 
 function isolateDay(dayIndex) {
   pushIsolationUndo();
   // Solo una herramienta de aislamiento a la vez.
-  isolatedTagId = null;
-  isolatedGroupId = null;
+  clearIsolationState();
   isolatedDay = dayIndex;
   applyDayIsolation();
 }
@@ -876,13 +875,63 @@ let isolatedTagId = null;
 // del grupo de actividades (grupos de estadísticas). Sus miembros se leen en
 // vivo del grupo. Tampoco se guarda.
 let isolatedGroupId = null;
+// Con selección múltiple: "Aislar actividades" (las actividades de las tareas
+// seleccionadas) y "Aislar tareas" (solo esas apariciones). Tampoco se guardan.
+let isolatedTagIds = null;   // Set de tagId
+let isolatedTaskKeys = null; // Set de "id|fecha" (apariciones)
+let isolatedTaskIds = null;  // Set de id (respaldo cuando no se conoce la fecha)
+
+function isolationTaskKey(id, date) {
+  return String(id) + '|' + (date || '');
+}
+
+// Estado completo de aislamiento (para deshacer / rehacer).
+function captureIsolationState() {
+  return {
+    day: isolatedDay,
+    tagId: isolatedTagId,
+    groupId: isolatedGroupId,
+    tagIds: isolatedTagIds ? [...isolatedTagIds] : null,
+    taskKeys: isolatedTaskKeys ? [...isolatedTaskKeys] : null
+  };
+}
+
+function restoreIsolationState(state) {
+  isolatedDay = state.day ?? null;
+  isolatedTagId = state.tagId ?? null;
+  isolatedGroupId = state.groupId ?? null;
+  isolatedTagIds = Array.isArray(state.tagIds) ? new Set(state.tagIds) : null;
+  isolatedTaskKeys = Array.isArray(state.taskKeys) ? new Set(state.taskKeys) : null;
+  isolatedTaskIds = isolatedTaskKeys ? new Set([...isolatedTaskKeys].map(key => key.slice(0, key.lastIndexOf('|')))) : null;
+}
+
+// Solo una herramienta de aislamiento a la vez.
+function clearIsolationState() {
+  isolatedDay = null;
+  isolatedTagId = null;
+  isolatedGroupId = null;
+  isolatedTagIds = null;
+  isolatedTaskKeys = null;
+  isolatedTaskIds = null;
+}
 
 function taskTagIdForIsolation(task) {
   return (task && task.tagId) || 'default';
 }
 
-// ¿Debe ocultarse esta tarea por el aislamiento de actividad?
-function isTaskHiddenByActivityIsolation(task) {
+// ¿Debe ocultarse esta tarea por el aislamiento de actividad? `date` es la
+// fecha de la aparición (para "Aislar tareas"); si no se conoce, basta el id.
+function isTaskHiddenByActivityIsolation(task, date) {
+  if (isolatedTaskKeys) {
+    if (!task) return false;
+    return date !== undefined
+      ? !isolatedTaskKeys.has(isolationTaskKey(task.id, date))
+      : !isolatedTaskIds.has(String(task.id));
+  }
+  if (isolatedTagIds) {
+    if (!task) return false;
+    return !isolatedTagIds.has(taskTagIdForIsolation(task));
+  }
   if (isolatedGroupId !== null) {
     const group = typeof statsActivityGroups !== 'undefined' ? statsActivityGroups.find(g => g.id === isolatedGroupId) : null;
     if (!group || !task) return false;
@@ -894,40 +943,61 @@ function isTaskHiddenByActivityIsolation(task) {
 function applyActivityIsolation() {
   const byId = new Map(tasks.map(t => [String(t.id), t]));
   document.querySelectorAll('.planner-week-wrapper .task-card[data-id]').forEach(card => {
-    card.classList.toggle('activity-hidden', isTaskHiddenByActivityIsolation(byId.get(card.dataset.id)));
+    card.classList.toggle('activity-hidden', isTaskHiddenByActivityIsolation(byId.get(card.dataset.id), card.dataset.occurrenceDate || ''));
   });
   document.querySelectorAll('.cronograma-grid .cr-task-block[data-task-id]').forEach(block => {
-    block.classList.toggle('activity-hidden', isTaskHiddenByActivityIsolation(byId.get(block.dataset.taskId)));
+    block.classList.toggle('activity-hidden', isTaskHiddenByActivityIsolation(byId.get(block.dataset.taskId), block.dataset.occurrenceDate || ''));
   });
   document.querySelectorAll('.cronograma-grid .cr-day-col').forEach(updateCronogramaOverlapOffsets);
 }
 
 function isolateActivity(tagId) {
   pushIsolationUndo();
-  isolatedDay = null; // solo una herramienta a la vez
-  isolatedGroupId = null;
+  clearIsolationState();
   isolatedTagId = tagId;
   applyDayIsolation(); // también reaplica el aislamiento de actividad
 }
 
 function isolateGroup(groupId) {
   pushIsolationUndo();
-  isolatedDay = null; // solo una herramienta a la vez
-  isolatedTagId = null;
+  clearIsolationState();
   isolatedGroupId = groupId;
   applyDayIsolation();
 }
 
+// Selección múltiple → aislar las actividades de las tareas seleccionadas.
+function isolateSelectedActivities(entries) {
+  const tagIds = new Set();
+  entries.forEach(entry => {
+    const task = tasks.find(t => String(t.id) === String(entry.id));
+    if (task) tagIds.add(taskTagIdForIsolation(task));
+  });
+  if (!tagIds.size) return;
+  pushIsolationUndo();
+  clearIsolationState();
+  isolatedTagIds = tagIds;
+  applyDayIsolation();
+}
+
+// Selección múltiple → aislar solo las tareas (apariciones) seleccionadas.
+function isolateSelectedTasks(entries) {
+  if (!entries.length) return;
+  pushIsolationUndo();
+  clearIsolationState();
+  isolatedTaskKeys = new Set(entries.map(entry => isolationTaskKey(entry.id, entry.date)));
+  isolatedTaskIds = new Set(entries.map(entry => String(entry.id)));
+  applyDayIsolation();
+}
+
 function isAnyIsolationActive() {
-  return isolatedDay !== null || isolatedTagId !== null || isolatedGroupId !== null;
+  return isolatedDay !== null || isolatedTagId !== null || isolatedGroupId !== null ||
+    isolatedTagIds !== null || isolatedTaskKeys !== null;
 }
 
 // Restablece cualquier aislamiento (día o actividad).
 function resetIsolation() {
   if (isAnyIsolationActive()) pushIsolationUndo();
-  isolatedDay = null;
-  isolatedTagId = null;
-  isolatedGroupId = null;
+  clearIsolationState();
   applyDayIsolation();
 }
 
@@ -980,9 +1050,19 @@ function openTaskContextMenu(x, y, task, dayIndex) {
     return;
   }
   const items = [{ label: 'Aislar actividad', action: () => isolateActivity(tagId) }];
+  // Selección múltiple (2+ tareas) que incluye esta tarea: opciones para el grupo
+  // seleccionado, arriba de todo.
+  const selectionEntries = typeof selectedTaskOccurrences !== 'undefined' ? [...selectedTaskOccurrences.values()] : [];
+  const selectionItems = selectionEntries.length > 1 && selectionEntries.some(entry => String(entry.id) === String(task.id))
+    ? [
+        { label: 'Aislar actividades', action: () => isolateSelectedActivities(selectionEntries) },
+        { label: 'Aislar tareas', action: () => isolateSelectedTasks(selectionEntries) }
+      ]
+    : [];
   // Actividad dentro de un grupo de actividades: "Aislar grupo" va primero.
   const group = typeof getStatsGroupOfTag === 'function' ? getStatsGroupOfTag(tagId) : null;
   if (group) items.unshift({ label: `Aislar grupo: ${group.name || 'Grupo'}`, action: () => isolateGroup(group.id) });
+  items.unshift(...selectionItems);
   if (Number.isFinite(dayIndex)) items.push({ label: 'Aislar día', action: () => isolateDay(dayIndex) });
   // Ocultar actividad: igual que apagar la bombilla en el panel de actividades
   // (se guarda; se vuelve a mostrar desde ese panel).
@@ -1618,7 +1698,7 @@ function captureStateLike(entry) {
   if (entry.tasks !== undefined) out.tasks = JSON.stringify(tasks);
   if (entry.tags !== undefined) out.tags = JSON.stringify(tags);
   if (entry.tagVis !== undefined) out.tagVis = captureTagVisibility(Object.keys(entry.tagVis));
-  if (entry.isolation !== undefined) out.isolation = { day: isolatedDay, tagId: isolatedTagId, groupId: isolatedGroupId };
+  if (entry.isolation !== undefined) out.isolation = captureIsolationState();
   return out;
 }
 
@@ -1639,9 +1719,7 @@ function applyUndoEntry(entry) {
     tagsChanged = true;
   }
   if (entry.isolation !== undefined) {
-    isolatedDay = entry.isolation.day;
-    isolatedTagId = entry.isolation.tagId;
-    isolatedGroupId = entry.isolation.groupId ?? null;
+    restoreIsolationState(entry.isolation);
     applyDayIsolation();
   }
   if (tagsChanged) {
@@ -3460,7 +3538,7 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
     block.dataset.taskId = String(task.id);
     block.dataset.occurrenceDate = occurrenceDate || task.date || '';
     if (typeof decorateTaskSelection === 'function') decorateTaskSelection(block, task.id, block.dataset.occurrenceDate);
-    if (isTaskHiddenByActivityIsolation(task)) block.classList.add('activity-hidden');
+    if (isTaskHiddenByActivityIsolation(task, block.dataset.occurrenceDate)) block.classList.add('activity-hidden');
     // Escritorio: click derecho → "Aislar actividad" / "Restablecer".
     block.addEventListener('contextmenu', (e) => {
       if (isMobile()) return;
