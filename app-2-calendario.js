@@ -854,7 +854,7 @@ function applyDayIsolation() {
 // Ctrl+Z / Ctrl+Y: cada aislar / restablecer es un paso deshacible.
 function pushIsolationUndo() {
   if (typeof pushUndoEntry === 'function') {
-    pushUndoEntry({ isolation: { day: isolatedDay, tagId: isolatedTagId } });
+    pushUndoEntry({ isolation: { day: isolatedDay, tagId: isolatedTagId, groupId: isolatedGroupId } });
   }
 }
 
@@ -862,6 +862,7 @@ function isolateDay(dayIndex) {
   pushIsolationUndo();
   // Solo una herramienta de aislamiento a la vez.
   isolatedTagId = null;
+  isolatedGroupId = null;
   isolatedDay = dayIndex;
   applyDayIsolation();
 }
@@ -871,6 +872,10 @@ function isolateDay(dayIndex) {
 // tareas de las demás actividades (planner y horario). No se guarda: se pierde
 // al recargar la app o con "Restablecer". No se combina con "Aislar día".
 let isolatedTagId = null;
+// "Aislar grupo": como "Aislar actividad", pero muestra todas las actividades
+// del grupo de actividades (grupos de estadísticas). Sus miembros se leen en
+// vivo del grupo. Tampoco se guarda.
+let isolatedGroupId = null;
 
 function taskTagIdForIsolation(task) {
   return (task && task.tagId) || 'default';
@@ -878,6 +883,11 @@ function taskTagIdForIsolation(task) {
 
 // ¿Debe ocultarse esta tarea por el aislamiento de actividad?
 function isTaskHiddenByActivityIsolation(task) {
+  if (isolatedGroupId !== null) {
+    const group = typeof statsActivityGroups !== 'undefined' ? statsActivityGroups.find(g => g.id === isolatedGroupId) : null;
+    if (!group || !task) return false;
+    return !(group.tagIds || []).includes(taskTagIdForIsolation(task));
+  }
   return isolatedTagId !== null && !!task && taskTagIdForIsolation(task) !== isolatedTagId;
 }
 
@@ -895,12 +905,21 @@ function applyActivityIsolation() {
 function isolateActivity(tagId) {
   pushIsolationUndo();
   isolatedDay = null; // solo una herramienta a la vez
+  isolatedGroupId = null;
   isolatedTagId = tagId;
   applyDayIsolation(); // también reaplica el aislamiento de actividad
 }
 
+function isolateGroup(groupId) {
+  pushIsolationUndo();
+  isolatedDay = null; // solo una herramienta a la vez
+  isolatedTagId = null;
+  isolatedGroupId = groupId;
+  applyDayIsolation();
+}
+
 function isAnyIsolationActive() {
-  return isolatedDay !== null || isolatedTagId !== null;
+  return isolatedDay !== null || isolatedTagId !== null || isolatedGroupId !== null;
 }
 
 // Restablece cualquier aislamiento (día o actividad).
@@ -908,6 +927,7 @@ function resetIsolation() {
   if (isAnyIsolationActive()) pushIsolationUndo();
   isolatedDay = null;
   isolatedTagId = null;
+  isolatedGroupId = null;
   applyDayIsolation();
 }
 
@@ -960,6 +980,9 @@ function openTaskContextMenu(x, y, task, dayIndex) {
     return;
   }
   const items = [{ label: 'Aislar actividad', action: () => isolateActivity(tagId) }];
+  // Actividad dentro de un grupo de actividades: "Aislar grupo" va primero.
+  const group = typeof getStatsGroupOfTag === 'function' ? getStatsGroupOfTag(tagId) : null;
+  if (group) items.unshift({ label: `Aislar grupo: ${group.name || 'Grupo'}`, action: () => isolateGroup(group.id) });
   if (Number.isFinite(dayIndex)) items.push({ label: 'Aislar día', action: () => isolateDay(dayIndex) });
   // Ocultar actividad: igual que apagar la bombilla en el panel de actividades
   // (se guarda; se vuelve a mostrar desde ese panel).
@@ -1595,7 +1618,7 @@ function captureStateLike(entry) {
   if (entry.tasks !== undefined) out.tasks = JSON.stringify(tasks);
   if (entry.tags !== undefined) out.tags = JSON.stringify(tags);
   if (entry.tagVis !== undefined) out.tagVis = captureTagVisibility(Object.keys(entry.tagVis));
-  if (entry.isolation !== undefined) out.isolation = { day: isolatedDay, tagId: isolatedTagId };
+  if (entry.isolation !== undefined) out.isolation = { day: isolatedDay, tagId: isolatedTagId, groupId: isolatedGroupId };
   return out;
 }
 
@@ -1618,6 +1641,7 @@ function applyUndoEntry(entry) {
   if (entry.isolation !== undefined) {
     isolatedDay = entry.isolation.day;
     isolatedTagId = entry.isolation.tagId;
+    isolatedGroupId = entry.isolation.groupId ?? null;
     applyDayIsolation();
   }
   if (tagsChanged) {
