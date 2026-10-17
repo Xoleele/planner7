@@ -3539,7 +3539,7 @@ function openAdjacentTasksModal(affectations) {
       buttons[(index + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length].focus();
     }
   };
-  for (const [label, choice] of [['Despegar tareas', 'keep'], ['Mantener "pegadas"', 'modify'], ['Cancelar', 'cancel']]) {
+  for (const [label, choice] of [['Despegar tareas', 'keep'], ['Mantener pegadas', 'modify'], ['Cancelar', 'cancel']]) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = choice === 'keep' ? 'btn btn-primary' : 'btn btn-secondary';
