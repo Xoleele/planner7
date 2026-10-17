@@ -3401,6 +3401,9 @@ function updateViewToggleMenuLabel() {
 }
 
 // Siempre evalúa HOY, independientemente de la fecha navegada y del horario.
+// Solo avisa (rojo) por tareas pendientes de hoy que NO se ven en el horario
+// (sin hora de inicio y fin, o demasiado cortas para dibujarse): las que sí
+// aparecen en el horario ya están a la vista y no necesitan el aviso.
 function updateChecklistPendingIndicator() {
   const btn = document.getElementById('nav-view-toggle-btn');
   if (!btn) return;
@@ -3410,6 +3413,9 @@ function updateChecklistPendingIndicator() {
     if (!checkTaskOccurrence(task, today)) return false;
     const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
     if (tag && tag.visible === false) return false;
+    const range = getTaskTimeRange(task);
+    const shownInHorario = !!range && (range.endMin - range.startMin) >= CR_MIN_BLOCK_MIN;
+    if (shownInHorario) return false;
     return task.recurrence && task.recurrence.enabled
       ? !(task.completedOccurrences || []).includes(todayStr)
       : !task.completed;
