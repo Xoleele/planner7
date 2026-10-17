@@ -3404,9 +3404,15 @@ function updateViewToggleMenuLabel() {
 // Solo avisa (rojo) por tareas pendientes de hoy que NO se ven en el horario
 // (sin hora de inicio y fin, o demasiado cortas para dibujarse), y solo si en
 // el horario de hoy no queda ninguna tarea pendiente visible.
+// Interruptor del aviso rojo. Desactivado por ahora; para reactivarlo, hacer
+// que devuelva true (la lógica de abajo se conserva). Es una función (y no una
+// const) para poder consultarla aunque se llame antes de esta línea al cargar.
+function checklistPendingIndicatorEnabled() { return false; }
+
 function updateChecklistPendingIndicator() {
   const btn = document.getElementById('nav-view-toggle-btn');
   if (!btn) return;
+  if (!checklistPendingIndicatorEnabled()) { btn.classList.remove('checklist-pending'); return; }
   const today = new Date();
   const todayStr = formatDate(today);
   // Pendientes de hoy (visibles), separadas según se vean o no en el horario.
