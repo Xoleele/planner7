@@ -1088,6 +1088,8 @@ async function startApp(user) {
     if (prefs.copyOptions) copyTextOptions = { ...copyTextOptions, ...prefs.copyOptions };
     applyUserSettingsFromPrefs(prefs);
     activeTimerState = prefs.activeTimer || null;
+    // Recordatorio de hábitos al iniciar (cuando la app ya terminó de cargar).
+    setTimeout(() => { if (typeof maybeShowHabitReminder === 'function') maybeShowHabitReminder(); }, 1000);
     try {
       localStorage.setItem(prefsCacheKey, JSON.stringify(prefs));
     } catch (e) {}

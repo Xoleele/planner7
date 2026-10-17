@@ -6066,6 +6066,9 @@ body:not(.mobile-mode) .cr-task-block.completed:not(.cr-dragging):hover {
 .settings-label label { cursor: pointer; }
 .settings-label label { white-space: nowrap; }
 .settings-row select { width: auto; min-width: 96px; flex: 0 0 auto; }
+/* Campo de hora en Configuración (recordatorio de hábitos): mismo campo que las
+   horas de las tareas, con ancho fijo. */
+.settings-row .settings-time-wrapper { width: 110px; flex: 0 0 auto; }
 .settings-row #setting-completed-fade {
   width: 136px;
   padding-left: 8px;

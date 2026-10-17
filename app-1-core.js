@@ -56,6 +56,14 @@ let defaultTaskDurationMin = 60;
 // Se elige en Preferencias (preferences.showTaskDescriptions). Por defecto, se muestra.
 let showTaskDescriptions = true;
 
+// Recordatorio de hábitos: hora "HH:MM" a partir de la cual, al entrar a la app,
+// se abre el Habit Tracker (una vez al día por cuenta). Vacío = desactivado.
+// Se guarda en preferences.habitReminderTime y el último día mostrado en
+// preferences.habitReminderLastShown ("YYYY-MM-DD").
+let habitReminderTime = '';
+let habitReminderLastShown = '';
+let habitReminderChecking = false;
+
 const COMPLETED_TASK_FADE_OPTIONS = ['both', 'horario', 'checklist', 'none'];
 let completedTaskFadeMode = 'both';
 
@@ -82,6 +90,8 @@ function applyUserSettingsFromPrefs(prefs) {
   completedTaskFadeMode = COMPLETED_TASK_FADE_OPTIONS.includes(prefs.completedTaskFadeMode)
     ? prefs.completedTaskFadeMode : 'both';
   applyCompletedTaskFade();
+  habitReminderTime = /^\d{2}:\d{2}$/.test(prefs.habitReminderTime || '') ? prefs.habitReminderTime : '';
+  habitReminderLastShown = typeof prefs.habitReminderLastShown === 'string' ? prefs.habitReminderLastShown : '';
   // Estadísticas: grupos de actividades (panel "Agrupar actividades").
   if (typeof setStatsActivityGroupsFromPrefs === 'function') setStatsActivityGroupsFromPrefs(prefs);
   // Estadísticas diarias: grupos ocultos (globales, todos los días).
@@ -718,6 +728,28 @@ function openSettingsModal() {
   if (descToggle) descToggle.checked = showTaskDescriptions;
   const completedFadeSelect = document.getElementById('setting-completed-fade');
   if (completedFadeSelect) completedFadeSelect.value = completedTaskFadeMode;
+  const habitReminderInput = document.getElementById('setting-habit-reminder');
+  if (habitReminderInput) {
+    // Mismo comportamiento que los campos de hora de las tareas: en escritorio se
+    // escribe con el teclado (máscara HH:MM); en móvil, selector nativo.
+    if (habitReminderInput.dataset.bound !== 'true') {
+      habitReminderInput.dataset.bound = 'true';
+      if (!isMobile() && typeof setupTimeMaskInput === 'function') setupTimeMaskInput(habitReminderInput);
+      habitReminderInput.addEventListener('click', () => {
+        if (isMobile() && habitReminderInput.type === 'time' && typeof habitReminderInput.showPicker === 'function') {
+          try { habitReminderInput.showPicker(); } catch (_) {}
+        }
+      });
+      document.getElementById('setting-habit-reminder-clear')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        habitReminderInput.value = '';
+        if (typeof updateTime24Overlay === 'function') updateTime24Overlay(habitReminderInput);
+      });
+    }
+    habitReminderInput.value = habitReminderTime;
+    if (typeof updateTime24Overlay === 'function') updateTime24Overlay(habitReminderInput);
+  }
   modal.querySelectorAll('.settings-info').forEach(el => el.classList.add('hidden'));
   modal.querySelectorAll('.settings-info-btn').forEach(b => b.classList.remove('active'));
   if (modal.dataset.bound !== 'true') {
@@ -791,6 +823,12 @@ function saveSettingsModal() {
     changes.completedTaskFadeMode = completedTaskFadeMode;
     applyCompletedTaskFade();
   }
+  const habitReminderInput = document.getElementById('setting-habit-reminder');
+  if (habitReminderInput) {
+    const value = habitReminderInput.value || '';
+    habitReminderTime = /^\d{2}:\d{2}$/.test(value) ? value : '';
+    changes.habitReminderTime = habitReminderTime || null;
+  }
   closeSettingsModal();
   saveSettingPreferences(changes);
 }
@@ -824,6 +862,39 @@ async function saveSettingPreferences(changes) {
   } catch (e) {}
   await savePreferences(prefs);
 }
+
+// ─── Recordatorio de hábitos ────────────────────────────────────────────────
+// Al entrar a la app (o volver a ella), si ya pasó la hora configurada y hoy no
+// se ha mostrado, se abre el Habit Tracker. Antes de abrirlo se consulta la nube
+// para que, si ya se mostró hoy en otro dispositivo, no vuelva a aparecer.
+// No interrumpe si hay otra ventana abierta (se intentará al volver a la app).
+async function maybeShowHabitReminder() {
+  if (habitReminderChecking || !currentUser || !habitReminderTime) return;
+  if (document.visibilityState === 'hidden') return;
+  const now = new Date();
+  const today = formatDate(now);
+  const nowHHMM = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  if (nowHHMM < habitReminderTime || habitReminderLastShown === today) return;
+  const host = document.getElementById('habitos-tool');
+  if (host && !host.hidden) return;
+  if (document.getElementById('auth-screen') || document.querySelector('.modal-backdrop:not(.hidden)')) return;
+  habitReminderChecking = true;
+  try {
+    const fresh = await loadPreferences(); // {} si falla la conexión
+    if ('habitReminderTime' in fresh && !fresh.habitReminderTime) { habitReminderTime = ''; return; }
+    if ((fresh.habitReminderLastShown || habitReminderLastShown) === today) { habitReminderLastShown = today; return; }
+    if (document.querySelector('.modal-backdrop:not(.hidden)')) return;
+    habitReminderLastShown = today;
+    saveSettingPreferences({ habitReminderLastShown: today });
+    document.getElementById('habitos-btn')?.click();
+  } finally {
+    habitReminderChecking = false;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') maybeShowHabitReminder();
+});
 
 function setupUserMenu() {
   const avatar = document.querySelector('.user-avatar');

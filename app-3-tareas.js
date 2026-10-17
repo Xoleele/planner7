@@ -3491,24 +3491,69 @@ function closeEditRecurringModal(scope = 'cancel') {
 }
 
 // ─── Aviso de tareas adyacentes (horario coincidente) ─────────────────────
+// Aviso de tareas "pegadas": mismo diseño minimalista que "Tareas superpuestas"
+// (askCronogramaOverlap). Cada opción reutiliza los botones del modal original
+// (#adjacent-tasks-modal, que queda oculto), que contienen la lógica:
+//   Separar          → Conservar (la vecina queda donde está)
+//   Mantener pegadas → Modificar (la vecina se ajusta para seguir pegada)
+//   Cancelar         → Cancelar (revierte el arrastre / vuelve al editor)
 function openAdjacentTasksModal(affectations) {
-  const modal = document.getElementById('adjacent-tasks-modal');
-  if (!modal) return;
-  const n = affectations.length;
-  const label = document.getElementById('adjacent-tasks-count-label');
-  if (label) label.textContent = n === 1 ? 'otra tarea' : `otras ${n} tareas`;
-  const list = document.getElementById('adjacent-tasks-list');
-  if (list) {
-    list.innerHTML = affectations.map(aff => {
-      const t = aff.task;
-      const titulo = (t && t.title) ? t.title : 'Tarea sin título';
-      const accion = aff.edge === 'start'
-        ? `su hora de inicio pasaría a ${aff.newTime}`
-        : `su hora de fin pasaría a ${aff.newTime}`;
-      return `• <strong style="color:var(--text-main);font-weight:600;">${escapeHtmlAdj(titulo)}</strong> — ${accion}`;
-    }).join('<br>');
+  document.querySelector('.adjacent-choice-overlay')?.remove();
+  const previousFocus = document.activeElement;
+  const editing = pendingAdjacent && pendingAdjacent.mode !== 'drag';
+  const overlay = document.createElement('div');
+  overlay.className = 'endtime-conflict-overlay horario-overlap-overlay adjacent-choice-overlay';
+  const box = document.createElement('div');
+  box.className = 'endtime-conflict-box';
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-modal', 'true');
+  box.setAttribute('aria-labelledby', 'adjacent-choice-title');
+  box.setAttribute('aria-describedby', 'adjacent-choice-desc');
+  const title = document.createElement('h3');
+  title.id = 'adjacent-choice-title';
+  title.className = 'endtime-conflict-title';
+  title.textContent = 'Tareas pegadas';
+  const description = document.createElement('p');
+  description.id = 'adjacent-choice-desc';
+  description.className = 'endtime-conflict-desc';
+  description.textContent = editing
+    ? 'La tarea que estás editando está "pegada" a otra ¿qué deseas hacer?'
+    : 'La tarea que estás moviendo está "pegada" a otra ¿qué deseas hacer?';
+  const actions = document.createElement('div');
+  actions.className = 'endtime-conflict-actions';
+  const buttons = [];
+  const finish = choice => {
+    document.removeEventListener('keydown', onKey, true);
+    overlay.remove();
+    if (previousFocus && previousFocus.isConnected) previousFocus.focus();
+    const target = { keep: 'adjacent-keep-btn', modify: 'adjacent-modify-all-btn', cancel: 'adjacent-cancel-btn' }[choice];
+    document.getElementById(target)?.click();
+  };
+  const onKey = e => {
+    // Evitar que los atajos del calendario actúen detrás del diálogo.
+    e.stopImmediatePropagation();
+    if (e.key === 'Escape') { e.preventDefault(); finish('cancel'); }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const index = buttons.indexOf(document.activeElement);
+      buttons[(index + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length].focus();
+    }
+  };
+  for (const [label, choice] of [['Separar', 'keep'], ['Mantener "pegadas"', 'modify'], ['Cancelar', 'cancel']]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = choice === 'keep' ? 'btn btn-primary' : 'btn btn-secondary';
+    button.textContent = label;
+    button.addEventListener('click', () => finish(choice));
+    buttons.push(button);
+    actions.appendChild(button);
   }
-  modal.classList.remove('hidden');
+  box.append(title, description, actions);
+  overlay.appendChild(box);
+  overlay.addEventListener('click', e => { if (e.target === overlay) finish('cancel'); });
+  document.body.appendChild(overlay);
+  document.addEventListener('keydown', onKey, true);
+  buttons[0].focus();
 }
 
 function closeAdjacentTasksModal() {

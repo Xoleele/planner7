@@ -967,6 +967,21 @@
         </div>
         <div id="info-default-duration" class="settings-info hidden">Duración que tendrá una tarea nueva al crearla con un clic en el horario.</div>
 
+        <div class="settings-row">
+          <div class="settings-label">
+            <label for="setting-habit-reminder">Recordatorio de hábitos</label>
+            <button type="button" class="settings-info-btn" data-info="info-habit-reminder" aria-label="Más información"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
+          </div>
+          <div class="time-input-wrapper settings-time-wrapper">
+            <input type="time" id="setting-habit-reminder" lang="es-ES" data-force24>
+            <span class="time-24-overlay" data-for="setting-habit-reminder" aria-hidden="true"></span>
+            <button type="button" class="time-clear-btn" id="setting-habit-reminder-clear" title="Sin recordatorio" aria-label="Quitar recordatorio de hábitos">
+              <img src="icons/close.svg" alt="Quitar" width="14" height="14">
+            </button>
+          </div>
+        </div>
+        <div id="info-habit-reminder" class="settings-info hidden">Al entrar a la app (o volver a ella) después de esta hora, se abre el Habit Tracker. Aparece una sola vez al día en tu cuenta. Déjalo vacío para desactivarlo.</div>
+
         <!-- Cuenta: cambiar contraseña y (última opción) eliminar cuenta -->
         <div class="settings-section-title">Cuenta</div>
         <button type="button" class="settings-action-btn" id="settings-change-password-btn">
