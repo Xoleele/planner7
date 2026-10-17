@@ -123,30 +123,39 @@ function scrollHorarioToNowLine() {
 // Posición vertical compartida del horario móvil (en px desde 00:00). Mantiene
 // todas las tarjetas-día mostrando la misma hora al deslizar entre días.
 let crMobileVScroll = 0;
-let crMobileVScrollSyncing = false;
+// Tarjeta que el usuario está deslizando en vertical. Nunca se le reescribe el
+// scrollTop mientras se mueve: hacerlo cortaba la inercia (iPhone) y provocaba
+// un "rebote" entre tarjetas que hacía vibrar la pantalla.
+let crMobileVScrollActiveBody = null;
+let crMobileVScrollTimer = null;
 
-// Aplica la posición vertical compartida a todos los cuerpos de tarjeta.
+// Aplica la posición vertical compartida a todos los cuerpos de tarjeta (salvo
+// el que el usuario está deslizando).
 function applyCrMobileVScroll() {
-  const bodies = document.querySelectorAll('.cr-mobile-day-body');
-  crMobileVScrollSyncing = true;
-  bodies.forEach(b => { if (b.scrollTop !== crMobileVScroll) b.scrollTop = crMobileVScroll; });
-  // Liberar el guard tras el frame para no perder scrolls reales del usuario.
-  requestAnimationFrame(() => { crMobileVScrollSyncing = false; });
+  document.querySelectorAll('.cr-mobile-day-body').forEach(b => {
+    if (b === crMobileVScrollActiveBody) return;
+    if (Math.abs(b.scrollTop - crMobileVScroll) >= 1) b.scrollTop = crMobileVScroll;
+  });
 }
 
-// Engancha la sincronización del scroll vertical entre tarjetas: cuando el
-// usuario scrollea una, las demás siguen y se recuerda la posición.
+// Engancha la sincronización del scroll vertical entre tarjetas: se recuerda la
+// posición de la tarjeta que el usuario desliza y, cuando se detiene (incluida
+// la inercia), las demás se alinean a ella.
 function setupCrMobileVScrollSync() {
   const track = document.getElementById('cr-mobile-track');
   if (!track) return;
   track.addEventListener('scroll', (e) => {
     const body = e.target.closest ? e.target.closest('.cr-mobile-day-body') : null;
-    if (!body || crMobileVScrollSyncing) return;
+    if (!body) return;
+    // Eco de una sincronización (la tarjeta ya está en la posición compartida).
+    if (Math.abs(body.scrollTop - crMobileVScroll) < 1) return;
     crMobileVScroll = body.scrollTop;
-    const bodies = track.querySelectorAll('.cr-mobile-day-body');
-    crMobileVScrollSyncing = true;
-    bodies.forEach(b => { if (b !== body && b.scrollTop !== crMobileVScroll) b.scrollTop = crMobileVScroll; });
-    requestAnimationFrame(() => { crMobileVScrollSyncing = false; });
+    crMobileVScrollActiveBody = body;
+    clearTimeout(crMobileVScrollTimer);
+    crMobileVScrollTimer = setTimeout(() => {
+      crMobileVScrollActiveBody = null;
+      applyCrMobileVScroll();
+    }, 150);
   }, { capture: true, passive: true });
 }
 
