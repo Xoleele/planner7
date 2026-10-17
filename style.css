@@ -5237,6 +5237,14 @@ body:not(.mobile-mode) .cr-task-block.completed:not(.cr-dragging):hover {
   background-color: rgba(0, 0, 0, 0.04);
 }
 
+/* Sin resaltado de toque del navegador en la columna del horario: al mantener
+   presionada una tarea, Chrome/iOS pintaban la columna entera (rectángulo azul
+   o gris) antes del arrastre y otra vez en su propia pulsación larga. */
+.cr-day-col,
+.cr-mobile-day-body {
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Estado mientras se arrastra el bloque por el cronograma. */
 /* Bloque del horario "flotando" (position:fixed) durante el arrastre para poder
    llevarlo sobre el header hasta la papelera, sin que lo recorte el scroll. */
