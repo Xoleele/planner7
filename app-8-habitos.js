@@ -3136,7 +3136,7 @@ function buildRows(container, items, keys, block) {
       updateState(recordState(id, block.records));
       if (block.notes?.[id]) {
         button.classList.add('has-note');
-        button.insertAdjacentHTML('beforeend', '<span class="habit-note-indicator" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></svg></span>');
+        button.insertAdjacentHTML('beforeend', '<span class="habit-note-indicator" aria-hidden="true"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M22 15a4 4 0 0 1-4 4H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V7a4 4 0 0 1 4-4h12a4 4 0 0 1 4 4z"/></svg></span>');
       }
       button.addEventListener('click', () => {
         const next = { pending: 'completed', completed: 'failed', failed: 'pending' }[button.dataset.state];
