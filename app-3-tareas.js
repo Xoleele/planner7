@@ -697,7 +697,12 @@ async function commitCronogramaDragResult(drag) {
   // hora de FIN. En ambos casos: "Ajustar al inicio" = terminar donde empieza esa
   // tarea; "Ajustar al final" = empezar donde termina.
   let overlap = null;
-  if (snappedStart !== newStartMin) {
+  const belowStart = findTaskBelowStart(targetDateStr, newStartMin, drag.task.id, wasGluedTo);
+  const belowEndPoint = findTaskBelowEnd(targetDateStr, newStartMin + drag.durationMin, drag.task.id, wasGluedTo);
+  if (belowStart && belowEndPoint && String(belowStart.taskId) !== String(belowEndPoint.taskId)) {
+    // Inicio y fin caen sobre DOS tareas distintas: no hay un ajuste claro, así
+    // que no se muestra el panel y la tarea queda donde se soltó.
+  } else if (snappedStart !== newStartMin) {
     overlap = {
       byEnd: false,
       afterStart: snappedStart,

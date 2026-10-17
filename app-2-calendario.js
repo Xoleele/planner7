@@ -3962,6 +3962,13 @@ function snapStartAfterTaskBelow(dateStr, startMin, excludeTaskId, ignoreRange) 
 // Al SOLTAR: tarea sobre la que cae la HORA DE FIN de la tarea arrastrada (su
 // fin queda dentro de esa tarea). Devuelve su rango o null. Mismo filtro
 // `ignoreRange` que snapStartAfterTaskBelow.
+// Tarea sobre la que cae directamente la HORA DE INICIO (sin encadenar).
+function findTaskBelowStart(dateStr, startMin, excludeTaskId, ignoreRange) {
+  const ranges = getVisibleTaskRangesForDate(dateStr, excludeTaskId)
+    .filter(r => !(ignoreRange && ignoreRange(r)));
+  return ranges.find(r => startMin >= r.start && startMin < r.end) || null;
+}
+
 function findTaskBelowEnd(dateStr, endMin, excludeTaskId, ignoreRange) {
   if (endMin > 1440) return null;
   const ranges = getVisibleTaskRangesForDate(dateStr, excludeTaskId)

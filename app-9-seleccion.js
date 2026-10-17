@@ -200,14 +200,99 @@ function moveTaskSelectionToDate(entries, anchor, date, container, clientY, copy
   commitTaskSelectionPlan(plan);
 }
 
-function commitTaskSelectionCronogramaDrag(drag) {
+async function commitTaskSelectionCronogramaDrag(drag) {
   const entries = drag.selectionEntries;
   if (drag.overTrash) { requestDeleteTaskSelection(entries); renderCronograma(); return; }
   if (drag.overBriefcase) { archiveTaskSelection(entries, { id: String(drag.task.id), date: drag.sourceDate }, null, drag.copy); return; }
   const date = drag.targetColEl?.dataset.date || drag.sourceDate;
-  const plan = planTaskSelectionChange(entries, { id: String(drag.task.id), date: drag.sourceDate }, date,
-    { copy: drag.copy, timeDelta: drag.newStartMin - drag.originalStartMin });
+  const anchor = { id: String(drag.task.id), date: drag.sourceDate };
+  let timeDelta = drag.newStartMin - drag.originalStartMin;
+  // Al MOVER (no al copiar): aviso de superposición del grupo.
+  if (!drag.copy) {
+    const adjusted = await resolveTaskSelectionOverlap(entries, anchor, date, timeDelta);
+    if (adjusted === null) {
+      stopTaskSelectionPreview();
+      renderCronograma();
+      return;
+    }
+    timeDelta = adjusted;
+  }
+  const plan = planTaskSelectionChange(entries, anchor, date, { copy: drag.copy, timeDelta });
   commitTaskSelectionPlan(plan);
+}
+
+// ── Superposición al mover un GRUPO en el horario ──────────────────────────
+// Se revisa el inicio de la PRIMERA tarea y el fin de la ÚLTIMA del grupo, en
+// tiempo absoluto (fecha + hora), así que el grupo puede abarcar varios días.
+//   - Solo el inicio cae sobre otra tarea → panel "hora de inicio".
+//   - Solo el fin cae sobre otra tarea   → panel "hora de fin" (opciones del medio invertidas).
+//   - Ninguno o ambos                    → sin panel; el grupo se mueve tal cual.
+// Las tareas del propio grupo nunca cuentan como choque. "Ajustar al final" deja
+// el grupo completo después de esa tarea; "Ajustar al inicio", antes. El grupo
+// conserva las distancias entre sus tareas. Devuelve el timeDelta final o null
+// si se cancela.
+function taskSelectionDayNumber(dateStr) {
+  return Math.round(Date.parse(dateStr + 'T00:00:00Z') / 86400000);
+}
+
+function taskSelectionDateFromDayNumber(dayNumber) {
+  return new Date(dayNumber * 86400000).toISOString().slice(0, 10);
+}
+
+function taskSelectionObstaclesForDay(dayNumber, groupIds) {
+  return getVisibleTaskRangesForDate(taskSelectionDateFromDayNumber(dayNumber))
+    .filter(range => !groupIds.has(String(range.taskId)))
+    .map(range => ({ start: dayNumber * 1440 + range.start, end: dayNumber * 1440 + range.end }));
+}
+
+// Tarea que cubre un INICIO en el minuto absoluto `point` (start <= point < end).
+function taskSelectionCoverStart(point, groupIds) {
+  return taskSelectionObstaclesForDay(Math.floor(point / 1440), groupIds)
+    .find(range => point >= range.start && point < range.end) || null;
+}
+
+// Tarea que cubre un FIN en el minuto absoluto `point` (start < point <= end).
+function taskSelectionCoverEnd(point, groupIds) {
+  return taskSelectionObstaclesForDay(Math.floor((point - 1) / 1440), groupIds)
+    .find(range => point > range.start && point <= range.end) || null;
+}
+
+async function resolveTaskSelectionOverlap(entries, anchor, targetDate, timeDelta) {
+  const schedule = projectTaskSelectionSchedule(entries, anchor, targetDate, timeDelta);
+  if (!schedule.length) return timeDelta;
+  const groupIds = new Set(entries.map(entry => String(entry.id)));
+  const spans = schedule.map(({ task, start, duration }) => {
+    const absStart = taskSelectionDayNumber(task.date) * 1440 + start;
+    return { start: absStart, end: absStart + duration };
+  });
+  const first = Math.min(...spans.map(span => span.start));
+  const last = Math.max(...spans.map(span => span.end));
+  const startHit = taskSelectionCoverStart(first, groupIds);
+  const endHit = taskSelectionCoverEnd(last, groupIds);
+  if (!startHit === !endHit) return timeDelta; // ninguno o ambos: mover tal cual
+
+  const hit = startHit || endHit;
+  const choice = await askCronogramaOverlap(!!endHit);
+  if (choice === 'cancel') return null;
+  if (choice === 'keep') return timeDelta;
+  if (choice === 'adjust-end') {
+    // Después de la tarea: la primera del grupo empieza donde ella termina.
+    let point = hit.end;
+    for (let i = 0; i < 50; i++) {
+      const next = taskSelectionCoverStart(point, groupIds);
+      if (!next) break;
+      point = next.end;
+    }
+    return timeDelta + (point - first);
+  }
+  // Antes de la tarea: la última del grupo termina donde ella empieza.
+  let point = hit.start;
+  for (let i = 0; i < 50; i++) {
+    const previous = taskSelectionCoverEnd(point, groupIds);
+    if (!previous) break;
+    point = previous.start;
+  }
+  return timeDelta + (point - last);
 }
 
 function dropTaskSelectionOnCronograma(entries, anchor, column, clientY, copy) {
