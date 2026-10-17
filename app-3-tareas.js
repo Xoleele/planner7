@@ -964,6 +964,7 @@ function beginCronogramaTouchDrag() {
     grid,
     cols,
     grabClientY: startY,
+    grabClientX: startX,
     grabOffsetX: startX - blockRect.left,
     grabOffsetY: startY - blockRect.top,
     blockWidth: blockRect.width,
@@ -976,6 +977,8 @@ function beginCronogramaTouchDrag() {
     originTopPx: range.startMin,
     ghost: null,
     sourceDate: block.parentElement.dataset.date || task.date,
+    // Selección múltiple (móvil): si la tarea está seleccionada, se mueve el grupo.
+    selectionEntries: typeof getTaskSelectionDragEntries === 'function' ? getTaskSelectionDragEntries(task.id, block.dataset.occurrenceDate || task.date) : [],
     copy: false,        // copiar con Ctrl es solo de escritorio
     overTrash: false,
     overBriefcase: false,
@@ -2537,6 +2540,19 @@ function startTouchDrag(card, touch) {
   card.classList.add('touch-dragging');
   document.body.classList.add('dragging-active');
 
+  // Selección múltiple (móvil): si la tarjeta está seleccionada, el arrastre
+  // mueve todo el grupo con la misma lógica que el arrastre de escritorio.
+  if (typeof getTaskSelectionDragEntries === 'function') {
+    const entries = getTaskSelectionDragEntries(card.dataset.id, card.dataset.occurrenceDate || '');
+    if (entries.length > 1) {
+      taskMultiDragEntries = entries;
+      draggedTaskSourceDate = card.dataset.occurrenceDate || '';
+      document.querySelectorAll('.task-multi-selected').forEach(element => {
+        if (element !== card && !isTaskSelectionRecurring(taskSelectionEntry(element))) element.classList.add('task-selection-drag-origin');
+      });
+    }
+  }
+
   // Haptic feedback if supported
   if (navigator.vibrate) {
     navigator.vibrate(50);
@@ -3036,6 +3052,12 @@ function triggerEdgeDaySlide(dir) {
 
 function cleanupDraggingUI() {
   hideCronogramaDropPreview();
+  // Fin de un arrastre táctil de grupo (selección múltiple en móvil).
+  if (typeof taskMultiDragEntries !== 'undefined' && taskMultiDragEntries) {
+    taskMultiDragEntries = null;
+    draggedTaskSourceDate = null;
+    document.querySelectorAll('.task-selection-drag-origin').forEach(element => element.classList.remove('task-selection-drag-origin'));
+  }
   if (typeof touchArchiveDropTarget !== 'undefined') touchArchiveDropTarget = undefined;
   const archDropMenu = document.getElementById('archive-list-menu');
   if (archDropMenu && archDropMenu.classList.contains('is-drop')) closeArchiveListMenu();

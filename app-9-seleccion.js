@@ -44,6 +44,8 @@ function refreshTaskSelection() {
   });
   const count = selectedTaskOccurrences.size;
   document.body.classList.toggle('has-task-selection', count > 0);
+  const cancelButton = document.getElementById('task-selection-cancel');
+  if (cancelButton) cancelButton.textContent = count > 1 ? `Cancelar selección (${count})` : 'Cancelar selección';
 }
 
 function toggleTaskSelection(id, date) {
@@ -537,4 +539,103 @@ function setupTaskMultiSelection() {
   refreshTaskSelection();
 }
 
+// ── Selección múltiple en MÓVIL ───────────────────────────────────────────
+// Mantener presionada una tarea (sin mover el dedo) activa la selección; luego
+// un toque simple agrega o quita tareas. Un botón inferior cancela la selección.
+// Mover, archivar y eliminar el grupo reutiliza la lógica de escritorio.
+const TASK_SELECTION_TOUCH_HOLD_MS = 800; // más largo que el long-press de arrastre
+let taskSelectionTouchHold = null;
+let taskSelectionTouchClickBlocked = false;
+
+function isTaskSelectionTouchTarget(element) {
+  return !!element && !element.closest('.task-selection-drag-preview, #drag-ghost')
+    && !element.classList.contains('task-selection-time-preview') && !element.classList.contains('cr-copy-ghost');
+}
+
+function cancelTaskSelectionTouchHold() {
+  if (taskSelectionTouchHold) clearTimeout(taskSelectionTouchHold.timer);
+  taskSelectionTouchHold = null;
+}
+
+function enterTaskSelectionFromTouch(element) {
+  taskSelectionTouchHold = null;
+  const entry = taskSelectionEntry(element);
+  if (!entry || selectedTaskOccurrences.size) return;
+  // Anular el arrastre que ya había empezado con el long-press corto.
+  if (typeof crDrag !== 'undefined' && crDrag) cancelCronogramaDrag();
+  if (typeof cancelCronogramaTouch === 'function') cancelCronogramaTouch();
+  document.body.classList.remove('cr-dragging-active');
+  if (typeof isTouchDragging !== 'undefined' && (isTouchDragging || touchTimeout)) {
+    clearTouchTimeout();
+    stopAutoScroll();
+    cleanupDraggingUI();
+    cleanupGlobalTouchListeners();
+    isTouchDragging = false;
+  }
+  // El toque que se suelta tras la pulsación larga no debe abrir ni deseleccionar.
+  taskSelectionTouchClickBlocked = true;
+  toggleTaskSelection(entry.id, entry.date);
+  if (navigator.vibrate) navigator.vibrate(30);
+}
+
+function setupTaskMultiSelectionTouch() {
+  const selector = '.task-card[data-id], .cr-task-block[data-task-id]';
+
+  const cancelButton = document.createElement('button');
+  cancelButton.id = 'task-selection-cancel';
+  cancelButton.type = 'button';
+  cancelButton.textContent = 'Cancelar selección';
+  cancelButton.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearTaskSelection();
+  });
+  document.body.appendChild(cancelButton);
+
+  document.addEventListener('touchstart', event => {
+    cancelTaskSelectionTouchHold();
+    taskSelectionTouchClickBlocked = false;
+    if (!isMobile() || event.touches.length !== 1 || selectedTaskOccurrences.size) return;
+    if (typeof taskPlacement !== 'undefined' && taskPlacement) return;
+    if (event.target.closest('.task-check-btn, .task-check-icon')) return;
+    const element = event.target.closest(selector);
+    if (!isTaskSelectionTouchTarget(element)) return;
+    const touch = event.touches[0];
+    taskSelectionTouchHold = {
+      x: touch.clientX,
+      y: touch.clientY,
+      timer: setTimeout(() => enterTaskSelectionFromTouch(element), TASK_SELECTION_TOUCH_HOLD_MS)
+    };
+  }, { capture: true, passive: true });
+
+  document.addEventListener('touchmove', event => {
+    if (!taskSelectionTouchHold) return;
+    const touch = event.touches[0];
+    if (!touch || Math.hypot(touch.clientX - taskSelectionTouchHold.x, touch.clientY - taskSelectionTouchHold.y) > 10) cancelTaskSelectionTouchHold();
+  }, { capture: true, passive: true });
+  document.addEventListener('touchend', cancelTaskSelectionTouchHold, { capture: true, passive: true });
+  document.addEventListener('touchcancel', cancelTaskSelectionTouchHold, { capture: true, passive: true });
+
+  // Con la selección activa, un toque simple agrega o quita la tarea en vez de abrirla.
+  document.addEventListener('click', event => {
+    if (!isMobile()) return;
+    const element = event.target.closest(selector);
+    if (!isTaskSelectionTouchTarget(element)) return;
+    if (taskSelectionTouchClickBlocked) {
+      taskSelectionTouchClickBlocked = false;
+      event.preventDefault(); event.stopImmediatePropagation();
+      return;
+    }
+    if (!selectedTaskOccurrences.size) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    // El click que sigue a un arrastre no cambia la selección.
+    if ((typeof preventClick !== 'undefined' && preventClick) || (typeof suppressNextCronogramaClick !== 'undefined' && suppressNextCronogramaClick)) return;
+    const entry = taskSelectionEntry(element);
+    if (entry) toggleTaskSelection(entry.id, entry.date);
+  }, true);
+
+  refreshTaskSelection();
+}
+
 window.addEventListener('DOMContentLoaded', setupTaskMultiSelection);
+window.addEventListener('DOMContentLoaded', setupTaskMultiSelectionTouch);

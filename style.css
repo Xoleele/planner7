@@ -4533,6 +4533,30 @@ html:not(.mobile-mode) .briefcase-drawer.is-moving {
 }
 #center-toast.visible { opacity: 1; transform: translateX(-50%); }
 
+/* --- Botón "Cancelar selección" (selección múltiple en móvil) --- */
+/* Mismo estilo que el indicador de guardado, pero tocable. */
+#task-selection-cancel {
+  display: none;
+  position: fixed;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9998;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: #000000;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-mode body.has-task-selection #task-selection-cancel { display: block; }
+.mobile-mode body.dragging-active #task-selection-cancel { display: none; }
+
 /* --- Habit tracker (cuadritos estilo GitHub) --- */
 .habit-cell {
   width: 100%;
