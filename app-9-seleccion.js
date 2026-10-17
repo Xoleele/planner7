@@ -361,18 +361,48 @@ function drawTaskSelectionSchedule(state, schedule, columns, role) {
   }
 }
 
+// Ordena los bloques de cada columna por hora de inicio (las que empiezan después
+// quedan encima). Solo se mueven los bloques que están fuera de orden: volver a
+// insertar TODOS los bloques reiniciaba sus animaciones (el checkbox se achicaba)
+// y hacía muy lento el arrastre de varias tareas.
 function arrangeTaskSelectionPreviewColumns(columns) {
+  const selector = '.cr-task-block[data-task-id]:not(.task-selection-time-origin)';
   for (const column of columns) {
-    const blocks = [...column.querySelectorAll('.cr-task-block[data-task-id]:not(.task-selection-time-origin)')];
+    const blocks = [...column.querySelectorAll(selector)];
     const start = block => {
       if (block.dataset.selectionStart !== undefined) return Number(block.dataset.selectionStart);
       const task = tasks.find(task => String(task.id) === block.dataset.taskId);
       const range = task && getTaskTimeRange(task);
       return range ? range.startMin - (block.classList.contains('cr-tail') ? 1440 : 0) : Number(block.dataset.topMin);
     };
-    blocks.sort((a, b) => start(a) - start(b)).forEach(block => column.appendChild(block));
+    const starts = new Map(blocks.map(block => [block, start(block)]));
+    const sorted = [...blocks].sort((a, b) => starts.get(a) - starts.get(b));
+    const previousBlock = block => {
+      let sibling = block.previousElementSibling;
+      while (sibling && !(sibling.parentElement === column && sibling.matches(selector))) sibling = sibling.previousElementSibling;
+      return sibling;
+    };
+    let previous = null;
+    for (const block of sorted) {
+      if (previousBlock(block) !== previous) {
+        if (previous) previous.after(block);
+        else {
+          const first = [...column.children].find(child => child.matches(selector));
+          if (first !== block) column.insertBefore(block, first);
+        }
+      }
+      previous = block;
+    }
     if (typeof updateCronogramaOverlapOffsets === 'function') updateCronogramaOverlapOffsets(column);
   }
+}
+
+// Columnas que contienen bloques de la vista previa o tareas originales del grupo.
+function taskSelectionPreviewColumns(state) {
+  const columns = new Set();
+  state.blocks.forEach(block => { if (block.parentElement) columns.add(block.parentElement); });
+  state.origins.forEach(origin => { if (origin.parentElement) columns.add(origin.parentElement); });
+  return columns;
 }
 
 function renderTaskSelectionSchedulePreview(state, entries, anchor, targetDate, timeDelta, startMin, copy, columns, floating = false) {
@@ -385,6 +415,8 @@ function renderTaskSelectionSchedulePreview(state, entries, anchor, targetDate, 
   });
   const signature = JSON.stringify([targetDate, timeDelta, startMin, copy, floating]);
   if (state.signature === signature && state.columns.length === columns.length && state.columns.every((column, index) => column === columns[index]) && state.blocks.every(block => block.isConnected)) return;
+  // Reordenar solo las columnas afectadas (antes y después), no todo el horario.
+  const affected = taskSelectionPreviewColumns(state);
   state.blocks.forEach(block => block.remove());
   state.blocks = [];
   state.signature = signature;
@@ -394,7 +426,8 @@ function renderTaskSelectionSchedulePreview(state, entries, anchor, targetDate, 
   drawTaskSelectionSchedule(state, projectTaskSelectionSchedule(recurring, anchor, anchor.date, 0, null, true), columns, 'stationary');
   if (copy) drawTaskSelectionSchedule(state, projectTaskSelectionSchedule(entries, anchor, anchor.date, 0), columns, 'source');
   if (!floating) drawTaskSelectionSchedule(state, projectTaskSelectionSchedule(entries, anchor, targetDate, timeDelta, startMin ?? 0), columns, 'destination');
-  arrangeTaskSelectionPreviewColumns(columns);
+  taskSelectionPreviewColumns(state).forEach(column => affected.add(column));
+  arrangeTaskSelectionPreviewColumns([...affected].filter(column => column.isConnected));
 }
 
 function updateTaskSelectionPreview(event, copy) {
@@ -441,10 +474,11 @@ function stopTaskSelectionPreview() {
   if (!taskMultiDragPreview) return;
   const state = taskMultiDragPreview;
   taskMultiDragPreview = null;
+  const affected = taskSelectionPreviewColumns(state);
   state.blocks.forEach(block => block.remove());
   state.templates.forEach(({ clone }) => clone.remove());
   state.origins.forEach(original => original.classList.remove('task-selection-time-origin'));
-  arrangeTaskSelectionPreviewColumns(state.columns.filter(column => column.isConnected));
+  arrangeTaskSelectionPreviewColumns([...affected].filter(column => column.isConnected));
 }
 
 function startTaskSelectionNativeDrag(card, event) {
