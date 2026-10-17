@@ -4445,17 +4445,23 @@ html:not(.mobile-mode) .briefcase-drawer.is-moving {
   margin-left: -4px; /* compensa el gap del grupo de iconos */
   overflow: hidden;
 }
+/* Escritorio: lo mismo (el gap del grupo de iconos es de 8px). */
+html:not(.mobile-mode) body:not(.dragging-active):not(.has-task-selection) #trash-btn {
+  width: 0;
+  margin-left: -8px;
+  overflow: hidden;
+}
 
-/* Botón "Deshacer" del header (solo móvil): aparece tras cada cambio y se
+/* Botón "Deshacer" del header (móvil y escritorio): aparece tras cada cambio y se
    desvanece suavemente a los 2,5 s (ver showMobileUndoButton). */
 #mobile-undo-btn { display: none; }
-.mobile-mode #mobile-undo-btn.is-visible {
+#mobile-undo-btn.is-visible {
   display: flex;
   opacity: 1;
   transition: opacity 0.4s ease;
   animation: mobileUndoFadeIn 0.2s ease;
 }
-.mobile-mode #mobile-undo-btn.is-hiding {
+#mobile-undo-btn.is-hiding {
   opacity: 0;
   pointer-events: none;
 }

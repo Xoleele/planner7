@@ -1643,7 +1643,7 @@ function pushUndoEntry(entry) {
   showMobileUndoButton();
 }
 
-// ── Botón "Deshacer" del header (solo móvil) ────────────────────────────────
+// ── Botón "Deshacer" del header (móvil y escritorio) ────────────────────────
 // Aparece tras cada cambio (cada entrada de deshacer) y se desvanece a los 4 s.
 const MOBILE_UNDO_VISIBLE_MS = 4000;
 const MOBILE_UNDO_FADE_MS = 400; // debe coincidir con la transición del CSS
@@ -1651,7 +1651,6 @@ let mobileUndoHideTimer = null;
 let mobileUndoRemoveTimer = null;
 
 function showMobileUndoButton() {
-  if (!isMobile()) return;
   const btn = document.getElementById('mobile-undo-btn');
   if (!btn) return;
   clearTimeout(mobileUndoHideTimer);
