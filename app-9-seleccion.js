@@ -562,7 +562,7 @@ function enterTaskSelectionFromTouch(element) {
   const entry = taskSelectionEntry(element);
   if (!entry || selectedTaskOccurrences.size) return;
   // Anular el arrastre que ya había empezado con el long-press corto.
-  if (typeof crDrag !== 'undefined' && crDrag) cancelCronogramaDrag();
+  if (typeof crDrag !== 'undefined' && crDrag) cancelTaskSelectionHeldCronogramaDrag();
   if (typeof cancelCronogramaTouch === 'function') cancelCronogramaTouch();
   document.body.classList.remove('cr-dragging-active');
   if (typeof isTouchDragging !== 'undefined' && (isTouchDragging || touchTimeout)) {
@@ -576,6 +576,27 @@ function enterTaskSelectionFromTouch(element) {
   taskSelectionTouchClickBlocked = true;
   toggleTaskSelection(entry.id, entry.date);
   if (navigator.vibrate) navigator.vibrate(30);
+}
+
+// Anula el arrastre del horario sin volver a dibujarlo. Si el bloque sigue en su
+// lugar (lo normal al mantener el dedo quieto), basta con quitarle el estado de
+// arrastre: re-renderizar el horario provocaba un destello y podía recentrar el
+// carrusel en otro día. Si el bloque llegó a moverse, se usa la cancelación normal.
+function cancelTaskSelectionHeldCronogramaDrag() {
+  const drag = crDrag;
+  const inPlace = !drag.floating && !drag.ghost
+    && drag.block.parentElement === drag.startColEl
+    && drag.newStartMin === drag.originalStartMin;
+  if (!inPlace) { cancelCronogramaDrag(); return; }
+  crDrag = null;
+  stopTaskSelectionPreview();
+  stopCronogramaEdgeScroll();
+  clearCronogramaHorizontalEdge();
+  clearCronogramaDragOver();
+  clearCronogramaHeaderTargets();
+  drag.block.classList.remove('cr-dragging', 'cr-floating');
+  drag.block.style.pointerEvents = '';
+  document.body.classList.remove('dragging-active');
 }
 
 function setupTaskMultiSelectionTouch() {
