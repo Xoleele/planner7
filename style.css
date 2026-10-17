@@ -4437,6 +4437,24 @@ html:not(.mobile-mode) .briefcase-drawer.is-moving {
   transform: scale(1);
 }
 
+/* Botón "Deshacer" del header (solo móvil): aparece tras cada cambio y se
+   desvanece suavemente a los 2,5 s (ver showMobileUndoButton). */
+#mobile-undo-btn { display: none; }
+.mobile-mode #mobile-undo-btn.is-visible {
+  display: flex;
+  opacity: 1;
+  transition: opacity 0.4s ease;
+  animation: mobileUndoFadeIn 0.2s ease;
+}
+.mobile-mode #mobile-undo-btn.is-hiding {
+  opacity: 0;
+  pointer-events: none;
+}
+@keyframes mobileUndoFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 /* El pulso solo cambia el relleno: no altera el color ni la opacidad del texto. */
 .task-multi-selected {
   animation: taskSelectionFillPulse 1.8s ease-in-out infinite;
@@ -4472,6 +4490,9 @@ html:not(.mobile-mode) .briefcase-drawer.is-moving {
 .task-selection-drag-origin { opacity: 0.3 !important; }
 .cr-task-block.task-selection-time-origin { opacity: 0 !important; pointer-events: none !important; transition: none !important; }
 .task-selection-time-preview, .task-selection-time-preview * { pointer-events: none !important; }
+/* La vista previa del grupo siempre queda encima de las tareas que no se mueven,
+   a ancho completo (sin la sangría por superposición, que se aplica al soltar). */
+.cr-task-block.task-selection-time-preview { z-index: 40; --cr-overlap-offset: 0px !important; }
 .task-selection-native-preview { position: fixed; left: -1000px; top: 0; pointer-events: none; }
 .task-selection-native-count { display: block; padding: 4px 12px; border-radius: 8px; background: #222; color: white; font: 600 13px sans-serif; }
 .task-selection-confirm { position: fixed; inset: 0; z-index: 20000; background: #0005; display: flex; align-items: center; justify-content: center; padding: 20px; }

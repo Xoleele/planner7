@@ -1638,7 +1638,47 @@ function pushLimited(stack, entry) {
 function pushUndoEntry(entry) {
   pushLimited(undoStack, entry);
   redoStack = [];
+  showMobileUndoButton();
 }
+
+// ── Botón "Deshacer" del header (solo móvil) ────────────────────────────────
+// Aparece tras cada cambio (cada entrada de deshacer) y se desvanece a los 2,5 s.
+const MOBILE_UNDO_VISIBLE_MS = 2500;
+const MOBILE_UNDO_FADE_MS = 400; // debe coincidir con la transición del CSS
+let mobileUndoHideTimer = null;
+let mobileUndoRemoveTimer = null;
+
+function showMobileUndoButton() {
+  if (!isMobile()) return;
+  const btn = document.getElementById('mobile-undo-btn');
+  if (!btn) return;
+  clearTimeout(mobileUndoHideTimer);
+  clearTimeout(mobileUndoRemoveTimer);
+  btn.classList.remove('is-hiding');
+  btn.classList.add('is-visible');
+  mobileUndoHideTimer = setTimeout(hideMobileUndoButton, MOBILE_UNDO_VISIBLE_MS);
+}
+
+function hideMobileUndoButton() {
+  const btn = document.getElementById('mobile-undo-btn');
+  if (!btn || !btn.classList.contains('is-visible')) return;
+  clearTimeout(mobileUndoHideTimer);
+  clearTimeout(mobileUndoRemoveTimer);
+  btn.classList.add('is-hiding');
+  mobileUndoRemoveTimer = setTimeout(() => btn.classList.remove('is-visible', 'is-hiding'), MOBILE_UNDO_FADE_MS);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('mobile-undo-btn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const success = await undo();
+    if (success) showHistoryNotification('Cambio revertido con éxito', 'undo');
+    // Si quedan cambios por deshacer, el botón sigue disponible otros 2,5 s.
+    if (undoStack.length > 0) showMobileUndoButton();
+    else hideMobileUndoButton();
+  });
+});
 
 function pushToUndoStack() {
   // Copia profunda del estado de las tareas.
