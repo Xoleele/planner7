@@ -3768,8 +3768,9 @@ function buildTagListItem(tag, opts) {
   // Cada actividad se muestra como una "tarjetita" de su color.
   item.className = 'tag-item tag-item-card';
   item.dataset.tagId = tag.id;
-  // Dentro de un grupo de estadísticas, la tarjeta usa el color del grupo.
-  const cardColor = (opts.groupColor && opts.groupColor.bg) || (tag.color && tag.color.bg) || '#c7c7cc';
+  // La tarjeta usa siempre el color propio de la actividad (aunque esté dentro
+  // de un grupo de estadísticas: el color del grupo ya se ve en su encabezado).
+  const cardColor = (tag.color && tag.color.bg) || '#c7c7cc';
   item.style.setProperty('--tag-card-bg', cardColor);
 
   // Handle de arrastre para reordenar (raton + tactil).
