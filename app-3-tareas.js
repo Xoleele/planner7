@@ -693,16 +693,35 @@ async function commitCronogramaDragResult(drag) {
   // Si se muestra el aviso de superposición, NO se muestra después el de tareas
   // adyacentes (dos avisos seguidos confunden): la vecina pegada se conserva.
   let overlapAsked = false;
+  // Superposición por la hora de INICIO (cae sobre otra tarea) o, si no, por la
+  // hora de FIN. En ambos casos: "Ajustar al inicio" = terminar donde empieza esa
+  // tarea; "Ajustar al final" = empezar donde termina.
+  let overlap = null;
   if (snappedStart !== newStartMin) {
+    overlap = {
+      byEnd: false,
+      afterStart: snappedStart,
+      beforeStart: snapStartBeforeTaskBelow(targetDateStr, newStartMin, drag.durationMin, drag.task.id, wasGluedTo)
+    };
+  } else {
+    const belowEnd = findTaskBelowEnd(targetDateStr, newStartMin + drag.durationMin, drag.task.id, wasGluedTo);
+    if (belowEnd) {
+      overlap = {
+        byEnd: true,
+        afterStart: snapStartAfterTaskBelow(targetDateStr, belowEnd.end, drag.task.id, wasGluedTo),
+        beforeStart: snapStartBeforeTaskBelow(targetDateStr, belowEnd.start, drag.durationMin, drag.task.id, wasGluedTo)
+      };
+    }
+  }
+  if (overlap) {
     overlapAsked = true;
-    const beforeStart = snapStartBeforeTaskBelow(targetDateStr, newStartMin, drag.durationMin, drag.task.id, wasGluedTo);
-    const choice = await askCronogramaOverlap();
+    const choice = await askCronogramaOverlap(overlap.byEnd);
     if (choice === 'cancel' || !tasks.includes(drag.task)) {
       renderCronograma();
       return;
     }
-    if (choice === 'adjust-end') newStartMin = snappedStart;
-    if (choice === 'adjust-start') newStartMin = beforeStart;
+    if (choice === 'adjust-end') newStartMin = overlap.afterStart;
+    if (choice === 'adjust-start') newStartMin = overlap.beforeStart;
     // Conservar la duración cuando el ajuste cruza el límite del día.
     if (newStartMin < 0 || newStartMin >= 1440) {
       newDateStr = formatDate(addDays(new Date(targetDateStr + 'T00:00:00'), Math.floor(newStartMin / 1440)));
@@ -849,8 +868,9 @@ async function commitCronogramaDragResult(drag) {
   }
 }
 
-// Mismo diseño que el aviso de conflicto de hora de fin.
-function askCronogramaOverlap() {
+// Mismo diseño que el aviso de conflicto de hora de fin. `byEnd`: la superposición
+// es por la hora de FIN; cambia el texto e invierte las dos opciones del medio.
+function askCronogramaOverlap(byEnd = false) {
   return new Promise(resolve => {
     const previousFocus = document.activeElement;
     const overlay = document.createElement('div');
@@ -868,7 +888,7 @@ function askCronogramaOverlap() {
     const description = document.createElement('p');
     description.id = 'horario-overlap-desc';
     description.className = 'endtime-conflict-desc';
-    description.textContent = 'La hora de inicio coincide con otra tarea.';
+    description.textContent = byEnd ? 'La hora de fin coincide con otra tarea.' : 'La hora de inicio coincide con otra tarea.';
     const actions = document.createElement('div');
     actions.className = 'endtime-conflict-actions';
     const buttons = [];
@@ -888,7 +908,10 @@ function askCronogramaOverlap() {
         buttons[(index + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length].focus();
       }
     };
-    for (const [label, choice] of [['Conservar', 'keep'], ['Ajustar al final', 'adjust-end'], ['Ajustar al inicio', 'adjust-start'], ['Cancelar', 'cancel']]) {
+    const options = byEnd
+      ? [['Conservar', 'keep'], ['Ajustar al inicio', 'adjust-start'], ['Ajustar al final', 'adjust-end'], ['Cancelar', 'cancel']]
+      : [['Conservar', 'keep'], ['Ajustar al final', 'adjust-end'], ['Ajustar al inicio', 'adjust-start'], ['Cancelar', 'cancel']];
+    for (const [label, choice] of options) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = choice === 'keep' ? 'btn btn-primary' : 'btn btn-secondary';
