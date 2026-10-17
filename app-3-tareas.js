@@ -681,7 +681,11 @@ async function commitCronogramaDragResult(drag) {
            Math.abs(r.start - origRange.endMin) <= tol;     // vecina siguiente
   };
   const snappedStart = snapStartAfterTaskBelow(targetDateStr, newStartMin, drag.task.id, wasGluedTo);
+  // Si se muestra el aviso de superposición, NO se muestra después el de tareas
+  // adyacentes (dos avisos seguidos confunden): la vecina pegada se conserva.
+  let overlapAsked = false;
   if (snappedStart !== newStartMin) {
+    overlapAsked = true;
     const beforeStart = snapStartBeforeTaskBelow(targetDateStr, newStartMin, drag.durationMin, drag.task.id, wasGluedTo);
     const choice = await askCronogramaOverlap();
     if (choice === 'cancel' || !tasks.includes(drag.task)) {
@@ -809,7 +813,7 @@ async function commitCronogramaDragResult(drag) {
   // guarda todavía: se muestra el panel y el guardado se difiere hasta que el
   // usuario decida (Conservar / Modificar). "Cancelar" revierte el arrastre.
   let adjacentPending = false;
-  if (drag.task.startTime && drag.task.endTime && dragOldRange) {
+  if (!overlapAsked && drag.task.startTime && drag.task.endTime && dragOldRange) {
     const affectations = findAdjacentAffectedTasks(
       { ...drag.task, date: newDateStr || origDateStr }, dragOldRange
     ).filter(aff => aff.task !== originalTask);
