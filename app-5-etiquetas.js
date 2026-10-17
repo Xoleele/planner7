@@ -365,7 +365,51 @@ function updateHslPreview() {
   const prev = document.getElementById('hsl-preview');
   const val = document.getElementById('hsl-value');
   if (prev) prev.style.backgroundColor = hex;
-  if (val) val.textContent = `${hex.toUpperCase()}  (H ${h}, S ${s}, L ${l})`;
+  if (val) val.textContent = `(H ${h}, S ${s}, L ${l})`;
+  const hexInput = document.getElementById('hsl-hex-input');
+  if (hexInput && document.activeElement !== hexInput) {
+    hexInput.value = hex.toUpperCase();
+    hexInput.classList.remove('invalid');
+  }
+}
+
+// Campo editable con el código del color (editor de actividad): se puede copiar
+// o escribir/pegar un código (#RRGGBB, RRGGBB o #RGB). Un código válido se aplica
+// tal cual (sin pasar por los deslizadores, que redondearían el color) y los
+// deslizadores se mueven a su posición aproximada.
+function parseHexColorInput(value) {
+  let v = String(value || '').trim().replace(/^#/, '');
+  if (/^[0-9a-f]{3}$/i.test(v)) v = v.split('').map(c => c + c).join('');
+  return /^[0-9a-f]{6}$/i.test(v) ? ('#' + v).toLowerCase() : null;
+}
+
+function setupHslHexInput() {
+  const input = document.getElementById('hsl-hex-input');
+  if (!input || input.dataset.bound === 'true') return;
+  input.dataset.bound = 'true';
+  input.addEventListener('input', () => {
+    const hex = parseHexColorInput(input.value);
+    input.classList.toggle('invalid', !hex && input.value.trim() !== '');
+    if (!hex) return;
+    const [h, s, l] = hexToHsl(hex);
+    document.getElementById('hsl-h').value = h;
+    document.getElementById('hsl-s').value = s;
+    document.getElementById('hsl-l').value = l;
+    customColor = { bg: hex, text: '#ffffff', border: hex };
+    const prev = document.getElementById('hsl-preview');
+    const val = document.getElementById('hsl-value');
+    if (prev) prev.style.backgroundColor = hex;
+    if (val) val.textContent = `(H ${h}, S ${s}, L ${l})`;
+  });
+  // Al salir del campo, mostrar el código vigente con formato (#RRGGBB).
+  input.addEventListener('blur', () => {
+    if (customColor && customColor.bg) input.value = customColor.bg.toUpperCase();
+    input.classList.remove('invalid');
+  });
+  // Enter aplica el código sin enviar el formulario.
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+  });
 }
 
 function showHslPicker() {

@@ -1718,6 +1718,8 @@ function setupEventListeners() {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', updateHslPreview);
   });
+  // Código de color editable (copiar / escribir un código).
+  if (typeof setupHslHexInput === 'function') setupHslHexInput();
 
   // Sliders del selector de color del modal de confirmación de nueva etiqueta
   ['new-tag-hsl-h', 'new-tag-hsl-s', 'new-tag-hsl-l'].forEach(id => {
