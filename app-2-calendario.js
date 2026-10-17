@@ -3402,25 +3402,33 @@ function updateViewToggleMenuLabel() {
 
 // Siempre evalúa HOY, independientemente de la fecha navegada y del horario.
 // Solo avisa (rojo) por tareas pendientes de hoy que NO se ven en el horario
-// (sin hora de inicio y fin, o demasiado cortas para dibujarse): las que sí
-// aparecen en el horario ya están a la vista y no necesitan el aviso.
+// (sin hora de inicio y fin, o demasiado cortas para dibujarse), y solo si en
+// el horario de hoy no queda ninguna tarea pendiente visible.
 function updateChecklistPendingIndicator() {
   const btn = document.getElementById('nav-view-toggle-btn');
   if (!btn) return;
   const today = new Date();
   const todayStr = formatDate(today);
-  const hasPending = cronogramaActive && tasks.some(task => {
-    if (!checkTaskOccurrence(task, today)) return false;
-    const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
-    if (tag && tag.visible === false) return false;
-    const range = getTaskTimeRange(task);
-    const shownInHorario = !!range && (range.endMin - range.startMin) >= CR_MIN_BLOCK_MIN;
-    if (shownInHorario) return false;
-    return task.recurrence && task.recurrence.enabled
-      ? !(task.completedOccurrences || []).includes(todayStr)
-      : !task.completed;
-  });
-  btn.classList.toggle('checklist-pending', hasPending);
+  // Pendientes de hoy (visibles), separadas según se vean o no en el horario.
+  let hiddenPending = false;
+  let shownPending = false;
+  if (cronogramaActive) {
+    tasks.forEach(task => {
+      if (!checkTaskOccurrence(task, today)) return;
+      const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+      if (tag && tag.visible === false) return;
+      const pending = task.recurrence && task.recurrence.enabled
+        ? !(task.completedOccurrences || []).includes(todayStr)
+        : !task.completed;
+      if (!pending) return;
+      const range = getTaskTimeRange(task);
+      if (range && (range.endMin - range.startMin) >= CR_MIN_BLOCK_MIN) shownPending = true;
+      else hiddenPending = true;
+    });
+  }
+  // Rojo solo si hay pendientes que únicamente se ven en el checklist y, además,
+  // en el horario de hoy no queda ninguna tarea pendiente a la vista.
+  btn.classList.toggle('checklist-pending', hiddenPending && !shownPending);
 }
 
 // Aplica al iniciar la vista guardada en localStorage. Si el usuario dejó la
