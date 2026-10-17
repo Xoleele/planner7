@@ -4176,6 +4176,13 @@ function renderCronograma() {
 
     applyDayIsolation();
 
+    // Posicionar YA (síncrono) el carrusel en el día central y a la hora
+    // compartida. Si se espera al siguiente frame, el navegador alcanza a pintar
+    // el carrusel en su primer día precargado (10 días antes) y a las 00:00, lo
+    // que se veía como un destello con cambio de fecha al soltar una tarea.
+    scrollCronogramaTrackToDate(formatDate(centerDate), false);
+    if (typeof applyCrMobileVScroll === 'function') applyCrMobileVScroll();
+
     // El track es nuevo en cada render: permitir re-enganchar su listener.
     crTrackListenerBound = false;
 
