@@ -730,11 +730,12 @@ function openSettingsModal() {
   if (completedFadeSelect) completedFadeSelect.value = completedTaskFadeMode;
   const habitReminderInput = document.getElementById('setting-habit-reminder');
   if (habitReminderInput) {
-    // Mismo comportamiento que los campos de hora de las tareas: en escritorio se
-    // escribe con el teclado (máscara HH:MM); en móvil, selector nativo.
+    // Campo de hora nativo con el overlay de 24 h (initForce24Time). No se usa la
+    // máscara de texto de escritorio de las tareas: convierte el campo en texto
+    // visible y, junto con el overlay, la hora se veía duplicada. En móvil el
+    // toque abre el selector nativo.
     if (habitReminderInput.dataset.bound !== 'true') {
       habitReminderInput.dataset.bound = 'true';
-      if (!isMobile() && typeof setupTimeMaskInput === 'function') setupTimeMaskInput(habitReminderInput);
       habitReminderInput.addEventListener('click', () => {
         if (isMobile() && habitReminderInput.type === 'time' && typeof habitReminderInput.showPicker === 'function') {
           try { habitReminderInput.showPicker(); } catch (_) {}
