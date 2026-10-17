@@ -113,7 +113,11 @@
         <div class="header-icon-group">
           <!-- Botón Deshacer (solo móvil): aparece unos segundos tras cada cambio. -->
           <button id="mobile-undo-btn" type="button" title="Deshacer" aria-label="Deshacer último cambio" class="icon-button">
-            <img src="icons/undo.svg" alt="" width="20" height="20">
+            <!-- Mismo dibujo que icons/undo.svg, en el rojo de la papelera. -->
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 7v6h6"/>
+              <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+            </svg>
           </button>
           <!-- Botón Papelera (Drop target para eliminar tareas) -->
           <button id="trash-btn" title="Arrastra una tarea aquí para eliminarla" class="icon-button">
