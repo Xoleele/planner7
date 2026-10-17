@@ -2876,7 +2876,10 @@ function exportBuscadorResults() {
 function handleGlobalEscape() {
   // Hábitos vive en un Shadow DOM y cierra su propia ventana superior.
   const habits = document.getElementById('habitos-tool');
-  if (habits && !habits.hidden) {
+  // Si hay una ventana abierta POR ENCIMA del Habit Tracker (nota de un hábito),
+  // Escape la cierra a ella y no al tracker.
+  const aboveHabits = document.querySelector('.modal-backdrop.above-habits:not(.hidden)');
+  if (habits && !habits.hidden && !aboveHabits) {
     const escape = new Event('planner7:escape', { cancelable: true });
     habits.dispatchEvent(escape);
     if (escape.defaultPrevented) return true;

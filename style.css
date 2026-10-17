@@ -4452,6 +4452,10 @@ html:not(.mobile-mode) body:not(.dragging-active):not(.has-task-selection) #tras
   overflow: hidden;
 }
 
+/* Panel de notas abierto desde el Habit Tracker (z-index 2500): por encima. */
+.modal-backdrop.above-habits { z-index: 2600; }
+#notes-unsaved-modal.above-habits { z-index: 2610; }
+
 /* Botón "Deshacer" del header (móvil y escritorio): aparece tras cada cambio y se
    desvanece suavemente a los 2,5 s (ver showMobileUndoButton). */
 #mobile-undo-btn { display: none; }

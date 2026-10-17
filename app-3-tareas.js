@@ -4278,6 +4278,30 @@ function openNotesModal(dateStr) {
   notesTextarea.focus();
 }
 
+// ─── Nota de un cuadrito del Habit Tracker ──────────────────────────────────
+// Reutiliza el mismo panel de notas de los días (editor y aviso de cambios sin
+// guardar), con el nombre del hábito y la fecha en el título y sin el botón de
+// plantilla. Se muestra por encima del Habit Tracker (.above-habits). Al aceptar
+// llama a onSave(texto) para que el tracker guarde la nota en sus datos.
+let habitNoteSaveCallback = null;
+
+function openHabitNoteModal({ title, text, onSave }) {
+  const modal = document.getElementById('notes-modal');
+  if (!modal) return;
+  document.getElementById('notes-modal-title').textContent = title;
+  modal.dataset.mode = 'habit';
+  habitNoteSaveCallback = onSave;
+  const notesTextarea = initMdNoteEditor(document.getElementById('notes-textarea'));
+  notesTextarea.value = text || '';
+  dailyNotesInitialValue = notesTextarea.value;
+  const templateBtn = document.getElementById('notes-template-btn');
+  if (templateBtn) templateBtn.style.display = 'none';
+  modal.classList.add('above-habits');
+  document.getElementById('notes-unsaved-modal')?.classList.add('above-habits');
+  modal.classList.remove('hidden');
+  notesTextarea.focus();
+}
+
 function closeNotesModal() {
   const editor = document.getElementById('notes-textarea');
   if (editor && editor.value !== dailyNotesInitialValue) {
@@ -4289,8 +4313,15 @@ function closeNotesModal() {
 }
 
 function dismissDailyNotes() {
-  document.getElementById('notes-unsaved-modal').classList.add('hidden');
-  document.getElementById('notes-modal').classList.add('hidden');
+  const modal = document.getElementById('notes-modal');
+  const unsaved = document.getElementById('notes-unsaved-modal');
+  unsaved.classList.add('hidden');
+  modal.classList.add('hidden');
+  // Salir del modo "nota de hábito" (si estaba activo).
+  delete modal.dataset.mode;
+  habitNoteSaveCallback = null;
+  modal.classList.remove('above-habits');
+  unsaved.classList.remove('above-habits');
 }
 
 function cancelDailyNotesClose() {
@@ -4299,6 +4330,15 @@ function cancelDailyNotesClose() {
 }
 
 function saveDailyNotes() {
+  if (document.getElementById('notes-modal').dataset.mode === 'habit') {
+    const editor = document.getElementById('notes-textarea');
+    const text = editor.value.trim();
+    const onSave = habitNoteSaveCallback;
+    dailyNotesInitialValue = editor.value;
+    dismissDailyNotes();
+    if (onSave) onSave(text);
+    return;
+  }
   const dateStr = document.getElementById('notes-modal').dataset.date;
   const text = document.getElementById('notes-textarea').value.trim();
   if (text) notes[dateStr] = text;
