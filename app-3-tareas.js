@@ -207,7 +207,7 @@ let crDrag = null;
 //   e:     el evento pointerdown
 function startCronogramaDrag(block, task, e) {
   // Solo botón principal y no sobre el checkbox. Shift y Alt se reservan
-  // para ocultar la actividad y borrar el horario con un clic.
+  // para ocultar la actividad y ampliar la duración con un clic.
   if (e.button !== 0) return;
   if (e.shiftKey || e.altKey) return;
   if (e.target.closest('.task-check-btn')) return;
@@ -1584,7 +1584,7 @@ function formatTaskTimeText(task) {
   return '';
 }
 
-// Alt+clic elimina el horario sin modificar los demás datos de la tarea.
+// Alt+clic en el checklist elimina el horario sin modificar los demás datos.
 async function clearTaskTiming(task, occurrenceDate) {
   if (!tasks.includes(task) || (!task.startTime && !task.endTime && task.duration == null)) return false;
   const date = occurrenceDate || task.date;
@@ -1623,6 +1623,137 @@ async function clearTaskTiming(task, occurrenceDate) {
   if (typeof renderBriefcaseTasks === 'function' && isMobile()) renderBriefcaseTasks();
   if (typeof refreshAlarms === 'function') refreshAlarms();
   return target;
+}
+
+// Amplía un único borde hasta el primer obstáculo del día de ese borde.
+// Los extremos de día no cuentan como obstáculos. Una tarea que ya toca otra
+// no puede atravesarla; solo la línea de ahora se salta dentro de un minuto.
+function getCronogramaStretchTiming(task, occurrenceDate, direction) {
+  if (!tasks.includes(task) || ![-1, 1].includes(direction)) return null;
+  const range = getTaskTimeRange(task);
+  const date = occurrenceDate || task.date;
+  if (!range || !date) return null;
+  const end = range.rawEndMin + (range.crossesMidnight ? 1440 : 0);
+  const edge = direction < 0 ? range.startMin : end;
+  const dayOffset = direction > 0 && range.crossesMidnight ? 1 : 0;
+  const edgeDate = formatDate(addDays(new Date(date + 'T00:00:00'), dayOffset));
+  const offset = dayOffset * 1440;
+  const ranges = getVisibleTaskRangesForDate(edgeDate, task.id).filter(r => {
+    const neighbor = tasks.find(t => t.id === r.taskId);
+    const neighborDate = r.tail ? formatDate(addDays(new Date(edgeDate + 'T00:00:00'), -1)) : edgeDate;
+    return !isTaskHiddenByActivityIsolation(neighbor, neighborDate);
+  });
+  let limit = null;
+  for (const r of ranges) {
+    const start = r.start + offset, finish = r.end + offset;
+    // No extender hacia una tarea que ya ocupa o toca ese borde.
+    if (direction < 0 ? start < edge && finish >= edge : start <= edge && finish > edge) return null;
+    const boundary = direction < 0 ? finish : start;
+    if (direction < 0 ? boundary < edge : boundary > edge) {
+      limit = limit === null ? boundary : direction < 0 ? Math.max(limit, boundary) : Math.min(limit, boundary);
+    }
+  }
+  // En escritorio la línea cruza todos los días de la semana; en móvil solo hoy.
+  const nowLine = document.getElementById('cr-now-line');
+  if (nowLine && (!isMobile() || nowLine.closest('.cr-mobile-day')?.dataset.date === edgeDate)) {
+    const now = new Date();
+    const nowMinute = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60 + offset;
+    if (Math.abs(nowMinute - edge) > 1 && (direction < 0 ? nowMinute < edge : nowMinute > edge)) {
+      const boundary = Math.round(nowMinute);
+      limit = limit === null ? boundary : direction < 0 ? Math.max(limit, boundary) : Math.min(limit, boundary);
+    }
+  }
+  if (limit === null) return null;
+  const startMin = direction < 0 ? limit : range.startMin;
+  const endMin = direction > 0 ? limit : end;
+  if (endMin <= startMin || endMin - startMin > 1440) return null;
+  const toTime = min => `${String(Math.floor((min % 1440) / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+  return { startTime: toTime(startMin), endTime: toTime(endMin), duration: endMin - startMin };
+}
+
+async function stretchCronogramaTask(task, occurrenceDate, direction) {
+  const date = occurrenceDate || task.date;
+  let timing = getCronogramaStretchTiming(task, date, direction);
+  if (!timing) return false;
+  let scope = 'all';
+  if (task.recurrence?.enabled) {
+    scope = await askCronogramaRecurringScope(task, date);
+    if (!['all', 'only-this', 'following'].includes(scope)) return false;
+    // El diálogo puede permanecer abierto mientras cambian las tareas o la hora.
+    timing = getCronogramaStretchTiming(task, date, direction);
+    if (!timing) return false;
+  }
+  const split = scope === 'following' ? prepareRecurringSplit(task, date) : null;
+  if (scope === 'following' && !split) return false;
+  pushToUndoStack();
+  let target = task;
+  if (split) {
+    Object.assign(task, split.past);
+    target = split.future;
+    tasks.push(target);
+  } else if (scope === 'only-this') {
+    target = {
+      ...structuredClone(task),
+      id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      date,
+      recurrence: null,
+      completed: !!task.completedOccurrences?.includes(date),
+      position: getEffectivePosition(task, date)
+    };
+    delete target.completedOccurrences;
+    delete target.positionOverrides;
+    if (!task.recurrence.exceptions) task.recurrence.exceptions = [];
+    if (!task.recurrence.exceptions.includes(date)) task.recurrence.exceptions.push(date);
+    tasks.push(target);
+  }
+  Object.assign(target, timing);
+  saveTasksToStorage();
+  renderWeeklyCalendar();
+  if (typeof refreshAlarms === 'function') refreshAlarms();
+  return target;
+}
+
+// Indicador fuera de la tarjeta para que overflow:hidden no recorte la flecha.
+function setupCronogramaStretchHint() {
+  if (document.getElementById('cr-stretch-hint')) return;
+  const hint = document.createElement('div');
+  hint.id = 'cr-stretch-hint';
+  hint.hidden = true;
+  hint.setAttribute('aria-hidden', 'true');
+  hint.innerHTML = '<svg width="14" height="16" viewBox="0 0 14 16" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14V2M2 7l5-5 5 5"/></svg>';
+  document.body.appendChild(hint);
+  let x = -1, y = -1, alt = false;
+  const refresh = () => {
+    hint.hidden = true;
+    if (!alt || crDrag || taskPlacement) return;
+    const hit = document.elementFromPoint(x, y);
+    const block = hit?.closest('#cronograma-grid .cr-task-block[data-task-id]');
+    if (!block || hit.closest('.task-check-btn')) return;
+    const rect = block.getBoundingClientRect();
+    const direction = y < rect.top + rect.height / 2 ? -1 : 1;
+    const clip = block.closest('.cr-mobile-day-body, .cronograma-scroll')?.getBoundingClientRect();
+    const edgeY = direction < 0 ? rect.top : rect.bottom;
+    if (clip && (edgeY < clip.top || edgeY > clip.bottom)) return;
+    hint.dataset.direction = direction < 0 ? 'backward' : 'forward';
+    hint.style.left = (rect.left + rect.width / 2) + 'px';
+    hint.style.top = (direction < 0 ? rect.top - 20 : rect.bottom + 4) + 'px';
+    hint.hidden = false;
+  };
+  const setAlt = value => {
+    alt = value;
+    document.body.classList.toggle('cr-stretch-active', alt);
+    refresh();
+  };
+  document.addEventListener('pointermove', e => { x = e.clientX; y = e.clientY; setAlt(e.altKey); });
+  document.addEventListener('keydown', e => { if (e.key === 'Alt') { e.preventDefault(); setAlt(true); } });
+  document.addEventListener('keyup', e => { if (!e.altKey) setAlt(false); });
+  document.addEventListener('scroll', refresh, true);
+  document.addEventListener('pointerout', e => { if (!e.relatedTarget) { hint.hidden = true; x = y = -1; } });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) setAlt(false); });
+  window.addEventListener('blur', () => setAlt(false));
+  // Reconstruir las tarjetas al ampliar o deshacer también actualiza el indicador.
+  const grid = document.getElementById('cronograma-grid');
+  if (grid) new MutationObserver(refresh).observe(grid, { childList: true, subtree: true });
 }
 
 function createTaskCard(task, occurrenceDate) {

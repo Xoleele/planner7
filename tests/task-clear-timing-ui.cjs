@@ -28,6 +28,9 @@ function extract(source, name) {
         {id:'c',title:'Archivada',date:'',duration:30,tagId:'default'}];
       window.tags=[{id:'default',color:{bg:'#247caf',text:'#fff',border:'#247caf'}}];
       window.isMobile=()=>false;window.isTaskHiddenByActivityIsolation=()=>false;
+      window.formatDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      window.addDays=(d,n)=>{const result=new Date(d);result.setDate(result.getDate()+n);return result;};
+      window.checkTaskOccurrence=(task,date)=>task.date===formatDate(date);
       window.handleDragEnd=window.handleTouchStart=window.startCronogramaTouch=window.attachCheckboxLongPressTimer=()=>{};
       window.preventClick=false;window.taskPlacement=null;window.suppressNextCronogramaClick=false;window.crDrag=null;
       window.CR_MIN_BLOCK_MIN=5;window.opened=0;window.openTaskModal=()=>opened++;
@@ -43,9 +46,9 @@ function extract(source, name) {
       };
     });
     const calendar=read('app-2-calendario.js'),editor=read('app-3-tareas.js');
-    for(const name of ['getTaskTimeRange','getTaskDurationMinutes','buildCronogramaBlock'])
+    for(const name of ['getTaskTimeRange','getTaskDurationMinutes','getVisibleTaskRangesForDate','buildCronogramaBlock'])
       await page.addScriptTag({content:extract(calendar,name)});
-    for(const name of ['clearTaskTiming','createTaskCard','formatTaskTimeText','formatTaskDuration','startCronogramaDrag','handleDragStart'])
+    for(const name of ['clearTaskTiming','getCronogramaStretchTiming','stretchCronogramaTask','createTaskCard','formatTaskTimeText','formatTaskDuration','startCronogramaDrag','handleDragStart'])
       await page.addScriptTag({content:extract(editor,name)});
     await page.addScriptTag({content:read('app-9-seleccion.js')});
     await page.evaluate(()=>{setupTaskMultiSelection();renderWeeklyCalendar();});
@@ -57,9 +60,12 @@ function extract(source, name) {
     assert.equal(await card('a').locator('.task-card-time').count(),0);
     await card('a').click({modifiers:['Alt']});assert.equal(await page.evaluate(()=>saved),1);
     const block=page.locator('.cr-task-block[data-task-id="b"]');
-    await block.click({modifiers:['Alt']});
-    assert.equal(await block.count(),0);
-    assert.deepEqual(await page.evaluate(()=>[tasks[1].startTime,tasks[1].endTime,tasks[1].duration]),[null,null,null]);
+    await block.click({modifiers:['Alt'],position:{x:50,y:75}});
+    assert.equal(await page.evaluate(()=>saved),1); // sin límite no cambia
+    await page.evaluate(()=>tasks.push({id:'next',date:'2026-10-12',startTime:'13:00',endTime:'14:00',tagId:'default'}));
+    await block.click({modifiers:['Alt'],position:{x:50,y:75}});
+    assert.equal(await block.count(),1);
+    assert.deepEqual(await page.evaluate(()=>[tasks[1].startTime,tasks[1].endTime,tasks[1].duration]),['11:00','13:00',120]);
     assert.equal(await page.evaluate(()=>tasks[1].completed),true);
     assert.equal(await page.evaluate(()=>!!crDrag),false);assert.equal(await page.evaluate(()=>opened),0);
     assert.equal(await page.evaluate(()=>snapshots.length),2);
@@ -69,6 +75,6 @@ function extract(source, name) {
     assert.deepEqual(await page.evaluate(()=>[tasks[2].date,tasks[2].duration]),['',null]);
     await card('a').click();assert.equal(await page.evaluate(()=>opened),1);
     assert.deepEqual(errors,[]);
-    console.log('Alt+clic verificado en navegador: lista, horario, archivadas, sin editor ni arrastre, y deshacer.');
+    console.log('Alt+clic verificado: borrar horario en lista/archivadas, ampliar en horario, sin editor ni arrastre y deshacer.');
   } finally {await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

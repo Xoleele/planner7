@@ -3579,7 +3579,9 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
       e.stopPropagation();
       if (e.altKey) {
         e.preventDefault();
-        clearTaskTiming(task, occurrenceDate || task.date);
+        const rect = block.getBoundingClientRect();
+        const direction = e.clientY < rect.top + rect.height / 2 ? -1 : 1;
+        stretchCronogramaTask(task, occurrenceDate || task.date, direction);
         return;
       }
       // Escritorio: Shift+clic en un bloque = "Ocultar actividad".

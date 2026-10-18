@@ -726,6 +726,7 @@ function setupEventListeners() {
 
   // Clic en espacios vacíos del horario → crear tarea (delegado en el grid).
   setupCronogramaClickDelegation();
+  setupCronogramaStretchHint();
 
   // Campos de hora del editor: la "Hora de fin" se habilita solo si hay inicio,
   // y se muestra la duración calculada en tiempo real.

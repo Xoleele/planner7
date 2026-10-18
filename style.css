@@ -5180,6 +5180,22 @@ body:not(.mobile-mode) .cr-task-block:not(.cr-dragging):hover {
   box-shadow: var(--shadow-task);
 }
 
+/* Flecha de Alt fuera del recorte del contenido de la tarjeta. */
+#cr-stretch-hint {
+  position: fixed;
+  width: 14px;
+  height: 16px;
+  margin-left: -7px;
+  z-index: 1000;
+  pointer-events: none;
+}
+#cr-stretch-hint[hidden] { display: none; }
+#cr-stretch-hint[data-direction="forward"] svg { transform: rotate(180deg); }
+body.cr-stretch-active .cr-task-block:not(.cr-dragging) {
+  transition: none;
+  transform: none !important;
+}
+
 /* Asegurar texto blanco dentro del bloque (igual que en el planner). */
 .cr-task-block * {
   color: #ffffff;
