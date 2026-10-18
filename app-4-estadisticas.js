@@ -743,16 +743,71 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
   return svgParts.join('\n');
 }
 
+// Representación de cada día estadístico: [fecha + límite, día siguiente + límite).
+// Solo cambia la lectura de las tareas. occurrenceDate conserva la fecha real,
+// necesaria para abrir y editar correctamente una ocurrencia recurrente.
+function getStatsDayOccurrences(dateStr, includeNoDuration = false) {
+  const cutoff = parseStatsDayCutoff(statsDayCutoffTime) || 0;
+  const result = [];
+  const sourceDates = cutoff === 0 ? [dateStr]
+    : [getRelativeDateString(dateStr, -1), dateStr, getRelativeDateString(dateStr, 1)];
+  sourceDates.forEach(sourceDate => {
+    const sourceDay = new Date(sourceDate + 'T12:00:00');
+    const dayOffset = Math.round((sourceDay - new Date(dateStr + 'T12:00:00')) / 86400000);
+    tasks.forEach(task => {
+      if (!task.recurrence?.enabled && task.date !== sourceDate) return;
+      if (task.recurrence?.enabled && task.date && task.date > sourceDate) return;
+      if (!checkTaskOccurrence(task, sourceDay)) return;
+      const mins = getTaskDurationMinutes(task) || 0;
+      if (mins <= 0 && !includeNoDuration) return;
+      const range = getTaskTimeRange(task);
+      const completed = task.recurrence?.enabled
+        ? !!task.completedOccurrences?.includes(sourceDate) : !!task.completed;
+      if (cutoff === 0) {
+        result.push({ task, dateStr, occurrenceDate: sourceDate, mins, completed,
+          startMin: range?.startMin ?? null,
+          endMin: range ? Math.min(1440, range.startMin + mins) : null });
+        return;
+      }
+      if (!range) {
+        // Sin un rango horario completo no hay minutos que repartir. Una hora de
+        // inicio aislada determina el día; sin ella se conserva la fecha asignada.
+        const start = /^([01]\d|2[0-3]):[0-5]\d$/.test(task.startTime || '')
+          ? Number(task.startTime.slice(0, 2)) * 60 + Number(task.startTime.slice(3)) : null;
+        const statisticalDate = start !== null && start < cutoff
+          ? getRelativeDateString(sourceDate, -1) : sourceDate;
+        if (statisticalDate === dateStr) result.push({ task, dateStr, occurrenceDate: sourceDate, mins, completed,
+          startMin: null, endMin: null });
+        return;
+      }
+      const start = dayOffset * 1440 + range.startMin;
+      const end = start + mins;
+      const overlapStart = Math.max(start, cutoff);
+      const overlapEnd = Math.min(end, 1440 + cutoff);
+      if (overlapEnd > overlapStart) result.push({ task, dateStr, occurrenceDate: sourceDate,
+        mins: overlapEnd - overlapStart, completed, startMin: overlapStart, endMin: overlapEnd });
+    });
+  });
+  return result;
+}
+
+function refreshStatsForDayCutoff() {
+  // Los totales de duración en el calendario también muestran el día estadístico.
+  if (typeof renderWeeklyCalendar === 'function') renderWeeklyCalendar();
+  const general = document.getElementById('general-stats-modal');
+  const daily = document.getElementById('daily-stats-modal');
+  if (general && !general.classList.contains('hidden')) {
+    if (generalStatsDateRange) renderGeneralStatsForRange();
+    else estadisticasGenerales(getStatsTodayStr());
+  } else if (daily && !daily.classList.contains('hidden')) {
+    estadisticasDiarias(currentDailyStatsDate || getStatsTodayStr());
+  }
+}
+
 // ¿Hubo al menos una tarea de la etiqueta seleccionada completada ese día?
 function habitDoneOnDate(dStr) {
-  const dateObj = new Date(dStr + 'T12:00:00');
-  return tasks.some(task => {
-    if (!habitSelectionHasTag(task.tagId || 'default')) return false;
-    if (!checkTaskOccurrence(task, dateObj)) return false;
-    return (task.recurrence && task.recurrence.enabled)
-      ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
-      : !!task.completed;
-  });
+  return getStatsDayOccurrences(dStr, true).some(occ =>
+    occ.completed && habitSelectionHasTag(occ.task.tagId || 'default'));
 }
 
 // Mapa de calor: el recuadro de la cabecera muestra PROMEDIO en horas por día
@@ -779,33 +834,18 @@ function updateHeatmapAverage(dates) {
   const label = document.getElementById('habit-streak-label');
   if (label) label.textContent = 'Promedio';
   if (!el) return;
-  const newest = (dates && dates.length) ? dates[dates.length - 1] : formatDate(new Date());
+  const newest = (dates && dates.length) ? dates[dates.length - 1] : getStatsTodayStr();
   const periodDays = heatmapEffectiveDays(dates);
   const startD = new Date(newest + 'T12:00:00');
   startD.setDate(startD.getDate() - (periodDays - 1));
   const oldest = formatDate(startD);
-  const minsOf = (task) => {
-    const r = getTaskTimeRange(task);
-    if (!r) return 0;
-    const end = r.crossesMidnight ? 24 * 60 : r.rawEndMin;
-    return Math.max(0, end - r.startMin);
-  };
   let total = 0;
-  tasks.forEach(task => {
-    if (!habitSelectionHasTag(task.tagId || 'default')) return;
-    const mins = minsOf(task);
-    if (!mins) return;
-    if (task.recurrence && task.recurrence.enabled) {
-      if (task.date && task.date > newest) return;
-      const start = new Date(((task.date && task.date > oldest) ? task.date : oldest) + 'T12:00:00');
-      const end = new Date(newest + 'T12:00:00');
-      for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        if (checkTaskOccurrence(task, d)) total += mins;
-      }
-    } else if (task.date && task.date >= oldest && task.date <= newest) {
-      total += mins;
+  const days = getDatesInRange(oldest, newest);
+  days.forEach(dStr => getStatsDayOccurrences(dStr).forEach(occ => {
+    if (occ.startMin !== null && habitSelectionHasTag(occ.task.tagId || 'default')) {
+      total += Math.min(occ.mins, occ.endMin - occ.startMin);
     }
-  });
+  }));
   const avgHours = total / 60 / periodDays;
   const txt = avgHours.toLocaleString('es-CL', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
   el.title = `${minutesToReadable(Math.round(total))} en ${periodDays} días`;
@@ -821,7 +861,7 @@ function updateHabitStreakCount(dates) {
   el.title = '';
   // Constancia = días completados / días de la muestra (el periodo elegido,
   // p. ej. 3/30 en "Últimos 30 días"). Los días futuros no cuentan.
-  const todayStr = formatDate(new Date());
+  const todayStr = getStatsTodayStr();
   let done = 0;
   let total = 0;
   dates.forEach(dStr => {
@@ -915,18 +955,10 @@ function heatmapTier(minutes) {
 
 // Minutos por hora (array de 24) de la etiqueta seleccionada en un día dado.
 function heatmapDayMinutes(dStr) {
-  const dateObj = new Date(dStr + 'T12:00:00');
   const hours = new Array(24).fill(0);
-  tasks.forEach(task => {
-    if (!habitSelectionHasTag(task.tagId || 'default')) return;
-    if (!checkTaskOccurrence(task, dateObj)) return;
-    const r = getTaskTimeRange(task); // requiere startTime + endTime
-    if (!r) return;
-    const end = r.crossesMidnight ? 24 * 60 : r.rawEndMin;
-    for (let m = r.startMin; m < end; m++) {
-      const hour = Math.floor(m / 60);
-      if (hour >= 0 && hour < 24) hours[hour] += 1;
-    }
+  getStatsDayOccurrences(dStr).forEach(occ => {
+    if (!habitSelectionHasTag(occ.task.tagId || 'default') || occ.startMin === null) return;
+    for (let m = occ.startMin; m < occ.endMin; m++) hours[Math.floor((m % 1440) / 60)]++;
   });
   return hours;
 }
@@ -951,19 +983,13 @@ function renderHeatmapRow(dStr, hue, sat) {
 // etiqueta completada ese día) en el rango [fromStr, toStr], o null si ninguna.
 function topTagByCompletedDaysInRange(fromStr, toStr) {
   const dates = getDatesInRange(fromStr, toStr);
-  const todayStr = formatDate(new Date());
+  const todayStr = getStatsTodayStr();
   const counts = {}; // tagId -> días con al menos un completado
   dates.forEach(dStr => {
     if (dStr > todayStr) return;
-    const dateObj = new Date(dStr + 'T12:00:00');
     const tagsDone = new Set();
-    tasks.forEach(task => {
-      const done = (task.recurrence && task.recurrence.enabled)
-        ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
-        : !!task.completed;
-      if (!done) return;
-      if (!checkTaskOccurrence(task, dateObj)) return;
-      tagsDone.add(task.tagId || 'default');
+    getStatsDayOccurrences(dStr, true).forEach(occ => {
+      if (occ.completed) tagsDone.add(occ.task.tagId || 'default');
     });
     tagsDone.forEach(id => { counts[id] = (counts[id] || 0) + 1; });
   });
@@ -980,13 +1006,9 @@ function topTagByDurationInRange(fromStr, toStr) {
   const dates = getDatesInRange(fromStr, toStr);
   const totals = {}; // tagId -> minutos
   dates.forEach(dStr => {
-    const dateObj = new Date(dStr + 'T12:00:00');
-    tasks.forEach(task => {
-      if (!checkTaskOccurrence(task, dateObj)) return;
-      const mins = getTaskDurationMinutes(task);
-      if (mins === null || mins <= 0) return;
-      const tagId = task.tagId || 'default';
-      totals[tagId] = (totals[tagId] || 0) + mins;
+    getStatsDayOccurrences(dStr).forEach(occ => {
+      const tagId = occ.task.tagId || 'default';
+      totals[tagId] = (totals[tagId] || 0) + occ.mins;
     });
   });
   let best = null, bestMin = -1;
@@ -1002,7 +1024,10 @@ function heatmapOldestDate() {
   tasks.forEach(task => {
     if (!habitSelectionHasTag(task.tagId || 'default')) return;
     if (!getTaskTimeRange(task)) return; // solo tareas con horario cuentan
-    const d = task.date || (task.completedOccurrences && task.completedOccurrences[0]);
+    let d = task.date || (task.completedOccurrences && task.completedOccurrences[0]);
+    const cutoff = parseStatsDayCutoff(statsDayCutoffTime) || 0;
+    const start = getTaskTimeRange(task)?.startMin;
+    if (d && cutoff > 0 && start < cutoff) d = getRelativeDateString(d, -1);
     if (d && (!oldest || d < oldest)) oldest = d;
   });
   return oldest;
@@ -1017,7 +1042,7 @@ function renderHeatmapHTML(dates) {
   const [hue, sat] = getHueSatFromColor(habitInfo.color ? habitInfo.color.bg : '#50a9ed');
 
   // Día más reciente = último del rango (o hoy si no hay rango).
-  const newest = (dates && dates.length) ? dates[dates.length - 1] : formatDate(new Date());
+  const newest = (dates && dates.length) ? dates[dates.length - 1] : getStatsTodayStr();
 
   // Periodo elegido (30 / 50 / 100 días): no se pinta nada más antiguo.
   const periodDays = heatmapEffectiveDays(dates);
@@ -1133,32 +1158,13 @@ function renderDailyStatsPanel(panelEl, dateParam) {
   }
 
   const occurrences = [];
-  dates.forEach(dStr => {
-    const dateObj = new Date(dStr + 'T12:00:00');
-    const dayTasks = tasks.filter(task => {
-      if (!checkTaskOccurrence(task, dateObj)) return false;
-      const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
-      return tag ? tag.visible !== false : true;
-    });
-    
-    dayTasks.forEach(task => {
-      const mins = getTaskDurationMinutes(task);
-      if (mins === null || mins <= 0) return;
-      
-      const isCompleted = (task.recurrence && task.recurrence.enabled)
-        ? !!(task.completedOccurrences && task.completedOccurrences.includes(dStr))
-        : !!task.completed;
-        
-      if (statsStatusFilter === 'completed' && !isCompleted) return;
-      if (statsStatusFilter === 'uncompleted' && isCompleted) return;
-      
-      occurrences.push({
-        task,
-        dateStr: dStr,
-        mins
-      });
-    });
-  });
+  dates.forEach(dStr => getStatsDayOccurrences(dStr).forEach(occ => {
+    const tag = tags.find(t => t.id === occ.task.tagId) || tags.find(t => t.id === 'default');
+    if (tag && tag.visible === false) return;
+    if (statsStatusFilter === 'completed' && !occ.completed) return;
+    if (statsStatusFilter === 'uncompleted' && occ.completed) return;
+    occurrences.push(occ);
+  }));
 
   // Agrupar y sumar duraciones. Hay dos modos:
   //   'title'    → agrupa por título de tarea (resolviendo combinaciones/fusión).
@@ -1915,7 +1921,7 @@ function estadisticasDiarias(dateStr, resetFilter = false) {
 // una fecha de referencia pasada, el periodo termina en esa fecha.
 function lastNDaysRange(n, refDateStr, includeToday = false) {
   // includeToday: el periodo termina HOY (lo usa Hábitos) en vez de ayer.
-  const yesterday = new Date();
+  const yesterday = new Date(getStatsTodayStr() + 'T12:00:00');
   yesterday.setHours(12, 0, 0, 0);
   if (!includeToday) yesterday.setDate(yesterday.getDate() - 1);
   let end = refDateStr ? new Date(refDateStr + 'T12:00:00') : new Date(yesterday);
@@ -2097,7 +2103,7 @@ function handleGeneralStatsChartTypeChange() {
     if (typeof syncHeatmapPeriodSelect === 'function') syncHeatmapPeriodSelect();
     if (generalStatsChartType === 'habitos' || generalStatsChartType === 'heatmap') applySavedHabitTag();
     if (generalStatsDateRange) renderGeneralStatsForRange();
-    else estadisticasGenerales(formatDate(new Date()));
+    else estadisticasGenerales(getStatsTodayStr());
     return;
   }
   // Sin periodo guardado para este gráfico: no heredar "Personalizado" del
@@ -2146,7 +2152,7 @@ function generalStatsRangeForPeriod(v, refDateStr) {
   const m = /^(\d+)dias$/.exec(v);
   if (m) return lastNDaysRange(parseInt(m[1], 10), refDateStr, generalStatsChartType === 'habitos');
   if (v === 'semanal') {
-    const curr = refDateStr ? new Date(refDateStr + 'T12:00:00') : new Date();
+    const curr = new Date((refDateStr || getStatsTodayStr()) + 'T12:00:00');
     curr.setHours(12, 0, 0, 0);
     const day = curr.getDay();
     const monday = new Date(curr);
@@ -2196,10 +2202,9 @@ function handleGeneralStatsPeriodChange() {
   }
   if (val === 'hoy') {
     generalStatsDateRange = null;
-    estadisticasGenerales(formatDate(new Date()));
+    estadisticasGenerales(getStatsTodayStr());
   } else if (val === 'semanal') {
-    const today = new Date();
-    today.setHours(12, 0, 0, 0);
+    const today = new Date(getStatsTodayStr() + 'T12:00:00');
     const curr = currentDailyStatsDate ? new Date(currentDailyStatsDate + 'T12:00:00') : today;
     const day = curr.getDay();
     const diff = curr.getDate() - day + (day === 0 ? -6 : 1);
@@ -2342,12 +2347,12 @@ function openGeneralStatsCustomRangeModal() {
       }
     } else {
       // Sin rango previo: termina hoy.
-      const todayStr = formatDate(new Date());
+      const todayStr = getStatsTodayStr();
       toInput.value = todayStr;
       if (customRangeUsesUnits()) {
         if (unitSelect) unitSelect.value = 'dias';
         if (qtySelect) qtySelect.value = '7';
-        const startDate = new Date();
+        const startDate = new Date(todayStr + 'T12:00:00');
         startDate.setDate(startDate.getDate() - 6);
         fromInput.value = formatDate(startDate);
       } else {
@@ -4295,7 +4300,7 @@ function openStatsChartDetail(group, startDate, endDate) {
   const byDate = new Map();
   selected.forEach(occ => {
     if (!byDate.has(occ.dateStr)) byDate.set(occ.dateStr, []);
-    byDate.get(occ.dateStr).push(occ);
+    byDate.get(occ.dateStr).push({ task: occ.task, dateStr: occ.occurrenceDate || occ.dateStr });
   });
   let sections = Array.from(byDate, ([dateStr, dayOccurrences]) => ({
     heading: taskResultsDateLabel(dateStr),
@@ -4319,24 +4324,21 @@ function openStatsCellDetail(dateStr, hour) {
   const dateObj = new Date(dateStr + 'T12:00:00');
   const hasHour = hour !== undefined && hour !== null && hour !== '';
   const h = hasHour ? parseInt(hour, 10) : null;
-
-  const found = tasks.filter(task => {
-    if (!habitSelectionHasTag(task.tagId || 'default')) return false;
-    if (!checkTaskOccurrence(task, dateObj)) return false;
+  const found = getStatsDayOccurrences(dateStr, !hasHour).filter(occ => {
+    if (!habitSelectionHasTag(occ.task.tagId || 'default')) return false;
     if (!hasHour) return true;
-    // Mapa de calor: la tarea ocupa al menos un minuto de esa hora.
-    const r = getTaskTimeRange(task);
-    if (!r) return false;
-    const end = r.crossesMidnight ? 24 * 60 : r.rawEndMin;
-    return r.startMin < (h + 1) * 60 && end > h * 60;
-  }).sort((a, b) => (a.startTime || '99:99').localeCompare(b.startTime || '99:99'));
+    if (occ.startMin === null) return false;
+    // La misma hora de reloj puede caer al inicio o al final del día estadístico.
+    return [h * 60, h * 60 + 1440].some(hourStart =>
+      occ.startMin < hourStart + 60 && occ.endMin > hourStart);
+  }).sort((a, b) => (a.task.startTime || '99:99').localeCompare(b.task.startTime || '99:99'));
 
   const dTxt = dateObj.toLocaleDateString('es-CL', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   const dCap = dTxt.charAt(0).toUpperCase() + dTxt.slice(1);
   const heading = hasHour
     ? `${dCap} · ${String(h).padStart(2, '0')}:00 – ${String((h + 1) % 24).padStart(2, '0')}:00`
     : dCap;
-  const occurrences = found.map(task => ({ task, dateStr }));
+  const occurrences = found.map(occ => ({ task: occ.task, dateStr: occ.occurrenceDate }));
   const emptyText = hasHour ? 'No hubo tareas en esta hora.' : 'No hubo tareas este día.';
   openStatsDetailPanel(info.label, [{ heading, occurrences }], emptyText);
 }

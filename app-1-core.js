@@ -56,6 +56,21 @@ let defaultTaskDurationMin = 60;
 // Se elige en Preferencias (preferences.showTaskDescriptions). Por defecto, se muestra.
 let showTaskDescriptions = true;
 
+// Hora en que comienza un día de estadísticas. No cambia la fecha de las tareas.
+let statsDayCutoffTime = '00:00';
+
+function parseStatsDayCutoff(value) {
+  if (typeof value !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
+  return Number(value.slice(0, 2)) * 60 + Number(value.slice(3));
+}
+
+function getStatsTodayStr(now = new Date()) {
+  const date = new Date(now);
+  const cutoff = parseStatsDayCutoff(statsDayCutoffTime) || 0;
+  if (date.getHours() * 60 + date.getMinutes() < cutoff) date.setDate(date.getDate() - 1);
+  return formatDate(date);
+}
+
 // Recordatorio de hábitos: hora "HH:MM" a partir de la cual, al entrar a la app,
 // se abre el Habit Tracker (una vez al día por cuenta). Vacío = desactivado.
 // Se guarda en preferences.habitReminderTime y el último día mostrado en
@@ -87,6 +102,8 @@ function applyUserSettingsFromPrefs(prefs) {
   defaultTaskDurationMin = DEFAULT_TASK_DURATION_OPTIONS.includes(d) ? d : 60;
   showTaskDescriptions = prefs.showTaskDescriptions !== false;
   applyTaskDescriptionVisibility();
+  statsDayCutoffTime = parseStatsDayCutoff(prefs.statsDayCutoffTime) !== null
+    ? prefs.statsDayCutoffTime : '00:00';
   completedTaskFadeMode = COMPLETED_TASK_FADE_OPTIONS.includes(prefs.completedTaskFadeMode)
     ? prefs.completedTaskFadeMode : 'both';
   applyCompletedTaskFade();
@@ -198,6 +215,15 @@ function minutesToReadable(minutes) {
 //   completed = false → solo tareas NO completadas (por hacer)
 //   completed = true  → solo tareas COMPLETADAS
 function getDurationForDay(dateStr, completed) {
+  // Con un límite distinto de medianoche, los indicadores de duración del
+  // calendario usan la misma agrupación que el panel de estadísticas.
+  if ((parseStatsDayCutoff(statsDayCutoffTime) || 0) > 0 && typeof getStatsDayOccurrences === 'function') {
+    return getStatsDayOccurrences(dateStr).reduce((sum, occ) => {
+      if (occ.completed !== completed) return sum;
+      const tag = tags.find(t => t.id === occ.task.tagId) || tags.find(t => t.id === 'default');
+      return sum + (tag && tag.visible === false ? 0 : occ.mins);
+    }, 0);
+  }
   const dayTasks = tasks.filter(task => {
     const isCompleted = (task.recurrence && task.recurrence.enabled)
       ? !!(task.completedOccurrences && task.completedOccurrences.includes(dateStr))
@@ -726,6 +752,19 @@ function openSettingsModal() {
   toggle.checked = autoSetEndTimeOnComplete;
   durationSel.value = String(defaultTaskDurationMin);
   if (descToggle) descToggle.checked = showTaskDescriptions;
+  const statsCutoffInput = document.getElementById('setting-stats-day-cutoff');
+  if (statsCutoffInput) {
+    if (statsCutoffInput.dataset.bound !== 'true') {
+      statsCutoffInput.dataset.bound = 'true';
+      statsCutoffInput.addEventListener('click', () => {
+        if (isMobile() && statsCutoffInput.type === 'time' && typeof statsCutoffInput.showPicker === 'function') {
+          try { statsCutoffInput.showPicker(); } catch (_) {}
+        }
+      });
+    }
+    statsCutoffInput.value = statsDayCutoffTime;
+    if (typeof updateTime24Overlay === 'function') updateTime24Overlay(statsCutoffInput);
+  }
   const completedFadeSelect = document.getElementById('setting-completed-fade');
   if (completedFadeSelect) completedFadeSelect.value = completedTaskFadeMode;
   const habitReminderInput = document.getElementById('setting-habit-reminder');
@@ -823,6 +862,15 @@ function saveSettingsModal() {
     completedTaskFadeMode = completedFadeSelect.value;
     changes.completedTaskFadeMode = completedTaskFadeMode;
     applyCompletedTaskFade();
+  }
+  const statsCutoffInput = document.getElementById('setting-stats-day-cutoff');
+  if (statsCutoffInput && parseStatsDayCutoff(statsCutoffInput.value || '00:00') !== null) {
+    const previousCutoff = statsDayCutoffTime;
+    statsDayCutoffTime = statsCutoffInput.value || '00:00';
+    changes.statsDayCutoffTime = statsDayCutoffTime;
+    if (statsDayCutoffTime !== previousCutoff && typeof refreshStatsForDayCutoff === 'function') {
+      refreshStatsForDayCutoff();
+    }
   }
   const habitReminderInput = document.getElementById('setting-habit-reminder');
   if (habitReminderInput) {
@@ -1030,7 +1078,7 @@ function setupUserMenu() {
       statsMenuBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         dropdown.remove();
-        estadisticasGenerales(formatDate(new Date()));
+        estadisticasGenerales(getStatsTodayStr());
       });
     }
 

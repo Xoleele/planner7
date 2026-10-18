@@ -975,6 +975,18 @@
 
         <div class="settings-row">
           <div class="settings-label">
+            <label for="setting-stats-day-cutoff">Hora límite del día</label>
+            <button type="button" class="settings-info-btn" data-info="info-stats-day-cutoff" aria-label="Más información"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
+          </div>
+          <div class="time-input-wrapper settings-time-wrapper">
+            <input type="time" id="setting-stats-day-cutoff" lang="es-ES" data-force24 required>
+            <span class="time-24-overlay" data-for="setting-stats-day-cutoff" aria-hidden="true"></span>
+          </div>
+        </div>
+        <div id="info-stats-day-cutoff" class="settings-info hidden">00:00 conserva el cálculo actual. Al elegir otra hora, las estadísticas agrupan cada día desde esa hora hasta la misma hora del día siguiente. La duración de tareas con inicio y fin que cruzan el límite se reparte entre ambos días. Las fechas y horas guardadas no cambian.</div>
+
+        <div class="settings-row">
+          <div class="settings-label">
             <label for="setting-habit-reminder">Recordatorio de hábitos</label>
             <button type="button" class="settings-info-btn" data-info="info-habit-reminder" aria-label="Más información"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></button>
           </div>

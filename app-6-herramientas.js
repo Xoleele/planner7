@@ -631,7 +631,7 @@ function setupEventListeners() {
       e.preventDefault();
       const dd = document.getElementById('user-dropdown');
       if (dd) dd.remove();
-      estadisticasGenerales(formatDate(new Date()));
+      estadisticasGenerales(getStatsTodayStr());
     } else if ((e.key === 'b' || e.key === 'B') && !e.ctrlKey && !e.metaKey && !e.altKey) {
       // Atajo B: abrir el Buscador, solo si no hay ninguna ventana abierta.
       if (isAnyOverlayOpen()) return;
@@ -2524,7 +2524,7 @@ function normalizeForSearch(str) {
 // Devuelve el rango [from, to] (YYYY-MM-DD inclusive) según el periodo.
 // Para 'custom' lee los inputs de fecha. Si un extremo falta, queda como null.
 function getBuscadorDateRange(period) {
-  const today = new Date();
+  const today = new Date(getStatsTodayStr() + 'T12:00:00');
   today.setHours(12, 0, 0, 0);
   const toStr = formatDate(today);
 
@@ -2594,6 +2594,55 @@ function computeBuscadorStats(keyword, period, fields = { title: true }, status 
   const kw = normalizeForSearch(keyword);
   const { from, to } = getBuscadorDateRange(period);
   const totalDays = countDaysInRange(from, to);
+
+  if ((parseStatsDayCutoff(statsDayCutoffTime) || 0) > 0) {
+    const matches = task => {
+      if (!kw) return true;
+      const tag = fields.tag ? tags.find(t => t.id === task.tagId) : null;
+      return (fields.title && buscadorTextMatches(task.title, kw)) ||
+        (fields.tag && tag && buscadorTextMatches(tag.name, kw)) ||
+        (fields.desc && buscadorTextMatches(task.description, kw));
+    };
+    const items = [];
+    const uniqueDays = new Set();
+    const added = new Set();
+    let totalMinutes = 0;
+    let hasAnyDuration = false;
+    const earliest = tasks.filter(t => t.date && matches(t)).map(t => t.date).sort()[0];
+    const start = from || (earliest ? getRelativeDateString(earliest, -1) : getStatsTodayStr());
+    const end = to || getStatsTodayStr();
+    if (start <= end) {
+      const day = new Date(start + 'T12:00:00');
+      const last = new Date(end + 'T12:00:00');
+      for (; day <= last; day.setDate(day.getDate() + 1)) {
+        const statsDate = formatDate(day);
+        getStatsDayOccurrences(statsDate, true).forEach(occ => {
+          const task = occ.task;
+          if (!matches(task) || (status === 'completed' && !occ.completed) ||
+              (status === 'pending' && occ.completed)) return;
+          uniqueDays.add(statsDate);
+          totalMinutes += occ.mins;
+          if (occ.mins > 0) hasAnyDuration = true;
+          const key = `${task.id}\u0000${occ.occurrenceDate}`;
+          if (added.has(key)) return;
+          added.add(key);
+          items.push({ date: occ.occurrenceDate, task });
+        });
+      }
+    }
+    if (includeArchived) tasks.filter(t => !t.date && matches(t) &&
+      (status === 'all' || (status === 'completed' ? !!t.completed : !t.completed)))
+      .forEach(task => {
+        items.push({ date: '', task });
+        const mins = getTaskDurationMinutes(task) || 0;
+        totalMinutes += mins;
+        if (mins > 0) hasAnyDuration = true;
+      });
+    items.sort((a, b) => ((a.date ? 0 : 1) - (b.date ? 0 : 1)) ||
+      a.date.localeCompare(b.date) ||
+      (a.task.startTime || '99:99').localeCompare(b.task.startTime || '99:99'));
+    return { repetitions: items.length, days: uniqueDays.size, totalDays, totalMinutes, hasAnyDuration, items };
+  }
 
   let repetitions = 0;
   const uniqueDays = new Set();
