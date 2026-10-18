@@ -3577,6 +3577,11 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
       if (e.target.closest('.task-check-btn')) return;
       if (suppressNextCronogramaClick) { e.stopPropagation(); return; }
       e.stopPropagation();
+      if (e.altKey) {
+        e.preventDefault();
+        clearTaskTiming(task, occurrenceDate || task.date);
+        return;
+      }
       // Escritorio: Shift+clic en un bloque = "Ocultar actividad".
       if (e.shiftKey && !isMobile()) {
         e.preventDefault();

@@ -575,7 +575,7 @@ function archiveTaskSelection(entries, anchor, clientY = null, copy = false) {
 function setupTaskMultiSelection() {
   document.addEventListener('pointerdown', () => { taskSelectionClickBlockedUntil = 0; }, true);
   document.addEventListener('click', event => {
-    if (!(event.ctrlKey || event.metaKey) || event.target.closest('.task-check-btn')) return;
+    if (event.altKey || !(event.ctrlKey || event.metaKey) || event.target.closest('.task-check-btn')) return;
     const element = event.target.closest('.task-card[data-id], .cr-task-block[data-task-id]');
     if (!element || element.closest('.task-selection-drag-preview')) return;
     event.preventDefault(); event.stopImmediatePropagation();

@@ -206,10 +206,10 @@ let crDrag = null;
 //   task:  la tarea
 //   e:     el evento pointerdown
 function startCronogramaDrag(block, task, e) {
-  // Solo botón principal y no sobre el checkbox. Con Shift no se arrastra:
-  // Shift+clic oculta la actividad.
+  // Solo botón principal y no sobre el checkbox. Shift y Alt se reservan
+  // para ocultar la actividad y borrar el horario con un clic.
   if (e.button !== 0) return;
-  if (e.shiftKey) return;
+  if (e.shiftKey || e.altKey) return;
   if (e.target.closest('.task-check-btn')) return;
 
   const grid = document.getElementById('cronograma-grid');
@@ -1584,6 +1584,47 @@ function formatTaskTimeText(task) {
   return '';
 }
 
+// Alt+clic elimina el horario sin modificar los demás datos de la tarea.
+async function clearTaskTiming(task, occurrenceDate) {
+  if (!tasks.includes(task) || (!task.startTime && !task.endTime && task.duration == null)) return false;
+  const date = occurrenceDate || task.date;
+  let scope = 'all';
+  if (task.recurrence?.enabled) {
+    scope = await askCronogramaRecurringScope(task, date);
+    if (!['all', 'only-this', 'following'].includes(scope) || !tasks.includes(task)) return false;
+  }
+
+  const split = scope === 'following' ? prepareRecurringSplit(task, date) : null;
+  if (scope === 'following' && !split) return false;
+  pushToUndoStack();
+  let target = task;
+  if (split) {
+    Object.assign(task, split.past);
+    target = split.future;
+    tasks.push(target);
+  } else if (scope === 'only-this') {
+    target = {
+      ...structuredClone(task),
+      id: 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      date,
+      recurrence: null,
+      completed: !!task.completedOccurrences?.includes(date),
+      position: getEffectivePosition(task, date)
+    };
+    delete target.completedOccurrences;
+    delete target.positionOverrides;
+    if (!task.recurrence.exceptions) task.recurrence.exceptions = [];
+    if (!task.recurrence.exceptions.includes(date)) task.recurrence.exceptions.push(date);
+    tasks.push(target);
+  }
+  Object.assign(target, { startTime: null, endTime: null, duration: null });
+  saveTasksToStorage();
+  renderWeeklyCalendar();
+  if (typeof renderBriefcaseTasks === 'function' && isMobile()) renderBriefcaseTasks();
+  if (typeof refreshAlarms === 'function') refreshAlarms();
+  return target;
+}
+
 function createTaskCard(task, occurrenceDate) {
   const card = document.createElement('div');
   card.className = 'task-card';
@@ -1676,6 +1717,11 @@ function createTaskCard(task, occurrenceDate) {
       return;
     }
     e.stopPropagation();
+    if (e.altKey) {
+      e.preventDefault();
+      clearTaskTiming(task, occurrenceDate);
+      return;
+    }
     // Escritorio: Shift+clic en una tarjeta del planner = "Ocultar actividad".
     if (e.shiftKey && !isMobile() && card.closest('.planner-week-wrapper')) {
       e.preventDefault();
@@ -2215,6 +2261,7 @@ let draggedTaskId = null;
 let draggedTaskSourceDate = null;
 
 function handleDragStart(e) {
+  if (e.altKey) { e.preventDefault(); return; }
   draggedTaskId = this.dataset.id;
   draggedTaskSourceDate = this.dataset.occurrenceDate;
   if (typeof getTaskSelectionDragEntries === 'function') {

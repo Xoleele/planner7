@@ -44,6 +44,9 @@ function between(source, start, end) {
       window.handleDragStart = window.handleDragEnd = window.handleTouchStart = window.attachCheckboxLongPressTimer = () => {};
       window.normalizeForSearch = s => s.toLowerCase();
       window.timerStartTime = null;
+      window.pushToUndoStack = window.saveTasksToStorage = window.renderWeeklyCalendar = window.refreshAlarms = () => {};
+      window.askCronogramaRecurringScope = async () => 'cancel';
+      window.getEffectivePosition = task => task.position || 0;
       window.openTaskModal = (id, date) => {
         window.openedTask = { id, date };
         document.getElementById('task-modal').classList.remove('hidden');
@@ -58,6 +61,7 @@ function between(source, start, end) {
     const tasksSource = read('app-3-tareas.js');
     const search = read('app-6-herramientas.js');
     const stats = read('app-4-estadisticas.js');
+    await page.addScriptTag({ content: between(tasksSource, 'async function clearTaskTiming(', 'function createTaskCard(') });
     await page.addScriptTag({ content: between(tasksSource, 'function createTaskCard(', '// Añade a un checkbox') });
     await page.addScriptTag({ content: read('app-7-resultados.js') });
     await page.addScriptTag({ content: between(search, 'function highlightBuscadorMatches(', '// Estado inicial del Buscador') });
@@ -142,6 +146,22 @@ function between(source, start, end) {
     assert.equal(await page.locator('#task-results-body').evaluate(el => el.scrollTop), scroll);
     const button = await page.locator('#task-results-back-btn').boundingBox();
     assert(Math.abs(button.x + button.width / 2 - 195) < 2);
+    // Alt+clic desde resultados no abre el editor y conserva panel y scroll.
+    await page.locator('#task-results-list [data-id="a"]').first().click({modifiers:['Alt']});
+    assert.deepEqual(await page.evaluate(()=>[tasks[0].startTime,tasks[0].endTime,tasks[0].duration]),[null,null,null]);
+    assert(await visible('#task-results-modal'));
+    assert(!await visible('#task-modal'));
+    // Cancelar el alcance recurrente devuelve el panel sin cambiar la serie.
+    await page.evaluate(()=>openStatsDetailPanel('Serie', [{heading:'Un día',occurrences:[{task:tasks[2],dateStr:tasks[2].date}]}]));
+    await page.locator('#task-results-list [data-id="c"]').click({modifiers:['Alt']});
+    assert.equal(await page.evaluate(()=>tasks[2].startTime),'09:00');
+    assert(await visible('#task-results-modal'));
+    await page.evaluate(()=>askCronogramaRecurringScope=async ()=>'only-this');
+    await page.locator('#task-results-list [data-id="c"]').click({modifiers:['Alt']});
+    assert.equal(await page.evaluate(()=>tasks[2].startTime),'09:00');
+    assert.equal(await page.locator('#task-results-list [data-id="c"]').count(),0);
+    assert.equal(await page.locator('#task-results-list .task-card').getAttribute('data-id'),await page.evaluate(()=>tasks.at(-1).id));
+    assert.deepEqual(await page.evaluate(()=>[tasks.at(-1).startTime,tasks.at(-1).endTime,tasks.at(-1).duration]),[null,null,null]);
     await page.locator('#task-results-modal .close-modal-btn').click();
     assert(await visible('#general-stats-modal'));
     await page.evaluate(() => openStatsDetailPanel('Vacío', [{ heading: 'Sin tareas', occurrences: [] }], 'No hubo tareas este día.'));

@@ -96,7 +96,35 @@ function renderTaskResultsPanel() {
       card.classList.remove('activity-hidden', 'dragging');
       card.classList.add('buscador-card');
       card.title = 'Abrir en el editor';
-      card.addEventListener('click', () => openTaskFromResults(task.id, dateStr));
+      card.addEventListener('click', async event => {
+        if (!event.altKey) { openTaskFromResults(task.id, dateStr); return; }
+        event.preventDefault();
+        event.stopPropagation();
+        const context = taskResultsContext;
+        const modal = document.getElementById('task-results-modal');
+        const body = document.getElementById('task-results-body');
+        const scrollTop = body.scrollTop;
+        modal.classList.add('hidden');
+        try {
+          const changed = await clearTaskTiming(task, dateStr);
+          if (changed) {
+            if (context.refresh) context.refresh();
+            else context.getData().sections.forEach(section => section.occurrences.forEach(occurrence => {
+              if (occurrence.task.id !== task.id) return;
+              const applies = changed.recurrence?.enabled
+                ? checkTaskOccurrence(changed, new Date(occurrence.dateStr + 'T00:00:00'))
+                : (occurrence.dateStr || '') === (changed.date || '');
+              if (applies) occurrence.task = changed;
+            }));
+          }
+        } finally {
+          if (taskResultsContext === context) {
+            renderTaskResultsPanel();
+            modal.classList.remove('hidden');
+            body.scrollTop = scrollTop;
+          }
+        }
+      });
       if (decorateCard) decorateCard(card);
       list.appendChild(card);
     });
