@@ -57,20 +57,35 @@ list.push({ ...byId(`task-${ms('2026-07-10')}-1`), id: `task-${ms('2026-10-22')}
 sync();
 assert.equal(byId(`task-${ms('2026-10-22')}-4`).archivedAt, '2026-10-22');
 
-// Asignar fecha la saca de Archivados (se borra el dato); volver a archivar reinicia.
+// Asignar fecha conserva el dato; al volver a archivar retoma el conteo original.
 const antigua = byId(`task-${ms('2026-07-10')}-1`);
 const snapshot = JSON.parse(JSON.stringify(vm.runInContext('tasks', ctx)));
 antigua.date = '2026-10-23';
 sync();
-assert.equal(antigua.archivedAt, undefined);
-now = '2026-10-25T08:00:00';
+assert.equal(antigua.archivedAt, '2026-07-10');
+// Una copia de la tarea mientras tiene fecha no hereda el conteo.
+list.push({ ...antigua, id: `task-${ms('2026-10-22')}-5` });
+sync();
+assert.equal(byId(`task-${ms('2026-10-22')}-5`).archivedAt, undefined);
+now = '2026-11-05T08:00:00';
 antigua.date = '';
 sync();
-assert.equal(antigua.archivedAt, '2026-10-25');
+assert.equal(antigua.archivedAt, '2026-07-10');
+assert.equal(ctx.archivedAgeText(antigua), 'Archivado hace 118 días');
+byId(`task-${ms('2026-10-22')}-5`).date = '';
+sync();
+assert.equal(byId(`task-${ms('2026-10-22')}-5`).archivedAt, '2026-11-05');
+// Una tarea que nunca estuvo archivada empieza a contar al archivarla.
+list.push({ id: `task-${ms('2026-11-01')}-6`, title: 'Siempre con fecha', date: '2026-11-03' });
+sync();
+byId(`task-${ms('2026-11-01')}-6`).date = '';
+sync();
+assert.equal(byId(`task-${ms('2026-11-01')}-6`).archivedAt, '2026-11-05');
+now = '2026-10-25T08:00:00';
 
 // Deshacer (vuelve el arreglo anterior con su fecha) conserva el conteo original.
 set(snapshot);
 sync();
 assert.equal(byId(`task-${ms('2026-07-10')}-1`).archivedAt, '2026-07-10');
 assert.equal(ctx.archivedAgeText(byId(`task-${ms('2026-07-10')}-1`)), 'Archivado hace 107 días');
-console.log('Antigüedad en Archivados verificada: carga, nuevas, editar, copiar, fecha y deshacer.');
+console.log('Antigüedad en Archivados verificada: carga, nuevas, editar, copiar, desarchivar/re-archivar y deshacer.');

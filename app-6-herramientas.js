@@ -3851,9 +3851,10 @@ function setCurrentArchiveList(id) {
 // formas de archivar (arrastrar, editor de tareas, "Agregar tarea"…).
 //
 // También mantiene archivedAt (YYYY-MM-DD, invisible): el día en que la tarea
-// entró a Archivados. Editarla no lo cambia; solo se reinicia si la tarea se
-// crea de nuevo (o se copia) o si recibe una fecha y luego se vuelve a archivar.
-// Las tareas con fecha no lo guardan.
+// entró a Archivados por PRIMERA vez. Editarla no lo cambia, y si se le pone
+// fecha lo conserva: al volver a archivarla retoma el conteo original (que
+// sigue corriendo mientras estuvo en el calendario). Solo se reinicia si la
+// tarea se crea de nuevo o se copia (id nuevo).
 let archiveStateById = null; // id -> ¿estaba archivada la última vez?
 function resetArchiveAssignmentBaseline() { archiveStateById = null; }
 function syncArchiveListAssignments() {
@@ -3868,7 +3869,8 @@ function syncArchiveListAssignments() {
     const before = archiveStateById.get(t.id); // undefined = tarea que no existía
     if (!archived) {
       if (t.archiveList !== undefined) delete t.archiveList;
-      if (t.archivedAt !== undefined) delete t.archivedAt;
+      // Una copia con fecha no hereda el conteo de la tarea original.
+      if (!first && before === undefined && t.archivedAt !== undefined) delete t.archivedAt;
     } else {
       if (!first && t.archiveList === undefined && before !== true) {
         t.archiveList = visible; // null = principal
@@ -3880,7 +3882,7 @@ function syncArchiveListAssignments() {
       } else if (before === undefined) {
         t.archivedAt = today; // tarea nueva o copia
       } else if (!t.archivedAt) {
-        // Recién archivada (o sin dato). Si vuelve con su fecha (Deshacer), se conserva.
+        // Primera vez en Archivados (o sin dato). Si ya lo tenía, se conserva.
         t.archivedAt = before === false ? today : (taskIdCreationDate(t.id) || today);
       }
     }
