@@ -297,7 +297,7 @@ const HABIT_CSS = "/* Tokens y convenciones visuales de Planner7, aislados para 
     undoStack = []; redoStack = [];
     conflict = saving = loading = false;
   }
-  async function open() {
+  async function open(preferredBlockId) {
     if (!currentUser) { showAuthScreen(); return; }
     if (loading || !host.hidden) return;
     if (owner && owner !== currentUser.id) reset();
@@ -334,7 +334,7 @@ const HABIT_CSS = "/* Tokens y convenciones visuales de Planner7, aislados para 
     if (previousData && JSON.stringify(previousData) !== JSON.stringify(state.data)) {
       undoStack = []; redoStack = [];
     }
-    render();
+    render(preferredBlockId);
     previousOverflow = document.body.style.overflow;
     previousInert = app?.inert || false;
     host.hidden = false;
@@ -348,7 +348,22 @@ const HABIT_CSS = "/* Tokens y convenciones visuales de Planner7, aislados para 
     else status(state.revision !== null ? 'Guardado en tu cuenta' : '');
     if (state.pending && !cloudError) flush();
   }
-  button.addEventListener('click', open);
+  button.addEventListener('click', () => open());
+  // Desde los resultados del Buscador: abrir Hábitos con la nota de un cuadrito.
+  // detail.done(abierto) avisa si el tracker quedó abierto.
+  host.addEventListener('planner7:open-habit-note', async event => {
+    const { blockId, habitId, date, done } = event.detail || {};
+    let opened = false;
+    try {
+      await open(blockId);
+      opened = !host.hidden;
+      if (opened && ui && state?.data?.blocks?.some(block => block.id === blockId)) ui.openNote(blockId, habitId, date);
+    } catch (error) {
+      console.warn('Abrir nota de hábito:', error);
+    } finally {
+      if (typeof done === 'function') done(opened);
+    }
+  });
   host.addEventListener('planner7:escape', event => {
     if (!host.hidden && ui) { event.preventDefault(); ui.handleEscape(); }
   });
@@ -3929,6 +3944,7 @@ return {
   focus: () => { refreshToday(); syncScrollbar(); document.getElementById('close-tracker').focus(); },
   closeDialogs,
   handleEscape,
+  openNote: (blockId, habitId, date) => openCellNote({ dataset: { block: blockId, habit: habitId, date } }),
   destroy: () => { closeDialogs(); controller.abort(); clearInterval(refreshTimer); resizeObserver.disconnect(); habitIconResizeObserver.disconnect(); observedHabitIcons.clear(); }
 };
 }

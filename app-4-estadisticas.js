@@ -746,7 +746,8 @@ function renderLineChartSVG(occurrences, dates, groupedList, activeTags) {
 // Representación de cada día estadístico: [fecha + límite, día siguiente + límite).
 // Solo cambia la lectura de las tareas. occurrenceDate conserva la fecha real,
 // necesaria para abrir y editar correctamente una ocurrencia recurrente.
-function getStatsDayOccurrences(dateStr, includeNoDuration = false) {
+// source: tareas a revisar (por defecto, todas; el Buscador pasa solo las que coinciden).
+function getStatsDayOccurrences(dateStr, includeNoDuration = false, source = tasks) {
   const cutoff = parseStatsDayCutoff(statsDayCutoffTime) || 0;
   const result = [];
   const sourceDates = cutoff === 0 ? [dateStr]
@@ -754,7 +755,7 @@ function getStatsDayOccurrences(dateStr, includeNoDuration = false) {
   sourceDates.forEach(sourceDate => {
     const sourceDay = new Date(sourceDate + 'T12:00:00');
     const dayOffset = Math.round((sourceDay - new Date(dateStr + 'T12:00:00')) / 86400000);
-    tasks.forEach(task => {
+    source.forEach(task => {
       if (!task.recurrence?.enabled && task.date !== sourceDate) return;
       if (task.recurrence?.enabled && task.date && task.date > sourceDate) return;
       if (!checkTaskOccurrence(task, sourceDay)) return;

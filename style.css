@@ -6366,6 +6366,59 @@ body.alarms-disabled .time-input-wrapper.has-bell .time-clear-btn {
 .buscador-period-row .form-group { margin-bottom: 18px; }
 .buscador-period-row .form-group { min-width: 0; }
 
+/* Buscador: ayuda bajo la palabra clave. */
+.buscador-hint {
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.buscador-hint b { font-weight: 600; color: var(--text-main); white-space: nowrap; }
+
+/* Buscador: tarjetas de notas (del día y de hábitos) en los resultados. */
+.buscador-list .buscador-note-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
+  background: #fafaf8;
+  color: var(--text-main);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.buscador-list .buscador-note-card:hover { background: #f3f3f0; }
+.buscador-note-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.buscador-note-head svg { flex-shrink: 0; }
+.buscador-note-habit { text-transform: none; letter-spacing: 0; color: var(--text-main); }
+.buscador-note-text {
+  font-size: 13px;
+  line-height: 1.45;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow-wrap: anywhere;
+}
+.buscador-card.buscador-note-card mark.buscador-hl {
+  background-color: #ffe9a8;
+  color: inherit;
+  font-weight: 700;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
 /* Buscador: palabra encontrada resaltada dentro de las tarjetas. */
 .buscador-card mark.buscador-hl {
   background-color: rgba(255, 255, 255, 0.35);

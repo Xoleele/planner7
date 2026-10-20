@@ -15,12 +15,12 @@ function taskResultsDateLabel(dateStr) {
 
 function taskResultsSectionsFromItems(items) {
   const byDate = new Map();
-  items.forEach(({ date, task }) => {
+  items.forEach(({ date, task, note }) => {
     const key = date || null;
     if (!byDate.has(key)) byDate.set(key, {
       heading: taskResultsDateLabel(key), archived: !key, occurrences: []
     });
-    byDate.get(key).occurrences.push({ task, dateStr: key });
+    byDate.get(key).occurrences.push(note ? { note, dateStr: key } : { task, dateStr: key });
   });
   return [...byDate.values()];
 }
@@ -90,7 +90,14 @@ function renderTaskResultsPanel() {
     const occurrences = taskResultsSortDesc && !section.archived
       ? section.occurrences.slice().reverse() : section.occurrences;
     if (!occurrences.length) appendEmpty();
-    occurrences.forEach(({ task, dateStr }) => {
+    occurrences.forEach(({ task, dateStr, note }) => {
+      if (note) {
+        const noteCard = createNoteResultCard(note);
+        noteCard.addEventListener('click', () => openNoteFromResults(note, dateStr));
+        if (decorateCard) decorateCard(noteCard);
+        list.appendChild(noteCard);
+        return;
+      }
       const card = createTaskCard(task, dateStr).cloneNode(true);
       card.draggable = false;
       card.classList.remove('activity-hidden', 'dragging');
@@ -131,37 +138,95 @@ function renderTaskResultsPanel() {
   });
 }
 
-function openTaskFromResults(taskId, dateStr) {
+// Tarjeta de una nota (del día o de un hábito) en los resultados del Buscador.
+function createNoteResultCard(note) {
+  const card = document.createElement('div');
+  card.className = 'buscador-card buscador-note-card';
+  card.dataset.kind = note.kind;
+  card.title = note.kind === 'habit' ? 'Abrir la nota en Hábitos' : 'Abrir la nota del día';
+  const head = document.createElement('div');
+  head.className = 'buscador-note-head';
+  head.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+  const label = document.createElement('span');
+  label.textContent = note.kind === 'habit' ? 'Nota de hábito · ' : 'Nota del día';
+  head.appendChild(label);
+  if (note.kind === 'habit') {
+    const habit = document.createElement('span');
+    habit.className = 'buscador-note-habit';
+    habit.textContent = note.habitName;
+    head.appendChild(habit);
+  }
+  const text = document.createElement('div');
+  text.className = 'buscador-note-text';
+  text.textContent = note.snippet || note.text;
+  card.append(head, text);
+  return card;
+}
+
+// Abre algo encima de los resultados (editor de tarea, nota del día o Hábitos)
+// y vuelve a los resultados, actualizados, cuando ya no queda nada abierto.
+// open(ctl): ctl.restore() vuelve de inmediato; con { waitReady: true } no se
+// vuelve hasta que el que abre llame a ctl.ready() (aperturas asíncronas).
+function openOverResults(open, { waitReady = false } = {}) {
   const context = taskResultsContext;
-  if (!context || !tasks.some(task => task.id === taskId)) return;
+  if (!context) return;
   if (taskResultsEditorObserver) taskResultsEditorObserver.disconnect();
   const modal = document.getElementById('task-results-modal');
   const body = document.getElementById('task-results-body');
   const scrollTop = body.scrollTop;
   const backgrounds = visibleTaskResultsModals();
   backgrounds.forEach(el => el.classList.add('hidden'));
-  openTaskModal(taskId, dateStr || null);
-
+  const habits = document.getElementById('habitos-tool');
+  let ready = !waitReady;
   let pending = false;
-  const observer = new MutationObserver(() => {
+  const restore = () => {
+    if (taskResultsContext !== context) return;
+    observer.disconnect();
+    if (taskResultsEditorObserver === observer) taskResultsEditorObserver = null;
+    if (context.refresh) context.refresh();
+    renderTaskResultsPanel();
+    backgrounds.forEach(el => el.classList.remove('hidden'));
+    modal.classList.remove('hidden');
+    body.scrollTop = scrollTop;
+  };
+  const check = () => {
     if (pending) return;
     pending = true;
     setTimeout(() => {
       pending = false;
-      if (taskResultsContext !== context) return;
+      if (!ready || taskResultsContext !== context) return;
       // Esperar al editor y a sus confirmaciones (recurrentes, eliminar, etc.).
-      if (visibleTaskResultsModals().length) return;
-      observer.disconnect();
-      taskResultsEditorObserver = null;
-      if (context.refresh) context.refresh();
-      renderTaskResultsPanel();
-      backgrounds.forEach(el => el.classList.remove('hidden'));
-      modal.classList.remove('hidden');
-      body.scrollTop = scrollTop;
+      if (visibleTaskResultsModals().length || (habits && !habits.hidden)) return;
+      restore();
     }, 0);
-  });
-  observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
+  };
+  const observer = new MutationObserver(check);
+  observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class', 'style', 'hidden'] });
   taskResultsEditorObserver = observer;
+  open({ restore, ready: () => { ready = true; check(); } });
+}
+
+function openTaskFromResults(taskId, dateStr) {
+  if (!taskResultsContext || !tasks.some(task => task.id === taskId)) return;
+  openOverResults(() => openTaskModal(taskId, dateStr || null));
+}
+
+// Nota del día: su ventana de siempre. Nota de hábito: se abre Hábitos con esa
+// nota encima; al cerrar Hábitos se vuelve a los resultados.
+function openNoteFromResults(note, dateStr) {
+  if (!taskResultsContext || !dateStr) return;
+  if (note.kind !== 'habit') {
+    openOverResults(() => openNotesModal(dateStr));
+    return;
+  }
+  openOverResults(ctl => {
+    const host = document.getElementById('habitos-tool');
+    if (!host) { ctl.restore(); return; }
+    host.dispatchEvent(new CustomEvent('planner7:open-habit-note', { detail: {
+      blockId: note.blockId, habitId: note.habitId, date: dateStr,
+      done: opened => { if (opened) ctl.ready(); else ctl.restore(); }
+    } }));
+  }, { waitReady: true });
 }
 
 document.addEventListener('click', (e) => {

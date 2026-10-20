@@ -1583,13 +1583,14 @@ function setupTimeMaskInput(inputEl) {
 // --- Wire Up Event Listeners ---
 // Abre el modal del buscador y reinicia su estado. Reutilizado por el botón
 // de escritorio y por el ítem del menú de usuario (móvil).
+// Abre con los últimos filtros usados y los resultados ya calculados.
 function openBuscadorModal() {
-  document.getElementById('buscador-results').classList.add('hidden');
-  if (typeof resetBuscadorView === 'function') resetBuscadorView();
+  resetBuscadorView();
   document.getElementById('buscador-keyword').value = '';
-  document.getElementById('buscador-period').value = 'last10';
-  document.getElementById('buscador-custom-range').classList.add('hidden');
+  applyBuscadorFilters();
   document.getElementById('buscador-modal').classList.remove('hidden');
+  runBuscadorCalculation();
+  refreshBuscadorHabitCloud(); // notas de hábitos más recientes (recalcula al llegar)
   document.getElementById('buscador-keyword').focus();
 }
 

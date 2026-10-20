@@ -73,9 +73,9 @@ assert.equal(details.sections[0].occurrences.find(o=>o.task.id==='early').dateSt
 const dateBefore=tasks.map(t=>[t.date,t.startTime,t.endTime,t.duration]);
 const search=read('app-6-herramientas.js');
 Object.assign(ctx, {getBuscadorDateRange:()=>({from:'2026-10-12',to:'2026-10-12'}),
-  countDaysInRange:()=>1, normalizeForSearch:text=>(text||'').toLowerCase(),
-  buscadorTextMatches:(text,kw)=>(text||'').toLowerCase().includes(kw)});
-install(ctx,search,'computeBuscadorStats');
+  countDaysInRange:()=>1, normalizeForSearch:text=>(text||'').toLowerCase()});
+vm.runInContext('var BUSCADOR_FUTURE_DAYS = 30;', ctx);
+for(const name of ['parseBuscadorQuery','buscadorMatchesQuery','buscadorTaskTexts','dateInRange','collectBuscadorNotes','computeBuscadorStats']) install(ctx,search,name);
 const found=ctx.computeBuscadorStats('', 'custom', {title:true}, 'all');
 assert.equal(found.totalMinutes,480);
 assert.equal(found.days,1);

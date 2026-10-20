@@ -1626,30 +1626,36 @@ function setupEventListeners() {
     });
   }
 
-  // Mostrar/ocultar rango personalizado según el periodo
-  const buscadorPeriodSelect = document.getElementById('buscador-period');
-  if (buscadorPeriodSelect) {
-    buscadorPeriodSelect.addEventListener('change', () => {
-      const customRange = document.getElementById('buscador-custom-range');
-      customRange.classList.toggle('hidden', buscadorPeriodSelect.value !== 'custom');
+  // Los resultados se actualizan solos: al cambiar un filtro, de inmediato; al
+  // escribir la palabra clave, cuando se deja de teclear. Los filtros se recuerdan.
+  const buscadorSearchView = document.getElementById('buscador-search-view');
+  if (buscadorSearchView) {
+    buscadorSearchView.addEventListener('change', (e) => {
+      if (e.target.id === 'buscador-keyword') return;
+      if (e.target.id === 'buscador-period') {
+        document.getElementById('buscador-custom-range')
+          .classList.toggle('hidden', e.target.value !== 'custom');
+      }
+      saveBuscadorFilters();
+      runBuscadorCalculation();
     });
-  }
-
-  const buscadorAcceptBtn = document.getElementById('buscador-accept-btn');
-  if (buscadorAcceptBtn) {
-    buscadorAcceptBtn.addEventListener('click', runBuscadorCalculation);
   }
   const buscadorViewBtn = document.getElementById('buscador-view-btn');
   if (buscadorViewBtn) {
-    buscadorViewBtn.addEventListener('click', () => showBuscadorResultsView());
+    buscadorViewBtn.addEventListener('click', () => {
+      if (buscadorTypingTimer) runBuscadorCalculation();
+      if (buscadorLastItems.length) showBuscadorResultsView();
+    });
   }
-  // Enter en la palabra clave = Buscar.
+  // Enter en la palabra clave = actualizar ya y ver los resultados.
   const buscadorKeywordInput = document.getElementById('buscador-keyword');
   if (buscadorKeywordInput) {
+    buscadorKeywordInput.addEventListener('input', scheduleBuscadorCalculation);
     buscadorKeywordInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.isComposing) {
         e.preventDefault();
         runBuscadorCalculation();
+        if (buscadorLastItems.length) showBuscadorResultsView();
       }
     });
   }
@@ -2521,39 +2527,40 @@ function normalizeForSearch(str) {
     .replace(/\p{Diacritic}/gu, '');
 }
 
+// "Desde siempre" llega también al futuro: las tareas sueltas, todas; las
+// repeticiones de tareas recurrentes, hasta BUSCADOR_FUTURE_DAYS días desde hoy
+// (se repiten sin fin). "Próximos 30 días" usa el mismo número.
+const BUSCADOR_FUTURE_DAYS = 30;
+// Espera tras la última tecla antes de actualizar los resultados.
+const BUSCADOR_TYPING_DELAY = 500;
+
 // Devuelve el rango [from, to] (YYYY-MM-DD inclusive) según el periodo.
+// Semana, mes y año llegan hasta su último día (incluyen lo que viene).
 // Para 'custom' lee los inputs de fecha. Si un extremo falta, queda como null.
 function getBuscadorDateRange(period) {
-  const today = new Date(getStatsTodayStr() + 'T12:00:00');
-  today.setHours(12, 0, 0, 0);
-  const toStr = formatDate(today);
-
-  if (period === 'today') {
-    return { from: toStr, to: toStr };
-  }
-  if (period === 'all') {
-    // Desde siempre: sin fecha inicial, hasta hoy.
-    return { from: null, to: toStr };
+  const todayStr = getStatsTodayStr();
+  const today = new Date(todayStr + 'T12:00:00');
+  if (period === 'today') return { from: todayStr, to: todayStr };
+  if (period === 'all') return { from: null, to: null };
+  if (period === 'upcoming') {
+    return { from: todayStr, to: getRelativeDateString(todayStr, BUSCADOR_FUTURE_DAYS - 1) };
   }
   if (period === 'last10' || period === 'last30') {
     const days = period === 'last10' ? 10 : 30;
-    const from = new Date(today);
-    from.setDate(from.getDate() - (days - 1));
-    return { from: formatDate(from), to: toStr };
+    return { from: getRelativeDateString(todayStr, -(days - 1)), to: todayStr };
   }
   if (period === 'week') {
-    const from = new Date(today);
-    const dow = (from.getDay() + 6) % 7;
-    from.setDate(from.getDate() - dow);
-    return { from: formatDate(from), to: toStr };
+    const from = getRelativeDateString(todayStr, -((today.getDay() + 6) % 7));
+    return { from, to: getRelativeDateString(from, 6) };
   }
   if (period === 'month') {
-    const from = new Date(today.getFullYear(), today.getMonth(), 1, 12);
-    return { from: formatDate(from), to: toStr };
+    return {
+      from: formatDate(new Date(today.getFullYear(), today.getMonth(), 1, 12)),
+      to: formatDate(new Date(today.getFullYear(), today.getMonth() + 1, 0, 12))
+    };
   }
   if (period === 'year') {
-    const from = new Date(today.getFullYear(), 0, 1, 12);
-    return { from: formatDate(from), to: toStr };
+    return { from: `${today.getFullYear()}-01-01`, to: `${today.getFullYear()}-12-31` };
   }
   if (period === 'custom') {
     const fromInput = document.getElementById('buscador-date-from').value || null;
@@ -2569,8 +2576,6 @@ function dateInRange(dateStr, from, to) {
   return true;
 }
 
-// Calcula estadísticas sobre tareas COMPLETADAS cuyo TÍTULO contiene la palabra
-// clave, dentro del rango de fechas.
 // Cuenta los días del rango [from, to] inclusive. Devuelve null si falta algún extremo.
 function countDaysInRange(from, to) {
   if (!from || !to) return null;
@@ -2580,152 +2585,274 @@ function countDaysInRange(from, to) {
   return diff >= 0 ? diff + 1 : null;
 }
 
-// ¿El texto contiene la palabra clave (ya normalizada)? El comienzo y el final
-// del texto cuentan como un espacio: " s." encuentra "hola s." y también un
-// texto que empieza por "s."; "sol " encuentra un texto que termina en "sol".
-function buscadorTextMatches(text, kw) {
-  return (' ' + normalizeForSearch(text) + ' ').includes(kw);
+// ¿Algún texto cumple la consulta? (ver parseBuscadorQuery). Cada texto se
+// rodea de un espacio al comienzo y al final: " sol" encuentra un texto que
+// empieza por "sol" y "sol " uno que termina en "sol".
+function buscadorMatchesQuery(query, texts) {
+  const padded = texts.filter(Boolean).map(text => ' ' + normalizeForSearch(text) + ' ');
+  const has = term => padded.some(text => text.includes(term));
+  if (query.excludes.some(has)) return false;
+  return !query.groups.length || query.groups.some(group => group.every(has));
 }
 
+// Textos de una tarea en los que se busca, según "Buscar en".
+function buscadorTaskTexts(task, fields) {
+  const texts = [];
+  if (fields.title) texts.push(task.title);
+  if (fields.tag) {
+    const tag = tags.find(t => t.id === task.tagId);
+    if (tag) texts.push(tag.name);
+  }
+  if (fields.desc) texts.push(task.description);
+  return texts;
+}
+
+// ── Notas ──
+// Nota en texto plano para buscar y mostrar: sin "# " de títulos y con las
+// líneas unidas por " · ".
+function buscadorPlainNote(text) {
+  return (text || '').toString().replace(/\r\n?/g, '\n').split('\n')
+    .map(line => line.replace(/^# /, '').trim()).filter(Boolean).join(' · ');
+}
+
+// Fragmento de una nota larga alrededor de la primera coincidencia.
+function buscadorNoteSnippet(text, terms, max = 220) {
+  if (text.length <= max) return text;
+  const norm = normalizeForSearch(text);
+  let at = -1;
+  terms.forEach(term => {
+    const i = norm.indexOf(term.trim());
+    if (term.trim() && i >= 0 && (at < 0 || i < at)) at = i;
+  });
+  const start = at > 60 ? at - 60 : 0;
+  return (start > 0 ? '…' : '') + text.slice(start, start + max).trim() +
+    (start + max < text.length ? '…' : '');
+}
+
+// Historial de hábitos para buscar sus notas. Se usa la copia de este
+// dispositivo (la mantiene app-8-habitos.js) salvo que la nube tenga una
+// revisión más nueva; la de la nube se lee al abrir el Buscador.
+let buscadorHabitCloud = null; // { userId, data, revision }
+function readBuscadorHabitCache() {
+  if (!currentUser) return null;
+  try {
+    const raw = JSON.parse(localStorage.getItem(PLANNER7_HABIT_CACHE_PREFIX + currentUser.id));
+    return raw?.user_id === currentUser.id && isValidHabitHistory(raw.data) ? raw : null;
+  } catch (e) { return null; }
+}
+function getBuscadorHabitData() {
+  const cached = readBuscadorHabitCache();
+  const cloud = buscadorHabitCloud && buscadorHabitCloud.userId === currentUser?.id ? buscadorHabitCloud : null;
+  if (cached && (!cloud || cached.pending || (cached.revision ?? 0) >= (cloud.revision ?? 0))) return cached.data;
+  return cloud ? cloud.data : null;
+}
+async function refreshBuscadorHabitCloud() {
+  if (!currentUser) return;
+  const uid = currentUser.id;
+  try {
+    const { data, error } = await sb.from('habit_data').select('data,revision').eq('user_id', uid).maybeSingle();
+    if (error || currentUser?.id !== uid) return;
+    buscadorHabitCloud = data && isValidHabitHistory(data.data)
+      ? { userId: uid, data: data.data, revision: data.revision } : null;
+    if (!document.getElementById('buscador-modal')?.classList.contains('hidden')) runBuscadorCalculation();
+  } catch (e) {}
+}
+
+// Notas del día y de hábitos que cumplen la consulta dentro del rango.
+// include: { dayNotes, habitNotes }. En las de hábitos también cuenta el nombre del hábito.
+function collectBuscadorNotes(query, from, to, include = {}) {
+  const found = [];
+  if (include.dayNotes && notes) {
+    Object.entries(notes).forEach(([date, text]) => {
+      if (!text || !dateInRange(date, from, to)) return;
+      const plain = buscadorPlainNote(text);
+      if (!buscadorMatchesQuery(query, [plain])) return;
+      found.push({ date, note: { kind: 'day', text: plain, snippet: buscadorNoteSnippet(plain, query.highlight) } });
+    });
+  }
+  const habitData = include.habitNotes ? getBuscadorHabitData() : null;
+  (habitData?.blocks || []).forEach(block => {
+    Object.entries(block.notes || {}).forEach(([key, text]) => {
+      const date = key.slice(0, 10), habitId = key.slice(11);
+      const habit = (block.habits || []).find(h => h && h.id === habitId);
+      if (!habit || !text || !dateInRange(date, from, to)) return;
+      const plain = buscadorPlainNote(text);
+      if (!buscadorMatchesQuery(query, [plain, habit.name])) return;
+      found.push({ date, note: {
+        kind: 'habit', text: plain, snippet: buscadorNoteSnippet(plain, query.highlight),
+        habitName: habit.name || 'Hábito', blockId: block.id, habitId
+      } });
+    });
+  });
+  return found;
+}
+
+// Busca según la consulta, el periodo y el estado. Las tareas se leen por día
+// de estadísticas (respeta la hora límite del día, igual que Estadísticas).
 // status: 'completed' | 'pending' | 'all'. includeArchived: suma también las
 // tareas de Archivados (no tienen fecha: no filtran por periodo ni cuentan en
 // "Días"; en la lista van al final con el encabezado "Archivadas").
-function computeBuscadorStats(keyword, period, fields = { title: true }, status = 'completed', includeArchived = false) {
-  const kw = normalizeForSearch(keyword);
+// include: { dayNotes, habitNotes } — las notas no cuentan en los totales.
+function computeBuscadorStats(keyword, period, fields = { title: true }, status = 'completed', includeArchived = false, include = {}) {
+  const query = parseBuscadorQuery(keyword);
   const { from, to } = getBuscadorDateRange(period);
-  const totalDays = countDaysInRange(from, to);
+  const todayStr = getStatsTodayStr();
+  const cutoff = parseStatsDayCutoff(statsDayCutoffTime) || 0;
 
-  if ((parseStatsDayCutoff(statsDayCutoffTime) || 0) > 0) {
-    const matches = task => {
-      if (!kw) return true;
-      const tag = fields.tag ? tags.find(t => t.id === task.tagId) : null;
-      return (fields.title && buscadorTextMatches(task.title, kw)) ||
-        (fields.tag && tag && buscadorTextMatches(tag.name, kw)) ||
-        (fields.desc && buscadorTextMatches(task.description, kw));
-    };
-    const items = [];
-    const uniqueDays = new Set();
-    const added = new Set();
-    let totalMinutes = 0;
-    let hasAnyDuration = false;
-    const earliest = tasks.filter(t => t.date && matches(t)).map(t => t.date).sort()[0];
-    const start = from || (earliest ? getRelativeDateString(earliest, -1) : getStatsTodayStr());
-    const end = to || getStatsTodayStr();
-    if (start <= end) {
-      const day = new Date(start + 'T12:00:00');
-      const last = new Date(end + 'T12:00:00');
-      for (; day <= last; day.setDate(day.getDate() + 1)) {
-        const statsDate = formatDate(day);
-        getStatsDayOccurrences(statsDate, true).forEach(occ => {
-          const task = occ.task;
-          if (!matches(task) || (status === 'completed' && !occ.completed) ||
-              (status === 'pending' && occ.completed)) return;
-          uniqueDays.add(statsDate);
-          totalMinutes += occ.mins;
-          if (occ.mins > 0) hasAnyDuration = true;
-          const key = `${task.id}\u0000${occ.occurrenceDate}`;
-          if (added.has(key)) return;
-          added.add(key);
-          items.push({ date: occ.occurrenceDate, task });
-        });
-      }
+  const matched = tasks.filter(task => buscadorMatchesQuery(query, buscadorTaskTexts(task, fields)));
+  const recurring = matched.filter(task => task.recurrence?.enabled && task.date);
+  const byDate = new Map(); // tareas sueltas por fecha: cada día solo revisa las suyas
+  matched.forEach(task => {
+    if (task.recurrence?.enabled || !task.date) return;
+    if (!byDate.has(task.date)) byDate.set(task.date, []);
+    byDate.get(task.date).push(task);
+  });
+  const singleDates = [...byDate.keys()].sort();
+  const firstDate = singleDates.concat(recurring.map(task => task.date)).sort()[0];
+  const futureEnd = getRelativeDateString(todayStr, BUSCADOR_FUTURE_DAYS);
+  const lastSingle = singleDates.length ? getRelativeDateString(singleDates.at(-1), 1) : null;
+  const start = from || (firstDate ? getRelativeDateString(firstDate, -1) : todayStr);
+  const end = to || (lastSingle && lastSingle > futureEnd ? lastSingle : futureEnd);
+
+  const items = [];
+  const uniqueDays = new Set();
+  const added = new Set();
+  let totalMinutes = 0;
+  let hasAnyDuration = false;
+  if (start <= end) {
+    const day = new Date(start + 'T12:00:00');
+    const last = new Date(end + 'T12:00:00');
+    for (; day <= last; day.setDate(day.getDate() + 1)) {
+      const statsDate = formatDate(day);
+      const near = cutoff
+        ? [getRelativeDateString(statsDate, -1), statsDate, getRelativeDateString(statsDate, 1)]
+        : [statsDate];
+      const source = recurring.concat(...near.map(date => byDate.get(date) || []));
+      if (!source.length) continue;
+      getStatsDayOccurrences(statsDate, true, source).forEach(occ => {
+        const task = occ.task;
+        if ((status === 'completed' && !occ.completed) || (status === 'pending' && occ.completed)) return;
+        uniqueDays.add(statsDate);
+        totalMinutes += occ.mins;
+        if (occ.mins > 0) hasAnyDuration = true;
+        const key = `${task.id}\u0000${occ.occurrenceDate}`;
+        if (added.has(key)) return;
+        added.add(key);
+        items.push({ date: occ.occurrenceDate, task });
+      });
     }
-    if (includeArchived) tasks.filter(t => !t.date && matches(t) &&
-      (status === 'all' || (status === 'completed' ? !!t.completed : !t.completed)))
+  }
+  if (includeArchived) {
+    matched.filter(task => !task.date &&
+      (status === 'all' || (status === 'completed' ? !!task.completed : !task.completed)))
       .forEach(task => {
         items.push({ date: '', task });
         const mins = getTaskDurationMinutes(task) || 0;
         totalMinutes += mins;
         if (mins > 0) hasAnyDuration = true;
       });
-    items.sort((a, b) => ((a.date ? 0 : 1) - (b.date ? 0 : 1)) ||
-      a.date.localeCompare(b.date) ||
-      (a.task.startTime || '99:99').localeCompare(b.task.startTime || '99:99'));
-    return { repetitions: items.length, days: uniqueDays.size, totalDays, totalMinutes, hasAnyDuration, items };
   }
 
-  let repetitions = 0;
-  const uniqueDays = new Set();
-  let totalMinutes = 0;
-  let hasAnyDuration = false;
-  const items = []; // { date, task } de cada ocurrencia encontrada
-
-  tasks.forEach(task => {
-    // Coincide si la palabra clave aparece (sin distinguir tildes ni
-    // mayúsculas) en alguno de los campos marcados en "Buscar en".
-    if (kw) {
-      const tag = fields.tag ? tags.find(t => t.id === task.tagId) : null;
-      const hit = (fields.title && buscadorTextMatches(task.title, kw)) ||
-        (fields.tag && tag && buscadorTextMatches(tag.name, kw)) ||
-        (fields.desc && buscadorTextMatches(task.description, kw));
-      if (!hit) return;
+  // "Días": en un periodo que incluye hoy y sigue hacia el futuro, el
+  // porcentaje se calcula sobre los días ya transcurridos.
+  let totalDays = null;
+  let days = uniqueDays.size;
+  if (from && to) {
+    if (from <= todayStr && todayStr < to) {
+      totalDays = countDaysInRange(from, todayStr);
+      days = [...uniqueDays].filter(date => date <= todayStr).length;
+    } else {
+      totalDays = countDaysInRange(from, to);
     }
+  }
 
-    const addOccurrence = (dateStr, done) => {
-      if (!dateInRange(dateStr, from, to)) return;
-      if (status === 'completed' && !done) return;
-      if (status === 'pending' && done) return;
-      items.push({ date: dateStr, task });
-    };
-
-    if (task.recurrence && task.recurrence.enabled) {
-      const doneDates = new Set(task.completedOccurrences || []);
-      if (status !== 'pending') doneDates.forEach(d => addOccurrence(d, true));
-      if (status !== 'completed' && task.date) {
-        // Ocurrencias no completadas: recorrer los días del rango (sin
-        // extremo final, hasta hoy) en que la tarea se repite.
-        const start = new Date(((from && from > task.date) ? from : task.date) + 'T12:00:00');
-        const end = new Date((to || formatDate(new Date())) + 'T12:00:00');
-        for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          const ds = formatDate(d);
-          if (!doneDates.has(ds) && checkTaskOccurrence(task, d)) addOccurrence(ds, false);
-        }
-      }
-    } else if (task.date) {
-      addOccurrence(task.date, !!task.completed);
-    } else if (includeArchived) {
-      const done = !!task.completed;
-      if (status === 'completed' && !done) return;
-      if (status === 'pending' && done) return;
-      items.push({ date: '', task });
-    }
-  });
-
-  // Orden cronológico: por fecha y, dentro del día, por hora de inicio
-  // (las que no tienen hora van al final del día).
-  items.sort((a, b) => ((a.date ? 0 : 1) - (b.date ? 0 : 1)) ||
+  const noteItems = collectBuscadorNotes(query, from, to, include);
+  // Orden: por fecha; en cada día, tareas por hora de inicio (sin hora al
+  // final) y luego notas (la del día antes que las de hábitos).
+  const rank = item => item.note ? (item.note.kind === 'day' ? 1 : 2) : 0;
+  const all = items.concat(noteItems).sort((a, b) =>
+    ((a.date ? 0 : 1) - (b.date ? 0 : 1)) ||
     a.date.localeCompare(b.date) ||
-    (a.task.startTime || '99:99').localeCompare(b.task.startTime || '99:99') ||
-    (a.task.position || 0) - (b.task.position || 0));
+    rank(a) - rank(b) ||
+    (a.task?.startTime || '99:99').localeCompare(b.task?.startTime || '99:99') ||
+    (a.task?.position || 0) - (b.task?.position || 0) ||
+    (a.note?.habitName || '').localeCompare(b.note?.habitName || ''));
 
-  // Totales a partir de lo encontrado.
-  items.forEach(({ date, task }) => {
-    repetitions += 1;
-    if (date) uniqueDays.add(date);
-    const minutes = getTaskDurationMinutes(task) || 0;
-    if (minutes > 0) {
-      totalMinutes += minutes;
-      hasAnyDuration = true;
-    }
-  });
-
-  return { repetitions, days: uniqueDays.size, totalDays, totalMinutes, hasAnyDuration, items };
+  return { repetitions: items.length, days, totalDays, totalMinutes, hasAnyDuration,
+    items: all, notes: noteItems.length, query };
 }
 
-function runBuscadorCalculation() {
-  // Sin trim: los espacios también cuentan (p. ej. " sol" busca palabras que empiezan por "sol").
-  const keyword = document.getElementById('buscador-keyword').value;
-  const period = document.getElementById('buscador-period').value;
-  const isOn = (id) => { const el = document.getElementById(id); return !!(el && el.checked); };
-  const fields = {
-    title: isOn('buscador-in-title'),
-    tag: isOn('buscador-in-tag'),
-    desc: isOn('buscador-in-desc')
+// ── Formulario ──
+function readBuscadorForm() {
+  const isOn = (id) => !!document.getElementById(id)?.checked;
+  return {
+    keyword: document.getElementById('buscador-keyword').value,
+    period: document.getElementById('buscador-period').value,
+    fields: { title: isOn('buscador-in-title'), tag: isOn('buscador-in-tag'), desc: isOn('buscador-in-desc') },
+    status: document.getElementById('buscador-status')?.value || 'all',
+    includeArchived: isOn('buscador-include-archived'),
+    include: { dayNotes: isOn('buscador-include-notes'), habitNotes: isOn('buscador-include-habit-notes') }
   };
-  const statusSel = document.getElementById('buscador-status');
-  const status = statusSel ? statusSel.value : 'completed';
-  const stats = computeBuscadorStats(keyword, period, fields, status, isOn('buscador-include-archived'));
-  buscadorLastQuery = { keyword, fields };
+}
+
+// Filtros recordados (en este dispositivo, por cuenta). La palabra clave no se recuerda.
+const BUSCADOR_DEFAULT_FILTERS = {
+  period: 'all', status: 'all', from: '', to: '',
+  title: true, tag: true, desc: false, archived: true, dayNotes: true, habitNotes: true
+};
+function buscadorFiltersKey() {
+  return 'buscador_filtros_' + (currentUser ? currentUser.id : 'anon');
+}
+function saveBuscadorFilters() {
+  const form = readBuscadorForm();
+  const filters = {
+    period: form.period, status: form.status,
+    from: document.getElementById('buscador-date-from')?.value || '',
+    to: document.getElementById('buscador-date-to')?.value || '',
+    title: form.fields.title, tag: form.fields.tag, desc: form.fields.desc,
+    archived: form.includeArchived, dayNotes: form.include.dayNotes, habitNotes: form.include.habitNotes
+  };
+  try { localStorage.setItem(buscadorFiltersKey(), JSON.stringify(filters)); } catch (e) {}
+}
+function applyBuscadorFilters() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(buscadorFiltersKey())); } catch (e) {}
+  const f = { ...BUSCADOR_DEFAULT_FILTERS, ...(saved && typeof saved === 'object' ? saved : {}) };
+  const select = (id, value, fallback) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = value;
+    if (el.value !== value) el.value = fallback; // opción que ya no existe
+  };
+  select('buscador-period', f.period, BUSCADOR_DEFAULT_FILTERS.period);
+  select('buscador-status', f.status, BUSCADOR_DEFAULT_FILTERS.status);
+  const set = (id, prop, value) => { const el = document.getElementById(id); if (el) el[prop] = value; };
+  set('buscador-date-from', 'value', f.from || '');
+  set('buscador-date-to', 'value', f.to || '');
+  set('buscador-in-title', 'checked', !!f.title);
+  set('buscador-in-tag', 'checked', !!f.tag);
+  set('buscador-in-desc', 'checked', !!f.desc);
+  set('buscador-include-archived', 'checked', !!f.archived);
+  set('buscador-include-notes', 'checked', !!f.dayNotes);
+  set('buscador-include-habit-notes', 'checked', !!f.habitNotes);
+  document.getElementById('buscador-custom-range')
+    ?.classList.toggle('hidden', document.getElementById('buscador-period').value !== 'custom');
+}
+
+// Recalcula y muestra los totales. Se llama sola al abrir el Buscador, al
+// cambiar un filtro y al dejar de escribir.
+let buscadorTypingTimer = null;
+function scheduleBuscadorCalculation() {
+  clearTimeout(buscadorTypingTimer);
+  buscadorTypingTimer = setTimeout(runBuscadorCalculation, BUSCADOR_TYPING_DELAY);
+}
+function runBuscadorCalculation() {
+  clearTimeout(buscadorTypingTimer);
+  buscadorTypingTimer = null;
+  const form = readBuscadorForm();
+  const stats = computeBuscadorStats(form.keyword, form.period, form.fields, form.status,
+    form.includeArchived, form.include);
+  buscadorLastQuery = { keyword: form.keyword, fields: form.fields, terms: stats.query.highlight };
   document.getElementById('buscador-repetitions').textContent = stats.repetitions;
   if (stats.totalDays) {
     const pct = Math.round((stats.days / stats.totalDays) * 100);
@@ -2736,31 +2863,32 @@ function runBuscadorCalculation() {
   }
   document.getElementById('buscador-total-time').textContent =
     stats.hasAnyDuration ? minutesToReadable(stats.totalMinutes) : '—';
+  const notesRow = document.getElementById('buscador-notes-row');
+  if (notesRow) {
+    notesRow.classList.toggle('hidden', !form.include.dayNotes && !form.include.habitNotes);
+    document.getElementById('buscador-notes-count').textContent = stats.notes;
+  }
   document.getElementById('buscador-results').classList.remove('hidden');
 
-  // Tras buscar: aparece "Ver resultados" (negro) y "Buscar" pasa a gris.
   buscadorLastItems = stats.items;
   const viewBtn = document.getElementById('buscador-view-btn');
   if (viewBtn) {
     viewBtn.classList.remove('hidden');
     viewBtn.disabled = stats.items.length === 0;
   }
-  const acceptBtn = document.getElementById('buscador-accept-btn');
-  if (acceptBtn) {
-    acceptBtn.classList.remove('btn-primary');
-    acceptBtn.classList.add('btn-secondary');
-  }
 }
 
 let buscadorLastItems = [];
 let buscadorLastQuery = { keyword: '', fields: {} };
 
-// Resalta la palabra buscada dentro del texto de un elemento, sin distinguir
+// Resalta las palabras buscadas dentro del texto de un elemento, sin distinguir
 // tildes ni mayúsculas (se mapea cada carácter normalizado a su posición en el
-// texto original para marcar exactamente lo que se ve).
-function highlightBuscadorMatches(el, keyword) {
-  const kw = normalizeForSearch(keyword);
-  if (!el || !kw) return;
+// texto original para marcar exactamente lo que se ve). terms: lista de
+// términos ya normalizados, o un texto de búsqueda.
+function highlightBuscadorMatches(el, terms) {
+  const list = (Array.isArray(terms) ? terms : [normalizeForSearch(terms)])
+    .filter(term => term && term.trim());
+  if (!el || !list.length) return;
   const text = el.textContent;
   let norm = '';
   const map = []; // índice en norm -> índice en text
@@ -2771,15 +2899,25 @@ function highlightBuscadorMatches(el, keyword) {
   // Igual que la búsqueda: el comienzo y el final del texto cuentan como un
   // espacio (se busca en ' ' + norm + ' ' y se descuentan esos extremos).
   const padded = ' ' + norm + ' ';
+  const found = [];
+  list.forEach(kw => {
+    let pos = padded.indexOf(kw);
+    while (pos !== -1) {
+      const a = Math.max(0, pos - 1);
+      const b = Math.min(norm.length - 1, pos + kw.length - 2);
+      if (b >= a) found.push([map[a], map[b] + 1]);
+      pos = padded.indexOf(kw, pos + kw.length);
+    }
+  });
+  if (!found.length) return;
+  // Unir rangos que se tocan (dos palabras pueden solaparse).
+  found.sort((x, y) => x[0] - y[0]);
   const ranges = [];
-  let pos = padded.indexOf(kw);
-  while (pos !== -1) {
-    const a = Math.max(0, pos - 1);
-    const b = Math.min(norm.length - 1, pos + kw.length - 2);
-    if (b >= a) ranges.push([map[a], map[b] + 1]);
-    pos = padded.indexOf(kw, pos + kw.length);
-  }
-  if (!ranges.length) return;
+  found.forEach(range => {
+    const prev = ranges[ranges.length - 1];
+    if (prev && range[0] <= prev[1]) prev[1] = Math.max(prev[1], range[1]);
+    else ranges.push(range.slice());
+  });
   const frag = document.createDocumentFragment();
   let last = 0;
   ranges.forEach(([st, en]) => {
@@ -2795,16 +2933,56 @@ function highlightBuscadorMatches(el, keyword) {
   el.appendChild(frag);
 }
 
-// Estado inicial del Buscador (al abrirlo): vista del formulario, sin
-// "Ver resultados" y con "Buscar" en negro.
-function resetBuscadorView() {
-  const viewBtn = document.getElementById('buscador-view-btn');
-  if (viewBtn) viewBtn.classList.add('hidden');
-  const acceptBtn = document.getElementById('buscador-accept-btn');
-  if (acceptBtn) {
-    acceptBtn.classList.remove('btn-secondary');
-    acceptBtn.classList.add('btn-primary');
+// Consulta del Buscador:
+//  · Varias palabras: deben aparecer todas, en cualquier orden y en cualquiera
+//    de los campos marcados ("reunión juan" encuentra "Juan – reunión").
+//  · "entre comillas": frase exacta.   · -palabra: excluir.   · a | b: una u otra.
+//  · Un espacio al comienzo o al final de la búsqueda se conserva: " sol"
+//    encuentra palabras que empiezan por "sol" (ver buscadorMatchesQuery).
+// Devuelve { groups: [[término…]…] (O entre grupos, Y dentro), excludes, highlight }.
+function parseBuscadorQuery(raw) {
+  const text = (raw || '').toString();
+  const tokens = [];
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    if (ch === '|') { tokens.push({ or: true }); i++; continue; }
+    let negative = false;
+    if (ch === '-' && i + 1 < text.length && !/[\s|]/.test(text[i + 1])) { negative = true; i++; }
+    let value;
+    let quoted = false;
+    if (text[i] === '"') {
+      const close = text.indexOf('"', i + 1);
+      value = close === -1 ? text.slice(i + 1) : text.slice(i + 1, close);
+      i = close === -1 ? text.length : close + 1;
+      quoted = true;
+    } else {
+      const startAt = i;
+      while (i < text.length && !/[\s|]/.test(text[i])) i++;
+      value = text.slice(startAt, i);
+    }
+    if (value.trim()) tokens.push({ value, negative, quoted });
   }
+  const words = tokens.filter(token => !token.or);
+  if (words.length && /^\s/.test(text) && !words[0].quoted) words[0].value = ' ' + words[0].value;
+  const lastWord = words[words.length - 1];
+  if (lastWord && /\s$/.test(text) && !lastWord.quoted) lastWord.value += ' ';
+  const groups = [[]];
+  const excludes = [];
+  tokens.forEach(token => {
+    if (token.or) { if (groups[groups.length - 1].length) groups.push([]); return; }
+    const term = normalizeForSearch(token.value);
+    (token.negative ? excludes : groups[groups.length - 1]).push(term);
+  });
+  const positive = groups.filter(group => group.length);
+  return { groups: positive, excludes, highlight: [...new Set(positive.flat())] };
+}
+
+// Estado inicial del Buscador (al abrirlo): vista del formulario.
+function resetBuscadorView() {
+  clearTimeout(buscadorTypingTimer);
+  buscadorTypingTimer = null;
 }
 
 // El Buscador solo prepara los datos; el panel común dibuja los resultados.
@@ -2813,11 +2991,17 @@ function showBuscadorResultsView(scrollTop = 0) {
     getData: () => ({
       title: `Resultados (${buscadorLastItems.length})`,
       sections: taskResultsSectionsFromItems(buscadorLastItems),
-      emptyText: 'No se encontraron tareas.',
+      emptyText: 'No se encontraron resultados.',
       decorateCard: (card) => {
-        const { keyword, fields } = buscadorLastQuery;
-        if (fields.title) highlightBuscadorMatches(card.querySelector('.task-card-title'), keyword);
-        if (fields.desc) highlightBuscadorMatches(card.querySelector('.task-card-desc'), keyword);
+        const { keyword, fields, terms } = buscadorLastQuery;
+        const words = terms || parseBuscadorQuery(keyword).highlight;
+        if (card.classList.contains('buscador-note-card')) {
+          highlightBuscadorMatches(card.querySelector('.buscador-note-text'), words);
+          highlightBuscadorMatches(card.querySelector('.buscador-note-habit'), words);
+          return;
+        }
+        if (fields.title) highlightBuscadorMatches(card.querySelector('.task-card-title'), words);
+        if (fields.desc) highlightBuscadorMatches(card.querySelector('.task-card-desc'), words);
       }
     }),
     refresh: runBuscadorCalculation,
@@ -2830,7 +3014,13 @@ function showBuscadorResultsView(scrollTop = 0) {
 function buildBuscadorExportText(opts) {
   const ordered = orderedTaskResultItems(buscadorLastItems);
 
-  const lineFor = (task) => {
+  const lineFor = (item) => {
+    if (item.note) {
+      return item.note.kind === 'habit'
+        ? `- Nota de hábito (${item.note.habitName}): ${item.note.text}`
+        : `- Nota del día: ${item.note.text}`;
+    }
+    const task = item.task;
     let line = task.title || '';
     if (opts.includeTime) {
       const mins = getTaskDurationMinutes(task);
@@ -2868,6 +3058,9 @@ function buildBuscadorExportText(opts) {
     summary.push(`Repeticiones: ${txt('buscador-repetitions')}`);
     summary.push(`Días: ${txt('buscador-days')}`);
     summary.push(`Tiempo total: ${txt('buscador-total-time')}`);
+    if (!document.getElementById('buscador-notes-row')?.classList.contains('hidden')) {
+      summary.push(`Notas: ${txt('buscador-notes-count')}`);
+    }
     blocks.push(summary.join('\n'));
   }
 
@@ -2875,17 +3068,18 @@ function buildBuscadorExportText(opts) {
     // Un bloque por día (y "Archivadas" al final).
     let current = null, lines = [];
     const flush = () => { if (lines.length) blocks.push(lines.join('\n')); lines = []; };
-    ordered.forEach(({ date, task }) => {
+    ordered.forEach(item => {
+      const date = item.date;
       if (date !== current) {
         flush();
         current = date;
         lines.push(date ? formatSingleDate(new Date(date + 'T00:00:00')) : 'Archivadas:');
       }
-      lines.push(lineFor(task));
+      lines.push(lineFor(item));
     });
     flush();
   } else if (ordered.length) {
-    blocks.push(ordered.map(({ task }) => lineFor(task)).join('\n'));
+    blocks.push(ordered.map(item => lineFor(item)).join('\n'));
   }
 
   return blocks.join('\n\n').trim();
