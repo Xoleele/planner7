@@ -3849,6 +3849,11 @@ function setCurrentArchiveList(id) {
 // lista visible en el panel. Al volver al calendario pierden la marca de lista.
 // Se ejecuta antes de guardar y antes de dibujar el panel, así cubre todas las
 // formas de archivar (arrastrar, editor de tareas, "Agregar tarea"…).
+//
+// También mantiene archivedAt (YYYY-MM-DD, invisible): el día en que la tarea
+// entró a Archivados. Editarla no lo cambia; solo se reinicia si la tarea se
+// crea de nuevo (o se copia) o si recibe una fecha y luego se vuelve a archivar.
+// Las tareas con fecha no lo guardan.
 let archiveStateById = null; // id -> ¿estaba archivada la última vez?
 function resetArchiveAssignmentBaseline() { archiveStateById = null; }
 function syncArchiveListAssignments() {
@@ -3856,16 +3861,66 @@ function syncArchiveListAssignments() {
   const first = archiveStateById === null;
   if (first) archiveStateById = new Map();
   const visible = getVisibleArchiveListId();
+  const today = formatDate(new Date());
   tasks.forEach(t => {
     if (!t || !t.id) return;
     const archived = !t.date;
+    const before = archiveStateById.get(t.id); // undefined = tarea que no existía
     if (!archived) {
       if (t.archiveList !== undefined) delete t.archiveList;
-    } else if (!first && t.archiveList === undefined && archiveStateById.get(t.id) !== true) {
-      t.archiveList = visible; // null = principal
+      if (t.archivedAt !== undefined) delete t.archivedAt;
+    } else {
+      if (!first && t.archiveList === undefined && before !== true) {
+        t.archiveList = visible; // null = principal
+      }
+      if (first) {
+        // Tareas ya archivadas al cargar: las anteriores a este cambio no tienen
+        // fecha guardada; se usa la de creación que trae su id.
+        if (!t.archivedAt) t.archivedAt = taskIdCreationDate(t.id) || today;
+      } else if (before === undefined) {
+        t.archivedAt = today; // tarea nueva o copia
+      } else if (!t.archivedAt) {
+        // Recién archivada (o sin dato). Si vuelve con su fecha (Deshacer), se conserva.
+        t.archivedAt = before === false ? today : (taskIdCreationDate(t.id) || today);
+      }
     }
     archiveStateById.set(t.id, archived);
   });
+}
+
+// Día (YYYY-MM-DD) en que se creó una tarea, leído de su id ("task-<ms>-…").
+function taskIdCreationDate(id) {
+  const match = /^task-(\d{12,})/.exec(String(id || ''));
+  if (!match) return null;
+  const date = new Date(Number(match[1]));
+  return Number.isNaN(date.getTime()) ? null : formatDate(date);
+}
+
+// "Archivado hoy" / "Archivado hace 1 día" / "Archivado hace N días".
+function archivedAgeText(task) {
+  const since = task.archivedAt || taskIdCreationDate(task.id);
+  if (!since) return 'Archivado hoy';
+  const days = Math.round((new Date(formatDate(new Date()) + 'T12:00:00') -
+    new Date(since + 'T12:00:00')) / 86400000);
+  if (!(days > 0)) return 'Archivado hoy';
+  return days === 1 ? 'Archivado hace 1 día' : `Archivado hace ${days} días`;
+}
+
+// En el panel de Archivados la tarjeta no muestra descripción, horas ni
+// duración: en su lugar, cuánto tiempo lleva archivada (con el mismo reloj).
+function decorateArchivedCard(card, task) {
+  card.querySelectorAll('.task-card-time, .task-card-desc').forEach(el => el.remove());
+  const block = document.createElement('div');
+  block.className = 'task-card-time task-card-archived-age';
+  const clock = document.createElement('span');
+  clock.className = 'task-card-time-clock';
+  clock.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>';
+  const text = document.createElement('span');
+  text.className = 'task-card-time-text';
+  text.textContent = archivedAgeText(task);
+  block.append(clock, text);
+  const title = card.querySelector('.task-card-title');
+  if (title) title.after(block); else card.prepend(block);
 }
 
 // Tareas archivadas de una lista.
@@ -4537,6 +4592,7 @@ function renderBriefcaseTasks() {
 
   briefcaseTasks.forEach(task => {
     const taskCard = createTaskCard(task, '');
+    decorateArchivedCard(taskCard, task);
     container.appendChild(taskCard);
   });
 }
