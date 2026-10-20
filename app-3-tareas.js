@@ -701,7 +701,8 @@ async function commitCronogramaDragResult(drag) {
   const belowEndPoint = findTaskBelowEnd(targetDateStr, newStartMin + drag.durationMin, drag.task.id, wasGluedTo);
   if (belowStart && belowEndPoint && String(belowStart.taskId) !== String(belowEndPoint.taskId)) {
     // Inicio y fin caen sobre DOS tareas distintas: no hay un ajuste claro, así
-    // que no se muestra el panel y la tarea queda donde se soltó.
+    // que solo se ofrece Conservar / Recortar / Cancelar.
+    overlap = { byEnd: false, multi: true };
   } else if (snappedStart !== newStartMin) {
     overlap = {
       byEnd: false,
@@ -718,15 +719,20 @@ async function commitCronogramaDragResult(drag) {
       };
     }
   }
+  // "Recortar": las tareas que quedan debajo pierden el tramo ocupado. Solo se
+  // ofrece si al menos una puede recortarse sin desaparecer.
+  let trimBelow = null;
   if (overlap) {
     overlapAsked = true;
-    const choice = await askCronogramaOverlap(overlap.byEnd);
+    const trimmable = findTasksToTrimUnderDrop(targetDateStr, newStartMin, drag.durationMin, drag.task.id, wasGluedTo);
+    const choice = await askCronogramaOverlap(overlap.byEnd, { canTrim: trimmable.length > 0, multi: !!overlap.multi });
     if (choice === 'cancel' || !tasks.includes(drag.task)) {
       renderCronograma();
       return;
     }
     if (choice === 'adjust-end') newStartMin = overlap.afterStart;
     if (choice === 'adjust-start') newStartMin = overlap.beforeStart;
+    if (choice === 'trim') trimBelow = trimmable;
     // Conservar la duración cuando el ajuste cruza el límite del día.
     if (newStartMin < 0 || newStartMin >= 1440) {
       newDateStr = formatDate(addDays(new Date(targetDateStr + 'T00:00:00'), Math.floor(newStartMin / 1440)));
@@ -749,6 +755,7 @@ async function commitCronogramaDragResult(drag) {
     // criterio que la copia con Ctrl del planner).
     if (clon.recurrence && clon.recurrence.enabled) clon.recurrence = null;
     tasks.push(clon);
+    if (trimBelow) trimTasksUnderDropped(trimBelow, clon);
     renderCronograma();
     saveTasksToStorage();
     return;
@@ -761,6 +768,15 @@ async function commitCronogramaDragResult(drag) {
     ? (origRange.crossesMidnight ? origRange.rawEndMin + 1440 : origRange.rawEndMin) - origRange.startMin
     : drag.task.duration;
   if (sameTime && sameDay && drag.durationMin === originalDuration) {
+    // Soltada en el mismo lugar: la tarea no cambia, pero "Recortar" sí se aplica
+    // a las de abajo (sin preguntar por la serie si la soltada es recurrente).
+    if (trimBelow) {
+      pushToUndoStack();
+      trimTasksUnderDropped(trimBelow, { ...drag.task, date: origDateStr });
+      renderCronograma();
+      saveTasksToStorage();
+      return;
+    }
     renderCronograma(); // restaurar posición exacta por si el snap no cambió nada
     return;
   }
@@ -841,6 +857,8 @@ async function commitCronogramaDragResult(drag) {
     }
   }
 
+  if (trimBelow) trimTasksUnderDropped(trimBelow, { ...drag.task, date: newDateStr || origDateStr });
+
   // ── Aviso de tareas adyacentes tras el arrastre ───────────────────────────
   // Si la tarea (con horario inicio+fin) quedó pegada a alguna vecina, NO se
   // guarda todavía: se muestra el panel y el guardado se difiere hasta que el
@@ -873,9 +891,97 @@ async function commitCronogramaDragResult(drag) {
   }
 }
 
+// ── "Recortar" ───────────────────────────────────────────────────────────────
+// Las tareas que quedan DEBAJO de la tarea soltada pierden el tramo que esta
+// ocupa. Si la soltada queda al medio de una, esa se divide en dos tramos con el
+// mismo título; solo el que empieza antes conserva la descripción (y la alarma).
+// Una tarea nunca se recorta tanto como para desaparecer: en ese caso no se toca.
+// Si es recurrente, solo se recorta esa ocurrencia (ese día pasa a ser una tarea
+// suelta y la serie no cambia).
+
+// Tramos [inicio, fin) en minutos absolutos que le quedarían a la ocurrencia
+// `occurrenceDate` de `task` si `placed` (tarea con fecha y horas) se le pone encima.
+// null = no se superponen.
+function trimSegmentsUnder(task, occurrenceDate, placed) {
+  const belowRange = getTaskAbsoluteRange({ ...task, date: occurrenceDate });
+  const placedRange = getTaskAbsoluteRange(placed);
+  if (!belowRange || !placedRange) return null;
+  if (placedRange.startAbs >= belowRange.endAbs || placedRange.endAbs <= belowRange.startAbs) return null;
+  const segments = [];
+  if (placedRange.startAbs > belowRange.startAbs) segments.push([belowRange.startAbs, placedRange.startAbs]);
+  if (placedRange.endAbs < belowRange.endAbs) segments.push([placedRange.endAbs, belowRange.endAbs]);
+  return segments;
+}
+
+// Tareas visibles que quedarían debajo de una tarea soltada en `dateStr` a
+// `startMin` con `durationMin`, y que pueden recortarse sin desaparecer.
+// Incluye las del día siguiente si la soltada cruza medianoche.
+// Devuelve [{ task, occurrenceDate }].
+function findTasksToTrimUnderDrop(dateStr, startMin, durationMin, excludeTaskId, ignoreRange) {
+  const toHHMM = min => `${String(Math.floor(min / 60) % 24).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+  const placed = { date: dateStr, startTime: toHHMM(startMin), endTime: toHHMM(startMin + durationMin) };
+  if (durationMin <= 0 || durationMin >= 1440) return [];
+  const days = [dateStr];
+  if (startMin + durationMin > 1440) days.push(formatDate(addDays(new Date(dateStr + 'T00:00:00'), 1)));
+  const found = [];
+  const seen = new Set();
+  days.forEach(day => {
+    getVisibleTaskRangesForDate(day, excludeTaskId)
+      .filter(r => !(ignoreRange && day === dateStr && ignoreRange(r)))
+      .forEach(r => {
+        const occurrenceDate = r.tail ? formatDate(addDays(new Date(day + 'T00:00:00'), -1)) : day;
+        const key = r.taskId + '|' + occurrenceDate;
+        if (seen.has(key)) return;
+        seen.add(key);
+        const task = tasks.find(t => String(t.id) === String(r.taskId));
+        const segments = task && trimSegmentsUnder(task, occurrenceDate, placed);
+        if (segments && segments.length) found.push({ task, occurrenceDate });
+      });
+  });
+  return found;
+}
+
+// Aplica el recorte a cada tarea de `targets` (de findTasksToTrimUnderDrop)
+// según la posición final de `placed`. Las que quedarían vacías no se tocan.
+function trimTasksUnderDropped(targets, placed) {
+  const newId = () => 'task-' + Date.now() + '-' + Math.floor(Math.random() * 1000000);
+  targets.forEach(({ task, occurrenceDate }) => {
+    if (!tasks.includes(task)) return;
+    const segments = trimSegmentsUnder(task, occurrenceDate, placed);
+    if (!segments || !segments.length) return; // no se superponen, o desaparecería
+    let base = task;
+    if (task.recurrence && task.recurrence.enabled) {
+      if (!task.recurrence.exceptions) task.recurrence.exceptions = [];
+      if (!task.recurrence.exceptions.includes(occurrenceDate)) task.recurrence.exceptions.push(occurrenceDate);
+      base = {
+        ...structuredClone(task), id: newId(), date: occurrenceDate, recurrence: null,
+        completed: !!(task.completedOccurrences && task.completedOccurrences.includes(occurrenceDate))
+      };
+      delete base.completedOccurrences;
+      delete base.positionOverrides;
+      tasks.push(base);
+    }
+    segments.forEach(([start, end], index) => {
+      const segment = index === 0
+        ? base
+        : { ...structuredClone(base), id: newId(), description: '', alarm: false };
+      const from = absoluteMinutesToDateTime(start);
+      const to = absoluteMinutesToDateTime(end);
+      segment.date = from.date;
+      segment.startTime = from.time;
+      segment.endTime = to.time;
+      segment.duration = end - start;
+      if (index > 0) tasks.push(segment);
+    });
+  });
+}
+
 // Mismo diseño que el aviso de conflicto de hora de fin. `byEnd`: la superposición
 // es por la hora de FIN; cambia el texto e invierte las dos opciones del medio.
-function askCronogramaOverlap(byEnd = false) {
+// `canTrim`: agrega "Recortar" (antes de Cancelar) cuando se arrastra una sola tarea.
+// `multi`: el inicio y el fin caen sobre dos tareas distintas; no hay ajuste claro,
+// así que solo se ofrece Conservar / Recortar / Cancelar.
+function askCronogramaOverlap(byEnd = false, { canTrim = false, multi = false } = {}) {
   return new Promise(resolve => {
     const previousFocus = document.activeElement;
     const overlay = document.createElement('div');
@@ -893,7 +999,8 @@ function askCronogramaOverlap(byEnd = false) {
     const description = document.createElement('p');
     description.id = 'horario-overlap-desc';
     description.className = 'endtime-conflict-desc';
-    description.textContent = byEnd ? 'La hora de fin coincide con otra tarea.' : 'La hora de inicio coincide con otra tarea.';
+    description.textContent = multi ? 'La tarea queda sobre otras tareas.'
+      : byEnd ? 'La hora de fin coincide con otra tarea.' : 'La hora de inicio coincide con otra tarea.';
     const actions = document.createElement('div');
     actions.className = 'endtime-conflict-actions';
     const buttons = [];
@@ -913,9 +1020,12 @@ function askCronogramaOverlap(byEnd = false) {
         buttons[(index + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length].focus();
       }
     };
-    const options = byEnd
+    const options = multi
+      ? [['Conservar', 'keep'], ['Cancelar', 'cancel']]
+      : byEnd
       ? [['Conservar', 'keep'], ['Ajustar al inicio', 'adjust-start'], ['Ajustar al final', 'adjust-end'], ['Cancelar', 'cancel']]
       : [['Conservar', 'keep'], ['Ajustar al final', 'adjust-end'], ['Ajustar al inicio', 'adjust-start'], ['Cancelar', 'cancel']];
+    if (canTrim) options.splice(options.length - 1, 0, ['Recortar', 'trim']);
     for (const [label, choice] of options) {
       const button = document.createElement('button');
       button.type = 'button';
