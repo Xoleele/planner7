@@ -3463,10 +3463,77 @@ function escapeCSV(val) {
 // "Exportar datos" descarga un archivo .json con TODO lo necesario para
 // recuperar la cuenta tal cual: tareas (con repeticiones, alarmas, orden…),
 // actividades (colores, palabras clave, visibilidad, orden) y preferencias
-// (notas, plantilla, configuración, ajustes de estadísticas…).
+// (notas, plantilla, configuración, ajustes de estadísticas…) y el historial
+// de hábitos (tabla habit_data, desde la versión 2 del archivo).
 // "Importar datos" carga ese archivo y REEMPLAZA los datos actuales de la cuenta.
+// Los archivos de versión 1 no traen hábitos: al importarlos, los hábitos actuales se conservan.
 const PLANNER7_DATA_FORMAT = 'planner7-datos';
-const PLANNER7_DATA_VERSION = 1;
+const PLANNER7_DATA_VERSION = 2;
+// Mismo prefijo de caché que usa app-8-habitos.js.
+const PLANNER7_HABIT_CACHE_PREFIX = 'planner7.habitos.v1:';
+
+// Mismas reglas que validData() de app-8-habitos.js y que la restricción de habit_data:
+// si no se cumplen, el módulo de hábitos rechazaría el historial al abrirlo.
+function isValidHabitDay(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(value + 'T12:00:00');
+  return !Number.isNaN(date.getTime()) && date.getFullYear() === Number(value.slice(0, 4)) &&
+    date.getMonth() + 1 === Number(value.slice(5, 7)) && date.getDate() === Number(value.slice(8, 10));
+}
+function isValidHabitHistory(data) {
+  return !!data && typeof data === 'object' && data.version === 2 &&
+    Array.isArray(data.blocks) && data.blocks.length > 0 &&
+    data.blocks.every(block => block && typeof block.id === 'string' &&
+      isValidHabitDay(block.startDate) &&
+      (block.endDate === null || isValidHabitDay(block.endDate)) &&
+      Array.isArray(block.habits) && block.records && typeof block.records === 'object' &&
+      !Array.isArray(block.records));
+}
+function countHabits(data) {
+  const ids = new Set();
+  (data?.blocks || []).forEach(block => (block.habits || []).forEach(habit => { if (habit?.id) ids.add(habit.id); }));
+  return ids.size;
+}
+
+// Historial de hábitos para exportar: si este dispositivo tiene cambios sin
+// sincronizar, esos son los más nuevos; si no, los de la nube; sin conexión, el caché.
+async function getHabitDataForExport() {
+  let cached = null;
+  try {
+    const raw = JSON.parse(localStorage.getItem(PLANNER7_HABIT_CACHE_PREFIX + currentUser.id));
+    if (raw?.user_id === currentUser.id && isValidHabitHistory(raw.data)) cached = raw;
+  } catch (e) {}
+  if (cached?.pending) return cached.data;
+  try {
+    const { data, error } = await sb.from('habit_data').select('data').eq('user_id', currentUser.id).maybeSingle();
+    if (!error) return isValidHabitHistory(data?.data) ? data.data : (cached?.data ?? null);
+  } catch (e) {}
+  return cached?.data ?? null;
+}
+
+// Reemplaza el historial de hábitos en la nube. Sube la revisión para que los
+// otros dispositivos detecten el cambio en vez de sobrescribirlo. Devuelve la revisión nueva.
+async function replaceHabitDataInCloud(uid, habitData) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data: row, error } = await sb.from('habit_data').select('revision').eq('user_id', uid).maybeSingle();
+    if (error) throw error;
+    if (!row) {
+      const { error: insError } = await sb.from('habit_data').insert({ user_id: uid, data: habitData, revision: 1 });
+      if (!insError) return 1;
+      if (insError.code !== '23505') throw insError; // 23505: otro dispositivo la creó recién
+      continue;
+    }
+    const next = row.revision + 1;
+    const { data: updated, error: updError } = await sb.from('habit_data')
+      .update({ data: habitData, revision: next })
+      .eq('user_id', uid).eq('revision', row.revision)
+      .select('revision');
+    if (updError) throw updError;
+    if (updated && updated.length) return next;
+    // Otro dispositivo guardó justo entre la lectura y la escritura: reintentar.
+  }
+  throw new Error('No se pudo reemplazar el historial de hábitos (cambios simultáneos).');
+}
 
 async function exportUserData() {
   if (!currentUser) return;
@@ -3484,6 +3551,7 @@ async function exportUserData() {
   }
   prefs = { ...prefs };
   delete prefs.activeTimer; // el cronómetro en curso no se exporta
+  const habits = await getHabitDataForExport();
 
   const payload = {
     format: PLANNER7_DATA_FORMAT,
@@ -3492,7 +3560,8 @@ async function exportUserData() {
     account: currentUser.email || '',
     tasks: tasks,
     tags: tags,
-    preferences: prefs
+    preferences: prefs,
+    habits: habits
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -3536,7 +3605,13 @@ function validateImportedUserData(data) {
     return 'Las actividades del archivo no son válidas.';
   }
   const prefs = (data.preferences && typeof data.preferences === 'object' && !Array.isArray(data.preferences)) ? data.preferences : {};
-  return { tasks: data.tasks, tags: data.tags, preferences: prefs };
+  // habits: undefined/null = el archivo no trae hábitos (se conservan los actuales).
+  let habits = null;
+  if (data.habits !== undefined && data.habits !== null) {
+    if (!isValidHabitHistory(data.habits)) return 'El historial de hábitos del archivo no es válido.';
+    habits = data.habits;
+  }
+  return { tasks: data.tasks, tags: data.tags, preferences: prefs, habits };
 }
 
 async function importUserDataFromFile(file) {
@@ -3554,11 +3629,13 @@ async function importUserDataFromFile(file) {
   const when = parsed.exportedAt ? new Date(parsed.exportedAt).toLocaleString('es-CL') : 'fecha desconocida';
   const ok = confirm(
     '⚠️ ADVERTENCIA: se BORRARÁN todos los datos actuales de tu cuenta\n' +
-    '(tareas, actividades, notas y preferencias) y se reemplazarán por los del archivo.\n' +
+    `(tareas, actividades, notas, preferencias${result.habits ? ' y hábitos' : ''}) y se reemplazarán por los del archivo.\n` +
     'Esta acción NO se puede deshacer.\n\n' +
     `Archivo exportado el ${when}` +
     `${parsed.account ? ' (cuenta ' + parsed.account + ')' : ''}:\n` +
-    `• ${result.tasks.length} tareas\n• ${result.tags.length} actividades\n\n` +
+    `• ${result.tasks.length} tareas\n• ${result.tags.length} actividades\n` +
+    (result.habits ? `• ${countHabits(result.habits)} hábitos (con su historial)\n\n`
+                   : '• Sin hábitos en el archivo: tus hábitos actuales se conservan.\n\n') +
     'Si quieres conservar lo que tienes ahora, cancela y usa primero Herramientas → Exportar datos.\n\n' +
     '¿Borrar tus datos actuales e importar este archivo?'
   );
@@ -3567,6 +3644,7 @@ async function importUserDataFromFile(file) {
   const prefs = { ...result.preferences };
   delete prefs.activeTimer;
   const uid = currentUser.id;
+  let habitRevision = null;
 
   try {
     setSaveStatus('saving');
@@ -3581,6 +3659,8 @@ async function importUserDataFromFile(file) {
     const { error: udError } = await sb.from('user_data')
       .upsert({ user_id: uid, tags: result.tags, preferences: prefs }, { onConflict: 'user_id' });
     if (udError) throw udError;
+    // 3. Hábitos (solo si el archivo los trae).
+    if (result.habits) habitRevision = await replaceHabitDataInCloud(uid, result.habits);
   } catch (e) {
     console.error('importUserData:', e);
     setSaveStatus('offline');
@@ -3588,11 +3668,16 @@ async function importUserDataFromFile(file) {
     return;
   }
 
-  // 3. Cachés locales = lo importado (si no, al recargar se mezclarían con lo viejo).
+  // 4. Cachés locales = lo importado (si no, al recargar se mezclarían con lo viejo).
   try {
     localStorage.setItem('tasks_cache_' + uid, JSON.stringify(result.tasks));
     localStorage.setItem('tasks_pending_sync_' + uid, 'false');
     localStorage.setItem('prefs_cache_' + uid, JSON.stringify(prefs));
+    if (result.habits) {
+      localStorage.setItem(PLANNER7_HABIT_CACHE_PREFIX + uid, JSON.stringify({
+        user_id: uid, data: result.habits, synced: result.habits, revision: habitRevision, pending: false
+      }));
+    }
   } catch (e) {}
   if (typeof resetSyncSnapshot === 'function') resetSyncSnapshot(result.tasks);
 
