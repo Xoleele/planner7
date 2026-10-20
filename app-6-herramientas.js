@@ -2791,14 +2791,15 @@ function readBuscadorForm() {
     fields: { title: isOn('buscador-in-title'), tag: isOn('buscador-in-tag'), desc: isOn('buscador-in-desc') },
     status: document.getElementById('buscador-status')?.value || 'all',
     includeArchived: isOn('buscador-include-archived'),
-    include: { dayNotes: isOn('buscador-include-notes'), habitNotes: isOn('buscador-include-habit-notes') }
+    // "Notas" incluye las notas del día y las de hábitos.
+    include: { dayNotes: isOn('buscador-include-notes'), habitNotes: isOn('buscador-include-notes') }
   };
 }
 
 // Filtros recordados (en este dispositivo, por cuenta). La palabra clave no se recuerda.
 const BUSCADOR_DEFAULT_FILTERS = {
   period: 'all', status: 'all', from: '', to: '',
-  title: true, tag: true, desc: false, archived: true, dayNotes: true, habitNotes: true
+  title: true, tag: true, desc: false, archived: true, notes: true
 };
 function buscadorFiltersKey() {
   return 'buscador_filtros_' + (currentUser ? currentUser.id : 'anon');
@@ -2810,7 +2811,7 @@ function saveBuscadorFilters() {
     from: document.getElementById('buscador-date-from')?.value || '',
     to: document.getElementById('buscador-date-to')?.value || '',
     title: form.fields.title, tag: form.fields.tag, desc: form.fields.desc,
-    archived: form.includeArchived, dayNotes: form.include.dayNotes, habitNotes: form.include.habitNotes
+    archived: form.includeArchived, notes: form.include.dayNotes
   };
   try { localStorage.setItem(buscadorFiltersKey(), JSON.stringify(filters)); } catch (e) {}
 }
@@ -2833,8 +2834,7 @@ function applyBuscadorFilters() {
   set('buscador-in-tag', 'checked', !!f.tag);
   set('buscador-in-desc', 'checked', !!f.desc);
   set('buscador-include-archived', 'checked', !!f.archived);
-  set('buscador-include-notes', 'checked', !!f.dayNotes);
-  set('buscador-include-habit-notes', 'checked', !!f.habitNotes);
+  set('buscador-include-notes', 'checked', !!f.notes);
   document.getElementById('buscador-custom-range')
     ?.classList.toggle('hidden', document.getElementById('buscador-period').value !== 'custom');
 }

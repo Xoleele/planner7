@@ -88,16 +88,16 @@ const fn = (src, name) => { const i = src.indexOf('function ' + name + '('); ass
   // Un filtro actualiza de inmediato y se recuerda.
   await page.selectOption('#buscador-status', 'completed');
   assert.equal(await txt('buscador-repetitions'), '1');
-  await page.uncheck('#buscador-include-habit-notes');
-  assert.equal(await txt('buscador-notes-count'), '1');
+  await page.uncheck('#buscador-include-notes');
+  assert(!(await vis('#buscador-notes-row')));
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('buscador_filtros_u1')));
-  assert.equal(saved.status, 'completed'); assert.equal(saved.habitNotes, false);
+  assert.equal(saved.status, 'completed'); assert.equal(saved.notes, false);
   await page.evaluate(() => { document.getElementById('buscador-modal').classList.add('hidden'); openBuscadorModal(); });
   assert.equal(await page.inputValue('#buscador-status'), 'completed');
-  assert.equal(await page.isChecked('#buscador-include-habit-notes'), false);
+  assert.equal(await page.isChecked('#buscador-include-notes'), false);
   assert.equal(await page.inputValue('#buscador-keyword'), '');
   await page.selectOption('#buscador-status', 'all');
-  await page.check('#buscador-include-habit-notes');
+  await page.check('#buscador-include-notes');
   // Enter: actualiza ya y abre los resultados con tarjetas de notas.
   await page.fill('#buscador-keyword', 'juan');
   await page.press('#buscador-keyword', 'Enter');
