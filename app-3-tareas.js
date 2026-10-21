@@ -207,7 +207,7 @@ let crDrag = null;
 //   e:     el evento pointerdown
 function startCronogramaDrag(block, task, e) {
   // Solo botón principal y no sobre el checkbox. Shift y Alt se reservan
-  // para ocultar la actividad y ampliar la duración con un clic.
+  // para recortar una tarea contra otra y ampliar la duración con un clic.
   if (e.button !== 0) return;
   if (e.shiftKey || e.altKey) return;
   if (e.target.closest('.task-check-btn')) return;
@@ -1963,13 +1963,7 @@ function createTaskCard(task, occurrenceDate) {
       clearTaskTiming(task, occurrenceDate);
       return;
     }
-    // Escritorio: Shift+clic en una tarjeta del planner = "Ocultar actividad".
-    if (e.shiftKey && !isMobile() && card.closest('.planner-week-wrapper')) {
-      e.preventDefault();
-      clearShiftClickSelection();
-      hideActivityFromMenu(taskTagIdForIsolation(task));
-      return;
-    }
+    // (Shift + clic = recortar una tarea contra otra: lo gestiona app-9-seleccion.js.)
     openTaskModal(task.id, occurrenceDate);
   });
 

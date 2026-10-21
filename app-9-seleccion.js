@@ -17,6 +17,7 @@ function taskSelectionEntry(element) {
 }
 
 function decorateTaskSelection(element, id, date) {
+  decorateTaskTrimSource(element, id, date);
   const selected = selectedTaskOccurrences.has(taskOccurrenceKey(id, date));
   element.classList.toggle('task-multi-selected', selected);
   element.setAttribute('aria-selected', String(selected));
@@ -732,5 +733,127 @@ function setupTaskMultiSelectionTouch() {
   refreshTaskSelection();
 }
 
+// ── Shift + clic: recortar una tarea contra otra ─────────────────────────────
+// Shift + clic en una tarea la marca (contorno rojo segmentado) y aparece el
+// aviso "Seleccione tarea a recortar". El siguiente clic en otra tarea la recorta
+// al instante: pierde el tramo que comparte con la primera (si la primera queda
+// al medio, se divide en dos; ver trimTasksUnderDropped). No se aplica si no
+// tienen tiempo en común o si la tarea desaparecería por completo.
+// Escape (o clic otra vez en la primera) cancela. Solo escritorio.
+let taskTrimSource = null; // { id, date } de la tarea que recorta
+
+function decorateTaskTrimSource(element, id, date) {
+  const marked = !!taskTrimSource && taskTrimSource.id === String(id) && taskTrimSource.date === (date || '');
+  element.classList.toggle('task-trim-source', marked);
+  let border = element.querySelector(':scope > .task-trim-border');
+  if (!marked) { if (border) border.remove(); return; }
+  if (border) return;
+  border = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  border.classList.add('task-selection-border', 'task-trim-border');
+  border.setAttribute('aria-hidden', 'true');
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('width', '100%'); rect.setAttribute('height', '100%');
+  rect.setAttribute('rx', getComputedStyle(element).borderRadius || '8');
+  border.appendChild(rect);
+  element.appendChild(border);
+}
+
+function refreshTaskTrimMarks() {
+  document.querySelectorAll('.task-card[data-id], .cr-task-block[data-task-id]').forEach(element => {
+    const entry = taskSelectionEntry(element);
+    if (entry) decorateTaskTrimSource(element, entry.id, entry.date);
+  });
+}
+
+function setTaskTrimBanner(visible) {
+  let banner = document.getElementById('task-trim-banner');
+  if (!banner && !visible) return;
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'task-trim-banner';
+    banner.setAttribute('role', 'status');
+    banner.textContent = 'Seleccione tarea a recortar';
+    document.body.appendChild(banner);
+  }
+  banner.classList.toggle('visible', visible);
+}
+
+function cancelTaskTrim() {
+  if (!taskTrimSource) return;
+  taskTrimSource = null;
+  setTaskTrimBanner(false);
+  refreshTaskTrimMarks();
+}
+
+// Elemento de tarea válido para recortar: en el planner o en el horario (no en
+// Archivados, resultados ni vistas previas de arrastre).
+function taskTrimElement(event) {
+  const element = event.target.closest('.task-card[data-id], .cr-task-block[data-task-id]');
+  if (!element || element.closest('#briefcase-tasks-container, .buscador-list, .task-selection-drag-preview')) return null;
+  return element;
+}
+
+// Recorta la tarea `targetEntry` con el horario de `sourceEntry`. Devuelve el
+// mensaje para el aviso.
+function applyTaskTrim(sourceEntry, targetEntry) {
+  const source = tasks.find(task => String(task.id) === sourceEntry.id);
+  const target = tasks.find(task => String(task.id) === targetEntry.id);
+  if (!source || !target) return null;
+  const sourceDate = sourceEntry.date || source.date;
+  const targetDate = targetEntry.date || target.date;
+  if (!sourceDate || !targetDate || !getTaskTimeRange(source) || !getTaskTimeRange(target)) {
+    return 'Ambas tareas necesitan hora de inicio y de fin';
+  }
+  const placed = { ...source, date: sourceDate };
+  const segments = trimSegmentsUnder(target, targetDate, placed);
+  if (!segments) return 'Las tareas no tienen tiempo en común';
+  if (!segments.length) return 'No se recortó: la tarea desaparecería por completo';
+  pushToUndoStack();
+  trimTasksUnderDropped([{ task: target, occurrenceDate: targetDate }], placed);
+  saveTasksToStorage();
+  renderWeeklyCalendar();
+  return 'Tarea recortada';
+}
+
+function setupTaskTrimByShift() {
+  document.addEventListener('click', event => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (!taskTrimSource) {
+      if (!event.shiftKey || isMobile() || event.target.closest('.task-check-btn')) return;
+      const element = taskTrimElement(event);
+      if (!element) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (typeof suppressNextCronogramaClick !== 'undefined' && suppressNextCronogramaClick) return;
+      if (typeof clearShiftClickSelection === 'function') clearShiftClickSelection();
+      const entry = taskSelectionEntry(element);
+      if (!entry) return;
+      taskTrimSource = entry;
+      refreshTaskTrimMarks();
+      setTaskTrimBanner(true);
+      return;
+    }
+    // Esperando la tarea a recortar: cualquier clic en una tarea (con o sin Shift).
+    const element = taskTrimElement(event);
+    if (!element) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    if (event.shiftKey && typeof clearShiftClickSelection === 'function') clearShiftClickSelection();
+    if (typeof suppressNextCronogramaClick !== 'undefined' && suppressNextCronogramaClick) return;
+    const entry = taskSelectionEntry(element);
+    const source = taskTrimSource;
+    if (!entry || (entry.id === source.id && entry.date === source.date)) { cancelTaskTrim(); return; }
+    taskTrimSource = null;
+    setTaskTrimBanner(false);
+    refreshTaskTrimMarks();
+    const message = applyTaskTrim(source, entry);
+    if (message && typeof showCenterToast === 'function') showCenterToast(message);
+  }, true);
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || !taskTrimSource || event.isComposing) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    cancelTaskTrim();
+  }, true);
+}
+
 window.addEventListener('DOMContentLoaded', setupTaskMultiSelection);
+window.addEventListener('DOMContentLoaded', setupTaskTrimByShift);
 window.addEventListener('DOMContentLoaded', setupTaskMultiSelectionTouch);

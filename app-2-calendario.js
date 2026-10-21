@@ -3584,13 +3584,7 @@ function buildCronogramaBlock(topMin, bottomMin, titleText, descText, isComplete
         stretchCronogramaTask(task, occurrenceDate || task.date, direction);
         return;
       }
-      // Escritorio: Shift+clic en un bloque = "Ocultar actividad".
-      if (e.shiftKey && !isMobile()) {
-        e.preventDefault();
-        clearShiftClickSelection();
-        hideActivityFromMenu(taskTagIdForIsolation(task));
-        return;
-      }
+      // (Shift + clic = recortar una tarea contra otra: lo gestiona app-9-seleccion.js.)
       openTaskModal(task.id, occurrenceDate || null);
     });
 
