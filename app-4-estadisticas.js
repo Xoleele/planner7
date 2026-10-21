@@ -1739,6 +1739,18 @@ function renderDailyStatsPanel(panelEl, dateParam) {
     
     totalsWrapper.appendChild(totalTable);
   }
+
+  // Panel del día: minutos de uso de la app ese día (ver app-6-herramientas.js).
+  if (prefix === 'daily-stats' && typeof dateParam === 'string' && typeof appUsageMinutesForDay === 'function') {
+    const minutes = appUsageMinutesForDay(dateParam);
+    if (minutes !== null) {
+      const usage = document.createElement('div');
+      usage.className = 'daily-stats-app-usage';
+      usage.textContent = `Uso de Planner7: ${minutes} min`;
+      totalsWrapper.appendChild(usage);
+      totalsWrapper.style.display = 'block';
+    }
+  }
 }
 
 function handleStatsStatusFilterChange(newFilter) {

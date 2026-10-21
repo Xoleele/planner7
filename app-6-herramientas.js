@@ -5157,3 +5157,213 @@ function initTitleAutocomplete() {
 }
 
 // EOF
+
+// ─── Uso de Planner7 ─────────────────────────────────────────────────────────
+// Registra los intervalos en que el usuario USA la app. Una racha de acciones
+// (clic, toque, tecla, scroll o arrastre) cuenta desde la primera hasta la
+// última acción, siempre que entre una y otra pasen como máximo 30 s. Tener la
+// app abierta sin hacer nada (o solo mover el mouse) no cuenta, y una acción
+// aislada suma 0. El total de cada día estadístico se muestra en el panel del
+// día ("Uso de Planner7: N min").
+//
+// Se guarda en preferences.appUsage (sincronizado entre dispositivos):
+//   { since: ms del inicio del registro,
+//     intervals: [[inicioMs, finMs], …]   (últimos APP_USAGE_KEEP_DAYS días),
+//     totals: { 'YYYY-MM-DD': segundos } (días estadísticos más antiguos) }
+// Cada dispositivo guarda su copia en localStorage y, al sincronizar, la une con
+// la de la nube: el tiempo simultáneo en dos dispositivos se cuenta una sola vez.
+const APP_USAGE_GAP_MS = 30000;      // máximo entre acciones de una misma racha
+const APP_USAGE_KEEP_DAYS = 7;       // días con intervalos exactos; antes, totales
+const APP_USAGE_SAVE_MS = 3000;      // guardado local (agrupado)
+const APP_USAGE_SYNC_MS = 120000;    // sincronización con la nube
+let appUsageStreak = null;           // { user, start, last }: racha en curso
+let appUsageSaveTimer = null;
+let appUsageSyncing = false;
+
+function emptyAppUsage() { return { since: null, intervals: [], totals: {} }; }
+
+function cleanAppUsage(data) {
+  const out = emptyAppUsage();
+  if (!data || typeof data !== 'object') return out;
+  if (Number.isFinite(data.since)) out.since = data.since;
+  if (Array.isArray(data.intervals)) {
+    out.intervals = data.intervals
+      .filter(i => Array.isArray(i) && Number.isFinite(i[0]) && Number.isFinite(i[1]) && i[1] > i[0])
+      .map(i => [i[0], i[1]]);
+  }
+  if (data.totals && typeof data.totals === 'object') {
+    for (const [day, seconds] of Object.entries(data.totals)) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(seconds) && seconds > 0) out.totals[day] = seconds;
+    }
+  }
+  return out;
+}
+
+// Une intervalos que se superponen o se tocan.
+function mergeUsageIntervals(list) {
+  const out = [];
+  list.slice().sort((a, b) => a[0] - b[0]).forEach(([start, end]) => {
+    const last = out[out.length - 1];
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else out.push([start, end]);
+  });
+  return out;
+}
+
+function mergeAppUsage(a, b) {
+  const x = cleanAppUsage(a), y = cleanAppUsage(b);
+  const out = emptyAppUsage();
+  const since = [x.since, y.since].filter(Number.isFinite).sort((p, q) => p - q);
+  out.since = since.length ? since[0] : null;
+  out.intervals = mergeUsageIntervals(x.intervals.concat(y.intervals));
+  [x.totals, y.totals].forEach(totals => {
+    for (const [day, seconds] of Object.entries(totals)) out.totals[day] = Math.max(out.totals[day] || 0, seconds);
+  });
+  return out;
+}
+
+// [inicio, fin) en ms del día estadístico `dateStr` (respeta la hora límite).
+function appUsageDayBounds(dateStr) {
+  const cutoff = parseStatsDayCutoff(statsDayCutoffTime) || 0;
+  const start = new Date(dateStr + 'T00:00:00');
+  start.setMinutes(cutoff);
+  const end = new Date(dateStr + 'T00:00:00');
+  end.setDate(end.getDate() + 1);
+  end.setMinutes(cutoff);
+  return [start.getTime(), end.getTime()];
+}
+
+// Pasa a `totals` los intervalos más antiguos que APP_USAGE_KEEP_DAYS.
+function compactAppUsage(data, now = Date.now()) {
+  const out = cleanAppUsage(data);
+  const limit = now - APP_USAGE_KEEP_DAYS * 86400000;
+  const keep = [];
+  out.intervals.forEach(([start, end]) => {
+    if (end >= limit) { keep.push([start, end]); return; }
+    let from = start;
+    while (from < end) {
+      const day = getStatsTodayStr(new Date(from));
+      const dayEnd = appUsageDayBounds(day)[1];
+      const to = Math.min(end, dayEnd);
+      out.totals[day] = Math.round((out.totals[day] || 0) + (to - from) / 1000);
+      from = to;
+    }
+  });
+  out.intervals = keep;
+  return out;
+}
+
+function appUsageKey() { return currentUser ? 'app_usage_' + currentUser.id : null; }
+function readAppUsage() {
+  const key = appUsageKey();
+  if (!key) return emptyAppUsage();
+  try { return cleanAppUsage(JSON.parse(localStorage.getItem(key))); } catch (e) { return emptyAppUsage(); }
+}
+function writeAppUsage(data) {
+  const key = appUsageKey();
+  if (!key) return;
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch (e) {}
+}
+
+// Guarda en este dispositivo la racha en curso (se puede llamar varias veces:
+// al crecer la racha, el intervalo se une con su versión anterior).
+function saveAppUsageLocal() {
+  clearTimeout(appUsageSaveTimer);
+  appUsageSaveTimer = null;
+  const streak = appUsageStreak;
+  if (!streak || !currentUser || streak.user !== currentUser.id) return;
+  const data = readAppUsage();
+  if (!data.since) data.since = streak.start;
+  if (streak.last > streak.start) data.intervals = mergeUsageIntervals(data.intervals.concat([[streak.start, streak.last]]));
+  writeAppUsage(data);
+  // Una racha que ya terminó (pasaron más de 30 s) se guarda una sola vez: así
+  // nunca se vuelve a agregar después de haberse pasado a totales.
+  if (Date.now() - streak.last > APP_USAGE_GAP_MS) appUsageStreak = null;
+}
+
+function recordAppUsageAction() {
+  if (!currentUser || document.hidden) return;
+  const now = Date.now();
+  const streak = appUsageStreak;
+  if (streak && streak.user === currentUser.id && now - streak.last <= APP_USAGE_GAP_MS) {
+    streak.last = now;
+  } else {
+    saveAppUsageLocal(); // cierra la racha anterior
+    appUsageStreak = { user: currentUser.id, start: now, last: now };
+  }
+  if (!appUsageSaveTimer) appUsageSaveTimer = setTimeout(saveAppUsageLocal, APP_USAGE_SAVE_MS);
+}
+
+// Une la copia de este dispositivo con la de la nube y guarda el resultado en
+// ambas. Si no se puede leer la nube, no escribe nada.
+async function syncAppUsage() {
+  if (!currentUser || appUsageSyncing || !navigator.onLine) return;
+  const uid = currentUser.id;
+  appUsageSyncing = true;
+  try {
+    saveAppUsageLocal();
+    const { data, error } = await sb.from('user_data').select('preferences').eq('user_id', uid).maybeSingle();
+    if (error || !currentUser || currentUser.id !== uid) return;
+    const prefs = data && data.preferences;
+    if (!prefs || typeof prefs !== 'object' || Array.isArray(prefs)) return;
+    // Releer lo local después de esperar a la nube (pudo cambiar mientras tanto).
+    // Cada copia se compacta ANTES de unirlas: así un día que una ya pasó a
+    // totales y la otra aún tiene como intervalos no se cuenta dos veces.
+    const now = Date.now();
+    const merged = mergeAppUsage(compactAppUsage(readAppUsage(), now), compactAppUsage(prefs.appUsage, now));
+    writeAppUsage(merged);
+    if (JSON.stringify(cleanAppUsage(prefs.appUsage)) === JSON.stringify(merged)) return;
+    const { error: saveError } = await sb.from('user_data')
+      .upsert({ user_id: uid, preferences: { ...prefs, appUsage: merged } }, { onConflict: 'user_id' });
+    if (saveError) return;
+    // El caché de preferencias también lleva el dato (otros guardados parten de él).
+    try {
+      const cacheKey = 'prefs_cache_' + uid;
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+      if (cached && typeof cached === 'object') {
+        cached.appUsage = merged;
+        localStorage.setItem(cacheKey, JSON.stringify(cached));
+      }
+    } catch (e) {}
+  } catch (e) {
+    console.warn('Uso de Planner7: no se pudo sincronizar', e);
+  } finally {
+    appUsageSyncing = false;
+  }
+}
+
+// Minutos de uso del día estadístico `dateStr`, o null si ese día es anterior
+// al inicio del registro.
+function appUsageMinutesForDay(dateStr) {
+  if (!currentUser) return null;
+  const data = readAppUsage();
+  const streak = appUsageStreak && appUsageStreak.user === currentUser.id
+    && Date.now() - appUsageStreak.last <= APP_USAGE_GAP_MS ? appUsageStreak : null;
+  const since = data.since || (streak ? streak.start : null);
+  if (!since || dateStr < getStatsTodayStr(new Date(since))) return null;
+  const intervals = streak && streak.last > streak.start
+    ? mergeUsageIntervals(data.intervals.concat([[streak.start, streak.last]])) : data.intervals;
+  const [dayStart, dayEnd] = appUsageDayBounds(dateStr);
+  let ms = (data.totals[dateStr] || 0) * 1000;
+  intervals.forEach(([start, end]) => {
+    const overlap = Math.min(end, dayEnd) - Math.max(start, dayStart);
+    if (overlap > 0) ms += overlap;
+  });
+  return Math.round(ms / 60000);
+}
+
+function setupAppUsageTracking() {
+  // Acciones del usuario (también dentro de Hábitos: los eventos salen del Shadow DOM).
+  ['pointerdown', 'keydown', 'wheel', 'touchstart', 'touchmove'].forEach(type => {
+    document.addEventListener(type, recordAppUsageAction, { capture: true, passive: true });
+  });
+  // Al ocultar o cerrar la app: guardar y subir lo pendiente.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { saveAppUsageLocal(); syncAppUsage(); }
+  });
+  window.addEventListener('pagehide', saveAppUsageLocal);
+  window.addEventListener('online', () => syncAppUsage());
+  setInterval(syncAppUsage, APP_USAGE_SYNC_MS);
+  setTimeout(syncAppUsage, 15000);
+}
+window.addEventListener('DOMContentLoaded', setupAppUsageTracking);
