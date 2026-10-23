@@ -1240,12 +1240,15 @@ function cronogramaEdgeScrollStep() {
   if (!container) return;
 
   const before = container.scrollTop;
-  const maxScroll = container.scrollHeight - container.clientHeight;
+  const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
   const next = Math.min(Math.max(0, before + crEdgeScroll.dir * crEdgeScroll.speed), maxScroll);
-  const applied = next - before;
+  container.scrollTop = next;
+  // Con zoom/escalado, scrollTop puede ser fraccionario aunque scrollHeight y
+  // clientHeight se redondeen. Compensar el desplazamiento REAL evita acumular
+  // un delta ficticio cuando el navegador ya ha alcanzado el final del día.
+  const applied = container.scrollTop - before;
 
   if (applied !== 0) {
-    container.scrollTop = next;
     // El contenido se desplazó "applied" px bajo el dedo. Para que el delta
     // (clientY - grabClientY) refleje el movimiento real respecto al contenido,
     // movemos el origen en sentido contrario.
