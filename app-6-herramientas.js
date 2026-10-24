@@ -5161,7 +5161,7 @@ function initTitleAutocomplete() {
 // ─── Uso de Planner7 ─────────────────────────────────────────────────────────
 // Registra los intervalos en que el usuario USA la app. Una racha de acciones
 // (clic, toque, tecla, scroll o arrastre) cuenta desde la primera hasta la
-// última acción, siempre que entre una y otra pasen como máximo 30 s. Tener la
+// última acción, siempre que entre una y otra pasen como máximo 20 s. Tener la
 // app abierta sin hacer nada (o solo mover el mouse) no cuenta, y una acción
 // aislada suma 0. El total de cada día estadístico se ve en Configuración →
 // "Uso de Planner7" (panel #app-usage-modal, al final de este archivo).
@@ -5172,7 +5172,7 @@ function initTitleAutocomplete() {
 //     totals: { 'YYYY-MM-DD': segundos } (días estadísticos más antiguos) }
 // Cada dispositivo guarda su copia en localStorage y, al sincronizar, la une con
 // la de la nube: el tiempo simultáneo en dos dispositivos se cuenta una sola vez.
-const APP_USAGE_GAP_MS = 30000;      // máximo entre acciones de una misma racha
+const APP_USAGE_GAP_MS = 20000;      // máximo entre acciones de una misma racha
 const APP_USAGE_KEEP_DAYS = 7;       // días con intervalos exactos; antes, totales
 const APP_USAGE_SAVE_MS = 3000;      // guardado local (agrupado)
 const APP_USAGE_SYNC_MS = 120000;    // sincronización con la nube
@@ -5276,7 +5276,7 @@ function saveAppUsageLocal() {
   if (!data.since) data.since = streak.start;
   if (streak.last > streak.start) data.intervals = mergeUsageIntervals(data.intervals.concat([[streak.start, streak.last]]));
   writeAppUsage(data);
-  // Una racha que ya terminó (pasaron más de 30 s) se guarda una sola vez: así
+  // Una racha que ya terminó (pasaron más de 20 s) se guarda una sola vez: así
   // nunca se vuelve a agregar después de haberse pasado a totales.
   if (Date.now() - streak.last > APP_USAGE_GAP_MS) appUsageStreak = null;
 }
