@@ -6640,10 +6640,91 @@ html:not(.mobile-mode) .gs-filters-wrap > .gs-filter-grid:not([style*="none"]) {
 }
 .custom-range-warning.hidden { display: none; }
 
-/* Panel del día: minutos de uso de Planner7, discreto bajo el total. */
-.daily-stats-app-usage {
-  margin-top: 10px;
-  text-align: right;
+/* ── Uso de Planner7 (Configuración) ─────────────────────────────────────── */
+.app-usage-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* Navegador del panel: mismo aspecto que el de móvil, sin alternar modos. */
+.navegador.app-usage-nav {
+  justify-content: flex-start;
+  padding: 0 10px;
+  gap: 4px;
+  flex: 0 0 auto;
+  order: 0; /* en móvil .navegador lleva order: 3 */
+}
+.app-usage-nav button { flex: 0 0 auto; }
+.app-usage-nav button:disabled { opacity: 0.3; cursor: default; background: none; }
+.app-usage-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  user-select: none;
+}
+.app-usage-today-btn {
+  position: relative;
+  margin: 0 -10px 0 8px;
+  width: 48px !important;
+  align-self: stretch;
+  height: auto !important;
+  border-radius: 0 var(--radius-md, 8px) var(--radius-md, 8px) 0 !important;
   font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-primary);
+}
+.app-usage-today-btn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: -1px;
+  bottom: -1px;
+  width: 1px;
+  background-color: #d1d1d6;
+}
+.app-usage-list {
+  height: min(50vh, 400px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+.app-usage-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border-light);
+  font-family: var(--font-primary);
+  font-size: 13.5px;
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+}
+.app-usage-row:last-child { border-bottom: none; }
+.app-usage-row:hover { background: #f5f5f7; }
+.app-usage-row.selected { background: #ececf1; font-weight: 600; }
+.app-usage-row-total { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.app-usage-empty {
+  padding: 24px 12px;
+  text-align: center;
+  font-size: 13px;
   color: var(--text-muted);
+}
+.app-usage-average {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-main);
 }

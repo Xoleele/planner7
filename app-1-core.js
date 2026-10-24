@@ -810,6 +810,11 @@ function openSettingsModal() {
     document.getElementById('settings-cancel-btn').addEventListener('click', closeSettingsModal);
     // Cuenta: se cierra Configuración (sin guardar cambios pendientes) y se abre
     // el diálogo correspondiente.
+    const usageBtn = document.getElementById('settings-app-usage-btn');
+    if (usageBtn) usageBtn.addEventListener('click', () => {
+      closeSettingsModal();
+      openAppUsagePanel();
+    });
     const changePwdBtn = document.getElementById('settings-change-password-btn');
     if (changePwdBtn) changePwdBtn.addEventListener('click', () => {
       closeSettingsModal();

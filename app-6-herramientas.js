@@ -5163,8 +5163,8 @@ function initTitleAutocomplete() {
 // (clic, toque, tecla, scroll o arrastre) cuenta desde la primera hasta la
 // última acción, siempre que entre una y otra pasen como máximo 30 s. Tener la
 // app abierta sin hacer nada (o solo mover el mouse) no cuenta, y una acción
-// aislada suma 0. El total de cada día estadístico se muestra en el panel del
-// día ("Uso de Planner7: N min").
+// aislada suma 0. El total de cada día estadístico se ve en Configuración →
+// "Uso de Planner7" (panel #app-usage-modal, al final de este archivo).
 //
 // Se guarda en preferences.appUsage (sincronizado entre dispositivos):
 //   { since: ms del inicio del registro,
@@ -5367,3 +5367,125 @@ function setupAppUsageTracking() {
   setTimeout(syncAppUsage, 15000);
 }
 window.addEventListener('DOMContentLoaded', setupAppUsageTracking);
+
+// ─── Panel "Uso de Planner7" (Configuración) ────────────────────────────────
+// Navegador por día (flechas + fecha + Hoy), lista deslizable con todos los
+// días registrados (fecha | total) y, abajo, el promedio diario. El promedio
+// solo considera los días con más de 2 minutos de uso.
+const APP_USAGE_AVG_MIN_MINUTES = 2;
+let appUsagePanelDay = null;   // día seleccionado en el Navegador del panel
+let appUsagePanelReady = false;
+
+function formatAppUsageMinutes(min) {
+  if (min < 60) return min + ' min';
+  return Math.floor(min / 60) + ' h ' + String(min % 60).padStart(2, '0') + ' min';
+}
+
+function appUsageShiftDay(dateStr, delta) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + delta);
+  return formatDate(d);
+}
+
+// Primer día estadístico con registro, o null si aún no hay ninguno.
+function appUsageFirstDay() {
+  if (!currentUser) return null;
+  const data = readAppUsage();
+  const streak = appUsageStreak && appUsageStreak.user === currentUser.id ? appUsageStreak : null;
+  const since = data.since || (streak ? streak.start : null);
+  return since ? getStatsTodayStr(new Date(since)) : null;
+}
+
+function renderAppUsagePanel(scrollToSelected = true) {
+  const list = document.getElementById('app-usage-list');
+  if (!list) return;
+  const today = getStatsTodayStr();
+  const first = appUsageFirstDay();
+  if (!appUsagePanelDay || appUsagePanelDay > today) appUsagePanelDay = today;
+  if (first && appUsagePanelDay < first) appUsagePanelDay = first;
+
+  list.innerHTML = '';
+  let sum = 0, count = 0;
+  if (!first || first > today) {
+    const empty = document.createElement('div');
+    empty.className = 'app-usage-empty';
+    empty.textContent = 'Aún no hay registros de uso.';
+    list.appendChild(empty);
+  } else {
+    for (let day = first; day <= today; day = appUsageShiftDay(day, 1)) {
+      const min = appUsageMinutesForDay(day) || 0;
+      if (min > APP_USAGE_AVG_MIN_MINUTES) { sum += min; count++; }
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'app-usage-row' + (day === appUsagePanelDay ? ' selected' : '');
+      row.dataset.day = day;
+      const date = document.createElement('span');
+      date.className = 'app-usage-row-date';
+      date.textContent = formatSingleDate(new Date(day + 'T12:00:00'));
+      const total = document.createElement('span');
+      total.className = 'app-usage-row-total';
+      total.textContent = formatAppUsageMinutes(min);
+      row.append(date, total);
+      list.appendChild(row);
+    }
+  }
+  document.getElementById('app-usage-average-value').textContent =
+    count ? formatAppUsageMinutes(Math.round(sum / count)) : '—';
+  updateAppUsageNav(first, today);
+  if (scrollToSelected) scrollAppUsageToSelected();
+}
+
+function updateAppUsageNav(first = appUsageFirstDay(), today = getStatsTodayStr()) {
+  document.getElementById('app-usage-label').textContent =
+    formatSingleDate(new Date(appUsagePanelDay + 'T12:00:00'));
+  document.getElementById('app-usage-prev-btn').disabled = !first || appUsagePanelDay <= first;
+  document.getElementById('app-usage-next-btn').disabled = appUsagePanelDay >= today;
+}
+
+function scrollAppUsageToSelected() {
+  const list = document.getElementById('app-usage-list');
+  const row = list && list.querySelector('.app-usage-row.selected');
+  if (row) list.scrollTop = row.offsetTop - list.offsetTop - (list.clientHeight - row.offsetHeight) / 2;
+}
+
+function selectAppUsageDay(day) {
+  appUsagePanelDay = day;
+  const list = document.getElementById('app-usage-list');
+  list.querySelectorAll('.app-usage-row').forEach(r => r.classList.toggle('selected', r.dataset.day === day));
+  updateAppUsageNav();
+  scrollAppUsageToSelected();
+}
+
+function setupAppUsagePanel() {
+  if (appUsagePanelReady) return;
+  appUsagePanelReady = true;
+  document.getElementById('app-usage-prev-btn').addEventListener('click', () => {
+    const first = appUsageFirstDay();
+    if (first && appUsagePanelDay > first) selectAppUsageDay(appUsageShiftDay(appUsagePanelDay, -1));
+  });
+  document.getElementById('app-usage-next-btn').addEventListener('click', () => {
+    if (appUsagePanelDay < getStatsTodayStr()) selectAppUsageDay(appUsageShiftDay(appUsagePanelDay, 1));
+  });
+  document.getElementById('app-usage-today-btn').addEventListener('click', () => {
+    const today = getStatsTodayStr();
+    if (appUsagePanelDay === today) scrollAppUsageToSelected();
+    else { appUsagePanelDay = today; renderAppUsagePanel(); }
+  });
+  document.getElementById('app-usage-list').addEventListener('click', e => {
+    const row = e.target.closest('.app-usage-row');
+    if (row) selectAppUsageDay(row.dataset.day);
+  });
+}
+
+function openAppUsagePanel() {
+  const modal = document.getElementById('app-usage-modal');
+  if (!modal) return;
+  setupAppUsagePanel();
+  appUsagePanelDay = getStatsTodayStr();
+  modal.classList.remove('hidden');
+  renderAppUsagePanel();
+  // Trae lo registrado en otros dispositivos y refresca sin mover la lista.
+  Promise.resolve(syncAppUsage()).then(() => {
+    if (!modal.classList.contains('hidden')) renderAppUsagePanel(false);
+  }).catch(() => {});
+}

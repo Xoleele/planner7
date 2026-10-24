@@ -1002,6 +1002,10 @@
 
         <!-- Cuenta: cambiar contraseña y (última opción) eliminar cuenta -->
         <div class="settings-section-title">Cuenta</div>
+        <button type="button" class="settings-action-btn" id="settings-app-usage-btn">
+          <img src="icons/clock.svg" alt="" width="14" height="14">
+          Uso de Planner7
+        </button>
         <button type="button" class="settings-action-btn" id="settings-change-password-btn">
           <img src="icons/key.svg" alt="" width="14" height="14">
           Cambiar contraseña
@@ -1023,6 +1027,36 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="settings-cancel-btn">Cancelar</button>
         <button type="button" class="btn btn-primary" id="settings-save-btn">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: USO DE PLANNER7 (se abre desde Configuración) -->
+  <div id="app-usage-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Uso de Planner7</h2>
+        <button class="close-modal-btn" data-modal="app-usage-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body app-usage-body">
+        <!-- Navegador como el de móvil, sin el botón de alternar modos -->
+        <div class="navegador app-usage-nav">
+          <button type="button" id="app-usage-prev-btn" aria-label="Día anterior">
+            <img src="icons/chevron-left.svg" alt="Anterior" width="16" height="16">
+          </button>
+          <span id="app-usage-label" class="app-usage-label"></span>
+          <button type="button" id="app-usage-next-btn" aria-label="Día siguiente">
+            <img src="icons/chevron-right.svg" alt="Siguiente" width="16" height="16">
+          </button>
+          <button type="button" id="app-usage-today-btn" class="app-usage-today-btn">Hoy</button>
+        </div>
+        <div id="app-usage-list" class="app-usage-list"></div>
+        <div class="app-usage-average">
+          <span>Promedio diario</span>
+          <span id="app-usage-average-value">—</span>
+        </div>
       </div>
     </div>
   </div>
