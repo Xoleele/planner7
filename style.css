@@ -391,6 +391,11 @@ html:not(.mobile-mode) .app-container {
   display: none !important;
 }
 
+/* Ocultar tareas con hora definida (solo modo lista de tareas). */
+body.hide-timed-tasks .planner-week-wrapper .task-card.has-defined-time {
+  display: none !important;
+}
+
 /* Menú contextual genérico (click derecho en una columna). */
 .context-menu {
   position: fixed;

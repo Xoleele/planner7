@@ -1029,15 +1029,49 @@ function exportDayMenuItem(dayIndex) {
 
 function openDayContextMenu(x, y, dayIndex) {
   if (isAnyIsolationActive()) {
-    // Ya hay algo aislado (día o actividad): la única opción es restablecer.
-    openIsolationContextMenu(x, y, 'Restablecer', resetIsolation);
+    // Ya hay algo aislado (día o actividad): la única opción es restablecer
+    // (más el interruptor de tareas con hora, en el modo lista de tareas).
+    openIsolationContextMenu(x, y, withTimedTasksMenuItem([{ label: 'Restablecer', action: resetIsolation }]));
   } else {
     const items = [{ label: 'Aislar día', action: () => isolateDay(dayIndex) }];
     const exp = exportDayMenuItem(dayIndex);
     if (exp) items.push(exp);
-    openIsolationContextMenu(x, y, items);
+    openIsolationContextMenu(x, y, withTimedTasksMenuItem(items));
   }
 }
+
+// ─── Ocultar tareas con hora definida (solo modo lista de tareas) ────────────
+// Se guarda en localStorage y se aplica con una clase en <body>; las tarjetas
+// con hora llevan la clase 'has-defined-time' (ver createTaskCard).
+let hideTimedTasks = false;
+try { hideTimedTasks = window.localStorage.getItem('hideTimedTasks') === '1'; } catch (e) { hideTimedTasks = false; }
+
+function taskHasDefinedTime(task) {
+  return !!task && ((typeof task.startTime === 'string' && /^\d{1,2}:\d{2}$/.test(task.startTime)) ||
+    (typeof task.endTime === 'string' && /^\d{1,2}:\d{2}$/.test(task.endTime)));
+}
+
+function applyHideTimedTasks() {
+  if (document.body) document.body.classList.toggle('hide-timed-tasks', hideTimedTasks);
+}
+
+function toggleHideTimedTasks() {
+  hideTimedTasks = !hideTimedTasks;
+  try { window.localStorage.setItem('hideTimedTasks', hideTimedTasks ? '1' : '0'); } catch (e) {}
+  applyHideTimedTasks();
+}
+
+// Agrega la opción al final del menú, solo en el modo lista de tareas.
+function withTimedTasksMenuItem(items) {
+  if (cronogramaActive) return items;
+  items.push({
+    label: hideTimedTasks ? 'Mostrar tareas con hora definida' : 'Ocultar tareas con hora definida',
+    action: toggleHideTimedTasks
+  });
+  return items;
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyHideTimedTasks);
+else applyHideTimedTasks();
 
 // Click derecho en una tarea (escritorio): "Aislar actividad" + "Aislar día"
 // (del día de la tarea), o solo "Restablecer" si ya hay algo aislado.
@@ -1046,7 +1080,7 @@ function openTaskContextMenu(x, y, task, dayIndex) {
   const tagId = taskTagIdForIsolation(task);
   // Con algo aislado (día o actividad), la ÚNICA opción es "Restablecer".
   if (isAnyIsolationActive()) {
-    openIsolationContextMenu(x, y, 'Restablecer', resetIsolation);
+    openIsolationContextMenu(x, y, withTimedTasksMenuItem([{ label: 'Restablecer', action: resetIsolation }]));
     return;
   }
   const items = [{ label: 'Aislar actividad', action: () => isolateActivity(tagId) }];
@@ -1069,7 +1103,7 @@ function openTaskContextMenu(x, y, task, dayIndex) {
   items.push({ label: 'Ocultar actividad', action: () => hideActivityFromMenu(tagId) });
   const exp = exportDayMenuItem(dayIndex);
   if (exp) items.push(exp);
-  openIsolationContextMenu(x, y, items);
+  openIsolationContextMenu(x, y, withTimedTasksMenuItem(items));
 }
 
 // Shift+clic selecciona texto en el navegador: se limpia esa selección.

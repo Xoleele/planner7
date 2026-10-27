@@ -1875,6 +1875,8 @@ function createTaskCard(task, occurrenceDate) {
   card.draggable = true;
   card.dataset.id = task.id;
   card.dataset.occurrenceDate = occurrenceDate;
+  // Permite ocultarla con "Ocultar tareas con hora definida" (menú contextual).
+  if (taskHasDefinedTime(task)) card.classList.add('has-defined-time');
 
   // Check if completed
   const isCompleted = task.recurrence && task.recurrence.enabled
