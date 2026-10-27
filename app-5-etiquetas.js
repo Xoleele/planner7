@@ -886,23 +886,67 @@ function setSelectTagValue(tagId) {
   }
 }
 
-// Filtra las opciones del desplegable según el texto escrito en el input del
-// trigger. Devuelve la primera opción visible (útil para seleccionar con Enter).
-function filterTagOptions(container, query) {
-  const q = (query || '').trim().toLowerCase();
-  let first = null;
-  container.querySelectorAll('.custom-option').forEach(opt => {
-    const name = (opt.dataset.name || '').toLowerCase();
-    const alt = (opt.dataset.alt || '').toLowerCase();
-    const match = (!q || name.startsWith(q) || (alt && alt.startsWith(q)));
-    opt.style.display = match ? '' : 'none';
-    if (match && !first) first = opt;
+// Normaliza para buscar: minúsculas y sin acentos ("Música" ≈ "musica").
+function normalizeTagSearchText(str) {
+  return String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+// Prioridad de una coincidencia (menor = mejor): 0 = el nombre empieza por q,
+// 1 = alguna palabra empieza por q, 2 = q aparece en cualquier otra parte,
+// Infinity = sin coincidencia.
+function tagSearchRank(text, q) {
+  if (!text) return Infinity;
+  const idx = text.indexOf(q);
+  if (idx === -1) return Infinity;
+  if (idx === 0) return 0;
+  const wordStart = new RegExp('(^|[^a-z0-9])' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return wordStart.test(text) ? 1 : 2;
+}
+
+// Guarda el orden original de las opciones (para restaurarlo sin filtro).
+function ensureTagOptionOrder(container) {
+  container.querySelectorAll('.custom-option').forEach((opt, i) => {
+    if (opt.dataset.origIndex === undefined) opt.dataset.origIndex = String(i);
   });
-  return first;
+}
+
+function restoreTagOptionOrder(container) {
+  ensureTagOptionOrder(container);
+  [...container.querySelectorAll('.custom-option')]
+    .sort((a, b) => Number(a.dataset.origIndex) - Number(b.dataset.origIndex))
+    .forEach(opt => container.appendChild(opt));
+}
+
+// Filtra las opciones del desplegable según el texto escrito en el input del
+// trigger: coincide en cualquier parte del nombre, pero ordena primero las que
+// empiezan por lo escrito, luego las que lo tienen al inicio de una palabra y
+// al final el resto. Devuelve la primera opción visible (para Enter).
+function filterTagOptions(container, query) {
+  const q = normalizeTagSearchText((query || '').trim());
+  ensureTagOptionOrder(container);
+  const options = [...container.querySelectorAll('.custom-option')];
+  if (!q) {
+    restoreTagOptionOrder(container);
+    options.forEach(opt => { opt.style.display = ''; });
+    return container.querySelector('.custom-option');
+  }
+  const ranked = options.map(opt => {
+    const rank = Math.min(
+      tagSearchRank(normalizeTagSearchText(opt.dataset.name), q),
+      tagSearchRank(normalizeTagSearchText(opt.dataset.alt), q)
+    );
+    opt.style.display = rank === Infinity ? 'none' : '';
+    return { opt, rank, idx: Number(opt.dataset.origIndex) };
+  });
+  ranked.sort((a, b) => (a.rank - b.rank) || (a.idx - b.idx));
+  ranked.forEach(r => container.appendChild(r.opt));
+  const first = ranked.find(r => r.rank !== Infinity);
+  return first ? first.opt : null;
 }
 
 // Muestra todas las opciones (sin filtro) en el desplegable indicado.
 function showAllTagOptions(container) {
+  restoreTagOptionOrder(container);
   container.querySelectorAll('.custom-option').forEach(opt => { opt.style.display = ''; });
 }
 
