@@ -1028,10 +1028,9 @@ function exportDayMenuItem(dayIndex) {
 }
 
 function openDayContextMenu(x, y, dayIndex) {
-  if (isAnyIsolationActive()) {
-    // Ya hay algo aislado (día o actividad): la única opción es restablecer
-    // (más el interruptor de tareas con hora, en el modo lista de tareas).
-    openIsolationContextMenu(x, y, withTimedTasksMenuItem([{ label: 'Restablecer', action: resetIsolation }]));
+  if (isRestoreMenuNeeded()) {
+    // Hay algo aislado u oculto: la ÚNICA opción es "Restablecer".
+    openIsolationContextMenu(x, y, 'Restablecer', resetAllViewFilters);
   } else {
     const items = [{ label: 'Aislar día', action: () => isolateDay(dayIndex) }];
     const exp = exportDayMenuItem(dayIndex);
@@ -1061,14 +1060,25 @@ function toggleHideTimedTasks() {
   applyHideTimedTasks();
 }
 
-// Agrega la opción al final del menú, solo en el modo lista de tareas.
+// Agrega la opción al final del menú, solo en el modo lista de tareas. (Si ya
+// están ocultas, el menú solo muestra "Restablecer": ver isRestoreMenuNeeded.)
 function withTimedTasksMenuItem(items) {
-  if (cronogramaActive) return items;
-  items.push({
-    label: hideTimedTasks ? 'Mostrar tareas con hora definida' : 'Ocultar tareas con hora definida',
-    action: toggleHideTimedTasks
-  });
+  if (cronogramaActive || hideTimedTasks) return items;
+  items.push({ label: 'Ocultar tareas con hora definida', action: toggleHideTimedTasks });
   return items;
+}
+
+// ¿Hay alguna herramienta de aislar/ocultar activa en la vista actual? En ese
+// caso el menú contextual solo ofrece "Restablecer".
+function isRestoreMenuNeeded() {
+  return isAnyIsolationActive() || (hideTimedTasks && !cronogramaActive);
+}
+
+// "Restablecer": deshace cualquier aislamiento y vuelve a mostrar las tareas
+// con hora definida.
+function resetAllViewFilters() {
+  if (isAnyIsolationActive()) resetIsolation();
+  if (hideTimedTasks) toggleHideTimedTasks();
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyHideTimedTasks);
 else applyHideTimedTasks();
@@ -1079,8 +1089,8 @@ function openTaskContextMenu(x, y, task, dayIndex) {
   if (!task) return;
   const tagId = taskTagIdForIsolation(task);
   // Con algo aislado (día o actividad), la ÚNICA opción es "Restablecer".
-  if (isAnyIsolationActive()) {
-    openIsolationContextMenu(x, y, withTimedTasksMenuItem([{ label: 'Restablecer', action: resetIsolation }]));
+  if (isRestoreMenuNeeded()) {
+    openIsolationContextMenu(x, y, 'Restablecer', resetAllViewFilters);
     return;
   }
   const items = [{ label: 'Aislar actividad', action: () => isolateActivity(tagId) }];
