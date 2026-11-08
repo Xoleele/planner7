@@ -3281,6 +3281,11 @@ function buildCopyText(dateStr, opts) {
         line = `${durStr}. ${line}`;
       }
     }
+    // Actividad entre paréntesis, igual que al exportar desde el Buscador.
+    if (opts.includeTag) {
+      const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');
+      if (tag && tag.name) line += ` (${tag.name})`;
+    }
     if (opts.includeDesc && task.description && task.description.trim() !== '') {
       line += `. ${task.description.trim()}`;
     }
@@ -3324,6 +3329,7 @@ async function handleCopyTextConfirm() {
     separate: document.getElementById('copy-opt-separate').checked,
     includeDate: document.getElementById('copy-opt-date').checked,
     includeTime: document.getElementById('copy-opt-time').checked,
+    includeTag: document.getElementById('copy-opt-tag').checked,
     includeDesc: document.getElementById('copy-opt-desc').checked,
     includeNote: document.getElementById('copy-opt-note').checked,
   };
