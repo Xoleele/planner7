@@ -1720,6 +1720,16 @@ function setupEventListeners() {
     keywordInput.addEventListener('input', clearKeywordError);
   }
 
+  // Migrar palabras clave a otra actividad.
+  const kwMigrateBtn = document.getElementById('tag-keywords-migrate-btn');
+  if (kwMigrateBtn) kwMigrateBtn.addEventListener('click', openKeywordMigrateModal);
+  const kwMigrateCancel = document.getElementById('keyword-migrate-cancel-btn');
+  if (kwMigrateCancel) kwMigrateCancel.addEventListener('click', closeKeywordMigrateModal);
+  const kwMigrateConfirm = document.getElementById('keyword-migrate-confirm-btn');
+  if (kwMigrateConfirm) kwMigrateConfirm.addEventListener('click', confirmKeywordMigrate);
+  const kwMigrateTarget = document.getElementById('keyword-migrate-target');
+  if (kwMigrateTarget) kwMigrateTarget.addEventListener('change', clearKeywordMigrateError);
+
   // Sliders del selector de color personalizado (HSL): actualizar en vivo
   ['hsl-h', 'hsl-s', 'hsl-l'].forEach(id => {
     const el = document.getElementById(id);
@@ -3206,6 +3216,7 @@ function closeOrGoBackInModal(modal) {
     'tag-edit-modal': () => closeTagEditModal(),
     'new-tag-prompt-modal': () => closeNewTagPromptModal(),
     'delete-tag-modal': () => closeDeleteTagModal(),
+    'keyword-migrate-modal': () => closeKeywordMigrateModal(),
     'settings-modal': () => closeSettingsModal(),
     'archive-lists-modal': () => closeArchiveListsModal(),
     'archive-delete-modal': () => closeArchiveDeleteModal(),

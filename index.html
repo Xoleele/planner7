@@ -711,6 +711,7 @@
             </div>
             <p id="tag-keywords-error" class="keywords-error hidden"></p>
             <small class="keywords-help">Al editar el Título de una tarea, si contiene una de estas palabras se le asignará esta Actividad automáticamente.</small>
+            <button type="button" id="tag-keywords-migrate-btn" class="keywords-migrate-btn hidden">Migrar palabras clave a otra actividad</button>
           </div>
 
           <div class="tag-form-actions">
@@ -718,6 +719,32 @@
             <button type="submit" class="btn btn-primary btn-sm" id="tag-submit-btn">Crear</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: MIGRAR PALABRAS CLAVE A OTRA ACTIVIDAD -->
+  <div id="keyword-migrate-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Migrar palabras clave</h2>
+        <button class="close-modal-btn" data-modal="keyword-migrate-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body keyword-migrate-body">
+        <label for="keyword-migrate-target" class="keyword-migrate-label">Actividad de destino</label>
+        <select id="keyword-migrate-target" class="keyword-migrate-select"></select>
+
+        <label class="keyword-migrate-label">Palabras clave a migrar</label>
+        <div id="keyword-migrate-chips" class="keywords-chips keyword-migrate-chips"></div>
+        <small id="keyword-migrate-count" class="keywords-help">Haz clic en una palabra clave para no migrarla.</small>
+        <p id="keyword-migrate-error" class="keywords-error hidden"></p>
+
+        <div class="keyword-migrate-actions">
+          <button type="button" class="btn btn-secondary btn-sm" id="keyword-migrate-cancel-btn">Cancelar</button>
+          <button type="button" class="btn btn-primary btn-sm" id="keyword-migrate-confirm-btn">Migrar</button>
+        </div>
       </div>
     </div>
   </div>

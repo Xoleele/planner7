@@ -466,6 +466,148 @@ function renderKeywordChips() {
     chip.append(label, remove);
     container.appendChild(chip);
   });
+  updateKeywordMigrateButton();
+}
+
+// El botón "Migrar palabras clave" solo aparece al EDITAR una actividad que
+// tenga palabras clave y cuando existe otra actividad a la que migrarlas.
+function updateKeywordMigrateButton() {
+  const btn = document.getElementById('tag-keywords-migrate-btn');
+  if (!btn) return;
+  const editIdEl = document.getElementById('tag-edit-id');
+  const editId = editIdEl ? editIdEl.value : '';
+  const hasTargets = tags.some(t => t.id !== editId && t.id !== 'default');
+  btn.classList.toggle('hidden', !(editId && editingTagKeywords.length && hasTargets));
+}
+
+// ─── Migrar palabras clave de una actividad a otra ──────────────────────────
+// Parten todas seleccionadas; un clic en un chip la deselecciona (o la vuelve
+// a seleccionar). Al confirmar, las seleccionadas salen de la actividad que se
+// está editando y se suman a la de destino (sin duplicar).
+let keywordMigrateItems = []; // [{ kw, selected }]
+
+function openKeywordMigrateModal() {
+  const sourceId = document.getElementById('tag-edit-id').value;
+  if (!sourceId || !editingTagKeywords.length) return;
+
+  // Si quedó texto sin confirmar en el input, añadirlo antes de migrar.
+  addKeywordFromInput();
+
+  keywordMigrateItems = editingTagKeywords.map(kw => ({ kw, selected: true }));
+
+  const select = document.getElementById('keyword-migrate-target');
+  select.innerHTML = '';
+  // "Por defecto" no usa palabras clave (la auto-categorización la ignora).
+  tags.filter(t => t.id !== sourceId && t.id !== 'default').forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = t.name;
+    select.appendChild(opt);
+  });
+
+  clearKeywordMigrateError();
+  renderKeywordMigrateChips();
+  document.getElementById('keyword-migrate-modal').classList.remove('hidden');
+  setTimeout(() => select.focus(), 50);
+}
+
+function closeKeywordMigrateModal() {
+  const modal = document.getElementById('keyword-migrate-modal');
+  if (modal) modal.classList.add('hidden');
+  keywordMigrateItems = [];
+}
+
+function renderKeywordMigrateChips() {
+  const container = document.getElementById('keyword-migrate-chips');
+  if (!container) return;
+  container.innerHTML = '';
+  keywordMigrateItems.forEach(item => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'keyword-chip keyword-migrate-chip' + (item.selected ? '' : ' deselected');
+    chip.setAttribute('aria-pressed', item.selected ? 'true' : 'false');
+    chip.title = item.selected ? 'Clic para no migrarla' : 'Clic para migrarla';
+    const label = document.createElement('span');
+    label.textContent = item.kw;
+    chip.appendChild(label);
+    chip.addEventListener('click', () => {
+      item.selected = !item.selected;
+      clearKeywordMigrateError();
+      renderKeywordMigrateChips();
+    });
+    container.appendChild(chip);
+  });
+
+  const n = keywordMigrateItems.filter(i => i.selected).length;
+  const count = document.getElementById('keyword-migrate-count');
+  if (count) {
+    count.textContent = `${n} de ${keywordMigrateItems.length} seleccionada${keywordMigrateItems.length === 1 ? '' : 's'}. Haz clic en una palabra clave para no migrarla.`;
+  }
+  const confirmBtn = document.getElementById('keyword-migrate-confirm-btn');
+  if (confirmBtn) confirmBtn.disabled = n === 0;
+}
+
+function showKeywordMigrateError(msg) {
+  const el = document.getElementById('keyword-migrate-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function clearKeywordMigrateError() {
+  const el = document.getElementById('keyword-migrate-error');
+  if (!el) return;
+  el.textContent = '';
+  el.classList.add('hidden');
+}
+
+function confirmKeywordMigrate() {
+  const sourceId = document.getElementById('tag-edit-id').value;
+  const targetId = document.getElementById('keyword-migrate-target').value;
+  const target = tags.find(t => t.id === targetId);
+  const selected = keywordMigrateItems.filter(i => i.selected).map(i => i.kw);
+  if (!sourceId || !target) { showKeywordMigrateError('Elige una actividad de destino.'); return; }
+  if (!selected.length) { showKeywordMigrateError('Selecciona al menos una palabra clave.'); return; }
+
+  // Una palabra clave recién escrita (aún sin guardar) podría estar en uso en
+  // una tercera actividad: en ese caso no se migra nada.
+  const selectedNorms = new Set(selected.map(normalizeForKeyword));
+  for (const tag of tags) {
+    if (tag.id === sourceId || tag.id === targetId) continue;
+    const kws = Array.isArray(tag.keywords) ? tag.keywords : [];
+    const clash = kws.find(k => selectedNorms.has(normalizeForKeyword(k)));
+    if (clash) {
+      showKeywordMigrateError(`La palabra clave "${clash}" ya se usa en la actividad "${tag.name}".`);
+      return;
+    }
+  }
+
+  // Ctrl+Z deshace la migración.
+  pushUndoEntry({ tags: JSON.stringify(tags) });
+
+  tags = tags.map(t => {
+    if (t.id === targetId) {
+      const merged = Array.isArray(t.keywords) ? [...t.keywords] : [];
+      const norms = new Set(merged.map(normalizeForKeyword));
+      selected.forEach(kw => {
+        const n = normalizeForKeyword(kw);
+        if (!norms.has(n)) { norms.add(n); merged.push(kw); }
+      });
+      return { ...t, keywords: merged };
+    }
+    if (t.id === sourceId) {
+      const kws = Array.isArray(t.keywords) ? t.keywords : [];
+      return { ...t, keywords: kws.filter(k => !selectedNorms.has(normalizeForKeyword(k))) };
+    }
+    return t;
+  });
+  saveTagsToStorage();
+
+  // El formulario de edición sigue abierto: quitar también allí las migradas.
+  editingTagKeywords = editingTagKeywords.filter(k => !selectedNorms.has(normalizeForKeyword(k)));
+  renderKeywordChips();
+  clearKeywordError();
+  closeKeywordMigrateModal();
 }
 
 function showKeywordError(msg) {

@@ -2359,6 +2359,69 @@ input:checked + .slider:before {
   margin-top: 6px;
 }
 
+/* ─── Migrar palabras clave a otra actividad ──────────────────────────────── */
+.keywords-migrate-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-main);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.keywords-migrate-btn.hidden { display: none; }
+
+.keyword-migrate-body { padding: 24px; }
+
+.keyword-migrate-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 8px;
+}
+
+.keyword-migrate-select {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-main);
+  margin-bottom: 18px;
+}
+
+.keyword-migrate-chips { margin-bottom: 2px; }
+
+.keyword-chip.keyword-migrate-chip {
+  border: 1px solid #8e8e93;
+  padding: 6px 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.keyword-chip.keyword-migrate-chip:hover { background: #7c7c80; }
+.keyword-chip.keyword-migrate-chip.deselected {
+  background: transparent;
+  color: var(--text-muted);
+  border-style: dashed;
+}
+.keyword-chip.keyword-migrate-chip.deselected span { text-decoration: line-through; }
+.keyword-chip.keyword-migrate-chip.deselected:hover { background: rgba(142, 142, 147, 0.12); }
+
+.keyword-migrate-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-light);
+}
+
 .custom-select-trigger:hover {
   border-color: #c7c7cc;
 }
