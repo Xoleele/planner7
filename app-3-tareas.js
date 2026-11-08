@@ -4708,6 +4708,9 @@ let copyTextOptions = {
   includeTag: false,
   includeDesc: false,
   includeNote: false,
+  // Filtro de actividades: ids de las actividades que NO se exportan. Se guarda
+  // como "excluidas" para que las actividades nuevas partan activadas.
+  excludedTagIds: [],
 };
 
 function applyCopyOptionsToModal() {

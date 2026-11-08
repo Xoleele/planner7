@@ -23,3 +23,24 @@ Reglas al editar estos archivos:
   en su mismo archivo o en uno anterior. Dentro de funciones/listeners no hay restriccion.
 - Si agregas un archivo nuevo, sumalo en index.html (en orden) y en APP_SHELL de sw.js.
 - `sw.js` cachea estos archivos; al cambiarlos, sube CACHE_VERSION.
+
+## Datos del usuario y Exportar / Importar datos
+
+Cada vez que un cambio toque cómo se guardan los datos del usuario (tareas, actividades,
+preferencias, hábitos o cualquier caché local), revisa que **Exportar datos** e **Importar datos**
+(`exportUserData` / `validateImportedUserData` / `importUserDataFromFile` en `app-4-estadisticas.js`)
+sigan funcionando:
+
+- Dónde vive cada cosa: tareas → tabla `tasks` (+ caché `tasks_cache_<uid>`); actividades y
+  preferencias → `user_data.tags` / `user_data.preferences` (+ caché `prefs_cache_<uid>`);
+  hábitos → `habit_data` (+ caché `planner7.habitos.v1:<uid>`).
+- Lo nuevo que se guarde en la cuenta debe ir dentro de esas estructuras (p. ej. una clave nueva
+  en `preferences`). Así se exporta e importa solo. Si se crea una tabla o un campo fuera de ellas,
+  hay que agregarlo al archivo exportado, a la validación y a la importación, y subir
+  `PLANNER7_DATA_VERSION` si cambia el formato.
+- Los archivos exportados antiguos no traen las claves nuevas: al cargar preferencias usa valores
+  por defecto y valida el tipo (p. ej. `Array.isArray`) en vez de suponer que existen.
+- Si una preferencia guarda ids de actividades o tareas, tolera ids que ya no existen (actividad
+  eliminada) y límpialos al guardar.
+- Al guardar una preferencia, fusiona con lo existente (`{ ...actual, ...nuevo }`) en vez de
+  reemplazar el objeto completo, para no borrar otras opciones.

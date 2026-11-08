@@ -3214,7 +3214,130 @@ function openCopyTextModal(dateStr) {
   if (!modal) return;
   applyCopyOptionsToModal();
   updateCopyOptionsState();
+  refreshCopyTagsFilterSummary();
   modal.classList.remove('hidden');
+}
+
+// Lee las casillas del panel "Exportar día" (sin tocar el filtro de actividades).
+function readCopyOptionsFromModal() {
+  const on = (id) => !!document.getElementById(id)?.checked;
+  return {
+    includeCompleted: on('copy-opt-completed'),
+    includePending: on('copy-opt-pending'),
+    separate: on('copy-opt-separate'),
+    includeDate: on('copy-opt-date'),
+    includeTime: on('copy-opt-time'),
+    includeTag: on('copy-opt-tag'),
+    includeDesc: on('copy-opt-desc'),
+    includeNote: on('copy-opt-note'),
+  };
+}
+
+// Las opciones se guardan en la cuenta apenas cambian (no solo al exportar).
+// Con una pausa corta, para no subir las preferencias en cada clic.
+let copyOptionsSaveTimer = null;
+function scheduleSaveCopyOptions() {
+  clearTimeout(copyOptionsSaveTimer);
+  copyOptionsSaveTimer = setTimeout(() => { saveCopyOptionsToStorage(); }, 600);
+}
+
+// Al cambiar una casilla del panel: recordar y guardar.
+function onCopyOptionChanged() {
+  copyTextOptions = { ...copyTextOptions, ...readCopyOptionsFromModal() };
+  scheduleSaveCopyOptions();
+}
+
+// ─── Filtro de actividades de "Exportar día" ────────────────────────────────
+// copyTextOptions.excludedTagIds = actividades que NO se exportan. Ids que ya
+// no existen (actividad eliminada) se ignoran y se limpian al guardar.
+function getCopyExcludedTagIds() {
+  const ids = Array.isArray(copyTextOptions.excludedTagIds) ? copyTextOptions.excludedTagIds : [];
+  return ids.filter(id => tags.some(t => t.id === id));
+}
+
+function setCopyExcludedTagIds(ids) {
+  copyTextOptions = { ...copyTextOptions, excludedTagIds: [...new Set(ids)].filter(id => tags.some(t => t.id === id)) };
+  scheduleSaveCopyOptions();
+  refreshCopyTagsFilterSummary();
+}
+
+// Texto del botón ("Todas", "Ninguna" o "3 de 10") y estado de "Exportar".
+function refreshCopyTagsFilterSummary() {
+  const excluded = getCopyExcludedTagIds().length;
+  const total = tags.length;
+  const selected = total - excluded;
+  const summary = document.getElementById('copy-tags-filter-summary');
+  if (summary) summary.textContent = excluded === 0 ? 'Todas' : (selected === 0 ? 'Ninguna' : `${selected} de ${total}`);
+  const exportBtn = document.getElementById('copy-text-btn');
+  if (exportBtn) {
+    exportBtn.disabled = selected === 0;
+    exportBtn.title = selected === 0 ? 'Selecciona al menos una actividad en "Filtrar actividades"' : '';
+  }
+}
+
+function openExportTagsModal() {
+  const search = document.getElementById('export-tags-search-input');
+  if (search) search.value = '';
+  renderExportTagsList();
+  document.getElementById('export-tags-modal')?.classList.remove('hidden');
+}
+
+function closeExportTagsModal() {
+  document.getElementById('export-tags-modal')?.classList.add('hidden');
+  refreshCopyTagsFilterSummary();
+}
+
+// Lista estilo "Mis actividades": tarjetita del color de la actividad con una
+// casilla a la derecha. Clic en la tarjeta (o en la casilla) la activa/desactiva.
+function renderExportTagsList() {
+  const container = document.getElementById('export-tags-list');
+  if (!container) return;
+  container.innerHTML = '';
+  const searchEl = document.getElementById('export-tags-search-input');
+  const query = normalizeForKeyword(searchEl ? searchEl.value : '');
+  document.getElementById('export-tags-search-clear')?.classList.toggle('hidden', !query);
+  const excluded = new Set(getCopyExcludedTagIds());
+  const list = getOrderedTagsForDisplay().filter(tag => {
+    if (!query) return true;
+    if (normalizeForKeyword(tag.name).includes(query)) return true;
+    const kws = Array.isArray(tag.keywords) ? tag.keywords : [];
+    return kws.some(k => normalizeForKeyword(k).includes(query));
+  });
+  if (!list.length) {
+    container.innerHTML = '<div class="tags-search-empty">No hay actividades que coincidan.</div>';
+    return;
+  }
+  list.forEach(tag => {
+    const checked = !excluded.has(tag.id);
+    const item = document.createElement('label');
+    item.className = 'tag-item tag-item-card export-tag-item' + (checked ? '' : ' export-tag-off');
+    item.style.setProperty('--tag-card-bg', (tag.color && tag.color.bg) || '#c7c7cc');
+
+    const name = document.createElement('span');
+    name.className = 'tag-name-label';
+    name.textContent = tag.name;
+    if (tag.visible === false) {
+      // Las actividades ocultas en el calendario no aparecen al exportar.
+      name.textContent += ' (oculta)';
+      item.title = 'Actividad oculta en el calendario: sus tareas no se exportan';
+    }
+
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.className = 'export-tag-check';
+    box.dataset.tagId = tag.id;
+    box.checked = checked;
+    box.setAttribute('aria-label', `Exportar ${tag.name}`);
+    box.addEventListener('change', () => {
+      const ids = getCopyExcludedTagIds().filter(id => id !== tag.id);
+      if (!box.checked) ids.push(tag.id);
+      setCopyExcludedTagIds(ids);
+      item.classList.toggle('export-tag-off', !box.checked);
+    });
+
+    item.append(name, box);
+    container.appendChild(item);
+  });
 }
 
 function closeCopyTextModal() {
@@ -3267,7 +3390,15 @@ function getOrderedDayTasks(dateStr) {
 
 // Construye el texto plano según las opciones marcadas en el modal.
 function buildCopyText(dateStr, opts) {
-  const { pending, completed, all, isCompleted } = getOrderedDayTasks(dateStr);
+  let { pending, completed } = getOrderedDayTasks(dateStr);
+
+  // Filtro de actividades: quitar las tareas de las actividades excluidas.
+  const excluded = new Set(Array.isArray(opts.excludedTagIds) ? opts.excludedTagIds : []);
+  if (excluded.size) {
+    const tagIdOf = (task) => (tags.some(t => t.id === task.tagId) ? task.tagId : 'default');
+    pending = pending.filter(t => !excluded.has(tagIdOf(t)));
+    completed = completed.filter(t => !excluded.has(tagIdOf(t)));
+  }
 
   const lineFor = (task) => {
     let line = task.title || '';
@@ -3323,19 +3454,12 @@ function buildCopyText(dateStr, opts) {
 
 async function handleCopyTextConfirm() {
   if (!copyTextModalDate) return;
-  const opts = {
-    includeCompleted: document.getElementById('copy-opt-completed').checked,
-    includePending: document.getElementById('copy-opt-pending').checked,
-    separate: document.getElementById('copy-opt-separate').checked,
-    includeDate: document.getElementById('copy-opt-date').checked,
-    includeTime: document.getElementById('copy-opt-time').checked,
-    includeTag: document.getElementById('copy-opt-tag').checked,
-    includeDesc: document.getElementById('copy-opt-desc').checked,
-    includeNote: document.getElementById('copy-opt-note').checked,
-  };
+  const opts = { ...readCopyOptionsFromModal(), excludedTagIds: getCopyExcludedTagIds() };
 
-  // Recordar la configuración elegida para la próxima vez.
-  copyTextOptions = { ...opts };
+  // Recordar la configuración elegida para la próxima vez (se conserva el
+  // filtro de actividades y cualquier otra opción guardada).
+  copyTextOptions = { ...copyTextOptions, ...opts };
+  clearTimeout(copyOptionsSaveTimer);
   saveCopyOptionsToStorage();
 
   const text = buildCopyText(copyTextModalDate, opts);
@@ -3373,6 +3497,8 @@ async function saveCopyOptionsToStorage() {
     if (cachedPrefs) prefs = JSON.parse(cachedPrefs);
   } catch (e) {}
 
+  // Limpiar del filtro las actividades que ya no existen.
+  copyTextOptions = { ...copyTextOptions, excludedTagIds: getCopyExcludedTagIds() };
   prefs.copyOptions = copyTextOptions;
 
   try {

@@ -1505,11 +1505,45 @@
             <input type="checkbox" id="copy-opt-note">
             <span>Incluir nota del día</span>
           </label>
+          <!-- Abre el panel para elegir qué actividades se exportan. -->
+          <button type="button" id="copy-tags-filter-btn" class="copy-option copy-filter-btn">
+            <img src="icons/tag.svg" alt="" width="16" height="16" class="copy-filter-icon">
+            <span>Filtrar actividades</span>
+            <span id="copy-tags-filter-summary" class="copy-filter-summary">Todas</span>
+            <img src="icons/chevron-right.svg" alt="" width="14" height="14" class="copy-filter-chevron">
+          </button>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="copy-text-cancel-btn">Cancelar</button>
         <button type="button" class="btn btn-primary" id="copy-text-btn">Exportar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FILTRAR ACTIVIDADES AL EXPORTAR DÍA -->
+  <div id="export-tags-modal" class="modal-backdrop hidden">
+    <div class="modal-content tags-modal-w">
+      <div class="modal-header">
+        <h2>Actividades a exportar</h2>
+        <button class="close-modal-btn" data-modal="export-tags-modal">
+          <img src="icons/close.svg" alt="Cerrar" width="20" height="20">
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="tags-search-wrapper">
+          <img src="icons/search.svg" alt="" width="14" height="14" class="tags-search-icon">
+          <input type="text" id="export-tags-search-input" placeholder="Buscar actividad…" autocomplete="off" aria-label="Buscar actividad">
+          <button type="button" id="export-tags-search-clear" class="tags-search-clear hidden" title="Borrar búsqueda" aria-label="Borrar búsqueda">
+            <img src="icons/close.svg" alt="" width="12" height="12">
+          </button>
+        </div>
+        <div id="export-tags-list" class="tags-list-container export-tags-list"></div>
+        <div class="export-tags-footer">
+          <button type="button" id="export-tags-all-btn" class="btn btn-secondary btn-sm">Todas</button>
+          <button type="button" id="export-tags-none-btn" class="btn btn-secondary btn-sm">Ninguna</button>
+          <button type="button" id="export-tags-done-btn" class="btn btn-primary btn-sm">Listo</button>
+        </div>
       </div>
     </div>
   </div>

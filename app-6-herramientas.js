@@ -2287,6 +2287,36 @@ function setupEventListeners() {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', updateCopyOptionsState);
   });
+  // Cada opción del panel "Exportar día" se guarda en la cuenta al cambiarla.
+  ['copy-opt-completed', 'copy-opt-pending', 'copy-opt-date', 'copy-opt-time',
+   'copy-opt-tag', 'copy-opt-desc', 'copy-opt-note'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', onCopyOptionChanged);
+  });
+
+  // Filtro de actividades de "Exportar día".
+  document.getElementById('copy-tags-filter-btn')?.addEventListener('click', openExportTagsModal);
+  document.getElementById('export-tags-done-btn')?.addEventListener('click', closeExportTagsModal);
+  document.querySelector('#export-tags-modal .close-modal-btn')?.addEventListener('click', closeExportTagsModal);
+  // Todas / Ninguna: afectan a las actividades que se ven en la lista (con
+  // búsqueda activa, solo a las que coinciden).
+  const shownExportTagIds = () =>
+    [...document.querySelectorAll('#export-tags-list .export-tag-check')].map(b => b.dataset.tagId);
+  document.getElementById('export-tags-all-btn')?.addEventListener('click', () => {
+    const shown = new Set(shownExportTagIds());
+    setCopyExcludedTagIds(getCopyExcludedTagIds().filter(id => !shown.has(id)));
+    renderExportTagsList();
+  });
+  document.getElementById('export-tags-none-btn')?.addEventListener('click', () => {
+    setCopyExcludedTagIds([...getCopyExcludedTagIds(), ...shownExportTagIds()]);
+    renderExportTagsList();
+  });
+  const exportTagsSearch = document.getElementById('export-tags-search-input');
+  exportTagsSearch?.addEventListener('input', renderExportTagsList);
+  document.getElementById('export-tags-search-clear')?.addEventListener('click', () => {
+    if (exportTagsSearch) { exportTagsSearch.value = ''; exportTagsSearch.focus(); }
+    renderExportTagsList();
+  });
 
   // Eventos del modal de Notas
   document.getElementById('notes-save-btn').addEventListener('click', saveDailyNotes);
@@ -3221,6 +3251,7 @@ function closeOrGoBackInModal(modal) {
     'archive-lists-modal': () => closeArchiveListsModal(),
     'archive-delete-modal': () => closeArchiveDeleteModal(),
     'copy-text-modal': () => closeCopyTextModal(),
+    'export-tags-modal': () => closeExportTagsModal(),
     'general-stats-custom-range-modal': () => closeGeneralStatsCustomRangeModal(),
     'notes-modal': () => closeNotesModal(),
     'note-template-modal': () => closeNoteTemplateModal(),
