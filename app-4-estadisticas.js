@@ -3227,6 +3227,7 @@ function readCopyOptionsFromModal() {
     separate: on('copy-opt-separate'),
     includeDate: on('copy-opt-date'),
     includeTime: on('copy-opt-time'),
+    includeStartEnd: on('copy-opt-startend'),
     includeTag: on('copy-opt-tag'),
     includeDesc: on('copy-opt-desc'),
     includeNote: on('copy-opt-note'),
@@ -3402,16 +3403,23 @@ function buildCopyText(dateStr, opts) {
 
   const lineFor = (task) => {
     let line = task.title || '';
-    // Hora de la tarea (si la opción "fecha y hora" está activa y hay hora).
-    // Duración de la tarea en formato "2h30min" / "2h" / "45min".
+    // Prefijo de tiempo: hora de inicio y término ("09:00-10:30") y/o duración
+    // ("2h30min" / "2h" / "45min"). Con ambas: "09:00-10:30 (1h30min). Título".
+    let durStr = '';
     if (opts.includeTime) {
       const mins = getTaskDurationMinutes(task);
       if (mins) {
         const h = Math.floor(mins / 60), m = mins % 60;
-        const durStr = h && m ? `${h}h${m}min` : (h ? `${h}h` : `${m}min`);
-        line = `${durStr}. ${line}`;
+        durStr = h && m ? `${h}h${m}min` : (h ? `${h}h` : `${m}min`);
       }
     }
+    let rangeStr = '';
+    if (opts.includeStartEnd) {
+      const st = task.startTime || '', en = task.endTime || '';
+      rangeStr = st && en ? `${st}-${en}` : (st ? st : (en ? `hasta ${en}` : ''));
+    }
+    if (rangeStr && durStr) line = `${rangeStr} (${durStr}). ${line}`;
+    else if (rangeStr || durStr) line = `${rangeStr || durStr}. ${line}`;
     // Actividad entre paréntesis, igual que al exportar desde el Buscador.
     if (opts.includeTag) {
       const tag = tags.find(t => t.id === task.tagId) || tags.find(t => t.id === 'default');

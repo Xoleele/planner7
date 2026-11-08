@@ -2289,7 +2289,7 @@ function setupEventListeners() {
   });
   // Cada opción del panel "Exportar día" se guarda en la cuenta al cambiarla.
   ['copy-opt-completed', 'copy-opt-pending', 'copy-opt-date', 'copy-opt-time',
-   'copy-opt-tag', 'copy-opt-desc', 'copy-opt-note'].forEach(id => {
+   'copy-opt-startend', 'copy-opt-tag', 'copy-opt-desc', 'copy-opt-note'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('change', onCopyOptionChanged);
   });
