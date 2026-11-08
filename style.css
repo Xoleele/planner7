@@ -2360,18 +2360,8 @@ input:checked + .slider:before {
 }
 
 /* ─── Migrar palabras clave a otra actividad ──────────────────────────────── */
-.keywords-migrate-btn {
-  display: inline-block;
-  margin-top: 8px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--text-main);
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-}
+/* Va a la izquierda de Cancelar / Guardar. */
+.keywords-migrate-btn { margin-right: auto; }
 .keywords-migrate-btn.hidden { display: none; }
 
 .keyword-migrate-body { padding: 24px; }
@@ -2395,20 +2385,56 @@ input:checked + .slider:before {
   margin-bottom: 18px;
 }
 
-.keyword-migrate-chips { margin-bottom: 2px; }
+/* Más separación: el contorno de las seleccionadas sobresale del chip. */
+.keyword-migrate-chips { gap: 12px; padding: 5px; margin-bottom: 2px; }
 
 .keyword-chip.keyword-migrate-chip {
-  border: 1px solid #8e8e93;
-  padding: 6px 12px;
+  position: relative;
+  box-sizing: border-box;
+  height: 26px;           /* alto fijo: el radio del contorno depende de él */
+  border: 1.5px solid transparent;
+  padding: 0 12px;
   font-family: inherit;
   cursor: pointer;
+  overflow: visible;
   transition: background 0.12s, color 0.12s;
 }
 .keyword-chip.keyword-migrate-chip:hover { background: #7c7c80; }
+
+/* Seleccionada: contorno negro segmentado que gira. */
+.kw-ants {
+  position: absolute;
+  inset: -4px;
+  width: calc(100% + 8px);
+  height: calc(100% + 8px);
+  pointer-events: none;
+  overflow: visible;
+}
+.kw-ants rect {
+  x: 1px;
+  y: 1px;
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+  rx: 16px;               /* (26 + 8 - 2) / 2: mantiene la forma de píldora */
+  ry: 16px;
+  fill: none;
+  stroke: #111111;
+  stroke-width: 2px;
+  stroke-dasharray: 6px 4px;
+  animation: kw-ants-spin 0.6s linear infinite;
+}
+@keyframes kw-ants-spin {
+  to { stroke-dashoffset: -10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kw-ants rect { animation: none; }
+}
+
+/* No seleccionada: línea continua. */
 .keyword-chip.keyword-migrate-chip.deselected {
   background: transparent;
   color: var(--text-muted);
-  border-style: dashed;
+  border-color: #8e8e93;
 }
 .keyword-chip.keyword-migrate-chip.deselected span { text-decoration: line-through; }
 .keyword-chip.keyword-migrate-chip.deselected:hover { background: rgba(142, 142, 147, 0.12); }

@@ -469,8 +469,8 @@ function renderKeywordChips() {
   updateKeywordMigrateButton();
 }
 
-// El botón "Migrar palabras clave" solo aparece al EDITAR una actividad que
-// tenga palabras clave y cuando existe otra actividad a la que migrarlas.
+// El botón "Migrar palabras" solo aparece al EDITAR una actividad que tenga
+// palabras clave (y exista otra actividad a la que migrarlas).
 function updateKeywordMigrateButton() {
   const btn = document.getElementById('tag-keywords-migrate-btn');
   if (!btn) return;
@@ -530,6 +530,15 @@ function renderKeywordMigrateChips() {
     const label = document.createElement('span');
     label.textContent = item.kw;
     chip.appendChild(label);
+    if (item.selected) {
+      // Contorno segmentado que gira alrededor del chip (ver .kw-ants en CSS).
+      const NS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(NS, 'svg');
+      svg.setAttribute('class', 'kw-ants');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.appendChild(document.createElementNS(NS, 'rect'));
+      chip.appendChild(svg);
+    }
     chip.addEventListener('click', () => {
       item.selected = !item.selected;
       clearKeywordMigrateError();
