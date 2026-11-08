@@ -5018,33 +5018,38 @@ html:not(.mobile-mode) body:not(.dragging-active):not(.has-task-selection) #tras
 }
 .export-tag-item.export-tag-off { opacity: 0.45; }
 .export-tag-item .tag-name-label { flex: 1; }
+/* Casilla como la de las tarjetitas de tareas: 14px, contorno blanco; marcada,
+   cuadro blanco con el ticket del color de la actividad. */
 .export-tag-check {
   appearance: none;
   -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  margin: 0 0 0 10px;
+  width: 14px;
+  height: 14px;
+  margin: 0 2px 0 10px;
   flex-shrink: 0;
   border: 1.5px solid #ffffff;
-  border-radius: 5px;
+  border-radius: 3px;
   background-color: transparent;
   cursor: pointer;
   position: relative;
-  transition: background-color var(--transition-fast);
+  opacity: 0.8;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
 }
-.export-tag-check:checked { background-color: #ffffff; }
+.export-tag-item:hover .export-tag-check { opacity: 1; }
+.export-tag-check:hover { transform: scale(1.1); }
+.export-tag-check:checked { background-color: #ffffff; opacity: 0.95; }
 .export-tag-check:checked::after {
   content: "";
   position: absolute;
-  left: 5px;
-  top: 1px;
-  width: 5px;
-  height: 10px;
-  border: solid #111111;
+  left: 3.5px;
+  top: 0.5px;
+  width: 3.5px;
+  height: 7px;
+  border: solid var(--tag-card-bg, #111111);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
-.export-tag-check:focus-visible { outline: 2px solid #111111; outline-offset: 2px; }
+.export-tag-check:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
 .export-tags-footer {
   display: flex;
   gap: 8px;
