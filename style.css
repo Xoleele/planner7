@@ -4551,7 +4551,7 @@ html:not(.mobile-mode) body:not(.dragging-active):not(.has-task-selection) #tras
 #notes-unsaved-modal.above-habits { z-index: 2610; }
 
 /* Botón "Deshacer" del header (móvil y escritorio): aparece tras cada cambio y se
-   desvanece suavemente a los 2,5 s (ver showMobileUndoButton). */
+   desvanece suavemente a los 30 s (ver showMobileUndoButton). */
 #mobile-undo-btn { display: none; }
 #mobile-undo-btn.is-visible {
   display: flex;
@@ -4562,6 +4562,13 @@ html:not(.mobile-mode) body:not(.dragging-active):not(.has-task-selection) #tras
 #mobile-undo-btn.is-hiding {
   opacity: 0;
   pointer-events: none;
+}
+/* Móvil: "Deshacer" y la papelera nunca se muestran a la vez (ocupan mucho
+   espacio en el header). Al arrastrar una tarea o con selección múltiple
+   predomina la papelera; al terminar, "Deshacer" vuelve si su tiempo no expiró. */
+.mobile-mode body.dragging-active #mobile-undo-btn,
+.mobile-mode body.has-task-selection #mobile-undo-btn {
+  display: none !important;
 }
 @keyframes mobileUndoFadeIn {
   from { opacity: 0; }

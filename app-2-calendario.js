@@ -1790,8 +1790,9 @@ function pushUndoEntry(entry) {
 }
 
 // ── Botón "Deshacer" del header (móvil y escritorio) ────────────────────────
-// Aparece tras cada cambio (cada entrada de deshacer) y se desvanece a los 4 s.
-const MOBILE_UNDO_VISIBLE_MS = 4000;
+// Aparece tras cada cambio (cada entrada de deshacer) y se desvanece a los 30 s.
+// En móvil se oculta mientras se arrastra una tarea (ahí predomina la papelera).
+const MOBILE_UNDO_VISIBLE_MS = 30000;
 const MOBILE_UNDO_FADE_MS = 400; // debe coincidir con la transición del CSS
 let mobileUndoHideTimer = null;
 let mobileUndoRemoveTimer = null;
@@ -1821,7 +1822,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btn.addEventListener('click', async () => {
     const success = await undo();
     if (success) showHistoryNotification('Cambio revertido con éxito', 'undo');
-    // Si quedan cambios por deshacer, el botón sigue disponible otros 4 s.
+    // Si quedan cambios por deshacer, el botón sigue disponible otros 30 s.
     if (undoStack.length > 0) showMobileUndoButton();
     else hideMobileUndoButton();
   });
